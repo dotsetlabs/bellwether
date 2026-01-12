@@ -80,6 +80,7 @@ export class StdioTransport extends EventEmitter {
   }
 
   private processBuffer(): void {
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       if (this.contentLength === null) {
         // First, try to find Content-Length header

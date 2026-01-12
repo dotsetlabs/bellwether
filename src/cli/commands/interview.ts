@@ -282,12 +282,12 @@ export const interviewCommand = new Command('interview')
 
       // Show cost summary if requested
       if (options.showCost || options.estimateCost) {
-        // Estimate tokens based on questions asked
+        // Estimate tokens based on tool calls made
         const avgInputTokens = 500;
         const avgOutputTokens = 300;
         costTracker.addUsage(
-          result.metadata.questionsAsked * avgInputTokens,
-          result.metadata.questionsAsked * avgOutputTokens
+          result.metadata.toolCallCount * avgInputTokens,
+          result.metadata.toolCallCount * avgOutputTokens
         );
         console.log('\n' + costTracker.formatSummary());
       }

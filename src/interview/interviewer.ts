@@ -504,7 +504,7 @@ export class Interviewer {
    */
   private learnFromError(error: string, orchestrator: Orchestrator): void {
     // Extract allowed directories from error messages
-    const pathMatch = error.match(/access denied|not allowed|outside.*(?:allowed|permitted).*?([\/\\][^\s"']+)/i);
+    const pathMatch = error.match(/access denied|not allowed|outside.*(?:allowed|permitted).*?([/\\][^\s"']+)/i);
     if (pathMatch) {
       // Error mentions a path restriction
       const constraint = `Path access restricted: ${error.substring(0, 100)}`;

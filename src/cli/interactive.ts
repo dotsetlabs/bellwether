@@ -42,6 +42,7 @@ async function selectOption(
     console.log(`  ${i + 1}) ${opt}`);
   });
 
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     const input = await ask(rl, `Enter choice (1-${options.length}): `);
     const num = parseInt(input, 10);

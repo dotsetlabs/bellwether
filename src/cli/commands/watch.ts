@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { watch as fsWatch, existsSync, readFileSync } from 'fs';
+import { existsSync, readdirSync, statSync } from 'fs';
 import { join, resolve } from 'path';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
@@ -60,7 +60,7 @@ export const watchCommand = new Command('watch')
     let lastBaselineHash: string | null = null;
     if (existsSync(baselinePath)) {
       const baseline = loadBaseline(baselinePath);
-      lastBaselineHash = baseline.hash;
+      lastBaselineHash = baseline.integrityHash;
       console.log(`Loaded existing baseline: ${lastBaselineHash.slice(0, 8)}`);
     }
 
@@ -129,8 +129,8 @@ export const watchCommand = new Command('watch')
 
         // Save new baseline
         saveBaseline(newBaseline, baselinePath);
-        lastBaselineHash = newBaseline.hash;
-        console.log(`Baseline updated: ${newBaseline.hash.slice(0, 8)}`);
+        lastBaselineHash = newBaseline.integrityHash;
+        console.log(`Baseline updated: ${newBaseline.integrityHash.slice(0, 8)}`);
 
       } catch (error) {
         console.error('Interview failed:', error instanceof Error ? error.message : error);
@@ -146,7 +146,6 @@ export const watchCommand = new Command('watch')
 
       function walkDir(dir: string): void {
         try {
-          const { readdirSync, statSync } = require('fs');
           const entries = readdirSync(dir, { withFileTypes: true });
 
           for (const entry of entries) {
