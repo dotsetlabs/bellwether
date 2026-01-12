@@ -1,0 +1,111 @@
+# GitHub Actions Workflow for Inquest
+# Save as .github/workflows/inquest.yaml
+
+name: MCP Server Behavioral Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Run weekly to detect drift
+  schedule:
+    - cron: '0 0 * * 0'
+
+jobs:
+  inquest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Inquest
+        run: npm install -g inquest
+
+      - name: Run Inquest Interview
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Or use Anthropic:
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          inquest interview \
+            --ci \
+            --baseline-file ./baseline.json \
+            --fail-on-drift \
+            --fail-on-security \
+            --output sarif \
+            -o ./inquest-results \
+            npx your-mcp-server
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: ./inquest-results/inquest.sarif
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: inquest-report
+          path: |
+            ./inquest-results/AGENTS.md
+            ./inquest-results/inquest-report.json
+            ./inquest-results/inquest.sarif
+
+      - name: Update baseline (main only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          inquest interview \
+            --save-baseline ./baseline.json \
+            npx your-mcp-server
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add baseline.json
+          git diff --staged --quiet || git commit -m "chore: update inquest baseline"
+          git push
+
+  # Separate job for security-focused testing
+  security-audit:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Inquest
+        run: npm install -g inquest
+
+      - name: Security-focused Interview
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          inquest interview \
+            --ci \
+            --persona security_tester \
+            --fail-on-security \
+            --output sarif \
+            -o ./security-results \
+            npx your-mcp-server
+
+      - name: Upload security SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: ./security-results/inquest.sarif
+          category: inquest-security

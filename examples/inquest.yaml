@@ -1,0 +1,41 @@
+# Inquest Configuration Example
+# Place this file in your project root as inquest.yaml or .inquest.yaml
+version: 1
+
+# LLM Provider Configuration
+# Supported providers: openai, anthropic, ollama
+llm:
+  provider: openai
+  model: gpt-4o
+  # apiKeyEnvVar: OPENAI_API_KEY  # default for OpenAI
+
+  # Anthropic Claude example:
+  # provider: anthropic
+  # model: claude-sonnet-4-20250514
+  # apiKeyEnvVar: ANTHROPIC_API_KEY
+
+  # Ollama (local) example:
+  # provider: ollama
+  # model: llama3.2
+  # baseUrl: http://localhost:11434
+
+# Interview settings
+interview:
+  # Number of questions to ask per tool
+  maxQuestionsPerTool: 3
+  # Timeout for tool calls in milliseconds
+  timeout: 30000
+  # Skip error handling tests (faster but less thorough)
+  skipErrorTests: false
+  # Personas to use (multiple for comprehensive coverage)
+  # Built-in: technical_writer, security_tester, qa_engineer, novice_user
+  personas:
+    - technical_writer
+    - security_tester
+
+# Output configuration
+output:
+  # Format: agents.md, json, or both
+  format: both
+  # Output directory (relative to current working directory)
+  outputDir: ./docs

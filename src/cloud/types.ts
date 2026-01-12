@@ -1,0 +1,366 @@
+/**
+ * Cloud integration types for Inquest SaaS platform.
+ *
+ * This module defines types for:
+ * - Cloud API communication
+ * - InquestBaseline v1.0 format (cloud-ready)
+ * - Project and baseline management
+ * - Authentication
+ */
+
+import type { BehavioralAssertion, WorkflowSignature } from '../baseline/types.js';
+
+// ============================================================================
+// Baseline Format v1.0
+// ============================================================================
+
+/**
+ * Baseline format version for cloud compatibility.
+ */
+export const BASELINE_FORMAT_VERSION = '1.0' as const;
+
+/**
+ * Metadata about how the baseline was generated.
+ */
+export interface BaselineMetadata {
+  /** Format version for compatibility */
+  formatVersion: typeof BASELINE_FORMAT_VERSION;
+  /** ISO timestamp when generated */
+  generatedAt: string;
+  /** CLI version that generated this */
+  cliVersion: string;
+  /** Command used to start the server */
+  serverCommand: string;
+  /** Server name from MCP initialization */
+  serverName?: string;
+  /** Interview duration in milliseconds */
+  durationMs: number;
+  /** Personas used during interview */
+  personas: string[];
+  /** LLM model used */
+  model: string;
+}
+
+/**
+ * Server fingerprint in cloud baseline format.
+ */
+export interface CloudServerFingerprint {
+  /** Server name */
+  name: string;
+  /** Server version */
+  version: string;
+  /** MCP protocol version */
+  protocolVersion: string;
+  /** Available capabilities */
+  capabilities: string[];
+}
+
+/**
+ * Tool capability from discovery.
+ */
+export interface ToolCapability {
+  /** Tool name */
+  name: string;
+  /** Tool description */
+  description: string;
+  /** Input schema */
+  inputSchema: Record<string, unknown>;
+  /** Hash of the schema for change detection */
+  schemaHash: string;
+}
+
+/**
+ * Resource capability from discovery.
+ */
+export interface ResourceCapability {
+  /** Resource URI template */
+  uri: string;
+  /** Resource name */
+  name: string;
+  /** Resource description */
+  description?: string;
+  /** MIME type */
+  mimeType?: string;
+}
+
+/**
+ * Prompt capability from discovery.
+ */
+export interface PromptCapability {
+  /** Prompt name */
+  name: string;
+  /** Prompt description */
+  description?: string;
+  /** Arguments the prompt accepts */
+  arguments?: Array<{
+    name: string;
+    description?: string;
+    required?: boolean;
+  }>;
+}
+
+/**
+ * Interview results for a single persona.
+ */
+export interface PersonaInterview {
+  /** Persona ID */
+  persona: string;
+  /** Number of tools interviewed */
+  toolsInterviewed: number;
+  /** Number of questions asked */
+  questionsAsked: number;
+  /** Findings from this persona */
+  findings: PersonaFinding[];
+}
+
+/**
+ * A finding from a persona interview.
+ */
+export interface PersonaFinding {
+  /** Tool this finding relates to */
+  tool: string;
+  /** Finding category */
+  category: 'behavior' | 'security' | 'reliability' | 'edge_case';
+  /** Severity level */
+  severity: 'info' | 'low' | 'medium' | 'high' | 'critical';
+  /** Description of the finding */
+  description: string;
+  /** Evidence supporting the finding */
+  evidence?: string;
+}
+
+/**
+ * Tool behavioral profile in cloud format.
+ */
+export interface CloudToolProfile {
+  /** Tool name */
+  name: string;
+  /** Tool description */
+  description: string;
+  /** Hash of input schema */
+  schemaHash: string;
+  /** Behavioral assertions */
+  assertions: BehavioralAssertion[];
+  /** Security notes */
+  securityNotes: string[];
+  /** Known limitations */
+  limitations: string[];
+  /** Behavioral notes */
+  behavioralNotes: string[];
+}
+
+/**
+ * Cloud-ready baseline format v1.0.
+ *
+ * This is the format used for uploading to Inquest Cloud.
+ * It's a superset of the local BehavioralBaseline with additional metadata.
+ */
+export interface InquestBaseline {
+  /** Format version - always '1.0' */
+  version: typeof BASELINE_FORMAT_VERSION;
+
+  /** Generation metadata */
+  metadata: BaselineMetadata;
+
+  /** Server fingerprint */
+  server: CloudServerFingerprint;
+
+  /** Discovered capabilities */
+  capabilities: {
+    tools: ToolCapability[];
+    resources?: ResourceCapability[];
+    prompts?: PromptCapability[];
+  };
+
+  /** Interview results by persona */
+  interviews: PersonaInterview[];
+
+  /** Tool behavioral profiles */
+  toolProfiles: CloudToolProfile[];
+
+  /** Workflow results (if workflows were tested) */
+  workflows?: WorkflowSignature[];
+
+  /** Overall behavioral assertions */
+  assertions: BehavioralAssertion[];
+
+  /** Summary of findings */
+  summary: string;
+
+  /** SHA-256 hash of content (first 16 chars) for integrity */
+  hash: string;
+}
+
+// ============================================================================
+// Cloud API Types
+// ============================================================================
+
+/**
+ * Configuration for the cloud client.
+ */
+export interface CloudConfig {
+  /** API base URL */
+  baseUrl: string;
+  /** API token */
+  token?: string;
+  /** Request timeout in ms */
+  timeout?: number;
+}
+
+/**
+ * A project in Inquest Cloud.
+ */
+export interface Project {
+  /** Unique project ID */
+  id: string;
+  /** Project name */
+  name: string;
+  /** Server command used to start the MCP server */
+  serverCommand: string;
+  /** ISO timestamp when created */
+  createdAt: string;
+  /** Whether baselines are publicly viewable */
+  isPublic: boolean;
+  /** Number of baselines uploaded */
+  baselineCount: number;
+  /** ISO timestamp of last upload */
+  lastUploadAt?: string;
+}
+
+/**
+ * A baseline version stored in Inquest Cloud.
+ */
+export interface BaselineVersion {
+  /** Unique baseline ID */
+  id: string;
+  /** Project this baseline belongs to */
+  projectId: string;
+  /** Version number (auto-incrementing per project) */
+  version: number;
+  /** ISO timestamp when uploaded */
+  uploadedAt: string;
+  /** CLI version that generated this baseline */
+  cliVersion: string;
+  /** Hash of the baseline content */
+  hash: string;
+  /** Additional metadata */
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * Result of uploading a baseline.
+ */
+export interface UploadResult {
+  /** ID of the uploaded baseline */
+  baselineId: string;
+  /** Version number assigned */
+  version: number;
+  /** Project ID */
+  projectId: string;
+  /** URL to view the diff (if not first upload) */
+  diffUrl?: string;
+  /** URL to view the baseline */
+  viewUrl: string;
+}
+
+/**
+ * Summary of differences between two baselines.
+ */
+export interface DiffSummary {
+  /** Overall severity of changes */
+  severity: 'none' | 'info' | 'warning' | 'breaking';
+  /** Number of tools added */
+  toolsAdded: number;
+  /** Number of tools removed */
+  toolsRemoved: number;
+  /** Number of tools with modifications */
+  toolsModified: number;
+  /** Number of behavior changes detected */
+  behaviorChanges: number;
+}
+
+/**
+ * User information from the cloud.
+ */
+export interface CloudUser {
+  /** User email */
+  email: string;
+  /** Subscription plan */
+  plan: 'free' | 'pro' | 'team';
+}
+
+/**
+ * Link configuration stored in .inquest/link.json
+ */
+export interface ProjectLink {
+  /** Linked project ID */
+  projectId: string;
+  /** Project name (for display) */
+  projectName: string;
+  /** ISO timestamp when linked */
+  linkedAt: string;
+}
+
+/**
+ * Authentication configuration stored in ~/.inquest/auth.json
+ */
+export interface AuthConfig {
+  /** API token */
+  token?: string;
+  /** API base URL override */
+  baseUrl?: string;
+}
+
+// ============================================================================
+// Cloud Client Interface
+// ============================================================================
+
+/**
+ * Interface for Inquest Cloud client implementations.
+ *
+ * This interface is implemented by:
+ * - MockCloudClient (local development/testing)
+ * - HttpCloudClient (production, Phase 2)
+ */
+export interface InquestCloudClient {
+  /** Check if client is authenticated */
+  isAuthenticated(): boolean;
+
+  /** Get current user info */
+  whoami(): Promise<CloudUser | null>;
+
+  /** List user's projects */
+  listProjects(): Promise<Project[]>;
+
+  /** Create a new project */
+  createProject(name: string, serverCommand: string): Promise<Project>;
+
+  /** Get project by ID */
+  getProject(projectId: string): Promise<Project | null>;
+
+  /** Delete a project */
+  deleteProject(projectId: string): Promise<void>;
+
+  /** Upload a baseline to a project */
+  uploadBaseline(
+    projectId: string,
+    baseline: InquestBaseline,
+    options?: { public?: boolean }
+  ): Promise<UploadResult>;
+
+  /** Get baseline history for a project */
+  getHistory(projectId: string, limit?: number): Promise<BaselineVersion[]>;
+
+  /** Get a specific baseline by ID */
+  getBaseline(baselineId: string): Promise<InquestBaseline | null>;
+
+  /** Get diff between two versions */
+  getDiff(
+    projectId: string,
+    fromVersion: number,
+    toVersion: number
+  ): Promise<DiffSummary>;
+
+  /** Get latest diff (current vs previous) */
+  getLatestDiff(projectId: string): Promise<DiffSummary | null>;
+}

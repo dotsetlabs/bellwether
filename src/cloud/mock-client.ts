@@ -1,0 +1,486 @@
+/**
+ * Mock cloud client for local development and testing.
+ *
+ * Stores data locally in ~/.inquest/mock-cloud/ as JSON files.
+ * This allows developers to use cloud features without a backend.
+ */
+
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
+import type {
+  InquestCloudClient,
+  CloudUser,
+  Project,
+  BaselineVersion,
+  UploadResult,
+  DiffSummary,
+  InquestBaseline,
+} from './types.js';
+import { isMockToken, MOCK_TOKEN_PREFIX } from './auth.js';
+
+/**
+ * Directory for mock cloud storage.
+ */
+const MOCK_DATA_DIR = join(homedir(), '.inquest', 'mock-cloud');
+
+/**
+ * File for storing projects.
+ */
+const PROJECTS_FILE = 'projects.json';
+
+/**
+ * Generate a unique ID.
+ */
+function generateId(prefix: string): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 8);
+  return `${prefix}_${timestamp}${random}`;
+}
+
+/**
+ * Mock cloud client implementation.
+ *
+ * Stores all data locally for development and testing.
+ */
+export class MockCloudClient implements InquestCloudClient {
+  private dataDir: string;
+  private token: string | null;
+
+  constructor(token?: string) {
+    this.dataDir = MOCK_DATA_DIR;
+    this.token = token ?? null;
+    this.ensureDataDir();
+  }
+
+  /**
+   * Ensure the mock data directory exists.
+   */
+  private ensureDataDir(): void {
+    if (!existsSync(this.dataDir)) {
+      mkdirSync(this.dataDir, { recursive: true });
+    }
+  }
+
+  /**
+   * Get path to projects file.
+   */
+  private get projectsFile(): string {
+    return join(this.dataDir, PROJECTS_FILE);
+  }
+
+  /**
+   * Get path to baselines file for a project.
+   */
+  private getBaselinesFile(projectId: string): string {
+    return join(this.dataDir, `${projectId}-baselines.json`);
+  }
+
+  /**
+   * Get path to a specific baseline data file.
+   */
+  private getBaselineDataFile(baselineId: string): string {
+    return join(this.dataDir, `${baselineId}.json`);
+  }
+
+  /**
+   * Load projects from storage.
+   */
+  private loadProjects(): Project[] {
+    if (!existsSync(this.projectsFile)) {
+      return [];
+    }
+
+    try {
+      const content = readFileSync(this.projectsFile, 'utf-8');
+      return JSON.parse(content) as Project[];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Save projects to storage.
+   */
+  private saveProjects(projects: Project[]): void {
+    writeFileSync(this.projectsFile, JSON.stringify(projects, null, 2));
+  }
+
+  /**
+   * Load baselines for a project.
+   */
+  private loadBaselines(projectId: string): BaselineVersion[] {
+    const file = this.getBaselinesFile(projectId);
+
+    if (!existsSync(file)) {
+      return [];
+    }
+
+    try {
+      const content = readFileSync(file, 'utf-8');
+      return JSON.parse(content) as BaselineVersion[];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Save baselines for a project.
+   */
+  private saveBaselines(projectId: string, baselines: BaselineVersion[]): void {
+    const file = this.getBaselinesFile(projectId);
+    writeFileSync(file, JSON.stringify(baselines, null, 2));
+  }
+
+  // ============================================================================
+  // InquestCloudClient Implementation
+  // ============================================================================
+
+  isAuthenticated(): boolean {
+    if (!this.token) {
+      return false;
+    }
+
+    // For mock client, accept any mock token
+    return isMockToken(this.token);
+  }
+
+  async whoami(): Promise<CloudUser | null> {
+    if (!this.isAuthenticated()) {
+      return null;
+    }
+
+    // Extract "user" from mock token for display
+    // Token format: iqt_mock_<user>_<random>
+    const token = this.token ?? '';
+    const parts = token.split('_');
+    const user = parts.length >= 3 ? parts[2] : 'developer';
+
+    return {
+      email: `${user}@localhost`,
+      plan: 'free',
+    };
+  }
+
+  async listProjects(): Promise<Project[]> {
+    if (!this.isAuthenticated()) {
+      throw new Error('Not authenticated');
+    }
+
+    return this.loadProjects();
+  }
+
+  async createProject(name: string, serverCommand: string): Promise<Project> {
+    if (!this.isAuthenticated()) {
+      throw new Error('Not authenticated');
+    }
+
+    const projects = this.loadProjects();
+
+    const project: Project = {
+      id: generateId('proj'),
+      name,
+      serverCommand,
+      createdAt: new Date().toISOString(),
+      isPublic: false,
+      baselineCount: 0,
+    };
+
+    projects.push(project);
+    this.saveProjects(projects);
+
+    return project;
+  }
+
+  async getProject(projectId: string): Promise<Project | null> {
+    if (!this.isAuthenticated()) {
+      throw new Error('Not authenticated');
+    }
+
+    const projects = this.loadProjects();
+    return projects.find((p) => p.id === projectId) ?? null;
+  }
+
+  async deleteProject(projectId: string): Promise<void> {
+    if (!this.isAuthenticated()) {
+      throw new Error('Not authenticated');
+    }
+
+    const projects = this.loadProjects();
+    const index = projects.findIndex((p) => p.id === projectId);
+
+    if (index === -1) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+
+    // Remove project
+    projects.splice(index, 1);
+    this.saveProjects(projects);
+
+    // Clean up baselines
+    const baselinesFile = this.getBaselinesFile(projectId);
+    if (existsSync(baselinesFile)) {
+      // Delete baseline data files first
+      const baselines = this.loadBaselines(projectId);
+      for (const baseline of baselines) {
+        const dataFile = this.getBaselineDataFile(baseline.id);
+        if (existsSync(dataFile)) {
+          unlinkSync(dataFile);
+        }
+      }
+      unlinkSync(baselinesFile);
+    }
+  }
+
+  async uploadBaseline(
+    projectId: string,
+    baseline: InquestBaseline,
+    options?: { public?: boolean }
+  ): Promise<UploadResult> {
+    if (!this.isAuthenticated()) {
+      throw new Error('Not authenticated');
+    }
+
+    // Verify project exists
+    const projects = this.loadProjects();
+    const projectIndex = projects.findIndex((p) => p.id === projectId);
+
+    if (projectIndex === -1) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+
+    // Load existing baselines
+    const baselines = this.loadBaselines(projectId);
+    const version = baselines.length + 1;
+    const baselineId = generateId('bl');
+
+    // Create baseline version record
+    const baselineVersion: BaselineVersion = {
+      id: baselineId,
+      projectId,
+      version,
+      uploadedAt: new Date().toISOString(),
+      cliVersion: baseline.metadata.cliVersion,
+      hash: baseline.hash,
+      metadata: baseline.metadata as unknown as Record<string, unknown>,
+    };
+
+    // Save baseline version record
+    baselines.push(baselineVersion);
+    this.saveBaselines(projectId, baselines);
+
+    // Save full baseline data
+    const dataFile = this.getBaselineDataFile(baselineId);
+    writeFileSync(dataFile, JSON.stringify(baseline, null, 2));
+
+    // Update project
+    const project = projects[projectIndex];
+    project.baselineCount = version;
+    project.lastUploadAt = new Date().toISOString();
+    if (options?.public !== undefined) {
+      project.isPublic = options.public;
+    }
+    this.saveProjects(projects);
+
+    // Build result
+    const viewUrl = `file://${dataFile}`;
+    const diffUrl = version > 1 ? `mock://diff/${projectId}/${version - 1}/${version}` : undefined;
+
+    return {
+      baselineId,
+      version,
+      projectId,
+      viewUrl,
+      diffUrl,
+    };
+  }
+
+  async getHistory(projectId: string, limit: number = 10): Promise<BaselineVersion[]> {
+    if (!this.isAuthenticated()) {
+      throw new Error('Not authenticated');
+    }
+
+    // Verify project exists
+    const project = await this.getProject(projectId);
+    if (!project) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+
+    const baselines = this.loadBaselines(projectId);
+
+    // Return most recent first, limited
+    return baselines.slice(-limit).reverse();
+  }
+
+  async getBaseline(baselineId: string): Promise<InquestBaseline | null> {
+    if (!this.isAuthenticated()) {
+      throw new Error('Not authenticated');
+    }
+
+    const dataFile = this.getBaselineDataFile(baselineId);
+
+    if (!existsSync(dataFile)) {
+      return null;
+    }
+
+    try {
+      const content = readFileSync(dataFile, 'utf-8');
+      return JSON.parse(content) as InquestBaseline;
+    } catch {
+      return null;
+    }
+  }
+
+  async getDiff(
+    projectId: string,
+    fromVersion: number,
+    toVersion: number
+  ): Promise<DiffSummary> {
+    if (!this.isAuthenticated()) {
+      throw new Error('Not authenticated');
+    }
+
+    // Load baselines
+    const baselines = this.loadBaselines(projectId);
+
+    const fromBaseline = baselines.find((b) => b.version === fromVersion);
+    const toBaseline = baselines.find((b) => b.version === toVersion);
+
+    if (!fromBaseline || !toBaseline) {
+      throw new Error(`Baseline version not found: ${fromVersion} or ${toVersion}`);
+    }
+
+    // Load full baseline data
+    const fromData = await this.getBaseline(fromBaseline.id);
+    const toData = await this.getBaseline(toBaseline.id);
+
+    if (!fromData || !toData) {
+      throw new Error('Failed to load baseline data');
+    }
+
+    // Compute diff
+    return this.computeDiff(fromData, toData);
+  }
+
+  async getLatestDiff(projectId: string): Promise<DiffSummary | null> {
+    if (!this.isAuthenticated()) {
+      throw new Error('Not authenticated');
+    }
+
+    const baselines = this.loadBaselines(projectId);
+
+    if (baselines.length < 2) {
+      return null;
+    }
+
+    // Get last two versions
+    const toVersion = baselines[baselines.length - 1].version;
+    const fromVersion = baselines[baselines.length - 2].version;
+
+    return this.getDiff(projectId, fromVersion, toVersion);
+  }
+
+  // ============================================================================
+  // Diff Computation
+  // ============================================================================
+
+  /**
+   * Compute diff between two baselines.
+   */
+  private computeDiff(from: InquestBaseline, to: InquestBaseline): DiffSummary {
+    // Quick check - if hashes match, no changes
+    if (from.hash === to.hash) {
+      return {
+        severity: 'none',
+        toolsAdded: 0,
+        toolsRemoved: 0,
+        toolsModified: 0,
+        behaviorChanges: 0,
+      };
+    }
+
+    // Get tool names
+    const fromTools = new Set(from.capabilities.tools.map((t) => t.name));
+    const toTools = new Set(to.capabilities.tools.map((t) => t.name));
+
+    // Count additions and removals
+    const toolsAdded = [...toTools].filter((t) => !fromTools.has(t)).length;
+    const toolsRemoved = [...fromTools].filter((t) => !toTools.has(t)).length;
+
+    // Count modifications (tools in both with different schema hash)
+    let toolsModified = 0;
+    const fromToolMap = new Map(from.capabilities.tools.map((t) => [t.name, t]));
+    const toToolMap = new Map(to.capabilities.tools.map((t) => [t.name, t]));
+
+    for (const [name, fromTool] of fromToolMap) {
+      const toTool = toToolMap.get(name);
+      if (toTool && fromTool.schemaHash !== toTool.schemaHash) {
+        toolsModified++;
+      }
+    }
+
+    // Count behavior changes from assertions
+    const fromAssertions = new Set(from.assertions.map((a) => `${a.tool}:${a.assertion}`));
+    const toAssertions = new Set(to.assertions.map((a) => `${a.tool}:${a.assertion}`));
+
+    let behaviorChanges = 0;
+    for (const a of toAssertions) {
+      if (!fromAssertions.has(a)) {
+        behaviorChanges++;
+      }
+    }
+    for (const a of fromAssertions) {
+      if (!toAssertions.has(a)) {
+        behaviorChanges++;
+      }
+    }
+
+    // Determine severity
+    let severity: DiffSummary['severity'] = 'none';
+
+    if (toolsRemoved > 0) {
+      severity = 'breaking';
+    } else if (toolsModified > 0 || behaviorChanges > 5) {
+      severity = 'warning';
+    } else if (toolsAdded > 0 || behaviorChanges > 0) {
+      severity = 'info';
+    }
+
+    return {
+      severity,
+      toolsAdded,
+      toolsRemoved,
+      toolsModified,
+      behaviorChanges,
+    };
+  }
+}
+
+/**
+ * Generate a mock token for development.
+ */
+export function generateMockToken(username: string = 'dev'): string {
+  const random = Math.random().toString(36).substring(2, 10);
+  return `${MOCK_TOKEN_PREFIX}${username}_${random}`;
+}
+
+/**
+ * Get the mock data directory path.
+ */
+export function getMockDataDir(): string {
+  return MOCK_DATA_DIR;
+}
+
+/**
+ * Clear all mock data (for testing).
+ */
+export function clearMockData(): void {
+  if (!existsSync(MOCK_DATA_DIR)) {
+    return;
+  }
+
+  const files = readdirSync(MOCK_DATA_DIR);
+  for (const file of files) {
+    unlinkSync(join(MOCK_DATA_DIR, file));
+  }
+}

@@ -1,0 +1,125 @@
+# GitLab CI Configuration for Inquest
+# Save as .gitlab-ci.yml in your repository root
+
+stages:
+  - test
+  - security
+  - report
+
+variables:
+  NODE_VERSION: "20"
+
+# Base job template
+.inquest-base:
+  image: node:${NODE_VERSION}
+  before_script:
+    - npm ci
+    - npm install -g inquest
+
+# Main behavioral testing job
+inquest-interview:
+  extends: .inquest-base
+  stage: test
+  script:
+    - |
+      inquest interview \
+        --ci \
+        --baseline-file ./baseline.json \
+        --fail-on-drift \
+        -o ./inquest-results \
+        npx your-mcp-server
+  artifacts:
+    when: always
+    paths:
+      - inquest-results/
+    reports:
+      junit: inquest-results/junit.xml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Security-focused testing
+security-audit:
+  extends: .inquest-base
+  stage: security
+  script:
+    - |
+      inquest interview \
+        --ci \
+        --persona security_tester \
+        --fail-on-security \
+        --output sarif \
+        -o ./security-results \
+        npx your-mcp-server
+  artifacts:
+    when: always
+    paths:
+      - security-results/
+    reports:
+      # GitLab SAST integration
+      sast: security-results/inquest.sarif
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: false
+
+# Update baseline on main branch
+update-baseline:
+  extends: .inquest-base
+  stage: report
+  script:
+    - |
+      inquest interview \
+        --save-baseline ./baseline.json \
+        npx your-mcp-server
+    - |
+      git config user.name "GitLab CI"
+      git config user.email "ci@gitlab.com"
+      git add baseline.json
+      git diff --staged --quiet || git commit -m "chore: update inquest baseline [skip ci]"
+      git push "https://oauth2:${CI_PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:${CI_COMMIT_REF_NAME}
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: on_success
+  needs:
+    - inquest-interview
+
+# Generate HTML report
+generate-report:
+  extends: .inquest-base
+  stage: report
+  script:
+    - |
+      inquest interview \
+        --output html \
+        -o ./report \
+        npx your-mcp-server
+  artifacts:
+    when: always
+    paths:
+      - report/
+    expire_in: 30 days
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  environment:
+    name: inquest-report
+    url: $CI_PAGES_URL
+
+# Scheduled weekly drift detection
+scheduled-audit:
+  extends: .inquest-base
+  stage: test
+  script:
+    - |
+      inquest interview \
+        --ci \
+        --baseline-file ./baseline.json \
+        --fail-on-drift \
+        --persona technical_writer,security_tester,qa_engineer \
+        -o ./audit-results \
+        npx your-mcp-server
+  artifacts:
+    when: always
+    paths:
+      - audit-results/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"

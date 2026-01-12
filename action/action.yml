@@ -1,0 +1,181 @@
+name: 'Inquest Agent Profiler'
+description: 'Behavioral testing and drift detection for MCP servers'
+author: 'Dotset Labs'
+
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  server-command:
+    description: 'MCP server command to test (e.g., "npx @mcp/server")'
+    required: true
+  baseline-file:
+    description: 'Path to behavioral baseline file for drift detection'
+    required: false
+  personas:
+    description: 'Comma-separated list of personas to use (technical_writer, security_tester, qa_engineer, novice_user)'
+    default: 'technical_writer'
+  fail-on-drift:
+    description: 'Fail the action if behavioral drift is detected'
+    default: 'true'
+  fail-on-security:
+    description: 'Fail the action if security issues are found'
+    default: 'true'
+  output-format:
+    description: 'Output format: text, json, sarif, junit, agents.md, or both'
+    default: 'sarif'
+  output-file:
+    description: 'Path to write the output file'
+    default: 'inquest-results'
+  save-baseline:
+    description: 'Path to save baseline after interview (for baseline creation runs)'
+    required: false
+  max-questions:
+    description: 'Maximum questions per tool'
+    default: '3'
+  timeout:
+    description: 'Timeout for tool calls in milliseconds'
+    default: '30000'
+  llm-provider:
+    description: 'LLM provider: openai, anthropic, or ollama'
+    default: 'openai'
+  llm-model:
+    description: 'LLM model to use (provider-specific)'
+    required: false
+
+outputs:
+  result:
+    description: 'Check result: passed or failed'
+  exit-code:
+    description: 'Exit code (0=pass, 1=fail, 2=error)'
+  drift-detected:
+    description: 'Whether behavioral drift was detected (true/false)'
+  security-issues:
+    description: 'Number of security issues found'
+  sarif-file:
+    description: 'Path to SARIF output file (if output-format includes sarif)'
+  junit-file:
+    description: 'Path to JUnit output file (if output-format is junit)'
+  baseline-file:
+    description: 'Path to saved baseline file (if save-baseline was specified)'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Inquest
+      shell: bash
+      run: npm install -g inquest
+
+    - name: Run Inquest Interview
+      shell: bash
+      id: interview
+      env:
+        INQUEST_CI: 'true'
+        OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
+        ANTHROPIC_API_KEY: ${{ env.ANTHROPIC_API_KEY }}
+      run: |
+        set +e
+
+        # Build the command
+        CMD="inquest interview"
+        CMD="$CMD --ci"
+        CMD="$CMD --personas ${{ inputs.personas }}"
+        CMD="$CMD --max-questions ${{ inputs.max-questions }}"
+        CMD="$CMD --timeout ${{ inputs.timeout }}"
+        CMD="$CMD --provider ${{ inputs.llm-provider }}"
+
+        # Add model if specified
+        if [ -n "${{ inputs.llm-model }}" ]; then
+          CMD="$CMD --model ${{ inputs.llm-model }}"
+        fi
+
+        # Add baseline comparison if specified
+        if [ -n "${{ inputs.baseline-file }}" ]; then
+          CMD="$CMD --compare-baseline ${{ inputs.baseline-file }}"
+        fi
+
+        # Add baseline saving if specified
+        if [ -n "${{ inputs.save-baseline }}" ]; then
+          CMD="$CMD --save-baseline ${{ inputs.save-baseline }}"
+        fi
+
+        # Add fail flags
+        if [ "${{ inputs.fail-on-drift }}" = "true" ]; then
+          CMD="$CMD --fail-on-drift"
+        fi
+
+        if [ "${{ inputs.fail-on-security }}" = "true" ]; then
+          CMD="$CMD --fail-on-security"
+        fi
+
+        # Output format handling
+        OUTPUT_FORMAT="${{ inputs.output-format }}"
+        OUTPUT_FILE="${{ inputs.output-file }}"
+
+        case "$OUTPUT_FORMAT" in
+          sarif)
+            CMD="$CMD --output sarif --output-file ${OUTPUT_FILE}.sarif"
+            echo "sarif-file=${OUTPUT_FILE}.sarif" >> $GITHUB_OUTPUT
+            ;;
+          junit)
+            CMD="$CMD --output junit --output-file ${OUTPUT_FILE}.xml"
+            echo "junit-file=${OUTPUT_FILE}.xml" >> $GITHUB_OUTPUT
+            ;;
+          json)
+            CMD="$CMD --output json --output-file ${OUTPUT_FILE}.json"
+            ;;
+          agents.md)
+            CMD="$CMD --output agents.md --output-file ${OUTPUT_FILE}.md"
+            ;;
+          both)
+            CMD="$CMD --output both --output-file ${OUTPUT_FILE}"
+            ;;
+          *)
+            CMD="$CMD --output $OUTPUT_FORMAT"
+            ;;
+        esac
+
+        # Add the server command
+        CMD="$CMD -- ${{ inputs.server-command }}"
+
+        echo "Running: $CMD"
+        eval $CMD
+
+        EXIT_CODE=$?
+
+        # Set outputs
+        echo "exit-code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "result=passed" >> $GITHUB_OUTPUT
+        else
+          echo "result=failed" >> $GITHUB_OUTPUT
+        fi
+
+        # Check baseline output
+        if [ -n "${{ inputs.save-baseline }}" ] && [ -f "${{ inputs.save-baseline }}" ]; then
+          echo "baseline-file=${{ inputs.save-baseline }}" >> $GITHUB_OUTPUT
+        fi
+
+        exit $EXIT_CODE
+
+    - name: Upload SARIF to GitHub Security
+      if: inputs.output-format == 'sarif' && always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.output-file }}.sarif
+      continue-on-error: true
+
+    - name: Upload JUnit Results
+      if: inputs.output-format == 'junit' && always()
+      uses: mikepenz/action-junit-report@v4
+      with:
+        report_paths: ${{ inputs.output-file }}.xml
+        fail_on_failure: false
+      continue-on-error: true

@@ -1,0 +1,117 @@
+# Workflow Definition Example
+# Use with: inquest interview --workflows ./workflow-definition.yaml npx @mcp/server
+
+workflows:
+  # Example: E-commerce checkout workflow
+  - id: checkout_flow
+    name: E-Commerce Checkout
+    description: Complete purchase flow from cart to confirmation
+    expectedOutcome: Order confirmed with confirmation number
+    steps:
+      - tool: get_cart
+        description: Retrieve current shopping cart
+        assertions:
+          - path: $.items
+            condition: exists
+            message: Cart should have items array
+
+      - tool: validate_cart
+        description: Validate cart items are in stock
+        argMapping:
+          cartId: "$steps[0].result.id"
+        assertions:
+          - path: $.valid
+            condition: equals
+            value: true
+            message: Cart should be valid for checkout
+
+      - tool: create_order
+        description: Create order from cart
+        argMapping:
+          cartId: "$steps[0].result.id"
+        args:
+          paymentMethod: "credit_card"
+        assertions:
+          - path: $.orderId
+            condition: exists
+
+      - tool: process_payment
+        description: Process payment for order
+        argMapping:
+          orderId: "$steps[2].result.orderId"
+          amount: "$steps[2].result.total"
+
+      - tool: send_confirmation
+        description: Send order confirmation email
+        argMapping:
+          orderId: "$steps[2].result.orderId"
+        optional: true  # Workflow continues even if this fails
+
+  # Example: User authentication workflow
+  - id: auth_flow
+    name: User Authentication
+    description: Login and session management
+    expectedOutcome: User authenticated with valid session token
+    steps:
+      - tool: authenticate
+        description: Authenticate user credentials
+        args:
+          username: "test_user"
+          password: "test_password"
+        assertions:
+          - path: $.token
+            condition: exists
+            message: Should return auth token
+          - path: $.token
+            condition: type
+            value: string
+
+      - tool: get_user_profile
+        description: Fetch authenticated user profile
+        argMapping:
+          token: "$steps[0].result.token"
+        assertions:
+          - path: $.userId
+            condition: exists
+
+      - tool: refresh_token
+        description: Refresh the authentication token
+        argMapping:
+          token: "$steps[0].result.token"
+        assertions:
+          - path: $.newToken
+            condition: exists
+
+  # Example: Data processing pipeline
+  - id: data_pipeline
+    name: Data Processing Pipeline
+    description: ETL-style data transformation workflow
+    expectedOutcome: Data processed and stored successfully
+    steps:
+      - tool: fetch_data
+        description: Fetch raw data from source
+        args:
+          source: "api"
+          limit: 100
+
+      - tool: transform_data
+        description: Transform and clean data
+        argMapping:
+          data: "$steps[0].result.records"
+        args:
+          format: "normalized"
+
+      - tool: validate_data
+        description: Validate transformed data
+        argMapping:
+          data: "$steps[1].result.transformed"
+        assertions:
+          - path: $.valid
+            condition: truthy
+
+      - tool: store_data
+        description: Store processed data
+        argMapping:
+          data: "$steps[1].result.transformed"
+        args:
+          destination: "database"
