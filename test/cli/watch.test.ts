@@ -10,72 +10,6 @@ import { mkdirSync, rmSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
-// Mock external dependencies to prevent actual execution
-vi.mock('../../src/transport/mcp-client.js', () => ({
-  MCPClient: vi.fn().mockImplementation(() => ({
-    connect: vi.fn().mockResolvedValue(undefined),
-    disconnect: vi.fn().mockResolvedValue(undefined),
-  })),
-}));
-
-vi.mock('../../src/discovery/discovery.js', () => ({
-  discover: vi.fn().mockResolvedValue({
-    serverInfo: { name: 'test-server', version: '1.0.0' },
-    tools: [],
-  }),
-}));
-
-vi.mock('../../src/llm/index.js', () => ({
-  createLLMClient: vi.fn().mockReturnValue({
-    chat: vi.fn().mockResolvedValue({ content: 'test response' }),
-  }),
-}));
-
-vi.mock('../../src/interview/interviewer.js', () => ({
-  Interviewer: vi.fn().mockImplementation(() => ({
-    interview: vi.fn().mockResolvedValue({
-      serverInfo: { name: 'test', version: '1.0.0' },
-      tools: [],
-      toolProfiles: [],
-    }),
-  })),
-}));
-
-vi.mock('../../src/config/loader.js', () => ({
-  loadConfig: vi.fn().mockReturnValue({
-    llm: {
-      provider: 'openai',
-      model: 'gpt-4o',
-      apiKey: 'test-key',
-    },
-    interview: {
-      maxQuestionsPerTool: 5,
-      skipErrorTests: false,
-    },
-  }),
-}));
-
-vi.mock('../../src/baseline/index.js', () => ({
-  createBaseline: vi.fn().mockReturnValue({
-    hash: 'abc123',
-    discovery: {},
-    toolProfiles: [],
-  }),
-  saveBaseline: vi.fn(),
-  loadBaseline: vi.fn().mockReturnValue({
-    hash: 'def456',
-    discovery: {},
-    toolProfiles: [],
-  }),
-  compareBaselines: vi.fn().mockReturnValue({
-    severity: 'none',
-    toolsAdded: [],
-    toolsRemoved: [],
-    toolsModified: [],
-  }),
-  formatDiffText: vi.fn().mockReturnValue('No changes'),
-}));
-
 describe('watch command', () => {
   let testDir: string;
   let originalCwd: string;
@@ -87,7 +21,7 @@ describe('watch command', () => {
   let originalClearInterval: typeof clearInterval;
   let mockIntervalId: NodeJS.Timeout;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     testDir = join(tmpdir(), `inquest-watch-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
@@ -119,6 +53,75 @@ describe('watch command', () => {
     mockIntervalId = { ref: () => mockIntervalId, unref: () => mockIntervalId } as unknown as NodeJS.Timeout;
     vi.spyOn(global, 'setInterval').mockReturnValue(mockIntervalId);
     vi.spyOn(global, 'clearInterval').mockImplementation(() => {});
+
+    // Reset modules so mocks are properly applied
+    vi.resetModules();
+
+    // Mock external dependencies using vi.doMock after resetModules
+    vi.doMock('../../src/transport/mcp-client.js', () => ({
+      MCPClient: vi.fn().mockImplementation(() => ({
+        connect: vi.fn().mockResolvedValue(undefined),
+        disconnect: vi.fn().mockResolvedValue(undefined),
+      })),
+    }));
+
+    vi.doMock('../../src/discovery/discovery.js', () => ({
+      discover: vi.fn().mockResolvedValue({
+        serverInfo: { name: 'test-server', version: '1.0.0' },
+        tools: [],
+      }),
+    }));
+
+    vi.doMock('../../src/llm/index.js', () => ({
+      createLLMClient: vi.fn().mockReturnValue({
+        chat: vi.fn().mockResolvedValue({ content: 'test response' }),
+      }),
+    }));
+
+    vi.doMock('../../src/interview/interviewer.js', () => ({
+      Interviewer: vi.fn().mockImplementation(() => ({
+        interview: vi.fn().mockResolvedValue({
+          serverInfo: { name: 'test', version: '1.0.0' },
+          tools: [],
+          toolProfiles: [],
+        }),
+      })),
+    }));
+
+    vi.doMock('../../src/config/loader.js', () => ({
+      loadConfig: vi.fn().mockReturnValue({
+        llm: {
+          provider: 'openai',
+          model: 'gpt-4o',
+          apiKey: 'test-key',
+        },
+        interview: {
+          maxQuestionsPerTool: 5,
+          skipErrorTests: false,
+        },
+      }),
+    }));
+
+    vi.doMock('../../src/baseline/index.js', () => ({
+      createBaseline: vi.fn().mockReturnValue({
+        integrityHash: 'abc123',
+        discovery: {},
+        toolProfiles: [],
+      }),
+      saveBaseline: vi.fn(),
+      loadBaseline: vi.fn().mockReturnValue({
+        integrityHash: 'def456',
+        discovery: {},
+        toolProfiles: [],
+      }),
+      compareBaselines: vi.fn().mockReturnValue({
+        severity: 'none',
+        toolsAdded: [],
+        toolsRemoved: [],
+        toolsModified: [],
+      }),
+      formatDiffText: vi.fn().mockReturnValue('No changes'),
+    }));
   });
 
   afterEach(() => {
@@ -127,7 +130,6 @@ describe('watch command', () => {
     global.setInterval = originalSetInterval;
     global.clearInterval = originalClearInterval;
     vi.restoreAllMocks();
-    vi.resetModules();
     try {
       rmSync(testDir, { recursive: true, force: true });
     } catch {

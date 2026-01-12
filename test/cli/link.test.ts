@@ -22,15 +22,16 @@ vi.mock('../../src/cloud/client.js', () => ({
   })),
 }));
 
-import {
-  getToken,
-  setToken,
-  clearToken,
-  getLinkedProject,
-  saveProjectLink,
-  removeProjectLink,
-} from '../../src/cloud/auth.js';
+// Import types only - auth functions are imported dynamically after HOME is set
 import type { ProjectLink } from '../../src/cloud/types.js';
+
+// Auth functions will be imported dynamically in tests
+let getToken: () => string | undefined;
+let setToken: (token: string) => void;
+let clearToken: () => void;
+let getLinkedProject: (projectDir?: string) => ProjectLink | null;
+let saveProjectLink: (link: ProjectLink, projectDir?: string) => void;
+let removeProjectLink: (projectDir?: string) => boolean;
 
 describe('link command', () => {
   let testDir: string;
@@ -41,7 +42,7 @@ describe('link command', () => {
   let processExitSpy: MockInstance;
   let originalExit: typeof process.exit;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Create temp directory for test config
     testDir = join(tmpdir(), `inquest-link-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
@@ -53,8 +54,21 @@ describe('link command', () => {
     originalHome = process.env.HOME;
     process.env.HOME = testDir;
 
-    // Create .inquest directory
+    // Create .inquest directory for both global and project config
     mkdirSync(join(testDir, '.inquest'), { recursive: true });
+    mkdirSync(join(testDir, 'my-project', '.inquest'), { recursive: true });
+
+    // Reset modules so auth module picks up new HOME
+    vi.resetModules();
+
+    // Dynamically import auth functions after HOME is set
+    const auth = await import('../../src/cloud/auth.js');
+    getToken = auth.getToken;
+    setToken = auth.setToken;
+    clearToken = auth.clearToken;
+    getLinkedProject = auth.getLinkedProject;
+    saveProjectLink = auth.saveProjectLink;
+    removeProjectLink = auth.removeProjectLink;
 
     // Capture console output
     consoleOutput = [];
@@ -338,17 +352,31 @@ describe('link command', () => {
 describe('project link functions', () => {
   let testDir: string;
   let originalHome: string | undefined;
+  let originalCwd: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     testDir = join(tmpdir(), `inquest-link-fn-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
     mkdirSync(join(testDir, '.inquest'), { recursive: true });
     originalHome = process.env.HOME;
+    originalCwd = process.cwd();
     process.env.HOME = testDir;
+    process.chdir(testDir);
+
+    // Reset modules so auth module picks up new HOME
+    vi.resetModules();
+
+    // Dynamically import auth functions after HOME is set
+    const auth = await import('../../src/cloud/auth.js');
+    getLinkedProject = auth.getLinkedProject;
+    saveProjectLink = auth.saveProjectLink;
+    removeProjectLink = auth.removeProjectLink;
+
     removeProjectLink();
   });
 
   afterEach(() => {
+    process.chdir(originalCwd);
     if (originalHome !== undefined) {
       process.env.HOME = originalHome;
     }
@@ -359,7 +387,7 @@ describe('project link functions', () => {
     }
   });
 
-  it('should save and retrieve project link', () => {
+  it('should save and retrieve project link', async () => {
     const link: ProjectLink = {
       projectId: 'proj_test',
       projectName: 'Test',
