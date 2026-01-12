@@ -22,12 +22,14 @@ vi.mock('../../src/cloud/client.js', () => ({
   })),
 }));
 
-import {
-  setToken,
-  clearToken,
-  saveProjectLink,
-  removeProjectLink,
-} from '../../src/cloud/auth.js';
+// Import types only - auth functions are imported dynamically after HOME is set
+import type { ProjectLink } from '../../src/cloud/types.js';
+
+// Auth functions will be imported dynamically in tests
+let setToken: (token: string) => void;
+let clearToken: () => void;
+let saveProjectLink: (link: ProjectLink, projectDir?: string) => void;
+let removeProjectLink: (projectDir?: string) => boolean;
 
 describe('history command', () => {
   let testDir: string;
@@ -59,7 +61,7 @@ describe('history command', () => {
     },
   ];
 
-  beforeEach(() => {
+  beforeEach(async () => {
     testDir = join(tmpdir(), `inquest-history-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
@@ -68,6 +70,16 @@ describe('history command', () => {
     originalHome = process.env.HOME;
     process.env.HOME = testDir;
     mkdirSync(join(testDir, '.inquest'), { recursive: true });
+
+    // Reset modules so auth module picks up new HOME
+    vi.resetModules();
+
+    // Dynamically import auth functions after HOME is set
+    const auth = await import('../../src/cloud/auth.js');
+    setToken = auth.setToken;
+    clearToken = auth.clearToken;
+    saveProjectLink = auth.saveProjectLink;
+    removeProjectLink = auth.removeProjectLink;
 
     consoleOutput = [];
     consoleErrors = [];
@@ -284,7 +296,7 @@ describe('diff command', () => {
 
   const mockGetDiff = vi.fn();
 
-  beforeEach(() => {
+  beforeEach(async () => {
     testDir = join(tmpdir(), `inquest-diff-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
@@ -293,6 +305,16 @@ describe('diff command', () => {
     originalHome = process.env.HOME;
     process.env.HOME = testDir;
     mkdirSync(join(testDir, '.inquest'), { recursive: true });
+
+    // Reset modules so auth module picks up new HOME
+    vi.resetModules();
+
+    // Dynamically import auth functions after HOME is set
+    const auth = await import('../../src/cloud/auth.js');
+    setToken = auth.setToken;
+    clearToken = auth.clearToken;
+    saveProjectLink = auth.saveProjectLink;
+    removeProjectLink = auth.removeProjectLink;
 
     consoleOutput = [];
     consoleErrors = [];

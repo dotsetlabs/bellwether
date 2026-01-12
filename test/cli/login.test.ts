@@ -28,14 +28,13 @@ vi.mock('../../src/cloud/client.js', () => ({
   })),
 }));
 
-import {
-  getToken,
-  setToken,
-  clearToken,
-  isValidTokenFormat,
-  isMockToken,
-} from '../../src/cloud/auth.js';
-import { generateMockToken } from '../../src/cloud/mock-client.js';
+// Auth functions will be imported dynamically in tests
+let getToken: () => string | undefined;
+let setToken: (token: string) => void;
+let clearToken: () => void;
+let isValidTokenFormat: (token: string) => boolean;
+let isMockToken: (token: string) => boolean;
+let generateMockToken: () => string;
 
 describe('login command', () => {
   let testDir: string;
@@ -46,7 +45,7 @@ describe('login command', () => {
   let processExitSpy: MockInstance;
   let originalExit: typeof process.exit;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Create temp directory for test config
     testDir = join(tmpdir(), `inquest-login-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
@@ -59,6 +58,20 @@ describe('login command', () => {
 
     // Create .inquest directory
     mkdirSync(join(testDir, '.inquest'), { recursive: true });
+
+    // Reset modules so auth module picks up new HOME
+    vi.resetModules();
+
+    // Dynamically import auth functions after HOME is set
+    const auth = await import('../../src/cloud/auth.js');
+    getToken = auth.getToken;
+    setToken = auth.setToken;
+    clearToken = auth.clearToken;
+    isValidTokenFormat = auth.isValidTokenFormat;
+    isMockToken = auth.isMockToken;
+
+    const mockClient = await import('../../src/cloud/mock-client.js');
+    generateMockToken = mockClient.generateMockToken;
 
     // Capture console output
     consoleOutput = [];
