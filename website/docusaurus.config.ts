@@ -11,8 +11,8 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://docs.bellwether.sh',
-  baseUrl: '/',
+  url: 'https://dotsetlabs.github.io',
+  baseUrl: '/bellwether/',
 
   organizationName: 'dotsetlabs',
   projectName: 'bellwether',
