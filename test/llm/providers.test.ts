@@ -19,8 +19,9 @@ import { OllamaClient } from '../../src/llm/ollama.js';
 describe('LLM Providers', () => {
   describe('DEFAULT_MODELS', () => {
     it('should have default models for all providers', () => {
-      expect(DEFAULT_MODELS.openai).toBe('gpt-4o');
-      expect(DEFAULT_MODELS.anthropic).toBe('claude-sonnet-4-20250514');
+      // Budget-friendly defaults
+      expect(DEFAULT_MODELS.openai).toBe('gpt-4o-mini');
+      expect(DEFAULT_MODELS.anthropic).toBe('claude-3-5-haiku-20241022');
       expect(DEFAULT_MODELS.ollama).toBe('llama3.2');
     });
   });
@@ -63,8 +64,9 @@ describe('LLM Providers', () => {
 
   describe('getDefaultModel', () => {
     it('should return default model for each provider', () => {
-      expect(getDefaultModel('openai')).toBe('gpt-4o');
-      expect(getDefaultModel('anthropic')).toBe('claude-sonnet-4-20250514');
+      // Budget-friendly defaults
+      expect(getDefaultModel('openai')).toBe('gpt-4o-mini');
+      expect(getDefaultModel('anthropic')).toBe('claude-3-5-haiku-20241022');
       expect(getDefaultModel('ollama')).toBe('llama3.2');
     });
   });
@@ -188,7 +190,7 @@ describe('LLM Providers', () => {
 
     it('should use default model', () => {
       const client = new OpenAIClient();
-      expect(client.getProviderInfo().defaultModel).toBe('gpt-4o');
+      expect(client.getProviderInfo().defaultModel).toBe('gpt-4o-mini');
     });
 
     it('should use custom model', () => {
@@ -236,7 +238,7 @@ describe('LLM Providers', () => {
 
     it('should use default model', () => {
       const client = new AnthropicClient();
-      expect(client.getProviderInfo().defaultModel).toBe('claude-sonnet-4-20250514');
+      expect(client.getProviderInfo().defaultModel).toBe('claude-3-5-haiku-20241022');
     });
 
     it('should use custom model', () => {

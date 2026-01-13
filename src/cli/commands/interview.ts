@@ -3,7 +3,7 @@ import { writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
-import { createLLMClient, type LLMClient } from '../../llm/index.js';
+import { createLLMClient, type LLMClient, PREMIUM_MODELS } from '../../llm/index.js';
 import { Interviewer } from '../../interview/interviewer.js';
 import type { ServerContext } from '../../interview/types.js';
 import { generateAgentsMd, generateJsonReport } from '../../docs/generator.js';
@@ -29,6 +29,50 @@ import {
   setupInteractiveKeyboard,
   type InteractiveConfig,
 } from '../interactive.js';
+import {
+  InterviewProgressBar,
+  formatStartupBanner,
+} from '../utils/progress.js';
+import {
+  DEFAULT_PERSONA,
+  securityTesterPersona,
+  qaEngineerPersona,
+  noviceUserPersona,
+} from '../../persona/builtins.js';
+import type { Persona } from '../../persona/types.js';
+
+/**
+ * Map of persona names to persona objects.
+ */
+const PERSONA_MAP: Record<string, Persona> = {
+  technical: DEFAULT_PERSONA,
+  security: securityTesterPersona,
+  qa: qaEngineerPersona,
+  novice: noviceUserPersona,
+};
+
+/**
+ * Parse persona list from CLI option.
+ */
+function parsePersonas(personaList: string): Persona[] {
+  if (personaList === 'all') {
+    return Object.values(PERSONA_MAP);
+  }
+
+  const names = personaList.split(',').map((s) => s.trim().toLowerCase());
+  const personas: Persona[] = [];
+
+  for (const name of names) {
+    const persona = PERSONA_MAP[name];
+    if (persona) {
+      personas.push(persona);
+    } else {
+      console.warn(`Unknown persona: ${name}. Available: ${Object.keys(PERSONA_MAP).join(', ')}, all`);
+    }
+  }
+
+  return personas.length > 0 ? personas : [DEFAULT_PERSONA];
+}
 
 /**
  * Extract server context from command and arguments.
@@ -93,7 +137,10 @@ export const interviewCommand = new Command('interview')
   .option('--estimate-cost', 'Estimate cost before running interview')
   .option('--show-cost', 'Show cost summary after interview')
   .option('-i, --interactive', 'Run in interactive mode with prompts')
-  .option('-q, --quick', 'Quick mode for CI: 1 question per tool, cheaper model')
+  .option('-q, --quick', 'Quick mode for CI: 1 question per tool')
+  .option('-Q, --quality', 'Use premium LLM models for higher quality output')
+  .option('--personas <list>', 'Comma-separated persona list: technical,security,qa,novice,all', 'technical')
+  .option('--security', 'Include security testing persona (shorthand for --personas technical,security)')
   .action(async (command: string | undefined, args: string[], options) => {
     // Load configuration
     const config = loadConfig(options.config);
@@ -130,17 +177,13 @@ export const interviewCommand = new Command('interview')
       process.exit(1);
     }
 
-    // Quick mode defaults for CI: cheap models, minimal questions
-    const QUICK_MODE_MODELS: Record<string, string> = {
-      openai: 'gpt-4o-mini',
-      anthropic: 'claude-3-5-haiku-20241022',
-      ollama: 'llama3.2',
-    };
+    // Determine model: --quality uses premium models, otherwise defaults (now budget-friendly)
+    const isQualityMode = options.quality;
+    const model = options.model
+      ?? (isQualityMode ? PREMIUM_MODELS[config.llm.provider] : undefined)
+      ?? config.llm.model;
 
-    // Override with CLI options or interactive config
-    const model = options.quick
-      ? (QUICK_MODE_MODELS[config.llm.provider] ?? config.llm.model)
-      : (options.model ?? config.llm.model);
+    // Quick mode: 1 question per tool for fast CI runs
     const maxQuestions = options.quick
       ? 1
       : (interactiveConfig?.maxQuestions
@@ -149,6 +192,10 @@ export const interviewCommand = new Command('interview')
       ? parseInt(options.timeout, 10)
       : config.interview.timeout;
     const outputDir = interactiveConfig?.outputDir ?? options.output ?? config.output.outputDir ?? '.';
+
+    // Determine personas: --security is shorthand for technical,security
+    const personaList = options.security ? 'technical,security' : (options.personas ?? 'technical');
+    const selectedPersonas = parsePersonas(personaList);
 
     // Determine output format
     const wantsJson = interactiveConfig
@@ -161,17 +208,18 @@ export const interviewCommand = new Command('interview')
       ?? (typeof options.saveBaseline === 'string' ? options.saveBaseline : undefined);
     const compareBaselinePath = interactiveConfig?.compareBaseline ?? options.compareBaseline;
 
-    console.log('Bellwether - MCP Server Documentation Generator\n');
-    if (options.quick) {
-      console.log('Quick mode enabled (fast CI mode)\n');
-    }
-    console.log(`Server: ${command} ${args.join(' ')}`);
-    console.log(`Provider: ${config.llm.provider}`);
-    console.log(`Model: ${model}`);
-    console.log(`Max questions per tool: ${maxQuestions}`);
-    if (interactiveConfig?.selectedPersonas) {
-      console.log(`Personas: ${interactiveConfig.selectedPersonas.join(', ')}`);
-    }
+    // Display startup banner with all settings
+    const serverCommand = `${command} ${args.join(' ')}`;
+    const personaNames = selectedPersonas.map((p) => p.name);
+    const banner = formatStartupBanner({
+      serverCommand,
+      provider: config.llm.provider,
+      model,
+      isQuality: isQualityMode,
+      personas: personaNames,
+      questionsPerTool: maxQuestions,
+    });
+    console.log(banner);
     console.log('');
 
     // Initialize cost tracker for real usage tracking
@@ -222,12 +270,11 @@ export const interviewCommand = new Command('interview')
 
       // Cost estimation
       if (options.estimateCost) {
-        const personas = config.interview.personas?.length ?? 3;
         const estimate = estimateInterviewCost(
           model,
           discovery.tools.length,
           maxQuestions,
-          personas
+          selectedPersonas.length
         );
         console.log(formatCostEstimate(estimate));
         console.log('');
@@ -239,6 +286,7 @@ export const interviewCommand = new Command('interview')
         timeout,
         skipErrorTests: config.interview.skipErrorTests ?? false,
         model,
+        personas: selectedPersonas,
       });
 
       // Extract server context from command line arguments
@@ -248,14 +296,18 @@ export const interviewCommand = new Command('interview')
       }
       interviewer.setServerContext(serverContext);
 
+      // Set up progress display
+      const progressBar = new InterviewProgressBar({ enabled: !options.verbose });
+
       const progressCallback = (progress: InterviewProgress) => {
         if (options.verbose) {
           switch (progress.phase) {
             case 'starting':
               console.log('Starting interview...');
+              progressBar.start(progress.totalTools, progress.totalPersonas);
               break;
             case 'interviewing':
-              console.log(`Interviewing tool: ${progress.currentTool} (${progress.toolsCompleted + 1}/${progress.totalTools})`);
+              console.log(`[${progress.currentPersona}] Interviewing: ${progress.currentTool} (${progress.toolsCompleted + 1}/${progress.totalTools})`);
               break;
             case 'synthesizing':
               console.log('Synthesizing findings...');
@@ -265,19 +317,24 @@ export const interviewCommand = new Command('interview')
               break;
           }
         } else {
-          // Simple progress indicator - clear line fully to avoid leftover characters
-          const totalTools = progress.totalTools * progress.totalPersonas;
-          const toolsDone = (progress.personasCompleted * progress.totalTools) + progress.toolsCompleted;
-          const message = `\rInterviewing: ${toolsDone}/${totalTools} tools, ${progress.questionsAsked} questions asked`;
-          process.stdout.write(message.padEnd(80));
+          // Use progress bar for non-verbose mode
+          if (progress.phase === 'starting') {
+            progressBar.start(progress.totalTools, progress.totalPersonas);
+          } else if (progress.phase === 'interviewing') {
+            progressBar.update(progress);
+          } else if (progress.phase === 'complete' || progress.phase === 'synthesizing') {
+            progressBar.stop();
+          }
         }
       };
 
       console.log('Starting interview...\n');
       const result = await interviewer.interview(mcpClient, discovery, progressCallback);
 
+      // Ensure progress bar is stopped
+      progressBar.stop();
       if (!options.verbose) {
-        console.log('\n');
+        console.log('');
       }
 
       // Generate documentation

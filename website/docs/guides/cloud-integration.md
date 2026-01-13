@@ -5,7 +5,7 @@ sidebar_position: 3
 
 # Cloud Integration
 
-Bellwether Cloud provides baseline history, team collaboration, and verification badges for your MCP servers.
+Bellwether Cloud provides baseline history, webhooks, and verification badges for your MCP servers.
 
 ## Features
 
@@ -13,7 +13,7 @@ Bellwether Cloud provides baseline history, team collaboration, and verification
 |:--------|:------------|
 | **Baseline History** | Track all baseline versions over time |
 | **Drift Timeline** | See when and how behavior changed |
-| **Team Collaboration** | Share baselines across your organization |
+| **Webhook Notifications** | Get alerts when drift is detected |
 | **Verification Badges** | Display status in your README |
 | **CI/CD Integration** | Automated uploads and drift checks |
 
@@ -61,28 +61,6 @@ Badge shows:
 - **Yellow**: Minor drift detected
 - **Red**: Breaking changes detected
 - **Gray**: No recent verification
-
-## Team Collaboration
-
-### Invite Team Members
-
-Via dashboard: Projects → Settings → Team
-
-### Shared Visibility
-
-All team members can:
-- View baseline history
-- See drift between versions
-- Access verification status
-- Download baselines
-
-### Permissions
-
-| Role | Capabilities |
-|:-----|:-------------|
-| Viewer | View baselines, history |
-| Member | Upload baselines |
-| Admin | Manage team, settings |
 
 ## CI/CD Integration
 
@@ -176,39 +154,35 @@ Send events to external services:
 
 | Tier | Price | Features |
 |:-----|:------|:---------|
-| Free | $0/mo | 3 projects, 30-day history |
-| Pro | $19/mo | 10 projects, 1-year history |
-| Team | $49/mo | Unlimited projects, team features |
+| Free | $0/mo | 1 project, 100 uploads/month, 30-day history |
+| Pro | $19/mo | 10 projects, 5,000 uploads/month, 1-year history, webhooks |
 
 Visit [bellwether.sh/pricing](https://bellwether.sh/pricing) for details.
 
 ## Data Retention
 
-| Tier | Baseline History | Audit Logs |
-|:-----|:-----------------|:-----------|
-| Free | 30 days | 7 days |
-| Pro | 1 year | 30 days |
-| Team | Unlimited | 1 year |
+| Tier | Baseline History |
+|:-----|:-----------------|
+| Free | 30 days |
+| Pro | 1 year |
 
 ## Security
 
 - All data encrypted in transit (TLS 1.3)
 - Data encrypted at rest
-- SOC 2 Type II compliant
-- GDPR compliant
-- No baseline content shared between organizations
+- No baseline content shared between users
 
 ## Offline Usage
 
 Bellwether works fully offline. Cloud is optional for:
-- Local drift detection
-- Local baseline management
+- Local drift detection with `--compare-baseline`
+- Local baseline management with `--save-baseline`
 - Local documentation generation
 
 Cloud adds:
-- Historical tracking
-- Team collaboration
-- Verification badges
+- Historical tracking across versions
+- Webhook notifications for drift
+- Verification badges for your README
 
 ## See Also
 

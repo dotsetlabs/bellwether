@@ -118,7 +118,7 @@ MIT License - see [LICENSE](./LICENSE) for details.
 ## Related Projects
 
 - [Model Context Protocol](https://modelcontextprotocol.io/) - The protocol Bellwether interviews
-- [Bellwether Cloud](https://bellwether.sh) - Baseline history and team collaboration
+- [Bellwether Cloud](https://bellwether.sh) - Baseline history and drift detection
 - [Overwatch](https://github.com/dotsetlabs/overwatch) - MCP security proxy (tool shadowing detection)
 - [Hardpoint](https://github.com/dotsetlabs/hardpoint) - Rules File Backdoor detector
 

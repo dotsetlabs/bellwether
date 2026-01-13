@@ -60,11 +60,22 @@ export interface LLMClient {
 
 /**
  * Default model configurations per provider.
+ * Uses budget-friendly models by default for cost efficiency.
  */
 export const DEFAULT_MODELS: Record<LLMProviderId, string> = {
+  openai: 'gpt-4o-mini',
+  anthropic: 'claude-3-5-haiku-20241022',
+  ollama: 'llama3.2',
+};
+
+/**
+ * Premium model configurations for --quality flag.
+ * Higher quality output but more expensive.
+ */
+export const PREMIUM_MODELS: Record<LLMProviderId, string> = {
   openai: 'gpt-4o',
   anthropic: 'claude-sonnet-4-20250514',
-  ollama: 'llama3.2',
+  ollama: 'llama3.2:70b',
 };
 
 /**

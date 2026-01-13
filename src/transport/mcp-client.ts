@@ -13,6 +13,7 @@ import type {
   MCPServerCapabilities,
 } from './types.js';
 import { getLogger, startTiming } from '../logging/logger.js';
+import { TIMEOUTS } from '../constants.js';
 
 export interface MCPClientOptions {
   /** Request timeout in milliseconds (default: 30000) */
@@ -31,8 +32,8 @@ interface PendingRequest {
   timer: NodeJS.Timeout;
 }
 
-const DEFAULT_TIMEOUT = 30000;
-const DEFAULT_STARTUP_DELAY = 500;
+const DEFAULT_TIMEOUT = TIMEOUTS.DEFAULT;
+const DEFAULT_STARTUP_DELAY = TIMEOUTS.SERVER_STARTUP;
 
 /**
  * MCPClient connects to an MCP server via stdio and provides
@@ -137,10 +138,10 @@ export class MCPClient {
   private async waitForReady(): Promise<void> {
     // Wait for either stderr output or the startup delay
     const startTime = Date.now();
-    const maxWait = Math.max(this.startupDelay, 5000); // At least 5s for npx
+    const maxWait = Math.max(this.startupDelay, TIMEOUTS.MIN_SERVER_STARTUP_WAIT); // At least 5s for npx
 
     while (!this.serverReady && Date.now() - startTime < maxWait) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, TIMEOUTS.SERVER_READY_POLL));
     }
 
     // Additional small delay to ensure server is fully ready
@@ -228,7 +229,7 @@ export class MCPClient {
         const timeout = setTimeout(() => {
           this.process?.kill('SIGKILL');
           resolve();
-        }, 5000);
+        }, TIMEOUTS.SHUTDOWN_KILL);
 
         this.process?.once('exit', () => {
           clearTimeout(timeout);

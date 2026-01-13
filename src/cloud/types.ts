@@ -324,7 +324,7 @@ export interface CloudUser {
   /** GitHub display name */
   githubName: string | null;
   /** Subscription plan */
-  plan: 'free' | 'pro' | 'team';
+  plan: 'free' | 'pro';
 }
 
 /**

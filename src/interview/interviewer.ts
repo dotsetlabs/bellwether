@@ -1,4 +1,5 @@
 import type { MCPClient } from '../transport/mcp-client.js';
+import type { MCPTool } from '../transport/types.js';
 import type { DiscoveryResult } from '../discovery/types.js';
 import type { LLMClient } from '../llm/client.js';
 import { Orchestrator } from './orchestrator.js';
@@ -11,9 +12,10 @@ import type {
   PersonaFindings,
   PersonaSummary,
   ServerContext,
+  InterviewQuestion,
 } from './types.js';
 import type { Persona } from '../persona/types.js';
-import { DEFAULT_PERSONA, securityTesterPersona } from '../persona/builtins.js';
+import { DEFAULT_PERSONA } from '../persona/builtins.js';
 import { getLogger, startTiming } from '../logging/logger.js';
 
 /**
@@ -23,14 +25,14 @@ export const DEFAULT_CONFIG: InterviewConfig = {
   maxQuestionsPerTool: 3,
   timeout: 30000,
   skipErrorTests: false,
-  model: 'gpt-4o',
 };
 
 /**
  * Default personas to use if none specified.
- * Using both technical_writer and security_tester provides balanced coverage.
+ * Uses Technical Writer only for a fast, cost-effective default experience.
+ * Use --security or --personas to add more personas.
  */
-export const DEFAULT_PERSONAS: Persona[] = [DEFAULT_PERSONA, securityTesterPersona];
+export const DEFAULT_PERSONAS: Persona[] = [DEFAULT_PERSONA];
 
 export interface InterviewProgress {
   phase: 'starting' | 'interviewing' | 'synthesizing' | 'complete';
@@ -438,7 +440,7 @@ export class Interviewer {
   private async executeWithRetry(
     client: MCPClient,
     toolName: string,
-    question: { description: string; category: string; args: Record<string, unknown> },
+    question: InterviewQuestion,
     orchestrator: Orchestrator,
     personaId: string,
     stats: PersonaSummary,
@@ -477,17 +479,17 @@ export class Interviewer {
     }
 
     // Analyze the response with this persona's perspective
-    const tool = { name: toolName, description: '' };
+    const tool: MCPTool = { name: toolName, description: '' };
     const analysis = await orchestrator.analyzeResponse(
-      tool as any,
-      question as any,
+      tool,
+      question,
       response,
       error
     );
 
     const interaction: ToolInteraction = {
       toolName,
-      question: question as any,
+      question,
       response,
       error,
       analysis,
