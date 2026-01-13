@@ -161,7 +161,7 @@ export class MCPClient {
       protocolVersion: '2024-11-05',
       capabilities: {},
       clientInfo: {
-        name: 'inquest',
+        name: 'bellwether',
         version: '0.1.0',
       },
     });

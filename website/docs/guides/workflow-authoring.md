@@ -218,7 +218,7 @@ Set before running:
 
 ```bash
 export TEST_PASSWORD=secret
-inquest workflow run my-workflow.workflow.yaml npx server
+bellwether workflow run my-workflow.workflow.yaml npx server
 ```
 
 ## Running Workflows
@@ -227,16 +227,16 @@ inquest workflow run my-workflow.workflow.yaml npx server
 
 ```bash
 # Discover and run workflows
-inquest interview --workflows ./workflows/ npx server
+bellwether interview --workflows ./workflows/ npx server
 
 # Run with specific workflow
-inquest interview --workflow crud.workflow.yaml npx server
+bellwether interview --workflow crud.workflow.yaml npx server
 ```
 
 ### Standalone
 
 ```bash
-inquest workflow run my-workflow.workflow.yaml npx server
+bellwether workflow run my-workflow.workflow.yaml npx server
 ```
 
 ## Best Practices
@@ -289,7 +289,7 @@ One workflow = one user journey:
 ### "Tool not found"
 
 - Verify tool name matches exactly (case-sensitive)
-- Run `inquest discover npx server` to see available tools
+- Run `bellwether discover npx server` to see available tools
 
 ### "argMapping failed"
 

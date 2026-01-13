@@ -3,14 +3,14 @@ title: discover
 sidebar_position: 2
 ---
 
-# inquest discover
+# bellwether discover
 
 Quick discovery of MCP server capabilities without interviewing.
 
 ## Synopsis
 
 ```bash
-inquest discover [options] <command> [args...]
+bellwether discover [options] <command> [args...]
 ```
 
 ## Description
@@ -37,7 +37,7 @@ The `discover` command connects to an MCP server and lists its capabilities (too
 
 ```bash
 # Discover filesystem server capabilities
-inquest discover npx @modelcontextprotocol/server-filesystem /tmp
+bellwether discover npx @modelcontextprotocol/server-filesystem /tmp
 ```
 
 Output:
@@ -60,7 +60,7 @@ Resources (1):
 ### JSON Output
 
 ```bash
-inquest discover --json npx @modelcontextprotocol/server-memory
+bellwether discover --json npx @modelcontextprotocol/server-memory
 ```
 
 Output:
@@ -93,7 +93,7 @@ Output:
 
 ```bash
 # Increase timeout for slow servers
-inquest discover --timeout 60000 npx slow-server
+bellwether discover --timeout 60000 npx slow-server
 ```
 
 ## Use Cases
@@ -103,7 +103,7 @@ inquest discover --timeout 60000 npx slow-server
 Before running a full interview, verify the server starts and responds:
 
 ```bash
-inquest discover npx your-server && echo "Server OK"
+bellwether discover npx your-server && echo "Server OK"
 ```
 
 ### List Available Tools
@@ -111,7 +111,7 @@ inquest discover npx your-server && echo "Server OK"
 Get a quick overview of what a server can do:
 
 ```bash
-inquest discover npx @modelcontextprotocol/server-postgres
+bellwether discover npx @modelcontextprotocol/server-postgres
 ```
 
 ### Generate Tool Inventory
@@ -119,7 +119,7 @@ inquest discover npx @modelcontextprotocol/server-postgres
 Create a JSON inventory of server capabilities:
 
 ```bash
-inquest discover --json npx your-server > capabilities.json
+bellwether discover --json npx your-server > capabilities.json
 ```
 
 ### Debugging Server Issues
@@ -128,10 +128,10 @@ Use discover to isolate connection vs. interview issues:
 
 ```bash
 # If this fails, it's a connection issue
-inquest discover npx your-server
+bellwether discover npx your-server
 
 # If discover works but interview fails, it's an LLM/interview issue
-inquest interview npx your-server
+bellwether interview npx your-server
 ```
 
 ## Exit Codes

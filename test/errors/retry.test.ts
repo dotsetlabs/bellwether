@@ -8,7 +8,7 @@ import {
   TOOL_CALL_RETRY_OPTIONS,
 } from '../../src/errors/retry.js';
 import {
-  InquestError,
+  BellwetherError,
   TimeoutError,
   ConnectionError,
   LLMRateLimitError,
@@ -58,7 +58,7 @@ describe('errors/retry', () => {
 
     it('should not retry on terminal error', async () => {
       const fn = vi.fn().mockRejectedValue(
-        new InquestError('Terminal error', {
+        new BellwetherError('Terminal error', {
           code: 'TERMINAL',
           retryable: 'terminal',
         })
@@ -199,8 +199,8 @@ describe('errors/retry', () => {
         });
         expect.fail('Should have thrown');
       } catch (error) {
-        expect(error).toBeInstanceOf(InquestError);
-        const inqError = error as InquestError;
+        expect(error).toBeInstanceOf(BellwetherError);
+        const inqError = error as BellwetherError;
         expect(inqError.context.operation).toBe('test operation');
         expect(inqError.context.tool).toBe('test-tool');
         expect(inqError.context.retry?.attempt).toBe(2);
@@ -219,7 +219,7 @@ describe('errors/retry', () => {
           initialDelayMs: 10,
         });
       } catch (error) {
-        const inqError = error as InquestError;
+        const inqError = error as BellwetherError;
         expect(inqError.context.timing?.startedAt).toBeInstanceOf(Date);
         expect(inqError.context.timing?.failedAt).toBeInstanceOf(Date);
         expect(typeof inqError.context.timing?.durationMs).toBe('number');
@@ -251,13 +251,13 @@ describe('errors/retry', () => {
           operation: 'custom operation',
         });
       } catch (error) {
-        const inqError = error as InquestError;
+        const inqError = error as BellwetherError;
         expect(inqError.context.operation).toBe('custom operation');
       }
     });
 
-    it('should preserve InquestError when wrapping', async () => {
-      const originalError = new InquestError('Original', {
+    it('should preserve BellwetherError when wrapping', async () => {
+      const originalError = new BellwetherError('Original', {
         code: 'ORIGINAL',
         severity: 'high',
       });
@@ -266,7 +266,7 @@ describe('errors/retry', () => {
       try {
         await withRetry(fn, { maxAttempts: 1 });
       } catch (error) {
-        const inqError = error as InquestError;
+        const inqError = error as BellwetherError;
         expect(inqError.code).toBe('ORIGINAL');
         expect(inqError.severity).toBe('high');
       }
@@ -461,8 +461,8 @@ describe('errors/retry', () => {
         await breaker(fn);
         expect.fail('Should have thrown');
       } catch (error) {
-        expect(error).toBeInstanceOf(InquestError);
-        const inqError = error as InquestError;
+        expect(error).toBeInstanceOf(BellwetherError);
+        const inqError = error as BellwetherError;
         expect(inqError.code).toBe('CIRCUIT_BREAKER_OPEN');
         expect(inqError.retryable).toBe('retryable');
         expect(inqError.context.metadata?.name).toBe('test-open');
@@ -566,7 +566,7 @@ describe('errors/retry', () => {
       try {
         await breaker(fn);
       } catch (error) {
-        const inqError = error as InquestError;
+        const inqError = error as BellwetherError;
         expect(inqError.context.metadata?.name).toBe('test-meta');
         expect(inqError.context.metadata?.failures).toBe(1);
         expect(inqError.context.metadata?.openedAt).toBeDefined();

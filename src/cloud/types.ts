@@ -1,9 +1,9 @@
 /**
- * Cloud integration types for Inquest SaaS platform.
+ * Cloud integration types for Bellwether SaaS platform.
  *
  * This module defines types for:
  * - Cloud API communication
- * - InquestBaseline v1.0 format (cloud-ready)
+ * - BellwetherBaseline v1.0 format (cloud-ready)
  * - Project and baseline management
  * - Authentication
  */
@@ -27,7 +27,7 @@ export type CloudAssertionSeverity = 'info' | 'low' | 'medium' | 'high' | 'criti
 
 /**
  * Behavioral assertion in cloud format.
- * This is the format expected by the Inquest Cloud API.
+ * This is the format expected by the Bellwether Cloud API.
  */
 export interface CloudAssertion {
   /** Type of assertion */
@@ -182,10 +182,10 @@ export interface CloudToolProfile {
 /**
  * Cloud-ready baseline format v1.0.
  *
- * This is the format used for uploading to Inquest Cloud.
+ * This is the format used for uploading to Bellwether Cloud.
  * It's a superset of the local BehavioralBaseline with additional metadata.
  */
-export interface InquestBaseline {
+export interface BellwetherBaseline {
   /** Format version - always '1.0' */
   version: typeof BASELINE_FORMAT_VERSION;
 
@@ -238,7 +238,7 @@ export interface CloudConfig {
 }
 
 /**
- * A project in Inquest Cloud.
+ * A project in Bellwether Cloud.
  */
 export interface Project {
   /** Unique project ID */
@@ -258,7 +258,7 @@ export interface Project {
 }
 
 /**
- * A baseline version stored in Inquest Cloud.
+ * A baseline version stored in Bellwether Cloud.
  */
 export interface BaselineVersion {
   /** Unique baseline ID */
@@ -328,7 +328,7 @@ export interface CloudUser {
 }
 
 /**
- * Link configuration stored in .inquest/link.json
+ * Link configuration stored in .bellwether/link.json
  */
 export interface ProjectLink {
   /** Linked project ID */
@@ -340,7 +340,7 @@ export interface ProjectLink {
 }
 
 /**
- * Session stored in ~/.inquest/session.json
+ * Session stored in ~/.bellwether/session.json
  */
 export interface StoredSession {
   /** Session token */
@@ -386,13 +386,13 @@ export interface DevicePollResponse {
 // ============================================================================
 
 /**
- * Interface for Inquest Cloud client implementations.
+ * Interface for Bellwether Cloud client implementations.
  *
  * This interface is implemented by:
  * - MockCloudClient (local development/testing)
  * - HttpCloudClient (production, Phase 2)
  */
-export interface InquestCloudClient {
+export interface BellwetherCloudClient {
   /** Check if client is authenticated */
   isAuthenticated(): boolean;
 
@@ -414,7 +414,7 @@ export interface InquestCloudClient {
   /** Upload a baseline to a project */
   uploadBaseline(
     projectId: string,
-    baseline: InquestBaseline,
+    baseline: BellwetherBaseline,
     options?: { public?: boolean }
   ): Promise<UploadResult>;
 
@@ -422,7 +422,7 @@ export interface InquestCloudClient {
   getHistory(projectId: string, limit?: number): Promise<BaselineVersion[]>;
 
   /** Get a specific baseline by ID */
-  getBaseline(baselineId: string): Promise<InquestBaseline | null>;
+  getBaseline(baselineId: string): Promise<BellwetherBaseline | null>;
 
   /** Get diff between two versions */
   getDiff(

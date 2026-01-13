@@ -1,5 +1,5 @@
-# GitHub Actions Workflow for Inquest
-# Save as .github/workflows/inquest.yaml
+# GitHub Actions Workflow for Bellwether
+# Save as .github/workflows/bellwether.yaml
 
 name: MCP Server Behavioral Tests
 
@@ -13,7 +13,7 @@ on:
     - cron: '0 0 * * 0'
 
 jobs:
-  inquest:
+  bellwether:
     runs-on: ubuntu-latest
 
     steps:
@@ -28,51 +28,51 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Inquest
-        run: npm install -g inquest
+      - name: Install Bellwether
+        run: npm install -g @dotsetlabs/bellwether
 
-      - name: Run Inquest Interview
+      - name: Run Bellwether Interview
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # Or use Anthropic:
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          inquest interview \
+          bellwether interview \
             --ci \
             --baseline-file ./baseline.json \
             --fail-on-drift \
             --fail-on-security \
             --output sarif \
-            -o ./inquest-results \
+            -o ./bellwether-results \
             npx your-mcp-server
 
       - name: Upload SARIF results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: ./inquest-results/inquest.sarif
+          sarif_file: ./bellwether-results/bellwether.sarif
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: inquest-report
+          name: bellwether-report
           path: |
-            ./inquest-results/AGENTS.md
-            ./inquest-results/inquest-report.json
-            ./inquest-results/inquest.sarif
+            ./bellwether-results/AGENTS.md
+            ./bellwether-results/bellwether-report.json
+            ./bellwether-results/bellwether.sarif
 
       - name: Update baseline (main only)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
-          inquest interview \
+          bellwether interview \
             --save-baseline ./baseline.json \
             npx your-mcp-server
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add baseline.json
-          git diff --staged --quiet || git commit -m "chore: update inquest baseline"
+          git diff --staged --quiet || git commit -m "chore: update bellwether baseline"
           git push
 
   # Separate job for security-focused testing
@@ -88,14 +88,14 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Inquest
-        run: npm install -g inquest
+      - name: Install Bellwether
+        run: npm install -g @dotsetlabs/bellwether
 
       - name: Security-focused Interview
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          inquest interview \
+          bellwether interview \
             --ci \
             --persona security_tester \
             --fail-on-security \
@@ -107,5 +107,5 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: ./security-results/inquest.sarif
-          category: inquest-security
+          sarif_file: ./security-results/bellwether.sarif
+          category: bellwether-security

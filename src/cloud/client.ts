@@ -7,7 +7,7 @@
  * - HttpCloudClient (production API)
  */
 
-import type { InquestCloudClient, CloudConfig } from './types.js';
+import type { BellwetherCloudClient, CloudConfig } from './types.js';
 import { MockCloudClient } from './mock-client.js';
 import { HttpCloudClient } from './http-client.js';
 import { getSessionToken, getBaseUrl, isMockSession } from './auth.js';
@@ -18,7 +18,7 @@ import { getSessionToken, getBaseUrl, isMockSession } from './auth.js';
  * If no session token is provided, attempts to get one from environment/storage.
  * Automatically selects mock client for development or HTTP client for production.
  */
-export function createCloudClient(config?: Partial<CloudConfig>): InquestCloudClient {
+export function createCloudClient(config?: Partial<CloudConfig>): BellwetherCloudClient {
   const sessionToken = config?.sessionToken ?? getSessionToken();
   const baseUrl = config?.baseUrl ?? getBaseUrl();
   const timeout = config?.timeout ?? 30000;
@@ -32,7 +32,7 @@ export function createCloudClient(config?: Partial<CloudConfig>): InquestCloudCl
 
   // Use HTTP client for production
   if (!sessionToken) {
-    throw new Error('Session required for HTTP client. Run `inquest login` first.');
+    throw new Error('Session required for HTTP client. Run `bellwether login` first.');
   }
   return new HttpCloudClient(baseUrl, sessionToken, timeout);
 }
@@ -67,9 +67,9 @@ function shouldUseMockClient(_baseUrl: string, sessionToken?: string): boolean {
  *
  * Convenience function for when you already have a session token.
  */
-export function createCloudClientWithSession(sessionToken: string): InquestCloudClient {
+export function createCloudClientWithSession(sessionToken: string): BellwetherCloudClient {
   return createCloudClient({ sessionToken });
 }
 
 // Re-export types for convenience
-export type { InquestCloudClient, CloudConfig } from './types.js';
+export type { BellwetherCloudClient, CloudConfig } from './types.js';

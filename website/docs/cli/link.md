@@ -3,19 +3,19 @@ title: link
 sidebar_position: 7
 ---
 
-# inquest link
+# bellwether link
 
-Link current directory to an Inquest Cloud project.
+Link current directory to a Bellwether Cloud project.
 
 ## Synopsis
 
 ```bash
-inquest link [project-id]
+bellwether link [project-id]
 ```
 
 ## Description
 
-The `link` command connects your local directory to an Inquest Cloud project. This enables automatic baseline uploads, history tracking, and verification badges.
+The `link` command connects your local directory to a Bellwether Cloud project. This enables automatic baseline uploads, history tracking, and verification badges.
 
 ## Arguments
 
@@ -28,7 +28,7 @@ The `link` command connects your local directory to an Inquest Cloud project. Th
 ### Create and Link New Project
 
 ```bash
-inquest link
+bellwether link
 ```
 
 Interactive prompt:
@@ -43,12 +43,12 @@ Linked to current directory.
 ### Link to Existing Project
 
 ```bash
-inquest link proj_abc123
+bellwether link proj_abc123
 ```
 
 ## Project Configuration
 
-Linking creates `.inquest.json` in your project root:
+Linking creates `.bellwether.json` in your project root:
 
 ```json
 {
@@ -63,8 +63,8 @@ This file should be committed to version control.
 
 After linking, you can:
 
-- **Upload baselines** with `inquest upload`
-- **View history** with `inquest history`
+- **Upload baselines** with `bellwether upload`
+- **View history** with `bellwether history`
 - **Get verification badges** for your README
 - **Track drift** across your team
 
@@ -73,7 +73,7 @@ After linking, you can:
 After linking, add a badge to your README:
 
 ```markdown
-[![Inquest](https://inquest.cloud/badge/proj_abc123)](https://inquest.cloud/projects/proj_abc123)
+[![Bellwether](https://bellwether.sh/badge/proj_abc123)](https://bellwether.sh/projects/proj_abc123)
 ```
 
 ## See Also

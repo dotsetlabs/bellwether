@@ -3,19 +3,19 @@ title: login
 sidebar_position: 6
 ---
 
-# inquest login
+# bellwether login
 
-Authenticate with Inquest Cloud.
+Authenticate with Bellwether Cloud.
 
 ## Synopsis
 
 ```bash
-inquest login [options]
+bellwether login [options]
 ```
 
 ## Description
 
-The `login` command authenticates you with Inquest Cloud, enabling baseline syncing, history tracking, and team collaboration features.
+The `login` command authenticates you with Bellwether Cloud, enabling baseline syncing, history tracking, and team collaboration features.
 
 ## Options
 
@@ -30,7 +30,7 @@ The `login` command authenticates you with Inquest Cloud, enabling baseline sync
 ### Interactive Login
 
 ```bash
-inquest login
+bellwether login
 ```
 
 This opens your browser for authentication. After logging in, credentials are stored locally.
@@ -40,13 +40,13 @@ This opens your browser for authentication. After logging in, credentials are st
 For CI/CD or headless environments:
 
 ```bash
-inquest login --token iqt_xxx
+bellwether login --token iqt_xxx
 ```
 
 ### Check Status
 
 ```bash
-inquest login --status
+bellwether login --status
 ```
 
 Output:
@@ -59,33 +59,33 @@ Token expires: 2026-02-12
 ### Logout
 
 ```bash
-inquest login --logout
+bellwether login --logout
 ```
 
 ## CI/CD Usage
 
-For CI/CD pipelines, use the `INQUEST_SESSION` environment variable instead of interactive login:
+For CI/CD pipelines, use the `BELLWETHER_SESSION` environment variable instead of interactive login:
 
 ```bash
 # Get your session token
-inquest login --status
-# Copy the INQUEST_SESSION value
+bellwether login --status
+# Copy the BELLWETHER_SESSION value
 
 # In CI
-export INQUEST_SESSION=iqt_xxx
-inquest upload --ci
+export BELLWETHER_SESSION=iqt_xxx
+bellwether upload --ci
 ```
 
 Or in GitHub Actions:
 
 ```yaml
 env:
-  INQUEST_SESSION: ${{ secrets.INQUEST_SESSION }}
+  BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
 ```
 
 ## Credential Storage
 
-Credentials are stored in `~/.inquest/auth.json`:
+Credentials are stored in `~/.bellwether/auth.json`:
 
 ```json
 {

@@ -7,37 +7,37 @@ sidebar_position: 2
 
 ## Prerequisites
 
-- **Node.js 20 or later** - Required for running Inquest
+- **Node.js 20 or later** - Required for running Bellwether
 - **An LLM API key** - OpenAI, Anthropic, or use Ollama locally (free)
 - **An MCP server to interview** - Any server implementing the Model Context Protocol
 
 ## Install via npm
 
-The recommended way to install Inquest:
+The recommended way to install Bellwether:
 
 ```bash
-npm install -g @dotsetlabs/inquest
+npm install -g @dotsetlabs/bellwether
 ```
 
 Verify the installation:
 
 ```bash
-inquest --version
+bellwether --version
 ```
 
 ## Use with npx (No Installation)
 
-Run Inquest directly without global installation:
+Run Bellwether directly without global installation:
 
 ```bash
-npx @dotsetlabs/inquest interview <server-command>
+npx @dotsetlabs/bellwether interview <server-command>
 ```
 
 This is useful for CI/CD pipelines or one-off usage.
 
 ## LLM Provider Setup
 
-Inquest requires an LLM to generate test scenarios. Choose one of the following providers:
+Bellwether requires an LLM to generate test scenarios. Choose one of the following providers:
 
 ### OpenAI (Recommended)
 
@@ -73,8 +73,8 @@ ollama serve
 # Pull a model
 ollama pull llama3.2
 
-# Run Inquest (no API key needed)
-inquest interview npx @modelcontextprotocol/server-filesystem /tmp
+# Run Bellwether (no API key needed)
+bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 ```
 
 Default model: `llama3.2`
@@ -85,7 +85,7 @@ Ollama is great for development and testing. For production CI/CD, OpenAI or Ant
 
 ## Provider Auto-Detection
 
-Inquest automatically detects which provider to use based on environment variables:
+Bellwether automatically detects which provider to use based on environment variables:
 
 | Priority | Environment Variable | Provider |
 |:---------|:--------------------|:---------|
@@ -96,12 +96,12 @@ Inquest automatically detects which provider to use based on environment variabl
 Override with the `--provider` flag:
 
 ```bash
-inquest interview --provider openai npx server
+bellwether interview --provider openai npx server
 ```
 
 ## Configuration File
 
-For persistent configuration, create `inquest.yaml` in your project root:
+For persistent configuration, create `bellwether.yaml` in your project root:
 
 ```yaml
 version: 1
@@ -118,7 +118,7 @@ output:
   format: markdown
 ```
 
-Or in your home directory at `~/.inquest/inquest.yaml` for global defaults.
+Or in your home directory at `~/.bellwether/bellwether.yaml` for global defaults.
 
 ## Verify Setup
 
@@ -127,11 +127,11 @@ Test your installation with a simple interview:
 ```bash
 # With OpenAI
 export OPENAI_API_KEY=sk-xxx
-inquest interview npx @modelcontextprotocol/server-memory
+bellwether interview npx @modelcontextprotocol/server-memory
 
 # With Ollama (free)
 ollama serve &
-inquest interview npx @modelcontextprotocol/server-memory
+bellwether interview npx @modelcontextprotocol/server-memory
 ```
 
 You should see:
@@ -167,7 +167,7 @@ ollama serve
 
 ### Node.js version issues
 
-Inquest requires Node.js 20+:
+Bellwether requires Node.js 20+:
 
 ```bash
 node --version  # Should be v20.x.x or higher

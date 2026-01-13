@@ -3,14 +3,14 @@ title: watch
 sidebar_position: 5
 ---
 
-# inquest watch
+# bellwether watch
 
 Automatically re-interview when files change.
 
 ## Synopsis
 
 ```bash
-inquest watch [options] <command> [args...]
+bellwether watch [options] <command> [args...]
 ```
 
 ## Description
@@ -39,13 +39,13 @@ All options from [interview](/cli/interview) are also supported.
 ### Basic Watch Mode
 
 ```bash
-inquest watch npx your-server --watch-path ./src
+bellwether watch npx your-server --watch-path ./src
 ```
 
 ### Watch Multiple Directories
 
 ```bash
-inquest watch npx your-server \
+bellwether watch npx your-server \
   --watch-path ./src \
   --watch-path ./lib
 ```
@@ -54,7 +54,7 @@ inquest watch npx your-server \
 
 ```bash
 # Fast re-interviews during development
-inquest watch --quick npx your-server --watch-path ./src
+bellwether watch --quick npx your-server --watch-path ./src
 ```
 
 ## Behavior
@@ -88,7 +88,7 @@ Keep watch running in a terminal while developing:
 
 ```bash
 # Terminal 1: Watch for changes
-inquest watch npx your-server --watch-path ./src
+bellwether watch npx your-server --watch-path ./src
 
 # Terminal 2: Edit your server code
 vim src/tools/read.ts

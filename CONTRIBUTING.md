@@ -1,6 +1,6 @@
-# Contributing to Inquest
+# Contributing to Bellwether
 
-Thank you for your interest in contributing to Inquest! This document provides guidelines for contributing to the project.
+Thank you for your interest in contributing to Bellwether! This document provides guidelines for contributing to the project.
 
 ## Code of Conduct
 
@@ -10,7 +10,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Reporting Bugs
 
-1. Check [existing issues](https://github.com/dotsetlabs/inquest/issues) to see if the bug has already been reported
+1. Check [existing issues](https://github.com/dotsetlabs/bellwether/issues) to see if the bug has already been reported
 2. If not, create a new issue with:
    - A clear, descriptive title
    - Steps to reproduce the bug
@@ -20,7 +20,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Suggesting Features
 
-1. Check [existing issues](https://github.com/dotsetlabs/inquest/issues) for similar suggestions
+1. Check [existing issues](https://github.com/dotsetlabs/bellwether/issues) for similar suggestions
 2. Create a new issue with:
    - A clear description of the feature
    - The problem it solves
@@ -42,8 +42,8 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/inquest
-cd inquest
+git clone https://github.com/YOUR_USERNAME/bellwether
+cd bellwether
 
 # Install dependencies
 npm install
@@ -95,7 +95,7 @@ Prefixes:
 ## Questions?
 
 If you have questions about contributing, feel free to:
-- Open a [discussion](https://github.com/dotsetlabs/inquest/discussions)
+- Open a [discussion](https://github.com/dotsetlabs/bellwether/discussions)
 - Ask in an issue
 
 Thank you for contributing!

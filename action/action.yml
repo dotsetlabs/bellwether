@@ -1,4 +1,4 @@
-name: 'Inquest Agent Profiler'
+name: 'Bellwether Agent Profiler'
 description: 'Behavioral testing and drift detection for MCP servers'
 author: 'Dotset Labs'
 
@@ -30,7 +30,7 @@ inputs:
     default: 'sarif'
   output-file:
     description: 'Path to write the output file'
-    default: 'inquest-results'
+    default: 'bellwether-results'
   save-baseline:
     description: 'Path to save baseline after interview (for baseline creation runs)'
     required: false
@@ -71,22 +71,22 @@ runs:
       with:
         node-version: '20'
 
-    - name: Install Inquest
+    - name: Install Bellwether
       shell: bash
-      run: npm install -g inquest
+      run: npm install -g @dotsetlabs/bellwether
 
-    - name: Run Inquest Interview
+    - name: Run Bellwether Interview
       shell: bash
       id: interview
       env:
-        INQUEST_CI: 'true'
+        BELLWETHER_CI: 'true'
         OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
         ANTHROPIC_API_KEY: ${{ env.ANTHROPIC_API_KEY }}
       run: |
         set +e
 
         # Build the command
-        CMD="inquest interview"
+        CMD="bellwether interview"
         CMD="$CMD --ci"
         CMD="$CMD --personas ${{ inputs.personas }}"
         CMD="$CMD --timeout ${{ inputs.timeout }}"
@@ -164,22 +164,22 @@ runs:
 
         if [ $EXIT_CODE -eq 0 ]; then
           echo "result=passed" >> $GITHUB_OUTPUT
-          echo "::notice::Inquest interview passed - no behavioral drift detected"
+          echo "::notice::Bellwether interview passed - no behavioral drift detected"
         elif [ $EXIT_CODE -eq 1 ]; then
           echo "result=failed" >> $GITHUB_OUTPUT
           echo "drift-detected=true" >> $GITHUB_OUTPUT
           echo "::error::Behavioral drift detected! Review the diff and update your baseline if changes are intentional."
           echo ""
           echo "┌─────────────────────────────────────────────────────────────────┐"
-          echo "│ 📊 View detailed diff: https://inquest.cloud                    │"
-          echo "│    Run: inquest upload --ci                                     │"
+          echo "│ 📊 View detailed diff: https://bellwether.sh                    │"
+          echo "│    Run: bellwether upload --ci                                     │"
           echo "├─────────────────────────────────────────────────────────────────┤"
           echo "│ To update baseline after reviewing:                             │"
-          echo "│    inquest interview --save-baseline ${{ inputs.baseline-file || './inquest-baseline.json' }} │"
+          echo "│    bellwether interview --save-baseline ${{ inputs.baseline-file || './bellwether-baseline.json' }} │"
           echo "└─────────────────────────────────────────────────────────────────┘"
         elif [ $EXIT_CODE -eq 2 ]; then
           echo "result=failed" >> $GITHUB_OUTPUT
-          echo "::error::Inquest interview failed with errors. Check the logs above for details."
+          echo "::error::Bellwether interview failed with errors. Check the logs above for details."
           echo ""
           echo "Common issues:"
           echo "  • MCP server failed to start - check your server-command"
@@ -187,7 +187,7 @@ runs:
           echo "  • Server timeout - increase timeout with --timeout flag"
         else
           echo "result=failed" >> $GITHUB_OUTPUT
-          echo "::error::Inquest interview failed with exit code $EXIT_CODE"
+          echo "::error::Bellwether interview failed with exit code $EXIT_CODE"
         fi
 
         # Check baseline output

@@ -3,14 +3,14 @@ title: history
 sidebar_position: 9
 ---
 
-# inquest history
+# bellwether history
 
 View baseline history for a project.
 
 ## Synopsis
 
 ```bash
-inquest history [options]
+bellwether history [options]
 ```
 
 ## Description
@@ -29,7 +29,7 @@ The `history` command shows the baseline upload history for the linked project, 
 ### View Recent History
 
 ```bash
-inquest history
+bellwether history
 ```
 
 Output:
@@ -49,7 +49,7 @@ Showing 4 of 12 baselines. Use --limit to see more.
 ### JSON Output
 
 ```bash
-inquest history --json
+bellwether history --json
 ```
 
 ```json
@@ -74,7 +74,7 @@ inquest history --json
 ### View More History
 
 ```bash
-inquest history --limit 50
+bellwether history --limit 50
 ```
 
 ## Comparing Versions
@@ -82,17 +82,17 @@ inquest history --limit 50
 Use the cloud dashboard to compare any two versions:
 
 ```
-https://inquest.cloud/projects/proj_abc123/diff/10/12
+https://bellwether.sh/projects/proj_abc123/diff/10/12
 ```
 
 Or use the CLI:
 
 ```bash
 # Download and compare locally
-curl -o v10.json https://inquest.cloud/api/projects/proj_abc123/baselines/10
-curl -o v12.json https://inquest.cloud/api/projects/proj_abc123/baselines/12
+curl -o v10.json https://bellwether.sh/api/projects/proj_abc123/baselines/10
+curl -o v12.json https://bellwether.sh/api/projects/proj_abc123/baselines/12
 
-inquest interview --compare-baseline v10.json --save-baseline v12.json npx your-server
+bellwether interview --compare-baseline v10.json --save-baseline v12.json npx your-server
 ```
 
 ## See Also

@@ -4,10 +4,10 @@ import { join } from 'path';
 import { generateDefaultConfig } from '../../config/loader.js';
 
 export const initCommand = new Command('init')
-  .description('Initialize an inquest.yaml configuration file')
+  .description('Initialize a bellwether.yaml configuration file')
   .option('-f, --force', 'Overwrite existing config file')
   .action((options) => {
-    const configPath = join(process.cwd(), 'inquest.yaml');
+    const configPath = join(process.cwd(), 'bellwether.yaml');
 
     if (existsSync(configPath) && !options.force) {
       console.error(`Config file already exists: ${configPath}`);
@@ -22,7 +22,7 @@ export const initCommand = new Command('init')
     console.log('');
     console.log('Next steps:');
     console.log('  1. Set your OpenAI API key: export OPENAI_API_KEY=...');
-    console.log('  2. Run an interview: inquest interview npx @your/mcp-server');
+    console.log('  2. Run an interview: bellwether interview npx @your/mcp-server');
     console.log('');
-    console.log('For more information, see: https://github.com/dotsetlabs/inquest');
+    console.log('For more information, see: https://github.com/dotsetlabs/bellwether');
   });

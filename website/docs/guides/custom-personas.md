@@ -213,7 +213,7 @@ additionalContext: |
 ### From Configuration
 
 ```yaml
-# inquest.yaml
+# bellwether.yaml
 interview:
   personaFiles:
     - ./personas/api_documenter.persona.yaml
@@ -232,13 +232,13 @@ project/
   personas/
     api_documenter.persona.yaml
     database_security.persona.yaml
-  inquest.yaml
+  bellwether.yaml
 ```
 
 ### Via Command Line
 
 ```bash
-inquest interview \
+bellwether interview \
   --persona-file ./my-persona.persona.yaml \
   npx your-server
 ```

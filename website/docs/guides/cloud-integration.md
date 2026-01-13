@@ -5,7 +5,7 @@ sidebar_position: 3
 
 # Cloud Integration
 
-Inquest Cloud provides baseline history, team collaboration, and verification badges for your MCP servers.
+Bellwether Cloud provides baseline history, team collaboration, and verification badges for your MCP servers.
 
 ## Features
 
@@ -21,12 +21,12 @@ Inquest Cloud provides baseline history, team collaboration, and verification ba
 
 ### 1. Create an Account
 
-Visit [inquest.cloud](https://inquest.cloud) to create an account.
+Visit [bellwether.sh](https://bellwether.sh) to create an account.
 
 ### 2. Login via CLI
 
 ```bash
-inquest login
+bellwether login
 ```
 
 This opens your browser for authentication. After logging in, credentials are stored locally.
@@ -35,7 +35,7 @@ This opens your browser for authentication. After logging in, credentials are st
 
 ```bash
 cd your-mcp-server
-inquest link
+bellwether link
 ```
 
 Follow the prompts to create or select a project.
@@ -44,8 +44,8 @@ Follow the prompts to create or select a project.
 
 ```bash
 # Generate and upload
-inquest interview --save-baseline npx your-server
-inquest upload
+bellwether interview --save-baseline npx your-server
+bellwether upload
 ```
 
 ## Verification Badge
@@ -53,7 +53,7 @@ inquest upload
 Add a badge to your README showing verification status:
 
 ```markdown
-[![Inquest](https://inquest.cloud/badge/proj_abc123)](https://inquest.cloud/projects/proj_abc123)
+[![Bellwether](https://bellwether.sh/badge/proj_abc123)](https://bellwether.sh/projects/proj_abc123)
 ```
 
 Badge shows:
@@ -89,32 +89,32 @@ All team members can:
 ### GitHub Actions
 
 ```yaml
-name: Inquest CI
+name: Bellwether CI
 on: [push]
 
 jobs:
-  inquest:
+  bellwether:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Inquest
+      - name: Run Bellwether
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          INQUEST_SESSION: ${{ secrets.INQUEST_SESSION }}
+          BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
         run: |
-          npx @dotsetlabs/inquest interview --save-baseline npx your-server
-          npx @dotsetlabs/inquest upload --ci --fail-on-drift
+          npx @dotsetlabs/bellwether interview --save-baseline npx your-server
+          npx @dotsetlabs/bellwether upload --ci --fail-on-drift
 ```
 
 ### Getting CI Token
 
 ```bash
 # Get your session token
-inquest login --status
-# Copy INQUEST_SESSION value
+bellwether login --status
+# Copy BELLWETHER_SESSION value
 
-# Add to GitHub Secrets as INQUEST_SESSION
+# Add to GitHub Secrets as BELLWETHER_SESSION
 ```
 
 ## Viewing History
@@ -122,12 +122,12 @@ inquest login --status
 ### Via CLI
 
 ```bash
-inquest history
+bellwether history
 ```
 
 ### Via Dashboard
 
-Visit `https://inquest.cloud/projects/proj_xxx` to see:
+Visit `https://bellwether.sh/projects/proj_xxx` to see:
 - All baseline versions
 - Diff between any two versions
 - Drift timeline
@@ -145,7 +145,7 @@ Visit `https://inquest.cloud/projects/proj_xxx` to see:
 ### Via Direct URL
 
 ```
-https://inquest.cloud/projects/proj_xxx/diff/10/12
+https://bellwether.sh/projects/proj_xxx/diff/10/12
 ```
 
 ## Project Settings
@@ -180,7 +180,7 @@ Send events to external services:
 | Pro | $19/mo | 10 projects, 1-year history |
 | Team | $49/mo | Unlimited projects, team features |
 
-Visit [inquest.cloud/pricing](https://inquest.cloud/pricing) for details.
+Visit [bellwether.sh/pricing](https://bellwether.sh/pricing) for details.
 
 ## Data Retention
 
@@ -200,7 +200,7 @@ Visit [inquest.cloud/pricing](https://inquest.cloud/pricing) for details.
 
 ## Offline Usage
 
-Inquest works fully offline. Cloud is optional for:
+Bellwether works fully offline. Cloud is optional for:
 - Local drift detection
 - Local baseline management
 - Local documentation generation

@@ -49,20 +49,20 @@ Drift occurs when your MCP server's behavior differs from its documented baselin
 
 ```bash
 # Save initial baseline
-inquest interview --save-baseline npx your-server
+bellwether interview --save-baseline npx your-server
 
 # Make changes to server...
 
 # Compare against baseline
-inquest interview --compare-baseline ./inquest-baseline.json npx your-server
+bellwether interview --compare-baseline ./bellwether-baseline.json npx your-server
 ```
 
 ### CI/CD Pipeline
 
 ```bash
-inquest interview \
+bellwether interview \
   --ci \
-  --compare-baseline ./inquest-baseline.json \
+  --compare-baseline ./bellwether-baseline.json \
   --fail-on-drift \
   npx your-server
 ```
@@ -72,7 +72,7 @@ inquest interview \
 Fail on any change, including documentation:
 
 ```bash
-inquest interview \
+bellwether interview \
   --compare-baseline ./baseline.json \
   --fail-on-drift \
   --strict \
@@ -143,13 +143,13 @@ When drift is expected (new features, fixes):
 
 ```bash
 # Review the changes
-inquest interview --compare-baseline ./baseline.json npx your-server
+bellwether interview --compare-baseline ./baseline.json npx your-server
 
 # Update baseline if changes are correct
-inquest interview --save-baseline npx your-server
+bellwether interview --save-baseline npx your-server
 
 # Commit updated baseline
-git add inquest-baseline.json
+git add bellwether-baseline.json
 git commit -m "Update baseline: improved error handling"
 ```
 
@@ -172,11 +172,11 @@ When drift is unexpected:
 
 ## Cloud Integration
 
-Track drift history with Inquest Cloud:
+Track drift history with Bellwether Cloud:
 
 ```bash
 # Upload baseline with drift info
-inquest upload --ci --fail-on-drift
+bellwether upload --ci --fail-on-drift
 ```
 
 Cloud provides:

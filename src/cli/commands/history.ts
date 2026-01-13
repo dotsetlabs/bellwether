@@ -1,5 +1,5 @@
 /**
- * History command for viewing baseline history in Inquest Cloud.
+ * History command for viewing baseline history in Bellwether Cloud.
  */
 
 import { Command } from 'commander';
@@ -16,7 +16,7 @@ export const historyCommand = new Command('history')
     // Get session
     const sessionToken = options.session ?? getSessionToken();
     if (!sessionToken) {
-      console.error('Not authenticated. Run `inquest login` first.');
+      console.error('Not authenticated. Run `bellwether login` first.');
       process.exit(1);
     }
 
@@ -34,7 +34,7 @@ export const historyCommand = new Command('history')
       console.error('No project specified.');
       console.error('\nEither:');
       console.error('  - Provide a project ID as argument');
-      console.error('  - Run `inquest link` to link this directory to a project');
+      console.error('  - Run `bellwether link` to link this directory to a project');
       process.exit(1);
     }
 
@@ -42,7 +42,7 @@ export const historyCommand = new Command('history')
     const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
-      console.error('Authentication failed. Run `inquest login` to re-authenticate.');
+      console.error('Authentication failed. Run `bellwether login` to re-authenticate.');
       process.exit(1);
     }
 
@@ -58,7 +58,7 @@ export const historyCommand = new Command('history')
 
       if (history.length === 0) {
         console.log('No baselines uploaded yet.');
-        console.log('\nRun `inquest interview <server> --save-baseline` then `inquest upload`.');
+        console.log('\nRun `bellwether interview <server> --save-baseline` then `bellwether upload`.');
         return;
       }
 
@@ -171,7 +171,7 @@ export const diffCommand = new Command('diff')
     // Get session
     const sessionToken = options.session ?? getSessionToken();
     if (!sessionToken) {
-      console.error('Not authenticated. Run `inquest login` first.');
+      console.error('Not authenticated. Run `bellwether login` first.');
       process.exit(1);
     }
 
@@ -186,7 +186,7 @@ export const diffCommand = new Command('diff')
     }
 
     if (!projectId) {
-      console.error('No project specified. Use --project <id> or run `inquest link`.');
+      console.error('No project specified. Use --project <id> or run `bellwether link`.');
       process.exit(1);
     }
 
@@ -195,7 +195,7 @@ export const diffCommand = new Command('diff')
     const toVersion = parseInt(toArg, 10);
 
     if (isNaN(fromVersion) || isNaN(toVersion)) {
-      console.error('Invalid version numbers. Provide integers (e.g., `inquest diff 1 2`).');
+      console.error('Invalid version numbers. Provide integers (e.g., `bellwether diff 1 2`).');
       process.exit(1);
     }
 
@@ -203,7 +203,7 @@ export const diffCommand = new Command('diff')
     const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
-      console.error('Authentication failed. Run `inquest login` to re-authenticate.');
+      console.error('Authentication failed. Run `bellwether login` to re-authenticate.');
       process.exit(1);
     }
 

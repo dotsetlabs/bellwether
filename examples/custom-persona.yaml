@@ -1,5 +1,5 @@
 # Custom Persona Definition
-# Use with: inquest interview --persona-file ./custom-persona.yaml npx @mcp/server
+# Use with: bellwether interview --persona-file ./custom-persona.yaml npx @mcp/server
 
 id: api_tester
 name: API Tester

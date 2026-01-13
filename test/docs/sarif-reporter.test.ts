@@ -65,8 +65,8 @@ describe('SARIF Reporter', () => {
       const parsed = JSON.parse(sarif);
 
       const driver = parsed.runs[0].tool.driver;
-      expect(driver.name).toBe('Inquest');
-      expect(driver.informationUri).toContain('inquest');
+      expect(driver.name).toBe('Bellwether');
+      expect(driver.informationUri).toContain('bellwether');
       expect(driver.rules.length).toBeGreaterThan(0);
     });
 
@@ -86,7 +86,7 @@ describe('SARIF Reporter', () => {
       const parsed = JSON.parse(sarif);
 
       const securityResult = parsed.runs[0].results.find(
-        (r: any) => r.ruleId === 'INQUEST-001'
+        (r: any) => r.ruleId === 'BELLWETHER-001'
       );
       expect(securityResult).toBeDefined();
       expect(securityResult.level).toBe('warning');
@@ -109,7 +109,7 @@ describe('SARIF Reporter', () => {
       const parsed = JSON.parse(sarif);
 
       const limitationResult = parsed.runs[0].results.find(
-        (r: any) => r.ruleId === 'INQUEST-002'
+        (r: any) => r.ruleId === 'BELLWETHER-002'
       );
       expect(limitationResult).toBeDefined();
       expect(limitationResult.level).toBe('note');
@@ -129,7 +129,7 @@ describe('SARIF Reporter', () => {
       const parsed = JSON.parse(sarif);
 
       const workflowResult = parsed.runs[0].results.find(
-        (r: any) => r.ruleId === 'INQUEST-007'
+        (r: any) => r.ruleId === 'BELLWETHER-007'
       );
       expect(workflowResult).toBeDefined();
       expect(workflowResult.level).toBe('error');
@@ -183,7 +183,7 @@ describe('SARIF Reporter', () => {
       const parsed = JSON.parse(sarif);
 
       const removedResult = parsed.runs[0].results.find(
-        (r: any) => r.ruleId === 'INQUEST-003'
+        (r: any) => r.ruleId === 'BELLWETHER-003'
       );
       expect(removedResult).toBeDefined();
       expect(removedResult.level).toBe('error');
@@ -207,7 +207,7 @@ describe('SARIF Reporter', () => {
       const parsed = JSON.parse(sarif);
 
       const addedResult = parsed.runs[0].results.find(
-        (r: any) => r.ruleId === 'INQUEST-004'
+        (r: any) => r.ruleId === 'BELLWETHER-004'
       );
       expect(addedResult).toBeDefined();
       expect(addedResult.level).toBe('note');
@@ -235,7 +235,7 @@ describe('SARIF Reporter', () => {
       const parsed = JSON.parse(sarif);
 
       const schemaResult = parsed.runs[0].results.find(
-        (r: any) => r.ruleId === 'INQUEST-005'
+        (r: any) => r.ruleId === 'BELLWETHER-005'
       );
       expect(schemaResult).toBeDefined();
       expect(schemaResult.level).toBe('warning');
@@ -297,7 +297,7 @@ describe('SARIF Reporter', () => {
       const parsed = JSON.parse(sarif);
 
       const results = parsed.runs[0].results.filter(
-        (r: any) => r.ruleId === 'INQUEST-006'
+        (r: any) => r.ruleId === 'BELLWETHER-006'
       );
       expect(results).toHaveLength(2);
 

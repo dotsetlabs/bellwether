@@ -1,12 +1,12 @@
 {
-  "name": "@dotsetlabs/inquest",
+  "name": "@dotsetlabs/bellwether",
   "version": "0.2.0",
   "description": "Interview MCP servers to generate behavioral documentation, detect drift, and identify security vulnerabilities",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "inquest": "dist/cli/index.js"
+    "bellwether": "dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -35,12 +35,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dotsetlabs/inquest"
+    "url": "https://github.com/dotsetlabs/bellwether"
   },
   "bugs": {
-    "url": "https://github.com/dotsetlabs/inquest/issues"
+    "url": "https://github.com/dotsetlabs/bellwether/issues"
   },
-  "homepage": "https://github.com/dotsetlabs/inquest#readme",
+  "homepage": "https://github.com/dotsetlabs/bellwether#readme",
   "engines": {
     "node": ">=20.0.0"
   },

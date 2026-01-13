@@ -35,11 +35,11 @@ const outputConfigSchema = z.object({
 });
 
 /**
- * Complete Zod schema for inquest configuration.
+ * Complete Zod schema for bellwether configuration.
  * Note: We allow any positive version number for forward compatibility,
  * but only version 1 is currently supported.
  */
-const inquestConfigSchema = z.object({
+const bellwetherConfigSchema = z.object({
   version: z.number().int().min(1),
   llm: llmConfigSchema,
   interview: interviewConfigSchema,
@@ -63,9 +63,9 @@ export interface LLMConfigSection {
 }
 
 /**
- * Inquest configuration file structure.
+ * Bellwether configuration file structure.
  */
-export interface InquestConfig {
+export interface BellwetherConfig {
   version: number;
   llm: LLMConfigSection;
   interview: {
@@ -84,7 +84,7 @@ export interface InquestConfig {
 /**
  * Create default configuration based on detected provider.
  */
-function createDefaultConfig(): InquestConfig {
+function createDefaultConfig(): BellwetherConfig {
   const provider = detectProvider();
   return {
     version: 1,
@@ -106,24 +106,24 @@ function createDefaultConfig(): InquestConfig {
 /**
  * Default configuration (lazily evaluated to allow env detection after dotenv loads).
  */
-export function getDefaultConfig(): InquestConfig {
+export function getDefaultConfig(): BellwetherConfig {
   return createDefaultConfig();
 }
 
 /**
  * @deprecated Use getDefaultConfig() instead - this evaluates too early before dotenv loads
  */
-export const DEFAULT_CONFIG: InquestConfig = createDefaultConfig();
+export const DEFAULT_CONFIG: BellwetherConfig = createDefaultConfig();
 
 /**
  * Config file names to search for.
  */
-const CONFIG_NAMES = ['inquest.yaml', 'inquest.yml', '.inquest.yaml', '.inquest.yml'];
+const CONFIG_NAMES = ['bellwether.yaml', 'bellwether.yml', '.bellwether.yaml', '.bellwether.yml'];
 
 /**
  * Load configuration from file or return defaults.
  */
-export function loadConfig(explicitPath?: string): InquestConfig {
+export function loadConfig(explicitPath?: string): BellwetherConfig {
   if (explicitPath) {
     return loadConfigFile(explicitPath);
   }
@@ -131,7 +131,7 @@ export function loadConfig(explicitPath?: string): InquestConfig {
   // Search for config file
   const searchPaths = [
     process.cwd(),
-    join(process.env.HOME ?? '', '.inquest'),
+    join(process.env.HOME ?? '', '.bellwether'),
   ];
 
   for (const dir of searchPaths) {
@@ -149,7 +149,7 @@ export function loadConfig(explicitPath?: string): InquestConfig {
 /**
  * Load and parse a specific config file.
  */
-function loadConfigFile(path: string): InquestConfig {
+function loadConfigFile(path: string): BellwetherConfig {
   if (!existsSync(path)) {
     throw new Error(`Config file not found: ${path}`);
   }
@@ -172,10 +172,10 @@ function loadConfigFile(path: string): InquestConfig {
 
   // Merge with defaults first
   const defaults = getDefaultConfig();
-  const merged = mergeConfig(defaults, parsed as Partial<InquestConfig>);
+  const merged = mergeConfig(defaults, parsed as Partial<BellwetherConfig>);
 
   // Validate merged config
-  const result = inquestConfigSchema.safeParse(merged);
+  const result = bellwetherConfigSchema.safeParse(merged);
 
   if (!result.success) {
     const issues = result.error.issues.map((issue) => {
@@ -185,13 +185,13 @@ function loadConfigFile(path: string): InquestConfig {
     throw new Error(`Invalid configuration in ${path}:\n${issues.join('\n')}`);
   }
 
-  return result.data as InquestConfig;
+  return result.data as BellwetherConfig;
 }
 
 /**
  * Deep merge config with defaults.
  */
-function mergeConfig(defaults: InquestConfig, overrides: Partial<InquestConfig>): InquestConfig {
+function mergeConfig(defaults: BellwetherConfig, overrides: Partial<BellwetherConfig>): BellwetherConfig {
   return {
     version: overrides.version ?? defaults.version,
     llm: {
@@ -213,7 +213,7 @@ function mergeConfig(defaults: InquestConfig, overrides: Partial<InquestConfig>)
  * Generate default config file content.
  */
 export function generateDefaultConfig(): string {
-  return `# Inquest Configuration
+  return `# Bellwether Configuration
 version: 1
 
 # LLM Provider Configuration

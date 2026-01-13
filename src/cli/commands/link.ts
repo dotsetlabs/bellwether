@@ -1,5 +1,5 @@
 /**
- * Link command for connecting current directory to an Inquest Cloud project.
+ * Link command for connecting current directory to a Bellwether Cloud project.
  */
 
 import { Command } from 'commander';
@@ -14,7 +14,7 @@ import { createCloudClient } from '../../cloud/client.js';
 import type { ProjectLink } from '../../cloud/types.js';
 
 export const linkCommand = new Command('link')
-  .description('Link current directory to an Inquest Cloud project')
+  .description('Link current directory to a Bellwether Cloud project')
   .argument('[project-id]', 'Project ID to link to (creates new if not specified)')
   .option('-n, --name <name>', 'Project name (for new projects)')
   .option('-c, --command <cmd>', 'Server command (for new projects)', 'node dist/server.js')
@@ -40,14 +40,14 @@ export const linkCommand = new Command('link')
     // Check authentication
     const sessionToken = getSessionToken();
     if (!sessionToken) {
-      console.error('Not authenticated. Run `inquest login` first.');
+      console.error('Not authenticated. Run `bellwether login` first.');
       process.exit(1);
     }
 
     const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
-      console.error('Authentication failed. Run `inquest login` to re-authenticate.');
+      console.error('Authentication failed. Run `bellwether login` to re-authenticate.');
       process.exit(1);
     }
 
@@ -61,7 +61,7 @@ export const linkCommand = new Command('link')
 
       if (!project) {
         console.error(`Project not found: ${projectIdArg}`);
-        console.error('\nUse `inquest link` without an ID to create a new project.');
+        console.error('\nUse `bellwether link` without an ID to create a new project.');
         process.exit(1);
       }
 
@@ -97,10 +97,10 @@ export const linkCommand = new Command('link')
     console.log(`\nLinked to project: ${project.name}`);
     console.log(`Project ID: ${project.id}`);
     console.log(`Server command: ${project.serverCommand}`);
-    console.log('\nSaved to .inquest/link.json');
+    console.log('\nSaved to .bellwether/link.json');
     console.log('\nYou can now run:');
-    console.log('  inquest interview <server> --save-baseline');
-    console.log('  inquest upload');
+    console.log('  bellwether interview <server> --save-baseline');
+    console.log('  bellwether upload');
   });
 
 /**
@@ -118,7 +118,7 @@ function showLinkStatus(): void {
 
   if (!link) {
     console.log('Not linked to any project.');
-    console.log('\nRun `inquest link` to create or link to a project.');
+    console.log('\nRun `bellwether link` to create or link to a project.');
     return;
   }
 
@@ -127,26 +127,26 @@ function showLinkStatus(): void {
   console.log(`Project: ${link.projectName}`);
   console.log(`ID:      ${link.projectId}`);
   console.log(`Linked:  ${new Date(link.linkedAt).toLocaleString()}`);
-  console.log(`Config:  .inquest/link.json`);
+  console.log(`Config:  .bellwether/link.json`);
 }
 
 /**
  * Projects command for listing projects.
  */
 export const projectsCommand = new Command('projects')
-  .description('List Inquest Cloud projects')
+  .description('List Bellwether Cloud projects')
   .option('--json', 'Output as JSON')
   .action(async (options) => {
     const sessionToken = getSessionToken();
     if (!sessionToken) {
-      console.error('Not authenticated. Run `inquest login` first.');
+      console.error('Not authenticated. Run `bellwether login` first.');
       process.exit(1);
     }
 
     const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
-      console.error('Authentication failed. Run `inquest login` to re-authenticate.');
+      console.error('Authentication failed. Run `bellwether login` to re-authenticate.');
       process.exit(1);
     }
 
@@ -159,7 +159,7 @@ export const projectsCommand = new Command('projects')
 
     if (projects.length === 0) {
       console.log('No projects found.');
-      console.log('\nRun `inquest link` to create a project.');
+      console.log('\nRun `bellwether link` to create a project.');
       return;
     }
 
@@ -179,9 +179,9 @@ export const projectsCommand = new Command('projects')
 
       console.log(
         `${marker}${project.id.padEnd(20)}  ` +
-          `${project.name.slice(0, 19).padEnd(19)}  ` +
-          `${project.baselineCount.toString().padStart(9)}  ` +
-          `${lastUpload}`
+        `${project.name.slice(0, 19).padEnd(19)}  ` +
+        `${project.baselineCount.toString().padStart(9)}  ` +
+        `${lastUpload}`
       );
     }
 

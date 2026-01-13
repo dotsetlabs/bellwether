@@ -5,7 +5,7 @@
 import type { LLMClient, Message, CompletionOptions, ProviderInfo } from './client.js';
 import { DEFAULT_MODELS, parseJSONResponse } from './client.js';
 import { withRetry, LLM_RETRY_OPTIONS } from '../errors/retry.js';
-import { LLMConnectionError, InquestError } from '../errors/index.js';
+import { LLMConnectionError, BellwetherError } from '../errors/index.js';
 import { getLogger } from '../logging/logger.js';
 
 export interface OllamaClientOptions {
@@ -139,7 +139,7 @@ export class OllamaClient implements LLMClient {
 
             // Check for model not found - not retryable
             if (message.includes('not found') || message.includes('does not exist')) {
-              throw new InquestError(
+              throw new BellwetherError(
                 `Model "${model}" not found. Pull it with: ollama pull ${model}`,
                 {
                   code: 'LLM_MODEL_NOT_FOUND',

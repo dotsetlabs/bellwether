@@ -23,7 +23,7 @@ export const watchCommand = new Command('watch')
   .option('-w, --watch-path <path>', 'Path to watch for changes', '.')
   .option('-i, --interval <ms>', 'Polling interval in milliseconds', '5000')
   .option('--max-questions <n>', 'Max questions per tool')
-  .option('--baseline <path>', 'Baseline file to compare against', 'inquest-baseline.json')
+  .option('--baseline <path>', 'Baseline file to compare against', 'bellwether-baseline.json')
   .option('--on-change <command>', 'Command to run after detecting drift')
   .action(async (command: string, args: string[], options) => {
     const config = loadConfig(options.config);
@@ -34,7 +34,7 @@ export const watchCommand = new Command('watch')
       : config.interview.maxQuestionsPerTool;
     const baselinePath = resolve(options.baseline);
 
-    console.log('Inquest Watch Mode\n');
+    console.log('Bellwether Watch Mode\n');
     console.log(`Server: ${command} ${args.join(' ')}`);
     console.log(`Watching: ${watchPath}`);
     console.log(`Baseline: ${baselinePath}`);

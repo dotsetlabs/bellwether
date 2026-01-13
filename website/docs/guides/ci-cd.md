@@ -5,7 +5,7 @@ sidebar_position: 1
 
 # CI/CD Integration
 
-Integrate Inquest into your CI/CD pipeline for automated behavioral testing of MCP servers.
+Integrate Bellwether into your CI/CD pipeline for automated behavioral testing of MCP servers.
 
 ## Quick Start
 
@@ -16,7 +16,7 @@ name: MCP Behavioral Testing
 on: [push, pull_request]
 
 jobs:
-  inquest:
+  bellwether:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,13 +24,13 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Run Inquest
+      - name: Run Bellwether
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          npx @dotsetlabs/inquest interview \
+          npx @dotsetlabs/bellwether interview \
             --ci \
-            --compare-baseline ./inquest-baseline.json \
+            --compare-baseline ./bellwether-baseline.json \
             --fail-on-drift \
             npx your-mcp-server
 ```
@@ -38,13 +38,13 @@ jobs:
 ### GitLab CI
 
 ```yaml
-inquest:
+bellwether:
   image: node:20
   script:
     - |
-      npx @dotsetlabs/inquest interview \
+      npx @dotsetlabs/bellwether interview \
         --ci \
-        --compare-baseline ./inquest-baseline.json \
+        --compare-baseline ./bellwether-baseline.json \
         --fail-on-drift \
         npx your-mcp-server
   variables:
@@ -78,7 +78,7 @@ name: PR Check
 on: pull_request
 
 jobs:
-  inquest:
+  bellwether:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -87,10 +87,10 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          npx @dotsetlabs/inquest interview \
+          npx @dotsetlabs/bellwether interview \
             --ci \
             --quick \
-            --compare-baseline ./inquest-baseline.json \
+            --compare-baseline ./bellwether-baseline.json \
             --fail-on-drift \
             npx your-server
 ```
@@ -106,7 +106,7 @@ on:
     - cron: '0 0 * * *'
 
 jobs:
-  inquest:
+  bellwether:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -115,11 +115,11 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          npx @dotsetlabs/inquest interview \
+          npx @dotsetlabs/bellwether interview \
             --ci \
             --persona technical_writer,security_tester,qa_engineer \
             --max-questions 5 \
-            --compare-baseline ./inquest-baseline.json \
+            --compare-baseline ./bellwether-baseline.json \
             --fail-on-drift \
             npx your-server
 ```
@@ -142,7 +142,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          npx @dotsetlabs/inquest interview \
+          npx @dotsetlabs/bellwether interview \
             --ci \
             --persona security_tester \
             --fail-on-security \
@@ -154,7 +154,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: ./security/inquest.sarif
+          sarif_file: ./security/bellwether.sarif
 ```
 
 ## Baseline Management
@@ -165,10 +165,10 @@ Commit baselines to version control:
 
 ```bash
 # Create baseline
-inquest interview --save-baseline npx your-server
+bellwether interview --save-baseline npx your-server
 
 # Commit
-git add inquest-baseline.json
+git add bellwether-baseline.json
 git commit -m "Add behavioral baseline"
 git push
 ```
@@ -192,7 +192,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          npx @dotsetlabs/inquest interview \
+          npx @dotsetlabs/bellwether interview \
             --save-baseline \
             npx your-server
 
@@ -200,23 +200,23 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add inquest-baseline.json
+          git add bellwether-baseline.json
           git commit -m "Update behavioral baseline"
           git push
 ```
 
 ## Cloud Integration
 
-Sync with Inquest Cloud for history and team visibility:
+Sync with Bellwether Cloud for history and team visibility:
 
 ```yaml
 - name: Upload to Cloud
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-    INQUEST_SESSION: ${{ secrets.INQUEST_SESSION }}
+    BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
   run: |
-    npx @dotsetlabs/inquest interview --save-baseline npx your-server
-    npx @dotsetlabs/inquest upload --ci --fail-on-drift
+    npx @dotsetlabs/bellwether interview --save-baseline npx your-server
+    npx @dotsetlabs/bellwether upload --ci --fail-on-drift
 ```
 
 ## Output Formats
@@ -226,22 +226,22 @@ Sync with Inquest Cloud for history and team visibility:
 ```yaml
 - name: Generate SARIF
   run: |
-    npx @dotsetlabs/inquest interview \
+    npx @dotsetlabs/bellwether interview \
       --output-format sarif \
       -o ./results \
       npx your-server
 
 - uses: github/codeql-action/upload-sarif@v3
   with:
-    sarif_file: ./results/inquest.sarif
+    sarif_file: ./results/bellwether.sarif
 ```
 
 ### JUnit for GitLab
 
 ```yaml
-inquest:
+bellwether:
   script:
-    - npx @dotsetlabs/inquest interview --output-format junit -o ./results npx your-server
+    - npx @dotsetlabs/bellwether interview --output-format junit -o ./results npx your-server
   artifacts:
     reports:
       junit: results/junit.xml
@@ -253,7 +253,7 @@ inquest:
 |:---------|:------------|:---------|
 | `OPENAI_API_KEY` | OpenAI API key | Yes* |
 | `ANTHROPIC_API_KEY` | Anthropic API key | Yes* |
-| `INQUEST_SESSION` | Cloud session token | For cloud |
+| `BELLWETHER_SESSION` | Cloud session token | For cloud |
 | `CI` | Auto-detected in CI | - |
 
 *One LLM provider required
@@ -264,7 +264,7 @@ inquest:
 
 ```yaml
 - run: |
-    npx @dotsetlabs/inquest interview \
+    npx @dotsetlabs/bellwether interview \
       --model gpt-4o-mini \
       --max-questions 1 \
       npx your-server
@@ -274,7 +274,7 @@ inquest:
 
 ```yaml
 - run: |
-    npx @dotsetlabs/inquest interview \
+    npx @dotsetlabs/bellwether interview \
       --quick \
       npx your-server
 ```
@@ -301,7 +301,7 @@ Increase timeout for slow servers:
 
 ```yaml
 - run: |
-    npx @dotsetlabs/inquest interview \
+    npx @dotsetlabs/bellwether interview \
       --timeout 120000 \
       npx slow-server
 ```
@@ -310,17 +310,17 @@ Increase timeout for slow servers:
 
 ```yaml
 - run: |
-    npx @dotsetlabs/inquest interview \
+    npx @dotsetlabs/bellwether interview \
       --ci \
       --log-level debug \
-      --log-file ./inquest-debug.log \
+      --log-file ./bellwether-debug.log \
       npx your-server
 
 - uses: actions/upload-artifact@v4
   if: failure()
   with:
     name: debug-logs
-    path: ./inquest-debug.log
+    path: ./bellwether-debug.log
 ```
 
 ## See Also

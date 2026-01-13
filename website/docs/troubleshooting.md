@@ -12,7 +12,7 @@ Common issues and how to resolve them.
 ### Node.js Version Error
 
 ```
-Error: Inquest requires Node.js 20 or later
+Error: Bellwether requires Node.js 20 or later
 ```
 
 **Solution:** Update Node.js:
@@ -36,11 +36,11 @@ EACCES: permission denied
 
 ```bash
 # Option 1: Use npx (no install needed)
-npx @dotsetlabs/inquest interview npx server
+npx @dotsetlabs/bellwether interview npx server
 
 # Option 2: Fix npm permissions
 sudo chown -R $(whoami) ~/.npm
-npm install -g @dotsetlabs/inquest
+npm install -g @dotsetlabs/bellwether
 ```
 
 ## LLM Provider Issues
@@ -132,7 +132,7 @@ Error: Failed to connect to MCP server
 
 3. **Increase timeout:**
    ```bash
-   inquest interview --timeout 60000 npx server
+   bellwether interview --timeout 60000 npx server
    ```
 
 ### Server Crashes
@@ -145,7 +145,7 @@ Error: Server process exited unexpectedly
 
 1. **Check server logs:**
    ```bash
-   inquest interview --debug npx server
+   bellwether interview --debug npx server
    ```
 
 2. **Test server independently:**
@@ -164,7 +164,7 @@ Error: Tool 'my_tool' not found
 **Solution:** Verify available tools:
 
 ```bash
-inquest discover npx server
+bellwether discover npx server
 ```
 
 ## Interview Issues
@@ -178,7 +178,7 @@ Error: Tool call timed out
 **Solution:** Increase timeout:
 
 ```bash
-inquest interview --timeout 120000 npx server
+bellwether interview --timeout 120000 npx server
 ```
 
 ### Empty Results
@@ -191,7 +191,7 @@ Warning: No tools discovered
 
 1. **Check server supports MCP:**
    ```bash
-   inquest discover npx server
+   bellwether discover npx server
    ```
 
 2. **Verify server implementation** returns tools in `tools/list`
@@ -202,17 +202,17 @@ Warning: No tools discovered
 
 1. **Use a better model:**
    ```bash
-   inquest interview --model gpt-4o npx server
+   bellwether interview --model gpt-4o npx server
    ```
 
 2. **Increase questions:**
    ```bash
-   inquest interview --max-questions 5 npx server
+   bellwether interview --max-questions 5 npx server
    ```
 
 3. **Use multiple personas:**
    ```bash
-   inquest interview --persona technical_writer,security_tester npx server
+   bellwether interview --persona technical_writer,security_tester npx server
    ```
 
 ## Drift Detection Issues
@@ -220,13 +220,13 @@ Warning: No tools discovered
 ### Baseline Not Found
 
 ```
-Error: Baseline file not found: ./inquest-baseline.json
+Error: Baseline file not found: ./bellwether-baseline.json
 ```
 
 **Solution:** Create a baseline first:
 
 ```bash
-inquest interview --save-baseline npx server
+bellwether interview --save-baseline npx server
 ```
 
 ### Unexpected Drift
@@ -239,8 +239,8 @@ If you're seeing drift you don't expect:
 
 3. **Update baseline if changes are intentional:**
    ```bash
-   inquest interview --save-baseline npx server
-   git add inquest-baseline.json
+   bellwether interview --save-baseline npx server
+   git add bellwether-baseline.json
    git commit -m "Update baseline"
    ```
 
@@ -271,7 +271,7 @@ Error: Interview failed
 2. **Enable debug logging:**
    ```yaml
    - run: |
-       inquest interview --debug --log-file debug.log npx server
+       bellwether interview --debug --log-file debug.log npx server
    - uses: actions/upload-artifact@v4
      if: failure()
      with:
@@ -281,7 +281,7 @@ Error: Interview failed
 
 3. **Test locally first:**
    ```bash
-   inquest interview --ci npx server
+   bellwether interview --ci npx server
    ```
 
 ## Cloud Issues
@@ -296,11 +296,11 @@ Error: Authentication failed
 
 1. **Try logging in again:**
    ```bash
-   inquest login --logout
-   inquest login
+   bellwether login --logout
+   bellwether login
    ```
 
-2. **Check your account at** [inquest.cloud](https://inquest.cloud)
+2. **Check your account at** [bellwether.sh](https://bellwether.sh)
 
 ### Upload Failed
 
@@ -312,17 +312,17 @@ Error: Failed to upload baseline
 
 1. **Check you're logged in:**
    ```bash
-   inquest login --status
+   bellwether login --status
    ```
 
 2. **Verify project is linked:**
    ```bash
-   cat .inquest.json
+   cat .bellwether.json
    ```
 
 3. **Re-link if needed:**
    ```bash
-   inquest link
+   bellwether link
    ```
 
 ## Debug Mode
@@ -330,7 +330,7 @@ Error: Failed to upload baseline
 For detailed troubleshooting, enable debug mode:
 
 ```bash
-inquest interview \
+bellwether interview \
   --debug \
   --log-level debug \
   --log-file ./debug.log \
@@ -347,13 +347,13 @@ This logs:
 
 If these solutions don't help:
 
-1. **Search existing issues:** [github.com/dotsetlabs/inquest/issues](https://github.com/dotsetlabs/inquest/issues)
+1. **Search existing issues:** [github.com/dotsetlabs/bellwether/issues](https://github.com/dotsetlabs/bellwether/issues)
 
 2. **Open a new issue** with:
-   - Inquest version (`inquest --version`)
+   - Bellwether version (`bellwether --version`)
    - Node.js version (`node --version`)
    - Command you ran
    - Full error message
    - Debug log if available
 
-3. **Ask in Discussions:** [github.com/dotsetlabs/inquest/discussions](https://github.com/dotsetlabs/inquest/discussions)
+3. **Ask in Discussions:** [github.com/dotsetlabs/bellwether/discussions](https://github.com/dotsetlabs/bellwether/discussions)

@@ -1,5 +1,5 @@
 /**
- * Upload command for uploading baselines to Inquest Cloud.
+ * Upload command for uploading baselines to Bellwether Cloud.
  */
 
 import { Command } from 'commander';
@@ -8,15 +8,15 @@ import { getSessionToken, getLinkedProject } from '../../cloud/auth.js';
 import { createCloudClient } from '../../cloud/client.js';
 import { loadBaseline } from '../../baseline/saver.js';
 import { convertToCloudBaseline } from '../../baseline/converter.js';
-import type { InquestBaseline } from '../../cloud/types.js';
+import type { BellwetherBaseline } from '../../cloud/types.js';
 
 /**
  * Default baseline file name.
  */
-const DEFAULT_BASELINE_FILE = 'inquest-baseline.json';
+const DEFAULT_BASELINE_FILE = 'bellwether-baseline.json';
 
 export const uploadCommand = new Command('upload')
-  .description('Upload a baseline to Inquest Cloud')
+  .description('Upload a baseline to Bellwether Cloud')
   .argument('[baseline]', `Path to baseline JSON file (default: ${DEFAULT_BASELINE_FILE})`)
   .option('-p, --project <id>', 'Project ID to upload to (uses linked project if not specified)')
   .option('--public', 'Make baseline publicly viewable')
@@ -31,10 +31,10 @@ export const uploadCommand = new Command('upload')
     const sessionToken = options.session ?? getSessionToken();
     if (!sessionToken) {
       if (isCiMode) {
-        console.error('INQUEST_SESSION not set');
+        console.error('BELLWETHER_SESSION not set');
         process.exit(1);
       }
-      console.error('Not authenticated. Run `inquest login` first or set INQUEST_SESSION.');
+      console.error('Not authenticated. Run `bellwether login` first or set BELLWETHER_SESSION.');
       process.exit(1);
     }
 
@@ -45,7 +45,7 @@ export const uploadCommand = new Command('upload')
         process.exit(1);
       }
       console.error(`Baseline file not found: ${baselinePath}`);
-      console.error('\nRun `inquest interview <server> --save-baseline` first.');
+      console.error('\nRun `bellwether interview <server> --save-baseline` first.');
       process.exit(1);
     }
 
@@ -70,12 +70,12 @@ export const uploadCommand = new Command('upload')
       console.error('No project specified.');
       console.error('\nEither:');
       console.error('  - Use --project <id> to specify a project');
-      console.error('  - Run `inquest link` to link this directory to a project');
+      console.error('  - Run `bellwether link` to link this directory to a project');
       process.exit(1);
     }
 
     // Load and convert baseline
-    let cloudBaseline: InquestBaseline;
+    let cloudBaseline: BellwetherBaseline;
 
     try {
       // Try loading as cloud baseline first
@@ -84,7 +84,7 @@ export const uploadCommand = new Command('upload')
 
       if (parsed.version === '1.0' && parsed.metadata?.formatVersion === '1.0') {
         // Already in cloud format
-        cloudBaseline = parsed as InquestBaseline;
+        cloudBaseline = parsed as BellwetherBaseline;
       } else {
         // Convert from local format
         const localBaseline = loadBaseline(baselinePath);
@@ -107,7 +107,7 @@ export const uploadCommand = new Command('upload')
         console.error('Authentication failed');
         process.exit(1);
       }
-      console.error('Authentication failed. Run `inquest login` to re-authenticate.');
+      console.error('Authentication failed. Run `bellwether login` to re-authenticate.');
       process.exit(1);
     }
 

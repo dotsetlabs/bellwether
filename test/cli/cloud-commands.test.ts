@@ -26,7 +26,7 @@ describe('cli/cloud-commands', () => {
 
   beforeEach(() => {
     // Create temp directory for test config
-    testDir = join(tmpdir(), `inquest-cloud-test-${Date.now()}`);
+    testDir = join(tmpdir(), `bellwether-cloud-test-${Date.now()}`);
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
@@ -35,8 +35,8 @@ describe('cli/cloud-commands', () => {
     originalHome = process.env.HOME;
     process.env.HOME = testDir;
 
-    // Create .inquest directory
-    mkdirSync(join(testDir, '.inquest'), { recursive: true });
+    // Create .bellwether directory
+    mkdirSync(join(testDir, '.bellwether'), { recursive: true });
 
     // Capture console output
     consoleOutput = [];
@@ -131,7 +131,7 @@ describe('cli/cloud-commands', () => {
 
   describe('link command - project linking', () => {
     describe('saveProjectLink', () => {
-      it('should save project link to .inquest/link.json', () => {
+      it('should save project link to .bellwether/link.json', () => {
         const link: ProjectLink = {
           projectId: 'proj_123',
           projectName: 'My Project',
@@ -353,7 +353,7 @@ describe('cli/cloud-commands', () => {
       const isCiMode = true;
       const result = {
         version: 1,
-        viewUrl: 'https://inquest.dev/p/proj_123/v/1',
+        viewUrl: 'https://bellwether.sh/p/proj_123/v/1',
       };
 
       if (isCiMode) {
@@ -361,7 +361,7 @@ describe('cli/cloud-commands', () => {
         consoleOutput.push(result.viewUrl);
       }
 
-      expect(consoleOutput).toContain('https://inquest.dev/p/proj_123/v/1');
+      expect(consoleOutput).toContain('https://bellwether.sh/p/proj_123/v/1');
     });
 
     it('should check for breaking changes in CI mode', () => {

@@ -91,7 +91,7 @@ describe('Baseline Module', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `inquest-baseline-test-${Date.now()}`);
+    testDir = join(tmpdir(), `bellwether-baseline-test-${Date.now()}`);
     mkdirSync(testDir, { recursive: true });
   });
 

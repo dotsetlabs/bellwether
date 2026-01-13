@@ -83,7 +83,7 @@ describe('upload command', () => {
 
   beforeEach(async () => {
     // Create temp directory for test
-    testDir = join(tmpdir(), `inquest-upload-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(tmpdir(), `bellwether-upload-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
@@ -92,8 +92,8 @@ describe('upload command', () => {
     originalHome = process.env.HOME;
     process.env.HOME = testDir;
 
-    // Create .inquest directory
-    mkdirSync(join(testDir, '.inquest'), { recursive: true });
+    // Create .bellwether directory
+    mkdirSync(join(testDir, '.bellwether'), { recursive: true });
 
     // Reset modules so auth module picks up new HOME
     vi.resetModules();
@@ -147,7 +147,7 @@ describe('upload command', () => {
   describe('authentication', () => {
     it('should fail when not authenticated', async () => {
       clearSession();
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
 
@@ -179,10 +179,10 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
-        viewUrl: 'https://inquest.dev/view/1',
+        viewUrl: 'https://bellwether.sh/view/1',
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
@@ -195,7 +195,7 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
-        viewUrl: 'https://inquest.dev/view/1',
+        viewUrl: 'https://bellwether.sh/view/1',
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'custom-baseline.json'), JSON.stringify(cloudFormatBaseline));
@@ -211,10 +211,10 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
-        viewUrl: 'https://inquest.dev/view/1',
+        viewUrl: 'https://bellwether.sh/view/1',
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
@@ -231,7 +231,7 @@ describe('upload command', () => {
       saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
-      writeFileSync(join(testDir, 'inquest-baseline.json'), 'not valid json');
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), 'not valid json');
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
 
@@ -249,10 +249,10 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
-        viewUrl: 'https://inquest.dev/view/1',
+        viewUrl: 'https://bellwether.sh/view/1',
       });
       saveProjectLink({ projectId: 'proj_linked', projectName: 'Linked Project', linkedAt: new Date().toISOString() });
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
@@ -270,9 +270,9 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
-        viewUrl: 'https://inquest.dev/view/1',
+        viewUrl: 'https://bellwether.sh/view/1',
       });
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
       await uploadCommand.parseAsync(['node', 'test', '--project', 'proj_explicit']);
@@ -287,7 +287,7 @@ describe('upload command', () => {
     it('should fail when no project specified', async () => {
       saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
       removeProjectLink();
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
@@ -306,8 +306,8 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 5,
-        viewUrl: 'https://inquest.dev/p/proj/v/5',
-        diffUrl: 'https://inquest.dev/p/proj/diff/4/5',
+        viewUrl: 'https://bellwether.sh/p/proj/v/5',
+        diffUrl: 'https://bellwether.sh/p/proj/diff/4/5',
       });
       mockGetLatestDiff.mockResolvedValue({
         severity: 'info',
@@ -317,7 +317,7 @@ describe('upload command', () => {
         behaviorChanges: 3,
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
@@ -332,8 +332,8 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 2,
-        viewUrl: 'https://inquest.dev/view/2',
-        diffUrl: 'https://inquest.dev/diff/1/2',
+        viewUrl: 'https://bellwether.sh/view/2',
+        diffUrl: 'https://bellwether.sh/diff/1/2',
       });
       mockGetLatestDiff.mockResolvedValue({
         severity: 'warning',
@@ -343,7 +343,7 @@ describe('upload command', () => {
         behaviorChanges: 2,
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
@@ -357,10 +357,10 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
-        viewUrl: 'https://inquest.dev/view/1',
+        viewUrl: 'https://bellwether.sh/view/1',
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
@@ -375,16 +375,16 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
-        viewUrl: 'https://inquest.dev/p/proj/v/1',
+        viewUrl: 'https://bellwether.sh/p/proj/v/1',
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
       await uploadCommand.parseAsync(['node', 'test', '--ci']);
 
       expect(consoleOutput.length).toBe(1);
-      expect(consoleOutput[0]).toBe('https://inquest.dev/p/proj/v/1');
+      expect(consoleOutput[0]).toBe('https://bellwether.sh/p/proj/v/1');
     });
 
     it('should exit 1 on breaking changes in CI mode', async () => {
@@ -392,7 +392,7 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 2,
-        viewUrl: 'https://inquest.dev/view/2',
+        viewUrl: 'https://bellwether.sh/view/2',
       });
       mockGetLatestDiff.mockResolvedValue({
         severity: 'breaking',
@@ -402,7 +402,7 @@ describe('upload command', () => {
         behaviorChanges: 0,
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
 
@@ -418,7 +418,7 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 2,
-        viewUrl: 'https://inquest.dev/view/2',
+        viewUrl: 'https://bellwether.sh/view/2',
       });
       mockGetLatestDiff.mockResolvedValue({
         severity: 'info',
@@ -428,7 +428,7 @@ describe('upload command', () => {
         behaviorChanges: 0,
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
 
@@ -441,7 +441,7 @@ describe('upload command', () => {
 
     it('should show minimal error in CI mode', async () => {
       clearSession();
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
 
@@ -449,7 +449,7 @@ describe('upload command', () => {
         uploadCommand.parseAsync(['node', 'test', '--ci'])
       ).rejects.toThrow('Process exit: 1');
 
-      expect(consoleErrors[0]).toBe('INQUEST_SESSION not set');
+      expect(consoleErrors[0]).toBe('BELLWETHER_SESSION not set');
     });
   });
 
@@ -459,10 +459,10 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
-        viewUrl: 'https://inquest.dev/view/1',
+        viewUrl: 'https://bellwether.sh/view/1',
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
       await uploadCommand.parseAsync(['node', 'test', '--public']);
@@ -481,7 +481,7 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockRejectedValue(new Error('Network error'));
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
 

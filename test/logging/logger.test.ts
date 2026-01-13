@@ -18,7 +18,7 @@ describe('logging/logger', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `inquest-logger-test-${Date.now()}`);
+    testDir = join(tmpdir(), `bellwether-logger-test-${Date.now()}`);
     mkdirSync(testDir, { recursive: true });
     resetLogger();
   });

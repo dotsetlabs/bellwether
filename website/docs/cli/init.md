@@ -3,19 +3,19 @@ title: init
 sidebar_position: 3
 ---
 
-# inquest init
+# bellwether init
 
 Create a default configuration file.
 
 ## Synopsis
 
 ```bash
-inquest init [options]
+bellwether init [options]
 ```
 
 ## Description
 
-The `init` command creates an `inquest.yaml` configuration file in the current directory with sensible defaults. This file can be customized to configure LLM providers, interview settings, and output options.
+The `init` command creates an `bellwether.yaml` configuration file in the current directory with sensible defaults. This file can be customized to configure LLM providers, interview settings, and output options.
 
 ## Options
 
@@ -28,10 +28,10 @@ The `init` command creates an `inquest.yaml` configuration file in the current d
 ### Create Default Config
 
 ```bash
-inquest init
+bellwether init
 ```
 
-Creates `inquest.yaml`:
+Creates `bellwether.yaml`:
 
 ```yaml
 version: 1
@@ -58,7 +58,7 @@ output:
 ### Overwrite Existing Config
 
 ```bash
-inquest init --force
+bellwether init --force
 ```
 
 ## Configuration Options

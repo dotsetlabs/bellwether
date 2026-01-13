@@ -92,7 +92,7 @@ describe('HTML Reporter', () => {
       const result = createMockInterviewResult({ serverName: 'My Test Server' });
       const html = generateHtmlReport(result);
 
-      expect(html).toContain('<title>My Test Server - Inquest Report</title>');
+      expect(html).toContain('<title>My Test Server - Bellwether Report</title>');
       expect(html).toContain('<h1>My Test Server</h1>');
     });
 
@@ -228,12 +228,12 @@ describe('HTML Reporter', () => {
       expect(html).toContain('Recommendation 1');
     });
 
-    it('should include footer with Inquest link', () => {
+    it('should include footer with Bellwether link', () => {
       const result = createMockInterviewResult();
       const html = generateHtmlReport(result);
 
       expect(html).toContain('class="footer"');
-      expect(html).toContain('github.com/dotsetlabs/inquest');
+      expect(html).toContain('github.com/dotsetlabs/bellwether');
     });
 
     it('should include CSS styles', () => {

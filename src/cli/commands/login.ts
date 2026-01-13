@@ -1,5 +1,5 @@
 /**
- * Login command for Inquest Cloud authentication using GitHub OAuth.
+ * Login command for Bellwether Cloud authentication using GitHub OAuth.
  */
 
 import { Command } from 'commander';
@@ -17,7 +17,7 @@ import { generateMockSession } from '../../cloud/mock-client.js';
 import type { DeviceAuthorizationResponse, DevicePollResponse, StoredSession } from '../../cloud/types.js';
 
 export const loginCommand = new Command('login')
-  .description('Authenticate with Inquest Cloud via GitHub')
+  .description('Authenticate with Bellwether Cloud via GitHub')
   .option('--logout', 'Remove stored credentials')
   .option('--mock', 'Generate a mock session for development')
   .option('--status', 'Show current authentication status')
@@ -33,7 +33,7 @@ export const loginCommand = new Command('login')
     if (options.logout) {
       clearSession();
       console.log('Logged out successfully.');
-      console.log('Stored credentials removed from ~/.inquest/session.json');
+      console.log('Stored credentials removed from ~/.bellwether/session.json');
       return;
     }
 
@@ -44,7 +44,7 @@ export const loginCommand = new Command('login')
       console.log('Mock session generated and saved.');
       console.log(`Logged in as: ${mockSession.user.githubLogin} (mock)`);
       console.log('\nYou can now use cloud commands in mock mode.');
-      console.log('Data will be stored locally in ~/.inquest/mock-cloud/');
+      console.log('Data will be stored locally in ~/.bellwether/mock-cloud/');
       return;
     }
 
@@ -62,7 +62,7 @@ export const loginCommand = new Command('login')
     }
 
     // Start OAuth device flow
-    console.log('Inquest Cloud Authentication\n');
+    console.log('Bellwether Cloud Authentication\n');
     console.log('Signing in with GitHub...\n');
 
     try {
@@ -239,7 +239,7 @@ async function showStatus(): Promise<void> {
 
   if (!session) {
     console.log('Not logged in.');
-    console.log('\nRun `inquest login` to authenticate with GitHub.');
+    console.log('\nRun `bellwether login` to authenticate with GitHub.');
     return;
   }
 
@@ -261,6 +261,6 @@ async function showStatus(): Promise<void> {
   console.log(`Session expires in ${daysRemaining} days`);
 
   if (isMockSession(session.sessionToken)) {
-    console.log('\nData is stored locally in ~/.inquest/mock-cloud/');
+    console.log('\nData is stored locally in ~/.bellwether/mock-cloud/');
   }
 }

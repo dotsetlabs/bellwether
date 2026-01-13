@@ -1,4 +1,4 @@
-# GitLab CI Configuration for Inquest
+# GitLab CI Configuration for Bellwether
 # Save as .gitlab-ci.yml in your repository root
 
 stages:
@@ -10,41 +10,41 @@ variables:
   NODE_VERSION: "20"
 
 # Base job template
-.inquest-base:
+.bellwether-base:
   image: node:${NODE_VERSION}
   before_script:
     - npm ci
-    - npm install -g inquest
+    - npm install -g @dotsetlabs/bellwether
 
 # Main behavioral testing job
-inquest-interview:
-  extends: .inquest-base
+bellwether-interview:
+  extends: .bellwether-base
   stage: test
   script:
     - |
-      inquest interview \
+      bellwether interview \
         --ci \
         --baseline-file ./baseline.json \
         --fail-on-drift \
-        -o ./inquest-results \
+        -o ./bellwether-results \
         npx your-mcp-server
   artifacts:
     when: always
     paths:
-      - inquest-results/
+      - bellwether-results/
     reports:
-      junit: inquest-results/junit.xml
+      junit: bellwether-results/junit.xml
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 # Security-focused testing
 security-audit:
-  extends: .inquest-base
+  extends: .bellwether-base
   stage: security
   script:
     - |
-      inquest interview \
+      bellwether interview \
         --ci \
         --persona security_tester \
         --fail-on-security \
@@ -57,39 +57,39 @@ security-audit:
       - security-results/
     reports:
       # GitLab SAST integration
-      sast: security-results/inquest.sarif
+      sast: security-results/bellwether.sarif
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   allow_failure: false
 
 # Update baseline on main branch
 update-baseline:
-  extends: .inquest-base
+  extends: .bellwether-base
   stage: report
   script:
     - |
-      inquest interview \
+      bellwether interview \
         --save-baseline ./baseline.json \
         npx your-mcp-server
     - |
       git config user.name "GitLab CI"
       git config user.email "ci@gitlab.com"
       git add baseline.json
-      git diff --staged --quiet || git commit -m "chore: update inquest baseline [skip ci]"
+      git diff --staged --quiet || git commit -m "chore: update bellwether baseline [skip ci]"
       git push "https://oauth2:${CI_PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:${CI_COMMIT_REF_NAME}
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: on_success
   needs:
-    - inquest-interview
+    - bellwether-interview
 
 # Generate HTML report
 generate-report:
-  extends: .inquest-base
+  extends: .bellwether-base
   stage: report
   script:
     - |
-      inquest interview \
+      bellwether interview \
         --output html \
         -o ./report \
         npx your-mcp-server
@@ -101,16 +101,16 @@ generate-report:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   environment:
-    name: inquest-report
+    name: bellwether-report
     url: $CI_PAGES_URL
 
 # Scheduled weekly drift detection
 scheduled-audit:
-  extends: .inquest-base
+  extends: .bellwether-base
   stage: test
   script:
     - |
-      inquest interview \
+      bellwether interview \
         --ci \
         --baseline-file ./baseline.json \
         --fail-on-drift \

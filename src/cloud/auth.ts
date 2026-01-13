@@ -1,8 +1,8 @@
 /**
- * Authentication module for Inquest Cloud.
+ * Authentication module for Bellwether Cloud.
  *
  * Handles session storage, retrieval, and management.
- * Sessions are stored in ~/.inquest/session.json with restricted permissions.
+ * Sessions are stored in ~/.bellwether/session.json with restricted permissions.
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
@@ -11,9 +11,9 @@ import { homedir } from 'os';
 import type { StoredSession, ProjectLink } from './types.js';
 
 /**
- * Directory for inquest configuration.
+ * Directory for bellwether configuration.
  */
-export const CONFIG_DIR = join(homedir(), '.inquest');
+export const CONFIG_DIR = join(homedir(), '.bellwether');
 
 /**
  * Path to session file.
@@ -23,17 +23,17 @@ export const SESSION_FILE = join(CONFIG_DIR, 'session.json');
 /**
  * Default API base URL.
  */
-export const DEFAULT_BASE_URL = 'https://api.inquest.dev';
+export const DEFAULT_BASE_URL = 'https://api.bellwether.sh';
 
 /**
  * Environment variable name for session token.
  */
-export const SESSION_ENV_VAR = 'INQUEST_SESSION';
+export const SESSION_ENV_VAR = 'BELLWETHER_SESSION';
 
 /**
  * Environment variable name for API base URL.
  */
-export const BASE_URL_ENV_VAR = 'INQUEST_API_URL';
+export const BASE_URL_ENV_VAR = 'BELLWETHER_API_URL';
 
 /**
  * Session token prefix for validation.
@@ -106,8 +106,8 @@ export function clearSession(): void {
  * Get the session token.
  *
  * Priority:
- * 1. INQUEST_SESSION environment variable
- * 2. Stored session in ~/.inquest/session.json
+ * 1. BELLWETHER_SESSION environment variable
+ * 2. Stored session in ~/.bellwether/session.json
  */
 export function getSessionToken(): string | undefined {
   // Check environment variable first
@@ -125,8 +125,8 @@ export function getSessionToken(): string | undefined {
  * Get the API base URL.
  *
  * Priority:
- * 1. INQUEST_API_URL environment variable
- * 2. Default: https://api.inquest.dev
+ * 1. BELLWETHER_API_URL environment variable
+ * 2. Default: https://api.bellwether.sh
  */
 export function getBaseUrl(): string {
   // Check environment variable first
@@ -174,9 +174,9 @@ export function getStoredUser(): StoredSession['user'] | null {
 // ============================================================================
 
 /**
- * Directory name for per-project inquest config.
+ * Directory name for per-project bellwether config.
  */
-export const PROJECT_CONFIG_DIR = '.inquest';
+export const PROJECT_CONFIG_DIR = '.bellwether';
 
 /**
  * File name for project link configuration.

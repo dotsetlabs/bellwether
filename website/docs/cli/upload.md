@@ -3,25 +3,25 @@ title: upload
 sidebar_position: 8
 ---
 
-# inquest upload
+# bellwether upload
 
-Upload a baseline to Inquest Cloud for drift tracking.
+Upload a baseline to Bellwether Cloud for drift tracking.
 
 ## Synopsis
 
 ```bash
-inquest upload [options]
+bellwether upload [options]
 ```
 
 ## Description
 
-The `upload` command uploads your local baseline to Inquest Cloud, enabling historical tracking, team collaboration, and CI/CD drift detection.
+The `upload` command uploads your local baseline to Bellwether Cloud, enabling historical tracking, team collaboration, and CI/CD drift detection.
 
 ## Options
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `--baseline <path>` | Path to baseline file | `inquest-baseline.json` |
+| `--baseline <path>` | Path to baseline file | `bellwether-baseline.json` |
 | `--ci` | CI mode: exit 1 on breaking drift | `false` |
 | `--fail-on-drift` | Exit with error if any drift detected | `false` |
 | `--branch <name>` | Branch name for this baseline | Current git branch |
@@ -33,22 +33,22 @@ The `upload` command uploads your local baseline to Inquest Cloud, enabling hist
 
 ```bash
 # First, generate a baseline
-inquest interview --save-baseline npx your-server
+bellwether interview --save-baseline npx your-server
 
 # Upload to cloud
-inquest upload
+bellwether upload
 ```
 
 ### CI/CD Upload
 
 ```bash
-inquest upload --ci --fail-on-drift
+bellwether upload --ci --fail-on-drift
 ```
 
 ### Upload with Git Info
 
 ```bash
-inquest upload \
+bellwether upload \
   --branch main \
   --commit abc123
 ```
@@ -61,22 +61,22 @@ inquest upload \
 - name: Interview and Upload
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-    INQUEST_SESSION: ${{ secrets.INQUEST_SESSION }}
+    BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
   run: |
-    inquest interview --save-baseline npx your-server
-    inquest upload --ci --fail-on-drift
+    bellwether interview --save-baseline npx your-server
+    bellwether upload --ci --fail-on-drift
 ```
 
 ### GitLab CI
 
 ```yaml
-inquest:
+bellwether:
   script:
-    - inquest interview --save-baseline npx your-server
-    - inquest upload --ci --fail-on-drift
+    - bellwether interview --save-baseline npx your-server
+    - bellwether upload --ci --fail-on-drift
   variables:
     OPENAI_API_KEY: $OPENAI_API_KEY
-    INQUEST_SESSION: $INQUEST_SESSION
+    BELLWETHER_SESSION: $BELLWETHER_SESSION
 ```
 
 ## Upload Response
@@ -89,7 +89,7 @@ Changes from v11:
   + New tool: delete_file
   ~ read_file: error handling improved
 
-View at: https://inquest.cloud/projects/proj_abc123/baselines/12
+View at: https://bellwether.sh/projects/proj_abc123/baselines/12
 ```
 
 ## Exit Codes

@@ -1,7 +1,7 @@
 import pino, { Logger as PinoLogger, LoggerOptions } from 'pino';
 
 /**
- * Log levels supported by Inquest.
+ * Log levels supported by Bellwether.
  */
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 

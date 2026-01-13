@@ -14,7 +14,7 @@ describe('config/loader', () => {
 
   beforeEach(() => {
     // Create a temporary directory for tests
-    testDir = join(tmpdir(), `inquest-test-${Date.now()}`);
+    testDir = join(tmpdir(), `bellwether-test-${Date.now()}`);
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
@@ -63,9 +63,9 @@ interview:
       );
     });
 
-    it('should find inquest.yaml in current directory', () => {
+    it('should find bellwether.yaml in current directory', () => {
       writeFileSync(
-        join(testDir, 'inquest.yaml'),
+        join(testDir, 'bellwether.yaml'),
         `
 version: 1
 llm:
@@ -77,9 +77,9 @@ llm:
       expect(config.llm.model).toBe('gpt-3.5-turbo');
     });
 
-    it('should find inquest.yml in current directory', () => {
+    it('should find bellwether.yml in current directory', () => {
       writeFileSync(
-        join(testDir, 'inquest.yml'),
+        join(testDir, 'bellwether.yml'),
         `
 version: 1
 interview:
@@ -91,9 +91,9 @@ interview:
       expect(config.interview.timeout).toBe(60000);
     });
 
-    it('should find .inquest.yaml (dotfile) in current directory', () => {
+    it('should find .bellwether.yaml (dotfile) in current directory', () => {
       writeFileSync(
-        join(testDir, '.inquest.yaml'),
+        join(testDir, '.bellwether.yaml'),
         `
 version: 1
 output:
@@ -105,16 +105,16 @@ output:
       expect(config.output.format).toBe('json');
     });
 
-    it('should prefer inquest.yaml over inquest.yml', () => {
+    it('should prefer bellwether.yaml over bellwether.yml', () => {
       writeFileSync(
-        join(testDir, 'inquest.yaml'),
+        join(testDir, 'bellwether.yaml'),
         `
 llm:
   model: preferred-model
 `
       );
       writeFileSync(
-        join(testDir, 'inquest.yml'),
+        join(testDir, 'bellwether.yml'),
         `
 llm:
   model: other-model
@@ -127,7 +127,7 @@ llm:
 
     it('should merge nested config with defaults', () => {
       writeFileSync(
-        join(testDir, 'inquest.yaml'),
+        join(testDir, 'bellwether.yaml'),
         `
 version: 1
 interview:
@@ -147,7 +147,7 @@ interview:
     });
 
     it('should handle empty config file gracefully', () => {
-      writeFileSync(join(testDir, 'inquest.yaml'), '');
+      writeFileSync(join(testDir, 'bellwether.yaml'), '');
 
       // Empty YAML parses to null, loader should return defaults
       const config = loadConfig();
@@ -155,7 +155,7 @@ interview:
     });
 
     it('should handle config with only version', () => {
-      writeFileSync(join(testDir, 'inquest.yaml'), 'version: 2');
+      writeFileSync(join(testDir, 'bellwether.yaml'), 'version: 2');
 
       const config = loadConfig();
       expect(config.version).toBe(2);
@@ -167,7 +167,7 @@ interview:
 
       for (const format of formats) {
         writeFileSync(
-          join(testDir, 'inquest.yaml'),
+          join(testDir, 'bellwether.yaml'),
           `
 output:
   format: ${format}
@@ -181,7 +181,7 @@ output:
 
     it('should parse apiKeyEnvVar', () => {
       writeFileSync(
-        join(testDir, 'inquest.yaml'),
+        join(testDir, 'bellwether.yaml'),
         `
 llm:
   apiKeyEnvVar: CUSTOM_API_KEY
@@ -194,7 +194,7 @@ llm:
 
     it('should parse outputDir', () => {
       writeFileSync(
-        join(testDir, 'inquest.yaml'),
+        join(testDir, 'bellwether.yaml'),
         `
 output:
   outputDir: ./my-docs
@@ -207,7 +207,7 @@ output:
 
     it('should handle skipErrorTests boolean', () => {
       writeFileSync(
-        join(testDir, 'inquest.yaml'),
+        join(testDir, 'bellwether.yaml'),
         `
 interview:
   skipErrorTests: true
@@ -241,7 +241,7 @@ interview:
 
     it('should be parseable and loadable', () => {
       const yaml = generateDefaultConfig();
-      writeFileSync(join(testDir, 'inquest.yaml'), yaml);
+      writeFileSync(join(testDir, 'bellwether.yaml'), yaml);
 
       const config = loadConfig();
       expect(config.version).toBe(1);

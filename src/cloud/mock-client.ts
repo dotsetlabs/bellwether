@@ -1,7 +1,7 @@
 /**
  * Mock cloud client for local development and testing.
  *
- * Stores data locally in ~/.inquest/mock-cloud/ as JSON files.
+ * Stores data locally in ~/.bellwether/mock-cloud/ as JSON files.
  * This allows developers to use cloud features without a backend.
  */
 
@@ -10,13 +10,13 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { randomBytes } from 'crypto';
 import type {
-  InquestCloudClient,
+  BellwetherCloudClient,
   CloudUser,
   Project,
   BaselineVersion,
   UploadResult,
   DiffSummary,
-  InquestBaseline,
+  BellwetherBaseline,
   StoredSession,
 } from './types.js';
 import { isMockSession, MOCK_SESSION_PREFIX } from './auth.js';
@@ -24,7 +24,7 @@ import { isMockSession, MOCK_SESSION_PREFIX } from './auth.js';
 /**
  * Directory for mock cloud storage.
  */
-const MOCK_DATA_DIR = join(homedir(), '.inquest', 'mock-cloud');
+const MOCK_DATA_DIR = join(homedir(), '.bellwether', 'mock-cloud');
 
 /**
  * File for storing projects.
@@ -45,7 +45,7 @@ function generateId(prefix: string): string {
  *
  * Stores all data locally for development and testing.
  */
-export class MockCloudClient implements InquestCloudClient {
+export class MockCloudClient implements BellwetherCloudClient {
   private dataDir: string;
   private sessionToken: string | null;
 
@@ -135,7 +135,7 @@ export class MockCloudClient implements InquestCloudClient {
   }
 
   // ============================================================================
-  // InquestCloudClient Implementation
+  // BellwetherCloudClient Implementation
   // ============================================================================
 
   isAuthenticated(): boolean {
@@ -240,7 +240,7 @@ export class MockCloudClient implements InquestCloudClient {
 
   async uploadBaseline(
     projectId: string,
-    baseline: InquestBaseline,
+    baseline: BellwetherBaseline,
     options?: { public?: boolean }
   ): Promise<UploadResult> {
     if (!this.isAuthenticated()) {
@@ -318,7 +318,7 @@ export class MockCloudClient implements InquestCloudClient {
     return baselines.slice(-limit).reverse();
   }
 
-  async getBaseline(baselineId: string): Promise<InquestBaseline | null> {
+  async getBaseline(baselineId: string): Promise<BellwetherBaseline | null> {
     if (!this.isAuthenticated()) {
       throw new Error('Not authenticated');
     }
@@ -331,7 +331,7 @@ export class MockCloudClient implements InquestCloudClient {
 
     try {
       const content = readFileSync(dataFile, 'utf-8');
-      return JSON.parse(content) as InquestBaseline;
+      return JSON.parse(content) as BellwetherBaseline;
     } catch {
       return null;
     }
@@ -393,7 +393,7 @@ export class MockCloudClient implements InquestCloudClient {
   /**
    * Compute diff between two baselines.
    */
-  private computeDiff(from: InquestBaseline, to: InquestBaseline): DiffSummary {
+  private computeDiff(from: BellwetherBaseline, to: BellwetherBaseline): DiffSummary {
     // Quick check - if hashes match, no changes
     if (from.hash === to.hash) {
       return {

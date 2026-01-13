@@ -3,7 +3,7 @@ import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'Inquest',
+  title: 'Bellwether',
   tagline: 'Automated behavioral documentation for MCP servers',
   favicon: 'img/favicon.ico',
 
@@ -11,11 +11,11 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://docs.inquest.dev',
+  url: 'https://docs.bellwether.sh',
   baseUrl: '/',
 
   organizationName: 'dotsetlabs',
-  projectName: 'inquest',
+  projectName: 'bellwether',
 
   onBrokenLinks: 'throw',
 
@@ -30,7 +30,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/dotsetlabs/inquest/tree/main/website/',
+          editUrl: 'https://github.com/dotsetlabs/bellwether/tree/main/website/',
           routeBasePath: '/',
         },
         blog: false,
@@ -42,15 +42,15 @@ const config: Config = {
   ],
 
   themeConfig: {
-    image: 'img/inquest-social-card.png',
+    image: 'img/bellwether-social-card.png',
     colorMode: {
       defaultMode: 'dark',
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Inquest',
+      title: 'Bellwether',
       logo: {
-        alt: 'Inquest Logo',
+        alt: 'Bellwether Logo',
         src: 'img/logo.svg',
       },
       items: [
@@ -61,12 +61,12 @@ const config: Config = {
           label: 'Documentation',
         },
         {
-          href: 'https://inquest.cloud',
+          href: 'https://bellwether.sh',
           label: 'Cloud',
           position: 'left',
         },
         {
-          href: 'https://github.com/dotsetlabs/inquest',
+          href: 'https://github.com/dotsetlabs/bellwether',
           label: 'GitHub',
           position: 'right',
         },
@@ -96,16 +96,16 @@ const config: Config = {
           title: 'Product',
           items: [
             {
-              label: 'Inquest Cloud',
-              href: 'https://inquest.cloud',
+              label: 'Bellwether Cloud',
+              href: 'https://bellwether.sh',
             },
             {
               label: 'Pricing',
-              href: 'https://inquest.cloud/pricing',
+              href: 'https://bellwether.sh/pricing',
             },
             {
               label: 'Changelog',
-              href: 'https://github.com/dotsetlabs/inquest/blob/main/CHANGELOG.md',
+              href: 'https://github.com/dotsetlabs/bellwether/blob/main/CHANGELOG.md',
             },
           ],
         },
@@ -114,15 +114,15 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/dotsetlabs/inquest',
+              href: 'https://github.com/dotsetlabs/bellwether',
             },
             {
               label: 'Issues',
-              href: 'https://github.com/dotsetlabs/inquest/issues',
+              href: 'https://github.com/dotsetlabs/bellwether/issues',
             },
             {
               label: 'Discussions',
-              href: 'https://github.com/dotsetlabs/inquest/discussions',
+              href: 'https://github.com/dotsetlabs/bellwether/discussions',
             },
           ],
         },

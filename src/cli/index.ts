@@ -18,7 +18,7 @@ const program = new Command();
 
 // ASCII art banner for help
 const banner = `
-Inquest - Behavioral Documentation for MCP Servers
+Bellwether - Behavioral Documentation for MCP Servers
 `;
 
 // Extended help with examples
@@ -26,41 +26,41 @@ const examples = `
 Examples:
 
   Interview a server:
-    $ inquest interview npx @modelcontextprotocol/server-filesystem /tmp
+    $ bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 
   Interactive mode (prompts for options):
-    $ inquest interview --interactive
+    $ bellwether interview --interactive
 
   Discover tools without interviewing:
-    $ inquest discover npx @mcp/server-postgres
+    $ bellwether discover npx @mcp/server-postgres
 
   Save and compare baselines:
-    $ inquest interview --save-baseline npx @mcp/my-server
-    $ inquest interview --compare-baseline ./baseline.json npx @mcp/my-server
+    $ bellwether interview --save-baseline npx @mcp/my-server
+    $ bellwether interview --compare-baseline ./baseline.json npx @mcp/my-server
 
   CI/CD workflow (fail on drift):
-    $ inquest interview --compare-baseline ./baseline.json --fail-on-drift npx @mcp/my-server
+    $ bellwether interview --compare-baseline ./baseline.json --fail-on-drift npx @mcp/my-server
 
   Quick interview (fast, for CI):
-    $ inquest interview --quick npx @mcp/my-server
+    $ bellwether interview --quick npx @mcp/my-server
 
   Cloud workflow:
-    $ inquest login                    # Authenticate
-    $ inquest link my-project          # Link to cloud project
-    $ inquest upload                   # Upload baseline
-    $ inquest history                  # View version history
-    $ inquest diff 1 2                 # Compare versions
+    $ bellwether login                    # Authenticate
+    $ bellwether link my-project          # Link to cloud project
+    $ bellwether upload                   # Upload baseline
+    $ bellwether history                  # View version history
+    $ bellwether diff 1 2                 # Compare versions
 
-Documentation: https://inquest.dev/docs
+Documentation: https://bellwether.sh/docs
 `;
 
 program
-  .name('inquest')
+  .name('bellwether')
   .description(`${banner}
 Interview MCP servers to generate behavioral documentation, detect drift, and ensure tool reliability.
 
 For more information on a specific command, use:
-  inquest <command> --help`)
+  bellwether <command> --help`)
   .version('0.2.0')
   .option('--log-level <level>', 'Log level: debug, info, warn, error, silent', 'info')
   .option('--log-file <path>', 'Write logs to file instead of stderr')
@@ -89,7 +89,7 @@ program.addCommand(
 );
 program.addCommand(
   initCommand.description(
-    'Create a new inquest.yaml configuration file'
+    'Create a new bellwether.yaml configuration file'
   )
 );
 program.addCommand(
@@ -98,25 +98,25 @@ program.addCommand(
   )
 );
 
-// Cloud commands - sync with Inquest Cloud
+// Cloud commands - sync with Bellwether Cloud
 program.addCommand(
   loginCommand.description(
-    'Authenticate with Inquest Cloud'
+    'Authenticate with Bellwether Cloud'
   )
 );
 program.addCommand(
   linkCommand.description(
-    'Link local project to Inquest Cloud project'
+    'Link local project to Bellwether Cloud project'
   )
 );
 program.addCommand(
   projectsCommand.description(
-    'List your Inquest Cloud projects'
+    'List your Bellwether Cloud projects'
   )
 );
 program.addCommand(
   uploadCommand.description(
-    'Upload baseline to Inquest Cloud'
+    'Upload baseline to Bellwether Cloud'
   )
 );
 program.addCommand(

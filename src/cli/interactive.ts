@@ -6,7 +6,7 @@
  */
 
 import * as readline from 'readline';
-import type { InquestConfig } from '../config/loader.js';
+import type { BellwetherConfig } from '../config/loader.js';
 
 /**
  * Create a readline interface for prompting.
@@ -106,14 +106,14 @@ const OUTPUT_FORMATS = [
  * Prompt user for interactive configuration.
  */
 export async function promptForConfig(
-  existingConfig: InquestConfig,
+  existingConfig: BellwetherConfig,
   providedCommand?: string,
   providedArgs?: string[]
 ): Promise<InteractiveConfig> {
   const rl = createPrompt();
 
   try {
-    console.log('\n=== Inquest Interactive Mode ===\n');
+    console.log('\n=== Bellwether Interactive Mode ===\n');
 
     // Server command
     let serverCommand = providedCommand || '';
@@ -178,7 +178,7 @@ export async function promptForConfig(
     const saveBaseline = await confirm(rl, '\nSave baseline for future drift detection?', true);
     let baselinePath: string | undefined;
     if (saveBaseline) {
-      baselinePath = await ask(rl, 'Baseline path [inquest-baseline.json]: ') || 'inquest-baseline.json';
+      baselinePath = await ask(rl, 'Baseline path [bellwether-baseline.json]: ') || 'bellwether-baseline.json';
     }
 
     const compareBaseline = await ask(rl, '\nCompare against existing baseline (leave empty to skip): ');

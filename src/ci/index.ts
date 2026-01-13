@@ -349,7 +349,7 @@ function generateCheckSummary(
   const status = passed ? 'PASSED' : 'FAILED';
 
   return (
-    `Inquest check ${status}: ` +
+    `Bellwether check ${status}: ` +
     `${toolCount} tool(s) profiled, ` +
     `${securityCount} security finding(s), ` +
     `${reliabilityCount} reliability finding(s)`
@@ -371,7 +371,7 @@ export function formatCIOutput(
   // Status header
   const statusIcon = checkResult.passed ? green('✓') : red('✗');
   const statusText = checkResult.passed ? green('PASSED') : red('FAILED');
-  lines.push(`${statusIcon} Inquest Check ${statusText}`);
+  lines.push(`${statusIcon} Bellwether Check ${statusText}`);
   lines.push('');
 
   // Summary

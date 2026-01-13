@@ -9,7 +9,7 @@ Personas define the "personality" of the interviewer when testing MCP servers. D
 
 ## How Personas Work
 
-A persona shapes how Inquest interviews your MCP server by:
+A persona shapes how Bellwether interviews your MCP server by:
 
 1. **System Prompt** - Instructs the LLM how to behave and what to focus on
 2. **Question Bias** - Weights different categories of questions
@@ -18,7 +18,7 @@ A persona shapes how Inquest interviews your MCP server by:
 
 ## Built-in Personas
 
-Inquest comes with four built-in personas:
+Bellwether comes with four built-in personas:
 
 ### Technical Writer
 
@@ -86,16 +86,16 @@ Each persona weights these categories differently:
 
 ```bash
 # Use a single persona
-inquest interview --persona security_tester npx your-server
+bellwether interview --persona security_tester npx your-server
 
 # Use multiple personas
-inquest interview --persona technical_writer,security_tester npx your-server
+bellwether interview --persona technical_writer,security_tester npx your-server
 ```
 
 ### Via Configuration File
 
 ```yaml
-# inquest.yaml
+# bellwether.yaml
 interview:
   personas:
     - technical_writer
@@ -106,11 +106,11 @@ interview:
 
 ```bash
 # Create a security profile
-inquest profile create security --personas security_tester,qa_engineer
+bellwether profile create security --personas security_tester,qa_engineer
 
 # Use the profile
-inquest profile use security
-inquest interview npx your-server
+bellwether profile use security
+bellwether interview npx your-server
 ```
 
 ## Combining Personas

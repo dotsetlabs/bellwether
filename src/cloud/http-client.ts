@@ -1,17 +1,17 @@
 /**
  * HTTP cloud client for production API.
  *
- * Makes real HTTP requests to the Inquest Cloud API.
+ * Makes real HTTP requests to the Bellwether Cloud API.
  */
 
 import type {
-  InquestCloudClient,
+  BellwetherCloudClient,
   CloudUser,
   Project,
   BaselineVersion,
   UploadResult,
   DiffSummary,
-  InquestBaseline,
+  BellwetherBaseline,
 } from './types.js';
 
 /**
@@ -48,7 +48,7 @@ function validateSecureUrl(url: string): void {
 /**
  * HTTP cloud client implementation.
  */
-export class HttpCloudClient implements InquestCloudClient {
+export class HttpCloudClient implements BellwetherCloudClient {
   private baseUrl: string;
   private sessionToken: string;
   private timeout: number;
@@ -114,7 +114,7 @@ export class HttpCloudClient implements InquestCloudClient {
   }
 
   // ============================================================================
-  // InquestCloudClient Implementation
+  // BellwetherCloudClient Implementation
   // ============================================================================
 
   isAuthenticated(): boolean {
@@ -165,7 +165,7 @@ export class HttpCloudClient implements InquestCloudClient {
 
   async uploadBaseline(
     projectId: string,
-    baseline: InquestBaseline,
+    baseline: BellwetherBaseline,
     _options?: { public?: boolean }
   ): Promise<UploadResult> {
     const response = await this.request<{
@@ -193,9 +193,9 @@ export class HttpCloudClient implements InquestCloudClient {
     return response.baselines;
   }
 
-  async getBaseline(baselineId: string): Promise<InquestBaseline | null> {
+  async getBaseline(baselineId: string): Promise<BellwetherBaseline | null> {
     try {
-      const response = await this.request<InquestBaseline>(
+      const response = await this.request<BellwetherBaseline>(
         'GET',
         `/baselines/${baselineId}/download`
       );

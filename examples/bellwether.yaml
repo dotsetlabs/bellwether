@@ -1,5 +1,5 @@
-# Inquest Configuration Example
-# Place this file in your project root as inquest.yaml or .inquest.yaml
+# Bellwether Configuration Example
+# Place this file in your project root as bellwether.yaml or .bellwether.yaml
 version: 1
 
 # LLM Provider Configuration

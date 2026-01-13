@@ -53,10 +53,10 @@ steps:
 
 ```bash
 # Run workflows during interview
-inquest interview --workflows ./workflows/ npx your-server
+bellwether interview --workflows ./workflows/ npx your-server
 
 # Run a specific workflow
-inquest workflow run my-workflow.workflow.yaml npx your-server
+bellwether workflow run my-workflow.workflow.yaml npx your-server
 ```
 
 ## Argument Mapping

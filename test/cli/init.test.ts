@@ -17,7 +17,7 @@ describe('cli/init', () => {
 
   beforeEach(() => {
     // Create temp directory
-    testDir = join(tmpdir(), `inquest-cli-init-test-${Date.now()}`);
+    testDir = join(tmpdir(), `bellwether-cli-init-test-${Date.now()}`);
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
@@ -53,8 +53,8 @@ describe('cli/init', () => {
   });
 
   describe('init command functionality', () => {
-    it('should create inquest.yaml in current directory', () => {
-      const configPath = join(testDir, 'inquest.yaml');
+    it('should create bellwether.yaml in current directory', () => {
+      const configPath = join(testDir, 'bellwether.yaml');
 
       // Simulate init command action
       const content = generateDefaultConfig();
@@ -69,7 +69,7 @@ describe('cli/init', () => {
     });
 
     it('should not overwrite existing config without --force', () => {
-      const configPath = join(testDir, 'inquest.yaml');
+      const configPath = join(testDir, 'bellwether.yaml');
       writeFileSync(configPath, 'existing: content');
 
       // Check that file exists before action
@@ -84,7 +84,7 @@ describe('cli/init', () => {
     });
 
     it('should overwrite existing config with --force', () => {
-      const configPath = join(testDir, 'inquest.yaml');
+      const configPath = join(testDir, 'bellwether.yaml');
       writeFileSync(configPath, 'existing: content');
 
       // With --force, overwrites
@@ -133,7 +133,7 @@ describe('cli/init', () => {
   describe('init command error handling', () => {
     it('should handle write errors gracefully', () => {
       // Create a directory where the file would go (can't write file there)
-      const configPath = join(testDir, 'inquest.yaml');
+      const configPath = join(testDir, 'bellwether.yaml');
       mkdirSync(configPath); // Make it a directory
 
       // Attempting to write should throw

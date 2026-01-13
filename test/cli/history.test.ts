@@ -76,14 +76,14 @@ describe('history command', () => {
   ];
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `inquest-history-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(tmpdir(), `bellwether-history-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
 
     originalHome = process.env.HOME;
     process.env.HOME = testDir;
-    mkdirSync(join(testDir, '.inquest'), { recursive: true });
+    mkdirSync(join(testDir, '.bellwether'), { recursive: true });
 
     // Reset modules so auth module picks up new HOME
     vi.resetModules();
@@ -311,14 +311,14 @@ describe('diff command', () => {
   const mockGetDiff = vi.fn();
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `inquest-diff-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(tmpdir(), `bellwether-diff-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
 
     originalHome = process.env.HOME;
     process.env.HOME = testDir;
-    mkdirSync(join(testDir, '.inquest'), { recursive: true });
+    mkdirSync(join(testDir, '.bellwether'), { recursive: true });
 
     // Reset modules so auth module picks up new HOME
     vi.resetModules();

@@ -22,14 +22,14 @@ describe('watch command', () => {
   let mockIntervalId: NodeJS.Timeout;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `inquest-watch-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(tmpdir(), `bellwether-watch-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
 
     // Create test baseline file
     writeFileSync(
-      join(testDir, 'inquest-baseline.json'),
+      join(testDir, 'bellwether-baseline.json'),
       JSON.stringify({ hash: 'existing', discovery: {}, toolProfiles: [] })
     );
 
@@ -180,7 +180,7 @@ describe('watch command', () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
       const baselineOpt = watchCommand.options.find(o => o.long === '--baseline');
       expect(baselineOpt).toBeDefined();
-      expect(baselineOpt?.defaultValue).toBe('inquest-baseline.json');
+      expect(baselineOpt?.defaultValue).toBe('bellwether-baseline.json');
     });
 
     it('should have on-change option', async () => {
@@ -236,7 +236,7 @@ describe('watch file change detection', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `inquest-watch-files-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(tmpdir(), `bellwether-watch-files-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
   });
 

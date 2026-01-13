@@ -5,19 +5,19 @@ sidebar_position: 2
 
 # Configuration
 
-Configure Inquest behavior using YAML configuration files.
+Configure Bellwether behavior using YAML configuration files.
 
 ## Configuration Files
 
-Inquest looks for configuration in this order:
+Bellwether looks for configuration in this order:
 
 1. `--config` flag (explicit path)
-2. `./inquest.yaml` (project root)
-3. `~/.inquest/inquest.yaml` (global defaults)
+2. `./bellwether.yaml` (project root)
+3. `~/.bellwether/bellwether.yaml` (global defaults)
 
 ## Basic Configuration
 
-Create `inquest.yaml` in your project:
+Create `bellwether.yaml` in your project:
 
 ```yaml
 version: 1
@@ -89,7 +89,7 @@ output:
 # Baseline Settings
 baseline:
   # Default baseline path
-  path: ./inquest-baseline.json
+  path: ./bellwether-baseline.json
 
   # Auto-save baseline after interview
   autoSave: false
@@ -99,7 +99,7 @@ cloud:
   # Auto-upload after interview
   autoUpload: false
 
-  # Project ID (usually set by `inquest link`)
+  # Project ID (usually set by `bellwether link`)
   projectId: proj_xxx
 ```
 
@@ -187,8 +187,8 @@ Override configuration with environment variables:
 | `OPENAI_API_KEY` | OpenAI authentication |
 | `ANTHROPIC_API_KEY` | Anthropic authentication |
 | `OLLAMA_BASE_URL` | Ollama server URL |
-| `INQUEST_LOG_LEVEL` | Log verbosity |
-| `INQUEST_SESSION` | Cloud authentication |
+| `BELLWETHER_LOG_LEVEL` | Log verbosity |
+| `BELLWETHER_SESSION` | Cloud authentication |
 
 ## Command Line Overrides
 
@@ -196,18 +196,18 @@ CLI flags override configuration file values:
 
 ```bash
 # Override model
-inquest interview --model gpt-4o-mini npx server
+bellwether interview --model gpt-4o-mini npx server
 
 # Override max questions
-inquest interview --max-questions 5 npx server
+bellwether interview --max-questions 5 npx server
 
 # Override personas
-inquest interview --persona security_tester npx server
+bellwether interview --persona security_tester npx server
 ```
 
 ## Project vs Global Config
 
-### Project Config (`./inquest.yaml`)
+### Project Config (`./bellwether.yaml`)
 
 Project-specific settings that should be version controlled:
 
@@ -224,7 +224,7 @@ baseline:
   path: ./baselines/current.json
 ```
 
-### Global Config (`~/.inquest/inquest.yaml`)
+### Global Config (`~/.bellwether/bellwether.yaml`)
 
 Personal defaults that apply across all projects:
 
@@ -240,10 +240,10 @@ llm:
 
 ## Validation
 
-Inquest validates configuration on startup. Invalid config produces clear errors:
+Bellwether validates configuration on startup. Invalid config produces clear errors:
 
 ```
-Configuration error in inquest.yaml:
+Configuration error in bellwether.yaml:
   interview.maxQuestionsPerTool: Must be between 1 and 20
   llm.provider: Must be one of: openai, anthropic, ollama
 ```
@@ -251,10 +251,10 @@ Configuration error in inquest.yaml:
 ## Generate Default Config
 
 ```bash
-inquest init
+bellwether init
 ```
 
-Creates a documented `inquest.yaml` with sensible defaults.
+Creates a documented `bellwether.yaml` with sensible defaults.
 
 ## See Also
 

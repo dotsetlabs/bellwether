@@ -18,10 +18,10 @@ A baseline is a JSON file containing:
 ## Creating a Baseline
 
 ```bash
-inquest interview --save-baseline npx your-server
+bellwether interview --save-baseline npx your-server
 ```
 
-This generates `inquest-baseline.json`:
+This generates `bellwether-baseline.json`:
 
 ```json
 {
@@ -64,10 +64,10 @@ This generates `inquest-baseline.json`:
 
 ```bash
 # Save to specific path
-inquest interview --save-baseline ./baselines/v1.json npx your-server
+bellwether interview --save-baseline ./baselines/v1.json npx your-server
 
 # Compare against specific baseline
-inquest interview --compare-baseline ./baselines/v1.json npx your-server
+bellwether interview --compare-baseline ./baselines/v1.json npx your-server
 ```
 
 ## Baseline in CI/CD
@@ -76,10 +76,10 @@ inquest interview --compare-baseline ./baselines/v1.json npx your-server
 
 ```bash
 # Create baseline
-inquest interview --save-baseline npx your-server
+bellwether interview --save-baseline npx your-server
 
 # Commit
-git add inquest-baseline.json
+git add bellwether-baseline.json
 git commit -m "Update behavioral baseline"
 ```
 
@@ -89,8 +89,8 @@ git commit -m "Update behavioral baseline"
 # GitHub Actions
 - name: Check Behavioral Drift
   run: |
-    inquest interview \
-      --compare-baseline ./inquest-baseline.json \
+    bellwether interview \
+      --compare-baseline ./bellwether-baseline.json \
       --fail-on-drift \
       npx your-server
 ```
@@ -101,28 +101,28 @@ When intentional changes are made:
 
 ```bash
 # Review changes
-inquest interview --compare-baseline ./baseline.json npx your-server
+bellwether interview --compare-baseline ./baseline.json npx your-server
 
 # Update baseline
-inquest interview --save-baseline npx your-server
+bellwether interview --save-baseline npx your-server
 
 # Commit
-git add inquest-baseline.json
+git add bellwether-baseline.json
 git commit -m "Update baseline: added delete_file tool"
 ```
 
 ## Baseline Cloud Sync
 
-Upload baselines to Inquest Cloud for:
+Upload baselines to Bellwether Cloud for:
 - Historical tracking
 - Team collaboration
 - Version comparison
 - Verification badges
 
 ```bash
-inquest login
-inquest link
-inquest upload
+bellwether login
+bellwether link
+bellwether upload
 ```
 
 ## What's Captured
@@ -138,7 +138,7 @@ inquest upload
 
 ## Baseline Comparison
 
-When comparing baselines, Inquest detects:
+When comparing baselines, Bellwether detects:
 
 | Change Type | Example |
 |:------------|:--------|

@@ -1,7 +1,7 @@
 /**
  * Baseline format converter.
  *
- * Converts between local BehavioralBaseline format and cloud InquestBaseline format.
+ * Converts between local BehavioralBaseline format and cloud BellwetherBaseline format.
  */
 
 import { createHash } from 'crypto';
@@ -9,7 +9,7 @@ import type { BehavioralBaseline, ToolFingerprint, BehavioralAssertion } from '.
 import type { InterviewResult, ToolProfile } from '../interview/types.js';
 import type { DiscoveryResult } from '../discovery/types.js';
 import type {
-  InquestBaseline,
+  BellwetherBaseline,
   BaselineMetadata,
   CloudServerFingerprint,
   ToolCapability,
@@ -106,13 +106,13 @@ function convertAssertions(assertions: BehavioralAssertion[]): CloudAssertion[] 
 }
 
 /**
- * Convert a BehavioralBaseline to cloud InquestBaseline format.
+ * Convert a BehavioralBaseline to cloud BellwetherBaseline format.
  */
 export function convertToCloudBaseline(
   baseline: BehavioralBaseline,
   discovery?: DiscoveryResult,
   interviewResult?: InterviewResult
-): InquestBaseline {
+): BellwetherBaseline {
   // Build metadata
   const metadata: BaselineMetadata = {
     formatVersion: BASELINE_FORMAT_VERSION,
@@ -439,14 +439,14 @@ function convertToolFingerprint(tool: ToolFingerprint): CloudToolProfile {
 }
 
 /**
- * Create an InquestBaseline directly from InterviewResult.
+ * Create a BellwetherBaseline directly from InterviewResult.
  *
  * This is the preferred method when you have fresh interview results.
  */
 export function createCloudBaseline(
   result: InterviewResult,
   serverCommand: string
-): InquestBaseline {
+): BellwetherBaseline {
   // Build metadata
   const metadata: BaselineMetadata = {
     formatVersion: BASELINE_FORMAT_VERSION,
@@ -478,14 +478,14 @@ export function createCloudBaseline(
   const prompts: PromptCapability[] | undefined =
     result.discovery.prompts.length > 0
       ? result.discovery.prompts.map((p) => ({
-          name: p.name,
-          description: p.description,
-          arguments: p.arguments?.map((a) => ({
-            name: a.name,
-            description: a.description,
-            required: a.required,
-          })),
-        }))
+        name: p.name,
+        description: p.description,
+        arguments: p.arguments?.map((a) => ({
+          name: a.name,
+          description: a.description,
+          required: a.required,
+        })),
+      }))
       : undefined;
 
   // Build interviews

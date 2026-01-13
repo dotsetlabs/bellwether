@@ -4,7 +4,7 @@
 
 import { getLogger } from '../logging/logger.js';
 import {
-  InquestError,
+  BellwetherError,
   isRetryable,
   wrapError,
   createTimingContext,
@@ -374,7 +374,7 @@ export function createCircuitBreaker(
 
       if (timeSinceOpen < resetTimeMs) {
         // Still in open state
-        throw new InquestError(`Circuit breaker '${name}' is open`, {
+        throw new BellwetherError(`Circuit breaker '${name}' is open`, {
           code: 'CIRCUIT_BREAKER_OPEN',
           severity: 'high',
           retryable: 'retryable',

@@ -1,5 +1,5 @@
 /**
- * Inquest - Interview MCP servers to generate behavioral documentation
+ * Bellwether - Interview MCP servers to generate behavioral documentation
  *
  * @packageDocumentation
  */
@@ -46,7 +46,7 @@ export { generateAgentsMd, generateJsonReport } from './docs/generator.js';
 
 // Config
 export { loadConfig, generateDefaultConfig, getDefaultConfig, DEFAULT_CONFIG as DEFAULT_FILE_CONFIG } from './config/loader.js';
-export type { InquestConfig } from './config/loader.js';
+export type { BellwetherConfig } from './config/loader.js';
 
 // Logging
 export {

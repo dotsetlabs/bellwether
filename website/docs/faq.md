@@ -7,15 +7,15 @@ sidebar_position: 100
 
 ## General
 
-### What is Inquest?
+### What is Bellwether?
 
-Inquest is a CLI tool that generates behavioral documentation for MCP (Model Context Protocol) servers. It uses LLMs to intelligently interview your server, discovering how it actually behaves rather than relying on manually written documentation.
+Bellwether is a CLI tool that generates behavioral documentation for MCP (Model Context Protocol) servers. It uses LLMs to intelligently interview your server, discovering how it actually behaves rather than relying on manually written documentation.
 
 ### What is MCP?
 
 [Model Context Protocol](https://modelcontextprotocol.io/) is a standard for AI agents to interact with external tools and data sources. MCP servers expose tools that AI assistants can call.
 
-### Is Inquest free?
+### Is Bellwether free?
 
 The CLI is free and open source (MIT license). Optional cloud features (baseline history, team collaboration) have a free tier and paid plans.
 
@@ -48,20 +48,20 @@ Quick mode (`--quick`) costs ~$0.01.
 - Internet connection (for LLM API calls)
 - One of: OpenAI API key, Anthropic API key, or local Ollama
 
-### Can I use Inquest without an API key?
+### Can I use Bellwether without an API key?
 
 Yes, using Ollama for local LLM inference:
 
 ```bash
 ollama serve
 ollama pull llama3.2
-inquest interview npx your-server
+bellwether interview npx your-server
 ```
 
-### How do I update Inquest?
+### How do I update Bellwether?
 
 ```bash
-npm update -g @dotsetlabs/inquest
+npm update -g @dotsetlabs/bellwether
 ```
 
 ## Usage
@@ -69,7 +69,7 @@ npm update -g @dotsetlabs/inquest
 ### How do I interview an MCP server?
 
 ```bash
-inquest interview npx @modelcontextprotocol/server-filesystem /tmp
+bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 ```
 
 ### What output formats are supported?
@@ -83,39 +83,39 @@ inquest interview npx @modelcontextprotocol/server-filesystem /tmp
 
 ```bash
 # Single persona
-inquest interview --persona security_tester npx server
+bellwether interview --persona security_tester npx server
 
 # Multiple personas
-inquest interview --persona technical_writer,security_tester npx server
+bellwether interview --persona technical_writer,security_tester npx server
 ```
 
 ### How do I save a baseline?
 
 ```bash
-inquest interview --save-baseline npx your-server
-# Creates: inquest-baseline.json
+bellwether interview --save-baseline npx your-server
+# Creates: bellwether-baseline.json
 ```
 
 ### How do I compare against a baseline?
 
 ```bash
-inquest interview \
-  --compare-baseline ./inquest-baseline.json \
+bellwether interview \
+  --compare-baseline ./bellwether-baseline.json \
   --fail-on-drift \
   npx your-server
 ```
 
 ## CI/CD
 
-### How do I use Inquest in CI?
+### How do I use Bellwether in CI?
 
 ```yaml
 # GitHub Actions
-- name: Run Inquest
+- name: Run Bellwether
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   run: |
-    npx @dotsetlabs/inquest interview \
+    npx @dotsetlabs/bellwether interview \
       --ci \
       --compare-baseline ./baseline.json \
       --fail-on-drift \
@@ -135,7 +135,7 @@ inquest interview \
 Use quick mode:
 
 ```bash
-inquest interview --quick npx your-server
+bellwether interview --quick npx your-server
 ```
 
 This uses a cheaper model and fewer questions (~$0.01).
@@ -144,7 +144,7 @@ This uses a cheaper model and fewer questions (~$0.01).
 
 ### Is cloud required?
 
-No. Inquest works fully offline. Cloud adds:
+No. Bellwether works fully offline. Cloud adds:
 - Baseline history
 - Team collaboration
 - Verification badges
@@ -152,9 +152,9 @@ No. Inquest works fully offline. Cloud adds:
 ### How do I connect to cloud?
 
 ```bash
-inquest login
-inquest link
-inquest upload
+bellwether login
+bellwether link
+bellwether upload
 ```
 
 ### What data is stored in cloud?
@@ -171,18 +171,18 @@ No source code or credentials are uploaded.
 
 API keys are:
 - Never logged
-- Never sent to Inquest servers
+- Never sent to Bellwether servers
 - Only sent to your chosen LLM provider
 
-### What data does Inquest send to LLMs?
+### What data does Bellwether send to LLMs?
 
 - Tool names and schemas
 - Test scenarios and responses
 - No source code unless included in tool responses
 
-### Can Inquest damage my server?
+### Can Bellwether damage my server?
 
-Inquest only calls tools that exist on your server. It generates test scenarios but doesn't execute arbitrary code. Use appropriate test environments.
+Bellwether only calls tools that exist on your server. It generates test scenarios but doesn't execute arbitrary code. Use appropriate test environments.
 
 ## Troubleshooting
 
@@ -199,7 +199,7 @@ export OPENAI_API_KEY=sk-xxx
 Check your server starts correctly:
 
 ```bash
-inquest discover npx your-server
+bellwether discover npx your-server
 ```
 
 ### "Timeout errors"
@@ -207,7 +207,7 @@ inquest discover npx your-server
 Increase timeout:
 
 ```bash
-inquest interview --timeout 120000 npx your-server
+bellwether interview --timeout 120000 npx your-server
 ```
 
 ### "Interview taking too long"
@@ -215,20 +215,20 @@ inquest interview --timeout 120000 npx your-server
 Use quick mode:
 
 ```bash
-inquest interview --quick npx your-server
+bellwether interview --quick npx your-server
 ```
 
 ## Contributing
 
 ### How do I report bugs?
 
-Open an issue at [github.com/dotsetlabs/inquest/issues](https://github.com/dotsetlabs/inquest/issues).
+Open an issue at [github.com/dotsetlabs/bellwether/issues](https://github.com/dotsetlabs/bellwether/issues).
 
 ### How do I contribute?
 
-See [CONTRIBUTING.md](https://github.com/dotsetlabs/inquest/blob/main/CONTRIBUTING.md).
+See [CONTRIBUTING.md](https://github.com/dotsetlabs/bellwether/blob/main/CONTRIBUTING.md).
 
 ### Is there a community?
 
-- GitHub Discussions: [github.com/dotsetlabs/inquest/discussions](https://github.com/dotsetlabs/inquest/discussions)
-- Issues: [github.com/dotsetlabs/inquest/issues](https://github.com/dotsetlabs/inquest/issues)
+- GitHub Discussions: [github.com/dotsetlabs/bellwether/discussions](https://github.com/dotsetlabs/bellwether/discussions)
+- Issues: [github.com/dotsetlabs/bellwether/issues](https://github.com/dotsetlabs/bellwether/issues)

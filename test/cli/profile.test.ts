@@ -17,12 +17,12 @@ describe('profile command', () => {
   let originalExit: typeof process.exit;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `inquest-profile-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(tmpdir(), `bellwether-profile-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
 
     originalHome = process.env.HOME;
     process.env.HOME = testDir;
-    mkdirSync(join(testDir, '.inquest', 'profiles'), { recursive: true });
+    mkdirSync(join(testDir, '.bellwether', 'profiles'), { recursive: true });
 
     consoleOutput = [];
     consoleErrors = [];
@@ -60,7 +60,7 @@ describe('profile command', () => {
 
       expect(consoleOutput.some(line => line.includes("'myprofile' created"))).toBe(true);
 
-      const profilePath = join(testDir, '.inquest', 'profiles', 'myprofile.yaml');
+      const profilePath = join(testDir, '.bellwether', 'profiles', 'myprofile.yaml');
       expect(existsSync(profilePath)).toBe(true);
 
       const content = readFileSync(profilePath, 'utf-8');
@@ -73,7 +73,7 @@ describe('profile command', () => {
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'create', 'gpt4profile', '--provider', 'openai', '--model', 'gpt-4o']);
 
-      const profilePath = join(testDir, '.inquest', 'profiles', 'gpt4profile.yaml');
+      const profilePath = join(testDir, '.bellwether', 'profiles', 'gpt4profile.yaml');
       const content = readFileSync(profilePath, 'utf-8');
       const profile = parse(content);
       expect(profile.llm.model).toBe('gpt-4o');
@@ -83,7 +83,7 @@ describe('profile command', () => {
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'create', 'limited', '--max-questions', '3']);
 
-      const profilePath = join(testDir, '.inquest', 'profiles', 'limited.yaml');
+      const profilePath = join(testDir, '.bellwether', 'profiles', 'limited.yaml');
       const content = readFileSync(profilePath, 'utf-8');
       const profile = parse(content);
       expect(profile.interview.maxQuestionsPerTool).toBe(3);
@@ -93,7 +93,7 @@ describe('profile command', () => {
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'create', 'personas', '--personas', 'security,developer']);
 
-      const profilePath = join(testDir, '.inquest', 'profiles', 'personas.yaml');
+      const profilePath = join(testDir, '.bellwether', 'profiles', 'personas.yaml');
       const content = readFileSync(profilePath, 'utf-8');
       const profile = parse(content);
       expect(profile.interview.personas).toEqual(['security', 'developer']);
@@ -119,7 +119,7 @@ describe('profile command', () => {
 
       expect(consoleOutput.some(line => line.includes('current profile'))).toBe(true);
 
-      const currentPath = join(testDir, '.inquest', 'current-profile');
+      const currentPath = join(testDir, '.bellwether', 'current-profile');
       expect(existsSync(currentPath)).toBe(true);
       const current = readFileSync(currentPath, 'utf-8').trim();
       expect(current).toBe('setcurrent');
@@ -139,8 +139,8 @@ describe('profile command', () => {
       const profile1 = { name: 'dev', llm: { provider: 'openai', model: 'gpt-4o' }, interview: {}, output: {} };
       const profile2 = { name: 'prod', llm: { provider: 'anthropic' }, interview: {}, output: {} };
 
-      writeFileSync(join(testDir, '.inquest', 'profiles', 'dev.yaml'), stringify(profile1));
-      writeFileSync(join(testDir, '.inquest', 'profiles', 'prod.yaml'), stringify(profile2));
+      writeFileSync(join(testDir, '.bellwether', 'profiles', 'dev.yaml'), stringify(profile1));
+      writeFileSync(join(testDir, '.bellwether', 'profiles', 'prod.yaml'), stringify(profile2));
 
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'list']);
@@ -153,8 +153,8 @@ describe('profile command', () => {
 
     it('should mark current profile', async () => {
       const profile = { name: 'current', llm: { provider: 'openai' }, interview: {}, output: {} };
-      writeFileSync(join(testDir, '.inquest', 'profiles', 'current.yaml'), stringify(profile));
-      writeFileSync(join(testDir, '.inquest', 'current-profile'), 'current');
+      writeFileSync(join(testDir, '.bellwether', 'profiles', 'current.yaml'), stringify(profile));
+      writeFileSync(join(testDir, '.bellwether', 'current-profile'), 'current');
 
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'list']);
@@ -166,14 +166,14 @@ describe('profile command', () => {
   describe('profile use', () => {
     it('should set current profile', async () => {
       const profile = { name: 'toset', llm: { provider: 'openai' }, interview: {}, output: {} };
-      writeFileSync(join(testDir, '.inquest', 'profiles', 'toset.yaml'), stringify(profile));
+      writeFileSync(join(testDir, '.bellwether', 'profiles', 'toset.yaml'), stringify(profile));
 
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'use', 'toset']);
 
       expect(consoleOutput.some(line => line.includes("'toset' as current"))).toBe(true);
 
-      const currentPath = join(testDir, '.inquest', 'current-profile');
+      const currentPath = join(testDir, '.bellwether', 'current-profile');
       const current = readFileSync(currentPath, 'utf-8').trim();
       expect(current).toBe('toset');
     });
@@ -197,7 +197,7 @@ describe('profile command', () => {
         interview: { maxQuestionsPerTool: 5, personas: ['security'] },
         output: { format: 'json' },
       };
-      writeFileSync(join(testDir, '.inquest', 'profiles', 'detailed.yaml'), stringify(profile));
+      writeFileSync(join(testDir, '.bellwether', 'profiles', 'detailed.yaml'), stringify(profile));
 
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'show', 'detailed']);
@@ -208,8 +208,8 @@ describe('profile command', () => {
 
     it('should show current profile when no name provided', async () => {
       const profile = { name: 'currentshow', llm: { provider: 'openai' }, interview: {}, output: {} };
-      writeFileSync(join(testDir, '.inquest', 'profiles', 'currentshow.yaml'), stringify(profile));
-      writeFileSync(join(testDir, '.inquest', 'current-profile'), 'currentshow');
+      writeFileSync(join(testDir, '.bellwether', 'profiles', 'currentshow.yaml'), stringify(profile));
+      writeFileSync(join(testDir, '.bellwether', 'current-profile'), 'currentshow');
 
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'show']);
@@ -231,7 +231,7 @@ describe('profile command', () => {
   describe('profile delete', () => {
     it('should delete profile', async () => {
       const profile = { name: 'todelete', llm: { provider: 'openai' }, interview: {}, output: {} };
-      const profilePath = join(testDir, '.inquest', 'profiles', 'todelete.yaml');
+      const profilePath = join(testDir, '.bellwether', 'profiles', 'todelete.yaml');
       writeFileSync(profilePath, stringify(profile));
       expect(existsSync(profilePath)).toBe(true);
 
@@ -244,13 +244,13 @@ describe('profile command', () => {
 
     it('should clear current if deleted profile was current', async () => {
       const profile = { name: 'currentdel', llm: { provider: 'openai' }, interview: {}, output: {} };
-      writeFileSync(join(testDir, '.inquest', 'profiles', 'currentdel.yaml'), stringify(profile));
-      writeFileSync(join(testDir, '.inquest', 'current-profile'), 'currentdel');
+      writeFileSync(join(testDir, '.bellwether', 'profiles', 'currentdel.yaml'), stringify(profile));
+      writeFileSync(join(testDir, '.bellwether', 'current-profile'), 'currentdel');
 
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'delete', 'currentdel']);
 
-      const currentPath = join(testDir, '.inquest', 'current-profile');
+      const currentPath = join(testDir, '.bellwether', 'current-profile');
       expect(existsSync(currentPath)).toBe(false);
     });
 
@@ -268,34 +268,34 @@ describe('profile command', () => {
   describe('profile update', () => {
     it('should update existing profile', async () => {
       const profile = { name: 'toupdate', llm: { provider: 'openai', model: 'gpt-4' }, interview: {}, output: {} };
-      writeFileSync(join(testDir, '.inquest', 'profiles', 'toupdate.yaml'), stringify(profile));
+      writeFileSync(join(testDir, '.bellwether', 'profiles', 'toupdate.yaml'), stringify(profile));
 
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'update', 'toupdate', '--model', 'gpt-4o']);
 
-      const updated = parse(readFileSync(join(testDir, '.inquest', 'profiles', 'toupdate.yaml'), 'utf-8'));
+      const updated = parse(readFileSync(join(testDir, '.bellwether', 'profiles', 'toupdate.yaml'), 'utf-8'));
       expect(updated.llm.model).toBe('gpt-4o');
     });
 
     it('should update provider', async () => {
       const profile = { name: 'updateprov', llm: { provider: 'openai' }, interview: {}, output: {} };
-      writeFileSync(join(testDir, '.inquest', 'profiles', 'updateprov.yaml'), stringify(profile));
+      writeFileSync(join(testDir, '.bellwether', 'profiles', 'updateprov.yaml'), stringify(profile));
 
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'update', 'updateprov', '--provider', 'anthropic']);
 
-      const updated = parse(readFileSync(join(testDir, '.inquest', 'profiles', 'updateprov.yaml'), 'utf-8'));
+      const updated = parse(readFileSync(join(testDir, '.bellwether', 'profiles', 'updateprov.yaml'), 'utf-8'));
       expect(updated.llm.provider).toBe('anthropic');
     });
 
     it('should update personas', async () => {
       const profile = { name: 'updatepers', llm: { provider: 'openai' }, interview: {}, output: {} };
-      writeFileSync(join(testDir, '.inquest', 'profiles', 'updatepers.yaml'), stringify(profile));
+      writeFileSync(join(testDir, '.bellwether', 'profiles', 'updatepers.yaml'), stringify(profile));
 
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'update', 'updatepers', '--personas', 'admin,security']);
 
-      const updated = parse(readFileSync(join(testDir, '.inquest', 'profiles', 'updatepers.yaml'), 'utf-8'));
+      const updated = parse(readFileSync(join(testDir, '.bellwether', 'profiles', 'updatepers.yaml'), 'utf-8'));
       expect(updated.interview.personas).toEqual(['admin', 'security']);
     });
 
@@ -318,7 +318,7 @@ describe('profile command', () => {
         interview: { maxQuestionsPerTool: 5 },
         output: {},
       };
-      writeFileSync(join(testDir, '.inquest', 'profiles', 'toexport.yaml'), stringify(profile));
+      writeFileSync(join(testDir, '.bellwether', 'profiles', 'toexport.yaml'), stringify(profile));
 
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'export', 'toexport']);
@@ -331,8 +331,8 @@ describe('profile command', () => {
 
     it('should export current profile when no name provided', async () => {
       const profile = { name: 'currentexp', llm: { provider: 'anthropic' }, interview: {}, output: {} };
-      writeFileSync(join(testDir, '.inquest', 'profiles', 'currentexp.yaml'), stringify(profile));
-      writeFileSync(join(testDir, '.inquest', 'current-profile'), 'currentexp');
+      writeFileSync(join(testDir, '.bellwether', 'profiles', 'currentexp.yaml'), stringify(profile));
+      writeFileSync(join(testDir, '.bellwether', 'current-profile'), 'currentexp');
 
       const { profileCommand } = await import('../../src/cli/commands/profile.js');
       await profileCommand.parseAsync(['node', 'test', 'export']);
@@ -358,7 +358,7 @@ describe('profile command', () => {
 
       expect(consoleOutput.some(line => line.includes("'imported' imported"))).toBe(true);
 
-      const profilePath = join(testDir, '.inquest', 'profiles', 'imported.yaml');
+      const profilePath = join(testDir, '.bellwether', 'profiles', 'imported.yaml');
       expect(existsSync(profilePath)).toBe(true);
     });
 
@@ -377,7 +377,7 @@ describe('profile command', () => {
 
       expect(consoleOutput.some(line => line.includes("'renamed' imported"))).toBe(true);
 
-      const profilePath = join(testDir, '.inquest', 'profiles', 'renamed.yaml');
+      const profilePath = join(testDir, '.bellwether', 'profiles', 'renamed.yaml');
       expect(existsSync(profilePath)).toBe(true);
     });
 
@@ -416,9 +416,9 @@ describe('getActiveProfileConfig', () => {
   let originalHome: string | undefined;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `inquest-profile-config-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(tmpdir(), `bellwether-profile-config-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
-    mkdirSync(join(testDir, '.inquest', 'profiles'), { recursive: true });
+    mkdirSync(join(testDir, '.bellwether', 'profiles'), { recursive: true });
     originalHome = process.env.HOME;
     process.env.HOME = testDir;
     vi.resetModules();
@@ -449,8 +449,8 @@ describe('getActiveProfileConfig', () => {
       interview: { maxQuestionsPerTool: 7 },
       output: { format: 'markdown' },
     };
-    writeFileSync(join(testDir, '.inquest', 'profiles', 'active.yaml'), stringify(profile));
-    writeFileSync(join(testDir, '.inquest', 'current-profile'), 'active');
+    writeFileSync(join(testDir, '.bellwether', 'profiles', 'active.yaml'), stringify(profile));
+    writeFileSync(join(testDir, '.bellwether', 'current-profile'), 'active');
 
     const { getActiveProfileConfig } = await import('../../src/cli/commands/profile.js');
     const config = getActiveProfileConfig();
@@ -462,7 +462,7 @@ describe('getActiveProfileConfig', () => {
   });
 
   it('should return null if current profile file points to missing profile', async () => {
-    writeFileSync(join(testDir, '.inquest', 'current-profile'), 'missing');
+    writeFileSync(join(testDir, '.bellwether', 'current-profile'), 'missing');
 
     const { getActiveProfileConfig } = await import('../../src/cli/commands/profile.js');
     const config = getActiveProfileConfig();

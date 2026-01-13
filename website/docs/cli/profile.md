@@ -3,14 +3,14 @@ title: profile
 sidebar_position: 4
 ---
 
-# inquest profile
+# bellwether profile
 
 Manage interview profiles for different testing scenarios.
 
 ## Synopsis
 
 ```bash
-inquest profile <subcommand> [options]
+bellwether profile <subcommand> [options]
 ```
 
 ## Description
@@ -24,7 +24,7 @@ Profiles let you save and reuse interview configurations for different scenarios
 List all available profiles.
 
 ```bash
-inquest profile list
+bellwether profile list
 ```
 
 Output:
@@ -41,7 +41,7 @@ Available profiles:
 Create a new profile.
 
 ```bash
-inquest profile create <name> [options]
+bellwether profile create <name> [options]
 ```
 
 Options:
@@ -54,7 +54,7 @@ Options:
 
 Example:
 ```bash
-inquest profile create security-audit \
+bellwether profile create security-audit \
   --provider anthropic \
   --model claude-sonnet-4-20250514 \
   --max-questions 5 \
@@ -66,13 +66,13 @@ inquest profile create security-audit \
 Set the active profile for subsequent commands.
 
 ```bash
-inquest profile use <name>
+bellwether profile use <name>
 ```
 
 Example:
 ```bash
-inquest profile use security-audit
-inquest interview npx your-server  # Uses security-audit profile
+bellwether profile use security-audit
+bellwether interview npx your-server  # Uses security-audit profile
 ```
 
 ### show
@@ -80,7 +80,7 @@ inquest interview npx your-server  # Uses security-audit profile
 Show details of a profile.
 
 ```bash
-inquest profile show <name>
+bellwether profile show <name>
 ```
 
 ### delete
@@ -88,7 +88,7 @@ inquest profile show <name>
 Delete a profile.
 
 ```bash
-inquest profile delete <name>
+bellwether profile delete <name>
 ```
 
 ## Examples
@@ -97,21 +97,21 @@ inquest profile delete <name>
 
 ```bash
 # Create a fast, cheap profile for CI
-inquest profile create ci \
+bellwether profile create ci \
   --provider openai \
   --model gpt-4o-mini \
   --max-questions 1 \
   --personas technical_writer
 
 # Use in CI
-inquest profile use ci
-inquest interview --ci npx your-server
+bellwether profile use ci
+bellwether interview --ci npx your-server
 ```
 
 ### Create a Security Audit Profile
 
 ```bash
-inquest profile create security \
+bellwether profile create security \
   --provider anthropic \
   --model claude-sonnet-4-20250514 \
   --max-questions 10 \
@@ -121,7 +121,7 @@ inquest profile create security \
 ### Create a Thorough Testing Profile
 
 ```bash
-inquest profile create release \
+bellwether profile create release \
   --provider openai \
   --model gpt-4o \
   --max-questions 5 \
@@ -130,10 +130,10 @@ inquest profile create release \
 
 ## Profile Storage
 
-Profiles are stored in `~/.inquest/profiles/`:
+Profiles are stored in `~/.bellwether/profiles/`:
 
 ```
-~/.inquest/
+~/.bellwether/
   profiles/
     default.yaml
     ci.yaml
@@ -144,7 +144,7 @@ Profiles are stored in `~/.inquest/profiles/`:
 Each profile is a YAML file with interview settings:
 
 ```yaml
-# ~/.inquest/profiles/security.yaml
+# ~/.bellwether/profiles/security.yaml
 llm:
   provider: anthropic
   model: claude-sonnet-4-20250514

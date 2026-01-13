@@ -1,5 +1,5 @@
 /**
- * End-to-end smoke tests for inquest core functionality.
+ * End-to-end smoke tests for bellwether core functionality.
  * These tests verify that major components work together without
  * requiring external services (no real LLM or MCP server calls).
  */
@@ -33,7 +33,7 @@ describe('e2e/smoke', () => {
 
   beforeEach(() => {
     configureLogger({ level: 'silent' });
-    testDir = join(tmpdir(), `inquest-e2e-smoke-${Date.now()}`);
+    testDir = join(tmpdir(), `bellwether-e2e-smoke-${Date.now()}`);
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
@@ -255,7 +255,7 @@ describe('e2e/smoke', () => {
       expect(configContent).toContain('interview:');
 
       // Write config file
-      const configPath = join(testDir, 'inquest.yaml');
+      const configPath = join(testDir, 'bellwether.yaml');
       writeFileSync(configPath, configContent);
       expect(existsSync(configPath)).toBe(true);
 
@@ -277,7 +277,7 @@ describe('e2e/smoke', () => {
     });
 
     it('should merge CLI options with config', () => {
-      const configPath = join(testDir, 'inquest.yaml');
+      const configPath = join(testDir, 'bellwether.yaml');
       writeFileSync(configPath, `
 version: 1
 llm:
@@ -369,7 +369,7 @@ interview:
       expect(parsed.$schema).toContain('sarif');
       expect(parsed.version).toBe('2.1.0');
       expect(parsed.runs).toBeDefined();
-      expect(parsed.runs[0].tool.driver.name).toBe('Inquest');
+      expect(parsed.runs[0].tool.driver.name).toBe('Bellwether');
     });
 
     it('should generate JUnit report for CI integration', () => {
@@ -528,7 +528,7 @@ interview:
   describe('Full workflow simulation', () => {
     it('should simulate complete interview-to-documentation workflow', () => {
       // Step 1: Load configuration
-      const configPath = join(testDir, 'inquest.yaml');
+      const configPath = join(testDir, 'bellwether.yaml');
       const configContent = generateDefaultConfig();
       writeFileSync(configPath, configContent);
       const config = loadConfig(configPath);

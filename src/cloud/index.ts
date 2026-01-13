@@ -1,8 +1,8 @@
 /**
- * Cloud integration module for Inquest.
+ * Cloud integration module for Bellwether.
  *
  * Provides functionality for:
- * - Authentication with Inquest Cloud
+ * - Authentication with Bellwether Cloud
  * - Project and baseline management
  * - Uploading and comparing baselines
  *
@@ -19,14 +19,14 @@
 
 // Types
 export type {
-  InquestCloudClient,
+  BellwetherCloudClient,
   CloudConfig,
   CloudUser,
   Project,
   BaselineVersion,
   UploadResult,
   DiffSummary,
-  InquestBaseline,
+  BellwetherBaseline,
   BaselineMetadata,
   CloudServerFingerprint,
   ToolCapability,

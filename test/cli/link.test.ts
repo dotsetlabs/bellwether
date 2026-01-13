@@ -57,7 +57,7 @@ describe('link command', () => {
 
   beforeEach(async () => {
     // Create temp directory for test config
-    testDir = join(tmpdir(), `inquest-link-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(tmpdir(), `bellwether-link-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
     mkdirSync(join(testDir, 'my-project'), { recursive: true });
     originalCwd = process.cwd();
@@ -67,9 +67,9 @@ describe('link command', () => {
     originalHome = process.env.HOME;
     process.env.HOME = testDir;
 
-    // Create .inquest directory for both global and project config
-    mkdirSync(join(testDir, '.inquest'), { recursive: true });
-    mkdirSync(join(testDir, 'my-project', '.inquest'), { recursive: true });
+    // Create .bellwether directory for both global and project config
+    mkdirSync(join(testDir, '.bellwether'), { recursive: true });
+    mkdirSync(join(testDir, 'my-project', '.bellwether'), { recursive: true });
 
     // Reset modules so auth module picks up new HOME
     vi.resetModules();
@@ -367,9 +367,9 @@ describe('project link functions', () => {
   let originalCwd: string;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `inquest-link-fn-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(tmpdir(), `bellwether-link-fn-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
-    mkdirSync(join(testDir, '.inquest'), { recursive: true });
+    mkdirSync(join(testDir, '.bellwether'), { recursive: true });
     originalHome = process.env.HOME;
     originalCwd = process.cwd();
     process.env.HOME = testDir;

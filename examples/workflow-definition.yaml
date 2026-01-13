@@ -1,5 +1,5 @@
 # Workflow Definition Example
-# Use with: inquest interview --workflows ./workflow-definition.yaml npx @mcp/server
+# Use with: bellwether interview --workflows ./workflow-definition.yaml npx @mcp/server
 
 workflows:
   # Example: E-commerce checkout workflow

@@ -1,8 +1,8 @@
 /**
- * Comprehensive error types for Inquest.
+ * Comprehensive error types for Bellwether.
  *
  * Error hierarchy:
- * - InquestError (base)
+ * - BellwetherError (base)
  *   - TransportError (MCP communication)
  *   - LLMError (LLM provider issues)
  *   - InterviewError (interview execution)
@@ -53,9 +53,9 @@ export interface ErrorContext {
 }
 
 /**
- * Base error class for all Inquest errors.
+ * Base error class for all Bellwether errors.
  */
-export class InquestError extends Error {
+export class BellwetherError extends Error {
   /** Error code for programmatic handling */
   readonly code: string;
   /** Error severity */
@@ -78,7 +78,7 @@ export class InquestError extends Error {
     }
   ) {
     super(message);
-    this.name = 'InquestError';
+    this.name = 'BellwetherError';
     this.code = options.code;
     this.severity = options.severity ?? 'medium';
     this.retryable = options.retryable ?? 'unknown';
@@ -94,8 +94,8 @@ export class InquestError extends Error {
   /**
    * Create a new error with additional context.
    */
-  withContext(additionalContext: Partial<ErrorContext>): InquestError {
-    return new InquestError(this.message, {
+  withContext(additionalContext: Partial<ErrorContext>): BellwetherError {
+    return new BellwetherError(this.message, {
       code: this.code,
       severity: this.severity,
       retryable: this.retryable,
@@ -133,7 +133,7 @@ export class InquestError extends Error {
 /**
  * Base class for transport-related errors.
  */
-export class TransportError extends InquestError {
+export class TransportError extends BellwetherError {
   constructor(
     message: string,
     options: {
@@ -265,7 +265,7 @@ export class BufferOverflowError extends TransportError {
 /**
  * Base class for LLM-related errors.
  */
-export class LLMError extends InquestError {
+export class LLMError extends BellwetherError {
   /** LLM provider name */
   readonly provider: string;
   /** Model name if available */
@@ -459,7 +459,7 @@ export class LLMConnectionError extends LLMError {
 /**
  * Base class for interview-related errors.
  */
-export class InterviewError extends InquestError {
+export class InterviewError extends BellwetherError {
   constructor(
     message: string,
     options: {
@@ -563,7 +563,7 @@ export class AnalysisError extends InterviewError {
 /**
  * Base class for workflow-related errors.
  */
-export class WorkflowError extends InquestError {
+export class WorkflowError extends BellwetherError {
   /** Workflow ID */
   readonly workflowId: string;
   /** Workflow name */
@@ -709,7 +709,7 @@ export class AssertionError extends WorkflowError {
 /**
  * Configuration-related error.
  */
-export class ConfigError extends InquestError {
+export class ConfigError extends BellwetherError {
   constructor(message: string, context?: ErrorContext, cause?: Error) {
     super(message, {
       code: 'CONFIG_ERROR',
@@ -761,17 +761,17 @@ export class ConfigValidationError extends ConfigError {
 // =============================================================================
 
 /**
- * Check if an error is an InquestError.
+ * Check if an error is a BellwetherError.
  */
-export function isInquestError(error: unknown): error is InquestError {
-  return error instanceof InquestError;
+export function isBellwetherError(error: unknown): error is BellwetherError {
+  return error instanceof BellwetherError;
 }
 
 /**
  * Check if an error is retryable.
  */
 export function isRetryable(error: unknown): boolean {
-  if (isInquestError(error)) {
+  if (isBellwetherError(error)) {
     return error.retryable === 'retryable';
   }
   // For unknown errors, default to retryable for transient issues
@@ -789,19 +789,19 @@ export function isRetryable(error: unknown): boolean {
 }
 
 /**
- * Wrap an unknown error in an InquestError.
+ * Wrap an unknown error in a BellwetherError.
  */
 export function wrapError(
   error: unknown,
   context?: ErrorContext
-): InquestError {
-  if (isInquestError(error)) {
+): BellwetherError {
+  if (isBellwetherError(error)) {
     return context ? error.withContext(context) : error;
   }
 
   const originalError = error instanceof Error ? error : new Error(String(error));
 
-  return new InquestError(originalError.message, {
+  return new BellwetherError(originalError.message, {
     code: 'UNKNOWN_ERROR',
     severity: 'medium',
     retryable: 'unknown',
@@ -814,7 +814,7 @@ export function wrapError(
  * Extract error message from any error type.
  */
 export function getErrorMessage(error: unknown): string {
-  if (isInquestError(error)) {
+  if (isBellwetherError(error)) {
     return error.message;
   }
   if (error instanceof Error) {

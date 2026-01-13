@@ -3,19 +3,19 @@ title: interview
 sidebar_position: 1
 ---
 
-# inquest interview
+# bellwether interview
 
 Conduct a full interview of an MCP server and generate behavioral documentation.
 
 ## Synopsis
 
 ```bash
-inquest interview [options] <command> [args...]
+bellwether interview [options] <command> [args...]
 ```
 
 ## Description
 
-The `interview` command is the core of Inquest. It connects to an MCP server, discovers its capabilities, and uses an LLM to generate intelligent test scenarios. The results are synthesized into comprehensive behavioral documentation.
+The `interview` command is the core of Bellwether. It connects to an MCP server, discovers its capabilities, and uses an LLM to generate intelligent test scenarios. The results are synthesized into comprehensive behavioral documentation.
 
 ## Arguments
 
@@ -49,7 +49,7 @@ The `interview` command is the core of Inquest. It connects to an MCP server, di
 | `--max-questions <n>` | Maximum questions per tool | `3` |
 | `--timeout <ms>` | Tool call timeout in milliseconds | `60000` |
 | `--persona <personas>` | Comma-separated list of personas | All |
-| `-c, --config <path>` | Config file path | `inquest.yaml` |
+| `-c, --config <path>` | Config file path | `bellwether.yaml` |
 
 ### Baseline Options
 
@@ -82,16 +82,16 @@ The `interview` command is the core of Inquest. It connects to an MCP server, di
 
 ```bash
 # Interview a filesystem server
-inquest interview npx @modelcontextprotocol/server-filesystem /tmp
+bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 
 # Interview a memory server
-inquest interview npx @modelcontextprotocol/server-memory
+bellwether interview npx @modelcontextprotocol/server-memory
 ```
 
 ### Custom Model and Options
 
 ```bash
-inquest interview \
+bellwether interview \
   --model gpt-4o \
   --max-questions 5 \
   --json \
@@ -101,18 +101,18 @@ inquest interview \
 ### Quick Mode for CI
 
 ```bash
-inquest interview --quick --ci npx your-server
+bellwether interview --quick --ci npx your-server
 ```
 
 ### Save and Compare Baselines
 
 ```bash
 # Create initial baseline
-inquest interview --save-baseline npx your-server
+bellwether interview --save-baseline npx your-server
 
 # Later, compare against baseline
-inquest interview \
-  --compare-baseline inquest-baseline.json \
+bellwether interview \
+  --compare-baseline bellwether-baseline.json \
   --fail-on-drift \
   npx your-server
 ```
@@ -120,7 +120,7 @@ inquest interview \
 ### Security Testing
 
 ```bash
-inquest interview \
+bellwether interview \
   --persona security_tester \
   --fail-on-security \
   --output-format sarif \
@@ -131,7 +131,7 @@ inquest interview \
 ### Multiple Personas
 
 ```bash
-inquest interview \
+bellwether interview \
   --persona technical_writer,security_tester,qa_engineer \
   --max-questions 5 \
   npx your-server
@@ -152,9 +152,9 @@ Depending on options, the following files may be generated:
 | File | Description |
 |:-----|:------------|
 | `AGENTS.md` | Human-readable behavioral documentation |
-| `inquest-report.json` | Machine-readable JSON report |
-| `inquest-baseline.json` | Baseline for drift detection |
-| `inquest.sarif` | SARIF output for GitHub Code Scanning |
+| `bellwether-report.json` | Machine-readable JSON report |
+| `bellwether-baseline.json` | Baseline for drift detection |
+| `bellwether.sarif` | SARIF output for GitHub Code Scanning |
 | `junit.xml` | JUnit XML for test runners |
 
 ## Environment Variables
@@ -164,7 +164,7 @@ Depending on options, the following files may be generated:
 | `OPENAI_API_KEY` | OpenAI API key |
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
-| `INQUEST_LOG_LEVEL` | Default log level |
+| `BELLWETHER_LOG_LEVEL` | Default log level |
 
 ## See Also
 

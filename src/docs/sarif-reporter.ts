@@ -78,64 +78,64 @@ interface SarifReport {
 }
 
 /**
- * Inquest rule definitions.
+ * Bellwether rule definitions.
  */
-const INQUEST_RULES: SarifRule[] = [
+const BELLWETHER_RULES: SarifRule[] = [
   {
-    id: 'INQUEST-001',
+    id: 'BELLWETHER-001',
     name: 'SecurityFinding',
     shortDescription: { text: 'Security consideration identified' },
     fullDescription: { text: 'A security-related behavior was observed during tool testing' },
     defaultConfiguration: { level: 'warning' },
-    helpUri: 'https://github.com/dotsetlabs/inquest#security',
+    helpUri: 'https://github.com/dotsetlabs/bellwether#security',
   },
   {
-    id: 'INQUEST-002',
+    id: 'BELLWETHER-002',
     name: 'BehavioralLimitation',
     shortDescription: { text: 'Tool limitation discovered' },
     fullDescription: { text: 'A limitation in tool behavior was identified' },
     defaultConfiguration: { level: 'note' },
-    helpUri: 'https://github.com/dotsetlabs/inquest#limitations',
+    helpUri: 'https://github.com/dotsetlabs/bellwether#limitations',
   },
   {
-    id: 'INQUEST-003',
+    id: 'BELLWETHER-003',
     name: 'ToolRemoved',
     shortDescription: { text: 'Tool removed from server' },
     fullDescription: { text: 'A tool that existed in the baseline is no longer present' },
     defaultConfiguration: { level: 'error' },
-    helpUri: 'https://github.com/dotsetlabs/inquest#drift',
+    helpUri: 'https://github.com/dotsetlabs/bellwether#drift',
   },
   {
-    id: 'INQUEST-004',
+    id: 'BELLWETHER-004',
     name: 'ToolAdded',
     shortDescription: { text: 'New tool added to server' },
     fullDescription: { text: 'A new tool was discovered that was not in the baseline' },
     defaultConfiguration: { level: 'note' },
-    helpUri: 'https://github.com/dotsetlabs/inquest#drift',
+    helpUri: 'https://github.com/dotsetlabs/bellwether#drift',
   },
   {
-    id: 'INQUEST-005',
+    id: 'BELLWETHER-005',
     name: 'SchemaChanged',
     shortDescription: { text: 'Tool schema changed' },
     fullDescription: { text: 'The input schema for a tool has changed' },
     defaultConfiguration: { level: 'warning' },
-    helpUri: 'https://github.com/dotsetlabs/inquest#drift',
+    helpUri: 'https://github.com/dotsetlabs/bellwether#drift',
   },
   {
-    id: 'INQUEST-006',
+    id: 'BELLWETHER-006',
     name: 'BehaviorChanged',
     shortDescription: { text: 'Tool behavior changed' },
     fullDescription: { text: 'Observable tool behavior differs from baseline' },
     defaultConfiguration: { level: 'warning' },
-    helpUri: 'https://github.com/dotsetlabs/inquest#drift',
+    helpUri: 'https://github.com/dotsetlabs/bellwether#drift',
   },
   {
-    id: 'INQUEST-007',
+    id: 'BELLWETHER-007',
     name: 'WorkflowFailed',
     shortDescription: { text: 'Workflow execution failed' },
     fullDescription: { text: 'A workflow that previously succeeded now fails' },
     defaultConfiguration: { level: 'error' },
-    helpUri: 'https://github.com/dotsetlabs/inquest#workflows',
+    helpUri: 'https://github.com/dotsetlabs/bellwether#workflows',
   },
 ];
 
@@ -152,7 +152,7 @@ export function generateSarifReport(
   for (const profile of result.toolProfiles) {
     for (const note of profile.securityNotes) {
       results.push({
-        ruleId: 'INQUEST-001',
+        ruleId: 'BELLWETHER-001',
         level: 'warning',
         message: { text: `${profile.name}: ${note}` },
         locations: [
@@ -174,7 +174,7 @@ export function generateSarifReport(
   for (const profile of result.toolProfiles) {
     for (const limitation of profile.limitations) {
       results.push({
-        ruleId: 'INQUEST-002',
+        ruleId: 'BELLWETHER-002',
         level: 'note',
         message: { text: `${profile.name}: ${limitation}` },
         locations: [
@@ -197,7 +197,7 @@ export function generateSarifReport(
     for (const wr of result.workflowResults) {
       if (!wr.success) {
         results.push({
-          ruleId: 'INQUEST-007',
+          ruleId: 'BELLWETHER-007',
           level: 'error',
           message: {
             text: `Workflow "${wr.workflow.name}" failed: ${wr.failureReason || 'Unknown error'}`,
@@ -218,10 +218,10 @@ export function generateSarifReport(
       {
         tool: {
           driver: {
-            name: 'Inquest',
+            name: 'Bellwether',
             version: '0.3.0',
-            informationUri: 'https://github.com/dotsetlabs/inquest',
-            rules: INQUEST_RULES,
+            informationUri: 'https://github.com/dotsetlabs/bellwether',
+            rules: BELLWETHER_RULES,
           },
         },
         results,
@@ -249,7 +249,7 @@ export function generateSarifFromDiff(
   // Removed tools
   for (const tool of diff.toolsRemoved) {
     results.push({
-      ruleId: 'INQUEST-003',
+      ruleId: 'BELLWETHER-003',
       level: 'error',
       message: { text: `Tool "${tool}" was removed from the server` },
       locations: [
@@ -269,7 +269,7 @@ export function generateSarifFromDiff(
   // Added tools
   for (const tool of diff.toolsAdded) {
     results.push({
-      ruleId: 'INQUEST-004',
+      ruleId: 'BELLWETHER-004',
       level: 'note',
       message: { text: `New tool "${tool}" was added to the server` },
       locations: [
@@ -290,7 +290,7 @@ export function generateSarifFromDiff(
   for (const toolDiff of diff.toolsModified) {
     if (toolDiff.schemaChanged) {
       results.push({
-        ruleId: 'INQUEST-005',
+        ruleId: 'BELLWETHER-005',
         level: 'warning',
         message: { text: `Schema changed for tool "${toolDiff.tool}"` },
         locations: [
@@ -313,7 +313,7 @@ export function generateSarifFromDiff(
         change.significance === 'medium' ? 'warning' : 'note';
 
       results.push({
-        ruleId: 'INQUEST-006',
+        ruleId: 'BELLWETHER-006',
         level,
         message: { text: change.description },
         locations: [
@@ -340,10 +340,10 @@ export function generateSarifFromDiff(
       {
         tool: {
           driver: {
-            name: 'Inquest',
+            name: 'Bellwether',
             version: '0.3.0',
-            informationUri: 'https://github.com/dotsetlabs/inquest',
-            rules: INQUEST_RULES,
+            informationUri: 'https://github.com/dotsetlabs/bellwether',
+            rules: BELLWETHER_RULES,
           },
         },
         results,
@@ -402,10 +402,10 @@ export function generateSarifFromFindings(
       {
         tool: {
           driver: {
-            name: 'Inquest',
+            name: 'Bellwether',
             version: '0.3.0',
-            informationUri: 'https://github.com/dotsetlabs/inquest',
-            rules: INQUEST_RULES,
+            informationUri: 'https://github.com/dotsetlabs/bellwether',
+            rules: BELLWETHER_RULES,
           },
         },
         results,
@@ -422,13 +422,13 @@ export function generateSarifFromFindings(
 function findingCategoryToRuleId(category: CIFinding['category']): string {
   switch (category) {
     case 'security':
-      return 'INQUEST-001';
+      return 'BELLWETHER-001';
     case 'reliability':
-      return 'INQUEST-002';
+      return 'BELLWETHER-002';
     case 'drift':
-      return 'INQUEST-006';
+      return 'BELLWETHER-006';
     case 'behavior':
     default:
-      return 'INQUEST-002';
+      return 'BELLWETHER-002';
   }
 }

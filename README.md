@@ -1,12 +1,12 @@
-# Inquest
+# Bellwether
 
-[![Build Status](https://github.com/dotsetlabs/inquest/actions/workflows/ci.yml/badge.svg)](https://github.com/dotsetlabs/inquest/actions)
-[![npm version](https://img.shields.io/npm/v/@dotsetlabs/inquest)](https://www.npmjs.com/package/@dotsetlabs/inquest)
-[![Documentation](https://img.shields.io/badge/docs-docs.inquest.dev-blue)](https://docs.inquest.dev)
+[![Build Status](https://github.com/dotsetlabs/bellwether/actions/workflows/ci.yml/badge.svg)](https://github.com/dotsetlabs/bellwether/actions)
+[![npm version](https://img.shields.io/npm/v/@dotsetlabs/bellwether)](https://www.npmjs.com/package/@dotsetlabs/bellwether)
+[![Documentation](https://img.shields.io/badge/docs-docs.bellwether.sh-blue)](https://docs.bellwether.sh)
 
 > Automated behavioral documentation for MCP servers through LLM-guided testing
 
-Inquest is a CLI tool that generates comprehensive behavioral documentation for [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers. Instead of relying on manually written docs, Inquest **interviews** your MCP server by:
+Bellwether is a CLI tool that generates comprehensive behavioral documentation for [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers. Instead of relying on manually written docs, Bellwether **interviews** your MCP server by:
 
 1. **Discovering** available tools, prompts, and resources
 2. **Generating** realistic test scenarios using an LLM
@@ -15,30 +15,30 @@ Inquest is a CLI tool that generates comprehensive behavioral documentation for 
 
 ## Documentation
 
-**[docs.inquest.dev](https://docs.inquest.dev)** - Full documentation including:
+**[docs.bellwether.sh](https://docs.bellwether.sh)** - Full documentation including:
 
-- [Quick Start](https://docs.inquest.dev/quickstart) - Get started in 5 minutes
-- [CLI Reference](https://docs.inquest.dev/cli/interview) - Complete command documentation
-- [CI/CD Integration](https://docs.inquest.dev/guides/ci-cd) - GitHub Actions, GitLab CI, etc.
-- [Personas](https://docs.inquest.dev/concepts/personas) - Customize testing behavior
-- [Drift Detection](https://docs.inquest.dev/concepts/drift-detection) - Catch breaking changes
+- [Quick Start](https://docs.bellwether.sh/quickstart) - Get started in 5 minutes
+- [CLI Reference](https://docs.bellwether.sh/cli/interview) - Complete command documentation
+- [CI/CD Integration](https://docs.bellwether.sh/guides/ci-cd) - GitHub Actions, GitLab CI, etc.
+- [Personas](https://docs.bellwether.sh/concepts/personas) - Customize testing behavior
+- [Drift Detection](https://docs.bellwether.sh/concepts/drift-detection) - Catch breaking changes
 
 ## Quick Start
 
 ```bash
 # Install
-npm install -g @dotsetlabs/inquest
+npm install -g @dotsetlabs/bellwether
 
 # Set your API key
 export OPENAI_API_KEY=sk-xxx
 
 # Interview an MCP server
-inquest interview npx @modelcontextprotocol/server-filesystem /tmp
+bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 
 # Output: AGENTS.md with behavioral documentation
 ```
 
-## Why Inquest?
+## Why Bellwether?
 
 | Problem | Solution |
 |:--------|:---------|
@@ -58,7 +58,7 @@ inquest interview npx @modelcontextprotocol/server-filesystem /tmp
 
 ## Cost
 
-Inquest uses LLMs for intelligent testing. Typical costs per interview:
+Bellwether uses LLMs for intelligent testing. Typical costs per interview:
 
 | Model | Cost | Quality |
 |:------|:-----|:--------|
@@ -71,23 +71,23 @@ Use `--quick` flag for fastest, cheapest runs (~$0.01).
 ## CI/CD Example
 
 ```yaml
-# .github/workflows/inquest.yml
+# .github/workflows/bellwether.yml
 name: Behavioral Testing
 on: [push, pull_request]
 
 jobs:
-  inquest:
+  bellwether:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Inquest
+      - name: Run Bellwether
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          npx @dotsetlabs/inquest interview \
+          npx @dotsetlabs/bellwether interview \
             --ci \
-            --compare-baseline ./inquest-baseline.json \
+            --compare-baseline ./bellwether-baseline.json \
             --fail-on-drift \
             npx your-mcp-server
 ```
@@ -95,8 +95,8 @@ jobs:
 ## Development
 
 ```bash
-git clone https://github.com/dotsetlabs/inquest
-cd inquest
+git clone https://github.com/dotsetlabs/bellwether
+cd bellwether
 npm install
 npm run build
 npm test
@@ -117,8 +117,8 @@ MIT License - see [LICENSE](./LICENSE) for details.
 
 ## Related Projects
 
-- [Model Context Protocol](https://modelcontextprotocol.io/) - The protocol Inquest interviews
-- [Inquest Cloud](https://inquest.cloud) - Baseline history and team collaboration
+- [Model Context Protocol](https://modelcontextprotocol.io/) - The protocol Bellwether interviews
+- [Bellwether Cloud](https://bellwether.sh) - Baseline history and team collaboration
 - [Overwatch](https://github.com/dotsetlabs/overwatch) - MCP security proxy (tool shadowing detection)
 - [Hardpoint](https://github.com/dotsetlabs/hardpoint) - Rules File Backdoor detector
 

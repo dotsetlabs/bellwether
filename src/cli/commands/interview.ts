@@ -86,7 +86,7 @@ export const interviewCommand = new Command('interview')
   .option('--json', 'Also output JSON report')
   .option('--verbose', 'Verbose output')
   .option('--debug', 'Debug MCP protocol')
-  .option('--save-baseline [path]', 'Save baseline for drift detection (default: inquest-baseline.json)')
+  .option('--save-baseline [path]', 'Save baseline for drift detection (default: bellwether-baseline.json)')
   .option('--compare-baseline <path>', 'Compare against existing baseline')
   .option('--fail-on-drift', 'Exit with error if behavioral drift detected')
   .option('--cloud-format', 'Save baseline in cloud-ready format')
@@ -126,7 +126,7 @@ export const interviewCommand = new Command('interview')
     // Ensure we have a command at this point
     if (!command) {
       console.error('Error: Server command is required.');
-      console.error('Usage: inquest interview <command> [args...] or inquest interview --interactive');
+      console.error('Usage: bellwether interview <command> [args...] or bellwether interview --interactive');
       process.exit(1);
     }
 
@@ -161,7 +161,7 @@ export const interviewCommand = new Command('interview')
       ?? (typeof options.saveBaseline === 'string' ? options.saveBaseline : undefined);
     const compareBaselinePath = interactiveConfig?.compareBaseline ?? options.compareBaseline;
 
-    console.log('Inquest - MCP Server Documentation Generator\n');
+    console.log('Bellwether - MCP Server Documentation Generator\n');
     if (options.quick) {
       console.log('Quick mode enabled (fast CI mode)\n');
     }
@@ -290,7 +290,7 @@ export const interviewCommand = new Command('interview')
 
       if (wantsJson) {
         const jsonReport = generateJsonReport(result);
-        const jsonPath = join(outputDir, 'inquest-report.json');
+        const jsonPath = join(outputDir, 'bellwether-report.json');
         writeFileSync(jsonPath, jsonReport);
         console.log(`Written: ${jsonPath}`);
       }
@@ -307,7 +307,7 @@ export const interviewCommand = new Command('interview')
       // Save baseline if requested
       if (shouldSaveBaseline) {
         const serverCommand = `${command} ${args.join(' ')}`;
-        const finalBaselinePath = baselinePath ?? join(outputDir, 'inquest-baseline.json');
+        const finalBaselinePath = baselinePath ?? join(outputDir, 'bellwether-baseline.json');
 
         if (options.cloudFormat) {
           // Save in cloud-ready format

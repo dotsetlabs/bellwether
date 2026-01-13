@@ -31,6 +31,6 @@ npm-debug.log*
 Thumbs.db
 
 # Local baselines and reports (user-generated)
-inquest-baseline.json
-inquest-report.json
+bellwether-baseline.json
+bellwether-report.json
 AGENTS.md

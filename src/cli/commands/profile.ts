@@ -25,8 +25,8 @@ interface Profile {
   };
 }
 
-const PROFILES_DIR = join(homedir(), '.inquest', 'profiles');
-const CURRENT_PROFILE_FILE = join(homedir(), '.inquest', 'current-profile');
+const PROFILES_DIR = join(homedir(), '.bellwether', 'profiles');
+const CURRENT_PROFILE_FILE = join(homedir(), '.bellwether', 'current-profile');
 
 function ensureProfilesDir(): void {
   if (!existsSync(PROFILES_DIR)) {
@@ -136,7 +136,7 @@ export const profileCommand = new Command('profile')
 
         if (profiles.length === 0) {
           console.log('No profiles found.');
-          console.log('Create one with: inquest profile create <name>');
+          console.log('Create one with: bellwether profile create <name>');
           return;
         }
 
