@@ -47,10 +47,11 @@ export const MOCK_SESSION_PREFIX = 'sess_mock_';
 
 /**
  * Session token pattern: sess_ followed by 64 hex characters.
- * Mock sessions use sess_mock_ prefix with additional characters.
+ * Mock sessions use sess_mock_ prefix with username and hex characters.
+ * Format: sess_mock_<username>_<hex>
  */
 const SESSION_TOKEN_PATTERN = /^sess_[a-f0-9]{64}$/;
-const MOCK_SESSION_TOKEN_PATTERN = /^sess_mock_[a-f0-9]+$/;
+const MOCK_SESSION_TOKEN_PATTERN = /^sess_mock_[a-zA-Z0-9]+_[a-f0-9]+$/;
 
 /**
  * Ensure the config directory exists.
