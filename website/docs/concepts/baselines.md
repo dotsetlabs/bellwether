@@ -115,7 +115,6 @@ git commit -m "Update baseline: added delete_file tool"
 
 Upload baselines to Bellwether Cloud for:
 - Historical tracking
-- Team collaboration
 - Version comparison
 - Verification badges
 

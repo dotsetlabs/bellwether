@@ -183,7 +183,6 @@ Cloud provides:
 - Historical drift timeline
 - Version-to-version comparison
 - Drift notifications
-- Team visibility
 
 ## Best Practices
 

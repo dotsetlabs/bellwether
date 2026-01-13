@@ -17,7 +17,7 @@ Bellwether is a CLI tool that generates behavioral documentation for MCP (Model 
 
 ### Is Bellwether free?
 
-The CLI is free and open source (MIT license). Optional cloud features (baseline history, team collaboration) have a free tier and paid plans.
+The CLI is free and open source (MIT license). Optional cloud features (baseline history, verification badges) have a free tier and paid plans.
 
 ### What LLM providers are supported?
 
@@ -146,7 +146,6 @@ This uses a cheaper model and fewer questions (~$0.01).
 
 No. Bellwether works fully offline. Cloud adds:
 - Baseline history
-- Team collaboration
 - Verification badges
 
 ### How do I connect to cloud?
@@ -161,7 +160,6 @@ bellwether upload
 
 - Baseline snapshots (tool schemas, behavior observations)
 - Project metadata
-- Team information
 
 No source code or credentials are uploaded.
 
