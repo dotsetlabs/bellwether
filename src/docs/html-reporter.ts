@@ -72,7 +72,7 @@ ${getStyles()}
           </div>
           <div class="info-item">
             <span class="info-label">Model:</span>
-            <span class="info-value">${escapeHtml(metadata.model)}</span>
+            <span class="info-value">${escapeHtml(metadata.model ?? 'unknown')}</span>
           </div>
           ${metadata.personas && metadata.personas.length > 0 ? `
           <div class="info-item">

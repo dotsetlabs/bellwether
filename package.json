@@ -46,6 +46,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
+    "cli-progress": "^3.12.0",
     "commander": "^12.0.0",
     "dotenv": "^17.2.3",
     "openai": "^4.70.0",
@@ -54,6 +55,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/cli-progress": "^3.11.6",
     "@types/node": "^20.10.0",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",

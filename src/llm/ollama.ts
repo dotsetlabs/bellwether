@@ -7,6 +7,7 @@ import { DEFAULT_MODELS, parseJSONResponse } from './client.js';
 import { withRetry, LLM_RETRY_OPTIONS } from '../errors/retry.js';
 import { LLMConnectionError, BellwetherError } from '../errors/index.js';
 import { getLogger } from '../logging/logger.js';
+import { LLM_DEFAULTS } from '../constants.js';
 
 export interface OllamaClientOptions {
   /** Base URL for Ollama API (defaults to http://localhost:11434) */
@@ -56,7 +57,7 @@ export class OllamaClient implements LLMClient {
   private logger = getLogger('ollama');
 
   constructor(options?: OllamaClientOptions) {
-    this.baseUrl = options?.baseUrl ?? process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
+    this.baseUrl = options?.baseUrl ?? process.env.OLLAMA_BASE_URL ?? LLM_DEFAULTS.OLLAMA_BASE_URL;
     this.defaultModel = options?.model ?? DEFAULT_MODELS.ollama;
   }
 
@@ -97,8 +98,8 @@ export class OllamaClient implements LLMClient {
           messages: allMessages,
           stream: false,
           options: {
-            temperature: options?.temperature ?? 0.7,
-            num_predict: options?.maxTokens ?? 4096,
+            temperature: options?.temperature ?? LLM_DEFAULTS.TEMPERATURE,
+            num_predict: options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS,
           },
         };
 

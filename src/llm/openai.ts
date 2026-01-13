@@ -10,6 +10,7 @@ import {
   LLMRefusalError,
 } from '../errors/index.js';
 import { getLogger } from '../logging/logger.js';
+import { LLM_DEFAULTS } from '../constants.js';
 
 export interface OpenAIClientOptions {
   /** API key (defaults to OPENAI_API_KEY env var) */
@@ -73,8 +74,8 @@ export class OpenAIClient implements LLMClient {
               role: m.role,
               content: m.content,
             })),
-            max_tokens: options?.maxTokens ?? 4096,
-            temperature: options?.temperature ?? 0.7,
+            max_tokens: options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS,
+            temperature: options?.temperature ?? LLM_DEFAULTS.TEMPERATURE,
             response_format: options?.responseFormat === 'json'
               ? { type: 'json_object' }
               : undefined,

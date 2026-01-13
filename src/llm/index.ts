@@ -12,7 +12,7 @@ export type {
   LLMProviderId,
 } from './client.js';
 
-export { DEFAULT_MODELS, parseJSONResponse } from './client.js';
+export { DEFAULT_MODELS, PREMIUM_MODELS, parseJSONResponse } from './client.js';
 
 // Provider implementations
 export { OpenAIClient } from './openai.js';

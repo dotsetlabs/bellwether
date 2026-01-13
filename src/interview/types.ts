@@ -28,8 +28,8 @@ export interface InterviewConfig {
   timeout: number;
   /** Whether to skip error handling tests */
   skipErrorTests: boolean;
-  /** LLM model to use */
-  model: string;
+  /** LLM model to use (optional - determined by LLM client if not specified) */
+  model?: string;
   /** Personas to use for interviewing (default: technical_writer) */
   personas?: Persona[];
 }
@@ -150,7 +150,7 @@ export interface InterviewMetadata {
   /** Number of errors encountered */
   errorCount: number;
   /** LLM model used */
-  model: string;
+  model?: string;
   /** Personas used in the interview */
   personas?: PersonaSummary[];
 }

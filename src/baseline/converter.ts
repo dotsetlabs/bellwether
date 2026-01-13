@@ -456,7 +456,7 @@ export function createCloudBaseline(
     serverName: result.discovery.serverInfo.name,
     durationMs: result.metadata.durationMs,
     personas: result.metadata.personas?.map((p) => p.id) ?? ['technical_writer'],
-    model: result.metadata.model,
+    model: result.metadata.model ?? 'unknown',
   };
 
   // Build server fingerprint
