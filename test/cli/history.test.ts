@@ -23,13 +23,27 @@ vi.mock('../../src/cloud/client.js', () => ({
 }));
 
 // Import types only - auth functions are imported dynamically after HOME is set
-import type { ProjectLink } from '../../src/cloud/types.js';
+import type { ProjectLink, StoredSession } from '../../src/cloud/types.js';
 
 // Auth functions will be imported dynamically in tests
-let setToken: (token: string) => void;
-let clearToken: () => void;
+let saveSession: (session: StoredSession) => void;
+let clearSession: () => void;
 let saveProjectLink: (link: ProjectLink, projectDir?: string) => void;
 let removeProjectLink: (projectDir?: string) => boolean;
+
+// Helper to create a test session
+function createTestSession(token: string = 'sess_test_token_12345678901234567890'): StoredSession {
+  return {
+    sessionToken: token,
+    user: {
+      id: 'usr_test',
+      email: 'test@example.com',
+      githubLogin: 'testuser',
+      githubAvatarUrl: null,
+    },
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
+  };
+}
 
 describe('history command', () => {
   let testDir: string;
@@ -76,8 +90,8 @@ describe('history command', () => {
 
     // Dynamically import auth functions after HOME is set
     const auth = await import('../../src/cloud/auth.js');
-    setToken = auth.setToken;
-    clearToken = auth.clearToken;
+    saveSession = auth.saveSession;
+    clearSession = auth.clearSession;
     saveProjectLink = auth.saveProjectLink;
     removeProjectLink = auth.removeProjectLink;
 
@@ -100,7 +114,7 @@ describe('history command', () => {
     mockGetLatestDiff.mockReset();
     mockIsAuthenticated.mockReset();
 
-    clearToken();
+    clearSession();
     removeProjectLink();
   });
 
@@ -120,7 +134,7 @@ describe('history command', () => {
 
   describe('authentication', () => {
     it('should fail when not authenticated', async () => {
-      clearToken();
+      clearSession();
 
       const { historyCommand } = await import('../../src/cli/commands/history.js');
 
@@ -132,7 +146,7 @@ describe('history command', () => {
     });
 
     it('should fail when token is invalid', async () => {
-      setToken('iqt_invalid_token_123');
+      saveSession(createTestSession('sess_invalid_token_1234567890123456'));
       mockIsAuthenticated.mockReturnValue(false);
 
       const { historyCommand } = await import('../../src/cli/commands/history.js');
@@ -147,7 +161,7 @@ describe('history command', () => {
 
   describe('project resolution', () => {
     it('should use linked project', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetHistory.mockResolvedValue(sampleHistory);
       mockGetProject.mockResolvedValue({ name: 'Linked Project' });
@@ -160,7 +174,7 @@ describe('history command', () => {
     });
 
     it('should use project ID argument', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetHistory.mockResolvedValue(sampleHistory);
       mockGetProject.mockResolvedValue({ name: 'Explicit Project' });
@@ -172,7 +186,7 @@ describe('history command', () => {
     });
 
     it('should fail when no project specified', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       removeProjectLink();
 
@@ -188,7 +202,7 @@ describe('history command', () => {
 
   describe('history display', () => {
     it('should display history in table format', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetHistory.mockResolvedValue(sampleHistory);
       mockGetProject.mockResolvedValue({ name: 'Test Project' });
@@ -204,7 +218,7 @@ describe('history command', () => {
     });
 
     it('should respect --limit option', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetHistory.mockResolvedValue([sampleHistory[0]]);
       mockGetProject.mockResolvedValue({ name: 'Test' });
@@ -217,7 +231,7 @@ describe('history command', () => {
     });
 
     it('should show empty state when no baselines', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetHistory.mockResolvedValue([]);
       saveProjectLink({ projectId: 'proj_123', projectName: 'Empty Project', linkedAt: new Date().toISOString() });
@@ -229,7 +243,7 @@ describe('history command', () => {
     });
 
     it('should show latest diff when multiple versions exist', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetHistory.mockResolvedValue(sampleHistory);
       mockGetProject.mockResolvedValue({ name: 'Test' });
@@ -252,7 +266,7 @@ describe('history command', () => {
 
   describe('JSON output', () => {
     it('should output JSON when --json flag is set', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetHistory.mockResolvedValue(sampleHistory);
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
@@ -270,7 +284,7 @@ describe('history command', () => {
 
   describe('error handling', () => {
     it('should handle API errors', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetHistory.mockRejectedValue(new Error('API unavailable'));
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
@@ -311,8 +325,8 @@ describe('diff command', () => {
 
     // Dynamically import auth functions after HOME is set
     const auth = await import('../../src/cloud/auth.js');
-    setToken = auth.setToken;
-    clearToken = auth.clearToken;
+    saveSession = auth.saveSession;
+    clearSession = auth.clearSession;
     saveProjectLink = auth.saveProjectLink;
     removeProjectLink = auth.removeProjectLink;
 
@@ -341,7 +355,7 @@ describe('diff command', () => {
       })),
     }));
 
-    clearToken();
+    clearSession();
     removeProjectLink();
   });
 
@@ -361,7 +375,7 @@ describe('diff command', () => {
 
   describe('authentication', () => {
     it('should fail when not authenticated', async () => {
-      clearToken();
+      clearSession();
 
       const { diffCommand } = await import('../../src/cli/commands/history.js');
 
@@ -375,7 +389,7 @@ describe('diff command', () => {
 
   describe('version validation', () => {
     it('should fail with invalid version numbers', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
 
@@ -401,7 +415,7 @@ describe('diff command', () => {
     });
 
     it('should display diff summary', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetDiff.mockResolvedValue({
         severity: 'warning',
@@ -422,7 +436,7 @@ describe('diff command', () => {
     });
 
     it('should show breaking change warning', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetDiff.mockResolvedValue({
         severity: 'breaking',
@@ -440,7 +454,7 @@ describe('diff command', () => {
     });
 
     it('should indicate no changes', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetDiff.mockResolvedValue({
         severity: 'none',
@@ -460,7 +474,7 @@ describe('diff command', () => {
 
   describe('JSON output', () => {
     it('should output JSON when --json flag is set', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       const diffData = {
         severity: 'info',
@@ -484,7 +498,7 @@ describe('diff command', () => {
 
   describe('project resolution', () => {
     it('should use --project flag', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetDiff.mockResolvedValue({
         severity: 'none',
@@ -501,7 +515,7 @@ describe('diff command', () => {
     });
 
     it('should fail when no project specified', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       removeProjectLink();
 

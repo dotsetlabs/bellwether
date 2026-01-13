@@ -8,7 +8,37 @@
  * - Authentication
  */
 
-import type { BehavioralAssertion, WorkflowSignature } from '../baseline/types.js';
+import type { WorkflowSignature } from '../baseline/types.js';
+
+// ============================================================================
+// Cloud Assertion Format
+// ============================================================================
+
+/**
+ * Assertion type for cloud API.
+ * Maps to: expects (positive), requires (critical), warns (negative), notes (informational)
+ */
+export type CloudAssertionType = 'expects' | 'requires' | 'warns' | 'notes';
+
+/**
+ * Severity level for cloud assertions.
+ */
+export type CloudAssertionSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
+
+/**
+ * Behavioral assertion in cloud format.
+ * This is the format expected by the Inquest Cloud API.
+ */
+export interface CloudAssertion {
+  /** Type of assertion */
+  type: CloudAssertionType;
+  /** The condition/assertion statement */
+  condition: string;
+  /** Tool this assertion relates to (optional) */
+  tool?: string;
+  /** Severity level (optional) */
+  severity?: CloudAssertionSeverity;
+}
 
 // ============================================================================
 // Baseline Format v1.0
@@ -139,8 +169,8 @@ export interface CloudToolProfile {
   description: string;
   /** Hash of input schema */
   schemaHash: string;
-  /** Behavioral assertions */
-  assertions: BehavioralAssertion[];
+  /** Behavioral assertions in cloud format */
+  assertions: CloudAssertion[];
   /** Security notes */
   securityNotes: string[];
   /** Known limitations */
@@ -181,8 +211,8 @@ export interface InquestBaseline {
   /** Workflow results (if workflows were tested) */
   workflows?: WorkflowSignature[];
 
-  /** Overall behavioral assertions */
-  assertions: BehavioralAssertion[];
+  /** Overall behavioral assertions in cloud format */
+  assertions: CloudAssertion[];
 
   /** Summary of findings */
   summary: string;
@@ -201,8 +231,8 @@ export interface InquestBaseline {
 export interface CloudConfig {
   /** API base URL */
   baseUrl: string;
-  /** API token */
-  token?: string;
+  /** Session token */
+  sessionToken?: string;
   /** Request timeout in ms */
   timeout?: number;
 }
@@ -283,8 +313,16 @@ export interface DiffSummary {
  * User information from the cloud.
  */
 export interface CloudUser {
+  /** User ID */
+  id: string;
   /** User email */
-  email: string;
+  email: string | null;
+  /** GitHub username */
+  githubLogin: string;
+  /** GitHub avatar URL */
+  githubAvatarUrl: string | null;
+  /** GitHub display name */
+  githubName: string | null;
   /** Subscription plan */
   plan: 'free' | 'pro' | 'team';
 }
@@ -302,13 +340,45 @@ export interface ProjectLink {
 }
 
 /**
- * Authentication configuration stored in ~/.inquest/auth.json
+ * Session stored in ~/.inquest/session.json
  */
-export interface AuthConfig {
-  /** API token */
-  token?: string;
-  /** API base URL override */
-  baseUrl?: string;
+export interface StoredSession {
+  /** Session token */
+  sessionToken: string;
+  /** User information */
+  user: CloudUser;
+  /** ISO timestamp when session expires */
+  expiresAt: string;
+}
+
+/**
+ * Device authorization response from device flow.
+ */
+export interface DeviceAuthorizationResponse {
+  /** Device code for polling */
+  device_code: string;
+  /** User code to display */
+  user_code: string;
+  /** URL for user to visit */
+  verification_uri: string;
+  /** Time until expiration in seconds */
+  expires_in: number;
+  /** Polling interval in seconds */
+  interval: number;
+}
+
+/**
+ * Device poll response.
+ */
+export interface DevicePollResponse {
+  /** Error code if not yet authorized */
+  error?: 'authorization_pending' | 'expired_token' | 'access_denied';
+  /** Error description */
+  error_description?: string;
+  /** Session token if authorized */
+  session_token?: string;
+  /** User info if authorized */
+  user?: CloudUser;
 }
 
 // ============================================================================

@@ -8,6 +8,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import { randomBytes } from 'crypto';
 import type {
   InquestCloudClient,
   CloudUser,
@@ -16,8 +17,9 @@ import type {
   UploadResult,
   DiffSummary,
   InquestBaseline,
+  StoredSession,
 } from './types.js';
-import { isMockToken, MOCK_TOKEN_PREFIX } from './auth.js';
+import { isMockSession, MOCK_SESSION_PREFIX } from './auth.js';
 
 /**
  * Directory for mock cloud storage.
@@ -45,11 +47,11 @@ function generateId(prefix: string): string {
  */
 export class MockCloudClient implements InquestCloudClient {
   private dataDir: string;
-  private token: string | null;
+  private sessionToken: string | null;
 
-  constructor(token?: string) {
+  constructor(sessionToken?: string) {
     this.dataDir = MOCK_DATA_DIR;
-    this.token = token ?? null;
+    this.sessionToken = sessionToken ?? null;
     this.ensureDataDir();
   }
 
@@ -137,12 +139,12 @@ export class MockCloudClient implements InquestCloudClient {
   // ============================================================================
 
   isAuthenticated(): boolean {
-    if (!this.token) {
+    if (!this.sessionToken) {
       return false;
     }
 
-    // For mock client, accept any mock token
-    return isMockToken(this.token);
+    // For mock client, accept any mock session
+    return isMockSession(this.sessionToken);
   }
 
   async whoami(): Promise<CloudUser | null> {
@@ -150,14 +152,18 @@ export class MockCloudClient implements InquestCloudClient {
       return null;
     }
 
-    // Extract "user" from mock token for display
-    // Token format: iqt_mock_<user>_<random>
-    const token = this.token ?? '';
-    const parts = token.split('_');
+    // Extract "user" from mock session for display
+    // Session format: sess_mock_<user>_<random>
+    const session = this.sessionToken ?? '';
+    const parts = session.split('_');
     const user = parts.length >= 3 ? parts[2] : 'developer';
 
     return {
+      id: 'usr_mock_' + user,
       email: `${user}@localhost`,
+      githubLogin: user,
+      githubAvatarUrl: null,
+      githubName: user,
       plan: 'free',
     };
   }
@@ -420,8 +426,8 @@ export class MockCloudClient implements InquestCloudClient {
     }
 
     // Count behavior changes from assertions
-    const fromAssertions = new Set(from.assertions.map((a) => `${a.tool}:${a.assertion}`));
-    const toAssertions = new Set(to.assertions.map((a) => `${a.tool}:${a.assertion}`));
+    const fromAssertions = new Set(from.assertions.map((a) => `${a.tool}:${a.condition}`));
+    const toAssertions = new Set(to.assertions.map((a) => `${a.tool}:${a.condition}`));
 
     let behaviorChanges = 0;
     for (const a of toAssertions) {
@@ -457,11 +463,24 @@ export class MockCloudClient implements InquestCloudClient {
 }
 
 /**
- * Generate a mock token for development.
+ * Generate a mock session for development.
  */
-export function generateMockToken(username: string = 'dev'): string {
-  const random = Math.random().toString(36).substring(2, 10);
-  return `${MOCK_TOKEN_PREFIX}${username}_${random}`;
+export function generateMockSession(username: string = 'dev'): StoredSession {
+  const random = randomBytes(16).toString('hex');
+  const sessionToken = `${MOCK_SESSION_PREFIX}${username}_${random}`;
+
+  return {
+    sessionToken,
+    user: {
+      id: `usr_mock_${username}`,
+      email: `${username}@localhost`,
+      githubLogin: username,
+      githubAvatarUrl: null,
+      githubName: username,
+      plan: 'free',
+    },
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+  };
 }
 
 /**

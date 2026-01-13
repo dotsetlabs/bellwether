@@ -20,6 +20,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
         apiKey,
         model: config.model,
         baseURL: config.baseUrl,
+        onUsage: config.onUsage,
       });
 
     case 'anthropic':
@@ -27,6 +28,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
         apiKey,
         model: config.model,
         baseURL: config.baseUrl,
+        onUsage: config.onUsage,
       });
 
     case 'ollama':

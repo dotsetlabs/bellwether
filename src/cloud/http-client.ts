@@ -50,16 +50,16 @@ function validateSecureUrl(url: string): void {
  */
 export class HttpCloudClient implements InquestCloudClient {
   private baseUrl: string;
-  private token: string;
+  private sessionToken: string;
   private timeout: number;
 
-  constructor(baseUrl: string, token: string, timeout: number = 30000) {
+  constructor(baseUrl: string, sessionToken: string, timeout: number = 30000) {
     // Validate HTTPS requirement
     validateSecureUrl(baseUrl);
 
     // Remove trailing slash
     this.baseUrl = baseUrl.replace(/\/$/, '');
-    this.token = token;
+    this.sessionToken = sessionToken;
     this.timeout = timeout;
   }
 
@@ -79,7 +79,7 @@ export class HttpCloudClient implements InquestCloudClient {
       const response = await fetch(url, {
         method,
         headers: {
-          'Authorization': `Bearer ${this.token}`,
+          'Authorization': `Bearer ${this.sessionToken}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
@@ -118,11 +118,11 @@ export class HttpCloudClient implements InquestCloudClient {
   // ============================================================================
 
   isAuthenticated(): boolean {
-    return !!this.token;
+    return !!this.sessionToken;
   }
 
   async whoami(): Promise<CloudUser | null> {
-    if (!this.token) {
+    if (!this.sessionToken) {
       return null;
     }
 

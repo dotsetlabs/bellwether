@@ -502,11 +502,12 @@ interview:
       // Should have assertions from behavioral notes
       expect(cloudBaseline.assertions.length).toBeGreaterThan(0);
 
-      // Verify assertion structure
+      // Verify CloudAssertion structure (type, condition, tool, severity)
       const assertion = cloudBaseline.assertions[0];
+      expect(assertion.type).toBeTruthy();
+      expect(['expects', 'requires', 'warns', 'notes']).toContain(assertion.type);
+      expect(assertion.condition).toBeTruthy();
       expect(assertion.tool).toBeTruthy();
-      expect(assertion.aspect).toBeTruthy();
-      expect(assertion.assertion).toBeTruthy();
     });
 
     it('should save cloud baseline to file', () => {

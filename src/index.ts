@@ -45,7 +45,7 @@ export { OpenAIClient, type OpenAIClientOptions } from './llm/openai.js';
 export { generateAgentsMd, generateJsonReport } from './docs/generator.js';
 
 // Config
-export { loadConfig, generateDefaultConfig, DEFAULT_CONFIG as DEFAULT_FILE_CONFIG } from './config/loader.js';
+export { loadConfig, generateDefaultConfig, getDefaultConfig, DEFAULT_CONFIG as DEFAULT_FILE_CONFIG } from './config/loader.js';
 export type { InquestConfig } from './config/loader.js';
 
 // Logging

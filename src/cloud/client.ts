@@ -10,65 +10,65 @@
 import type { InquestCloudClient, CloudConfig } from './types.js';
 import { MockCloudClient } from './mock-client.js';
 import { HttpCloudClient } from './http-client.js';
-import { getToken, getBaseUrl, isMockToken } from './auth.js';
+import { getSessionToken, getBaseUrl, isMockSession } from './auth.js';
 
 /**
  * Create a cloud client with the given configuration.
  *
- * If no token is provided, attempts to get one from environment/storage.
+ * If no session token is provided, attempts to get one from environment/storage.
  * Automatically selects mock client for development or HTTP client for production.
  */
 export function createCloudClient(config?: Partial<CloudConfig>): InquestCloudClient {
-  const token = config?.token ?? getToken();
+  const sessionToken = config?.sessionToken ?? getSessionToken();
   const baseUrl = config?.baseUrl ?? getBaseUrl();
   const timeout = config?.timeout ?? 30000;
 
   // Determine which client to use
-  const useMock = shouldUseMockClient(baseUrl, token);
+  const useMock = shouldUseMockClient(baseUrl, sessionToken);
 
   if (useMock) {
-    return new MockCloudClient(token);
+    return new MockCloudClient(sessionToken);
   }
 
   // Use HTTP client for production
-  if (!token) {
-    throw new Error('Token required for HTTP client');
+  if (!sessionToken) {
+    throw new Error('Session required for HTTP client. Run `inquest login` first.');
   }
-  return new HttpCloudClient(baseUrl, token, timeout);
+  return new HttpCloudClient(baseUrl, sessionToken, timeout);
 }
 
 /**
  * Determine if we should use the mock client.
  *
  * Uses mock client when:
- * - Token is a mock token (iqt_mock_*)
- * - No token is provided (unauthenticated mode)
+ * - Session is a mock session (sess_mock_*)
+ * - No session is provided (unauthenticated mode)
  *
  * Uses HTTP client when:
- * - A real token is provided (even for localhost - allows local server testing)
+ * - A real session is provided (even for localhost - allows local server testing)
  */
-function shouldUseMockClient(_baseUrl: string, token?: string): boolean {
-  // Use mock if token is a mock token
-  if (token && isMockToken(token)) {
+function shouldUseMockClient(_baseUrl: string, sessionToken?: string): boolean {
+  // Use mock if session is a mock session
+  if (sessionToken && isMockSession(sessionToken)) {
     return true;
   }
 
-  // Use mock if no token (unauthenticated mock mode)
-  if (!token) {
+  // Use mock if no session (unauthenticated mock mode)
+  if (!sessionToken) {
     return true;
   }
 
-  // Use HTTP client for real tokens (works with localhost or production)
+  // Use HTTP client for real sessions (works with localhost or production)
   return false;
 }
 
 /**
- * Create a cloud client with explicit token.
+ * Create a cloud client with explicit session token.
  *
- * Convenience function for when you already have a token.
+ * Convenience function for when you already have a session token.
  */
-export function createCloudClientWithToken(token: string): InquestCloudClient {
-  return createCloudClient({ token });
+export function createCloudClientWithSession(sessionToken: string): InquestCloudClient {
+  return createCloudClient({ sessionToken });
 }
 
 // Re-export types for convenience

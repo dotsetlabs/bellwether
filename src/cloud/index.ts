@@ -36,41 +36,40 @@ export type {
   PersonaFinding,
   CloudToolProfile,
   ProjectLink,
-  AuthConfig,
+  StoredSession,
 } from './types.js';
 
 export { BASELINE_FORMAT_VERSION } from './types.js';
 
 // Client factory
-export { createCloudClient, createCloudClientWithToken } from './client.js';
+export { createCloudClient, createCloudClientWithSession } from './client.js';
 
 // Authentication
 export {
-  getToken,
-  setToken,
-  clearToken,
+  getSessionToken,
+  getStoredSession,
+  saveSession,
+  clearSession,
   getBaseUrl,
-  setBaseUrl,
-  clearBaseUrl,
   isAuthenticated,
-  isValidTokenFormat,
-  isMockToken,
+  isValidSessionFormat,
+  isMockSession,
   getLinkedProject,
   saveProjectLink,
   removeProjectLink,
   isLinked,
   CONFIG_DIR,
-  AUTH_FILE,
-  TOKEN_ENV_VAR,
+  SESSION_FILE,
+  SESSION_ENV_VAR,
   BASE_URL_ENV_VAR,
-  TOKEN_PREFIX,
-  MOCK_TOKEN_PREFIX,
+  SESSION_PREFIX,
+  MOCK_SESSION_PREFIX,
 } from './auth.js';
 
 // Mock client utilities (for testing)
 export {
   MockCloudClient,
-  generateMockToken,
+  generateMockSession,
   getMockDataDir,
   clearMockData,
 } from './mock-client.js';

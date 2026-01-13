@@ -28,6 +28,8 @@ export interface AnthropicClientOptions {
   model?: string;
   /** Base URL for API (for proxies/alternatives) */
   baseURL?: string;
+  /** Callback to receive token usage from each API call */
+  onUsage?: (inputTokens: number, outputTokens: number) => void;
 }
 
 /**
@@ -37,6 +39,7 @@ export class AnthropicClient implements LLMClient {
   private client: Anthropic;
   private defaultModel: string;
   private logger = getLogger('anthropic');
+  private onUsage?: (inputTokens: number, outputTokens: number) => void;
 
   constructor(options?: AnthropicClientOptions) {
     const apiKey = options?.apiKey ?? process.env.ANTHROPIC_API_KEY;
@@ -50,6 +53,7 @@ export class AnthropicClient implements LLMClient {
     });
 
     this.defaultModel = options?.model ?? DEFAULT_MODELS.anthropic;
+    this.onUsage = options?.onUsage;
   }
 
   getProviderInfo(): ProviderInfo {
@@ -100,6 +104,14 @@ export class AnthropicClient implements LLMClient {
             system: system,
             messages: normalizedMessages,
           });
+
+          // Track actual token usage from API response
+          if (this.onUsage && response.usage) {
+            this.onUsage(
+              response.usage.input_tokens,
+              response.usage.output_tokens
+            );
+          }
 
           // Extract text content from response
           const textBlocks = response.content.filter(block => block.type === 'text');

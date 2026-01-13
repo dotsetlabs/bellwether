@@ -18,6 +18,9 @@ import type {
   PersonaInterview,
   PersonaFinding,
   CloudToolProfile,
+  CloudAssertion,
+  CloudAssertionType,
+  CloudAssertionSeverity,
 } from '../cloud/types.js';
 import { BASELINE_FORMAT_VERSION } from '../cloud/types.js';
 
@@ -35,6 +38,71 @@ function getCliVersion(): string {
  */
 function hashString(input: string): string {
   return createHash('sha256').update(input).digest('hex').slice(0, 16);
+}
+
+/**
+ * Convert a local BehavioralAssertion to cloud CloudAssertion format.
+ *
+ * Mapping:
+ * - isPositive=true + security aspect → 'requires' (critical security requirement)
+ * - isPositive=true + other aspect → 'expects' (expected behavior)
+ * - isPositive=false + security aspect → 'warns' (security warning)
+ * - isPositive=false + other aspect → 'notes' (limitation/note)
+ */
+function convertAssertion(assertion: BehavioralAssertion): CloudAssertion {
+  // Determine assertion type based on isPositive and aspect
+  let type: CloudAssertionType;
+  if (assertion.isPositive) {
+    type = assertion.aspect === 'security' ? 'requires' : 'expects';
+  } else {
+    type = assertion.aspect === 'security' ? 'warns' : 'notes';
+  }
+
+  // Determine severity based on aspect and content
+  let severity: CloudAssertionSeverity = 'info';
+  const lowerAssertion = assertion.assertion.toLowerCase();
+
+  if (assertion.aspect === 'security') {
+    if (
+      lowerAssertion.includes('critical') ||
+      lowerAssertion.includes('injection') ||
+      lowerAssertion.includes('rce')
+    ) {
+      severity = 'critical';
+    } else if (
+      lowerAssertion.includes('high') ||
+      lowerAssertion.includes('dangerous') ||
+      lowerAssertion.includes('exploit')
+    ) {
+      severity = 'high';
+    } else if (
+      lowerAssertion.includes('medium') ||
+      lowerAssertion.includes('sensitive') ||
+      lowerAssertion.includes('leak')
+    ) {
+      severity = 'medium';
+    } else {
+      severity = 'low';
+    }
+  } else if (assertion.aspect === 'error_handling') {
+    severity = assertion.isPositive ? 'info' : 'low';
+  } else if (assertion.aspect === 'performance') {
+    severity = 'medium';
+  }
+
+  return {
+    type,
+    condition: assertion.assertion,
+    tool: assertion.tool,
+    severity,
+  };
+}
+
+/**
+ * Convert an array of BehavioralAssertions to CloudAssertions.
+ */
+function convertAssertions(assertions: BehavioralAssertion[]): CloudAssertion[] {
+  return assertions.map(convertAssertion);
 }
 
 /**
@@ -71,11 +139,14 @@ export function convertToCloudBaseline(
   // Build interviews
   const interviews = buildInterviews(interviewResult);
 
-  // Build tool profiles
+  // Build tool profiles (with converted assertions)
   const toolProfiles = baseline.tools.map(convertToolFingerprint);
 
   // Build workflows
   const workflows = baseline.workflowSignatures;
+
+  // Convert assertions to cloud format
+  const assertions = convertAssertions(baseline.assertions);
 
   // Build content hash
   const contentForHash = JSON.stringify({
@@ -85,7 +156,7 @@ export function convertToCloudBaseline(
     interviews,
     toolProfiles,
     workflows,
-    assertions: baseline.assertions,
+    assertions,
     summary: baseline.summary,
   });
   const hash = hashString(contentForHash);
@@ -98,7 +169,7 @@ export function convertToCloudBaseline(
     interviews,
     toolProfiles,
     workflows,
-    assertions: baseline.assertions,
+    assertions,
     summary: baseline.summary,
     hash,
   };
@@ -358,7 +429,7 @@ function convertToolFingerprint(tool: ToolFingerprint): CloudToolProfile {
     name: tool.name,
     description: tool.description,
     schemaHash: tool.schemaHash,
-    assertions: tool.assertions,
+    assertions: convertAssertions(tool.assertions),
     securityNotes: tool.securityNotes,
     limitations: tool.limitations,
     behavioralNotes: tool.assertions
@@ -420,7 +491,7 @@ export function createCloudBaseline(
   // Build interviews
   const interviews = buildInterviews(result);
 
-  // Build tool profiles
+  // Build tool profiles (with converted assertions)
   const toolProfiles: CloudToolProfile[] = result.toolProfiles.map((profile) => ({
     name: profile.name,
     description: profile.description,
@@ -429,7 +500,7 @@ export function createCloudBaseline(
         result.discovery.tools.find((t) => t.name === profile.name)?.inputSchema ?? {}
       )
     ),
-    assertions: extractToolAssertions(profile),
+    assertions: convertAssertions(extractToolAssertions(profile)),
     securityNotes: profile.securityNotes,
     limitations: profile.limitations,
     behavioralNotes: profile.behavioralNotes,
@@ -444,8 +515,8 @@ export function createCloudBaseline(
     summary: wr.summary,
   }));
 
-  // Build assertions
-  const assertions = extractAllAssertions(result);
+  // Build assertions (convert to cloud format)
+  const assertions = convertAssertions(extractAllAssertions(result));
 
   // Build content hash
   const contentForHash = JSON.stringify({

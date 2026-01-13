@@ -4,7 +4,7 @@
 
 import { Command } from 'commander';
 import { existsSync, readFileSync } from 'fs';
-import { getToken, getLinkedProject } from '../../cloud/auth.js';
+import { getSessionToken, getLinkedProject } from '../../cloud/auth.js';
 import { createCloudClient } from '../../cloud/client.js';
 import { loadBaseline } from '../../baseline/saver.js';
 import { convertToCloudBaseline } from '../../baseline/converter.js';
@@ -21,20 +21,20 @@ export const uploadCommand = new Command('upload')
   .option('-p, --project <id>', 'Project ID to upload to (uses linked project if not specified)')
   .option('--public', 'Make baseline publicly viewable')
   .option('--ci', 'CI mode - output URL only, exit 1 on breaking drift')
-  .option('--token <token>', 'API token (overrides stored/env token)')
+  .option('--session <session>', 'Session token (overrides stored/env session)')
   .option('--fail-on-drift', 'Exit with error if any behavioral drift detected')
   .action(async (baselineArg: string | undefined, options) => {
     const baselinePath = baselineArg ?? DEFAULT_BASELINE_FILE;
     const isCiMode = options.ci;
 
-    // Get token
-    const token = options.token ?? getToken();
-    if (!token) {
+    // Get session
+    const sessionToken = options.session ?? getSessionToken();
+    if (!sessionToken) {
       if (isCiMode) {
-        console.error('INQUEST_TOKEN not set');
+        console.error('INQUEST_SESSION not set');
         process.exit(1);
       }
-      console.error('Not authenticated. Run `inquest login` first or set INQUEST_TOKEN.');
+      console.error('Not authenticated. Run `inquest login` first or set INQUEST_SESSION.');
       process.exit(1);
     }
 
@@ -100,7 +100,7 @@ export const uploadCommand = new Command('upload')
     }
 
     // Create client and upload
-    const client = createCloudClient({ token });
+    const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
       if (isCiMode) {

@@ -53,3 +53,23 @@ export {
   convertToCloudBaseline,
   createCloudBaseline,
 } from './converter.js';
+
+// Semantic comparison utilities (for handling LLM non-determinism)
+export {
+  extractSecurityCategory,
+  extractLimitationCategory,
+  createFingerprint,
+  structureSecurityNotes,
+  structureLimitations,
+  securityFindingsMatch,
+  limitationsMatch,
+  assertionsMatch,
+  compareArraysSemantic,
+  SECURITY_CATEGORIES,
+  LIMITATION_CATEGORIES,
+  type SecurityCategory,
+  type LimitationCategory,
+  type StructuredSecurityFinding,
+  type StructuredLimitation,
+  type NormalizedAssertion,
+} from './semantic.js';

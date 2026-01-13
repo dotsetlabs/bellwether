@@ -349,7 +349,7 @@ describe('Baseline Comparison', () => {
           interactions: [],
           behavioralNotes: [],
           limitations: [],
-          securityNotes: ['Original security note'],
+          securityNotes: ['Path traversal vulnerability allows reading arbitrary files'],
         }],
       });
       const result2 = createMockInterviewResult({
@@ -359,7 +359,8 @@ describe('Baseline Comparison', () => {
           interactions: [],
           behavioralNotes: [],
           limitations: [],
-          securityNotes: ['New security vulnerability found'],
+          // Different security category (SQL injection vs path traversal) should trigger change
+          securityNotes: ['SQL injection allows unauthorized database access'],
         }],
       });
 
@@ -368,7 +369,77 @@ describe('Baseline Comparison', () => {
 
       const diff = compareBaselines(baseline1, baseline2);
 
+      // Semantic comparison should detect change in security category
       expect(diff.behaviorChanges.some((c) => c.aspect === 'security')).toBe(true);
+    });
+
+    it('should NOT flag paraphrased security notes as drift (semantic comparison)', () => {
+      // This test verifies the fix for LLM non-determinism
+      // Two descriptions that mean the same thing but are phrased differently should NOT be flagged
+      const result1 = createMockInterviewResult({
+        tools: [{
+          name: 'read_file',
+          description: 'Read file contents',
+          interactions: [],
+          behavioralNotes: [],
+          limitations: [],
+          // Original phrasing from LLM
+          securityNotes: ['Path traversal vulnerability allows reading files outside base directory'],
+        }],
+      });
+      const result2 = createMockInterviewResult({
+        tools: [{
+          name: 'read_file',
+          description: 'Read file contents',
+          interactions: [],
+          behavioralNotes: [],
+          limitations: [],
+          // Re-phrased by LLM but same semantic meaning (same category: path_traversal)
+          securityNotes: ['The tool is vulnerable to directory traversal attacks via ../ sequences'],
+        }],
+      });
+
+      const baseline1 = createBaseline(result1, 'npx test-server');
+      const baseline2 = createBaseline(result2, 'npx test-server');
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      // Both are path_traversal/high severity - should NOT be flagged as change
+      expect(diff.behaviorChanges.filter((c) => c.aspect === 'security')).toHaveLength(0);
+      expect(diff.severity).toBe('none');
+    });
+
+    it('should NOT flag paraphrased limitations as drift (semantic comparison)', () => {
+      const result1 = createMockInterviewResult({
+        tools: [{
+          name: 'upload_file',
+          description: 'Upload file',
+          interactions: [],
+          behavioralNotes: [],
+          securityNotes: [],
+          // Original phrasing
+          limitations: ['Maximum file size is 10MB'],
+        }],
+      });
+      const result2 = createMockInterviewResult({
+        tools: [{
+          name: 'upload_file',
+          description: 'Upload file',
+          interactions: [],
+          behavioralNotes: [],
+          securityNotes: [],
+          // Re-phrased but same semantic meaning (size_limit category)
+          limitations: ['Files larger than 10 megabytes will be rejected'],
+        }],
+      });
+
+      const baseline1 = createBaseline(result1, 'npx test-server');
+      const baseline2 = createBaseline(result2, 'npx test-server');
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      // Both are size_limit category - should NOT be flagged as change
+      expect(diff.behaviorChanges.filter((c) => c.aspect === 'error_handling')).toHaveLength(0);
     });
 
     it('should filter by specific tools', () => {

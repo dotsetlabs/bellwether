@@ -21,13 +21,27 @@ vi.mock('../../src/cloud/client.js', () => ({
 }));
 
 // Import types only - auth functions are imported dynamically after HOME is set
-import type { ProjectLink } from '../../src/cloud/types.js';
+import type { ProjectLink, StoredSession } from '../../src/cloud/types.js';
 
 // Auth functions will be imported dynamically in tests
-let setToken: (token: string) => void;
-let clearToken: () => void;
+let saveSession: (session: StoredSession) => void;
+let clearSession: () => void;
 let saveProjectLink: (link: ProjectLink, projectDir?: string) => void;
 let removeProjectLink: (projectDir?: string) => boolean;
+
+// Helper to create a test session
+function createTestSession(token: string = 'sess_test_token_12345678901234567890'): StoredSession {
+  return {
+    sessionToken: token,
+    user: {
+      id: 'usr_test',
+      email: 'test@example.com',
+      githubLogin: 'testuser',
+      githubAvatarUrl: null,
+    },
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
+  };
+}
 
 describe('upload command', () => {
   let testDir: string;
@@ -86,8 +100,8 @@ describe('upload command', () => {
 
     // Dynamically import auth functions after HOME is set
     const auth = await import('../../src/cloud/auth.js');
-    setToken = auth.setToken;
-    clearToken = auth.clearToken;
+    saveSession = auth.saveSession;
+    clearSession = auth.clearSession;
     saveProjectLink = auth.saveProjectLink;
     removeProjectLink = auth.removeProjectLink;
 
@@ -112,7 +126,7 @@ describe('upload command', () => {
     mockGetLatestDiff.mockReset();
     mockIsAuthenticated.mockReset();
 
-    clearToken();
+    clearSession();
     removeProjectLink();
   });
 
@@ -132,7 +146,7 @@ describe('upload command', () => {
 
   describe('authentication', () => {
     it('should fail when not authenticated', async () => {
-      clearToken();
+      clearSession();
       writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
@@ -144,25 +158,11 @@ describe('upload command', () => {
       expect(consoleErrors.some(line => line.includes('Not authenticated'))).toBe(true);
     });
 
-    it('should use --token flag for authentication', async () => {
-      writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
-      mockIsAuthenticated.mockReturnValue(true);
-      mockUploadBaseline.mockResolvedValue({
-        version: 1,
-        viewUrl: 'https://inquest.dev/p/proj/v/1',
-      });
-      saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
-
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
-      await uploadCommand.parseAsync(['node', 'test', '--token', 'iqt_override_token']);
-
-      expect(consoleOutput.some(line => line.includes('Upload successful'))).toBe(true);
-    });
   });
 
   describe('baseline file handling', () => {
     it('should fail when baseline file not found', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
@@ -175,7 +175,7 @@ describe('upload command', () => {
     });
 
     it('should use default baseline filename', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
@@ -191,7 +191,7 @@ describe('upload command', () => {
     });
 
     it('should accept custom baseline path', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
@@ -207,7 +207,7 @@ describe('upload command', () => {
     });
 
     it('should handle cloud format baseline', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
@@ -228,7 +228,7 @@ describe('upload command', () => {
     });
 
     it('should handle invalid JSON', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'inquest-baseline.json'), 'not valid json');
@@ -245,7 +245,7 @@ describe('upload command', () => {
 
   describe('project handling', () => {
     it('should use linked project', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
@@ -266,7 +266,7 @@ describe('upload command', () => {
     });
 
     it('should use --project flag', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
@@ -285,7 +285,7 @@ describe('upload command', () => {
     });
 
     it('should fail when no project specified', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
       removeProjectLink();
@@ -302,7 +302,7 @@ describe('upload command', () => {
 
   describe('upload success', () => {
     it('should show success message with version', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 5,
@@ -328,7 +328,7 @@ describe('upload command', () => {
     });
 
     it('should show diff summary when available', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 2,
@@ -353,7 +353,7 @@ describe('upload command', () => {
     });
 
     it('should indicate first baseline', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
@@ -371,7 +371,7 @@ describe('upload command', () => {
 
   describe('CI mode', () => {
     it('should output only URL in CI mode', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
@@ -388,7 +388,7 @@ describe('upload command', () => {
     });
 
     it('should exit 1 on breaking changes in CI mode', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 2,
@@ -414,7 +414,7 @@ describe('upload command', () => {
     });
 
     it('should exit 1 with --fail-on-drift for any drift', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 2,
@@ -440,7 +440,7 @@ describe('upload command', () => {
     });
 
     it('should show minimal error in CI mode', async () => {
-      clearToken();
+      clearSession();
       writeFileSync(join(testDir, 'inquest-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/upload.js');
@@ -449,13 +449,13 @@ describe('upload command', () => {
         uploadCommand.parseAsync(['node', 'test', '--ci'])
       ).rejects.toThrow('Process exit: 1');
 
-      expect(consoleErrors[0]).toBe('INQUEST_TOKEN not set');
+      expect(consoleErrors[0]).toBe('INQUEST_SESSION not set');
     });
   });
 
   describe('--public flag', () => {
     it('should pass public option to upload', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
@@ -477,7 +477,7 @@ describe('upload command', () => {
 
   describe('upload failure', () => {
     it('should handle upload API error', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockRejectedValue(new Error('Network error'));
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });

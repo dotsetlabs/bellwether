@@ -1,5 +1,9 @@
 /**
  * Behavioral comparison algorithm for drift detection.
+ *
+ * IMPORTANT: This module uses semantic comparison, not exact string matching,
+ * to handle LLM non-determinism. Two descriptions that mean the same thing
+ * but are phrased differently will NOT be flagged as drift.
  */
 
 import type { InterviewResult } from '../interview/types.js';
@@ -15,6 +19,14 @@ import type {
   BehavioralAssertion,
 } from './types.js';
 import { createBaseline } from './saver.js';
+import {
+  structureSecurityNotes,
+  structureLimitations,
+  securityFindingsMatch,
+  limitationsMatch,
+  compareArraysSemantic,
+  createFingerprint,
+} from './semantic.js';
 
 /**
  * Compare current interview results against a baseline.
@@ -123,6 +135,9 @@ export function compareBaselines(
 
 /**
  * Compare two tool fingerprints.
+ *
+ * Uses SEMANTIC comparison for LLM-generated content (security notes, limitations)
+ * to avoid false positives from LLM non-determinism.
  */
 function compareTool(
   previous: ToolFingerprint,
@@ -133,7 +148,7 @@ function compareTool(
   let schemaChanged = false;
   let descriptionChanged = false;
 
-  // Check schema change
+  // Check schema change (deterministic - hash comparison is fine)
   if (previous.schemaHash !== current.schemaHash && !options.ignoreSchemaChanges) {
     schemaChanged = true;
     changes.push({
@@ -146,7 +161,7 @@ function compareTool(
     });
   }
 
-  // Check description change
+  // Check description change (from MCP server, not LLM - exact match is fine)
   if (previous.description !== current.description && !options.ignoreDescriptionChanges) {
     descriptionChanged = true;
     changes.push({
@@ -159,64 +174,70 @@ function compareTool(
     });
   }
 
-  // Compare security notes
-  const prevSecuritySet = new Set(previous.securityNotes);
-  const currSecuritySet = new Set(current.securityNotes);
+  // Compare security notes using SEMANTIC matching
+  // Convert to structured findings and compare by category+severity, not exact text
+  const prevSecurityFindings = structureSecurityNotes(current.name, previous.securityNotes);
+  const currSecurityFindings = structureSecurityNotes(current.name, current.securityNotes);
 
-  for (const note of current.securityNotes) {
-    if (!prevSecuritySet.has(note)) {
-      changes.push({
-        tool: current.name,
-        aspect: 'security',
-        before: '',
-        after: note,
-        significance: 'high',
-        description: `New security note for ${current.name}: ${note}`,
-      });
-    }
+  const securityDiff = compareArraysSemantic(
+    prevSecurityFindings,
+    currSecurityFindings,
+    securityFindingsMatch
+  );
+
+  for (const finding of securityDiff.added) {
+    changes.push({
+      tool: current.name,
+      aspect: 'security',
+      before: '',
+      after: `[${finding.category}/${finding.severity}] ${finding.description}`,
+      significance: 'high',
+      description: `New ${finding.severity} security finding (${finding.category}) for ${current.name}`,
+    });
   }
 
-  for (const note of previous.securityNotes) {
-    if (!currSecuritySet.has(note)) {
-      changes.push({
-        tool: current.name,
-        aspect: 'security',
-        before: note,
-        after: '',
-        significance: 'medium',
-        description: `Removed security note for ${current.name}: ${note}`,
-      });
-    }
+  for (const finding of securityDiff.removed) {
+    changes.push({
+      tool: current.name,
+      aspect: 'security',
+      before: `[${finding.category}/${finding.severity}] ${finding.description}`,
+      after: '',
+      significance: 'medium',
+      description: `Resolved ${finding.category} security finding for ${current.name}`,
+    });
   }
 
-  // Compare limitations
-  const prevLimitSet = new Set(previous.limitations);
-  const currLimitSet = new Set(current.limitations);
+  // Compare limitations using SEMANTIC matching
+  // Convert to structured limitations and compare by category, not exact text
+  const prevLimitations = structureLimitations(current.name, previous.limitations);
+  const currLimitations = structureLimitations(current.name, current.limitations);
 
-  for (const limitation of current.limitations) {
-    if (!prevLimitSet.has(limitation)) {
-      changes.push({
-        tool: current.name,
-        aspect: 'error_handling',
-        before: '',
-        after: limitation,
-        significance: 'medium',
-        description: `New limitation for ${current.name}: ${limitation}`,
-      });
-    }
+  const limitationDiff = compareArraysSemantic(
+    prevLimitations,
+    currLimitations,
+    limitationsMatch
+  );
+
+  for (const limitation of limitationDiff.added) {
+    changes.push({
+      tool: current.name,
+      aspect: 'error_handling',
+      before: '',
+      after: `[${limitation.category}] ${limitation.description}`,
+      significance: 'medium',
+      description: `New ${limitation.category} limitation for ${current.name}`,
+    });
   }
 
-  for (const limitation of previous.limitations) {
-    if (!currLimitSet.has(limitation)) {
-      changes.push({
-        tool: current.name,
-        aspect: 'error_handling',
-        before: limitation,
-        after: '',
-        significance: 'low',
-        description: `Resolved limitation for ${current.name}: ${limitation}`,
-      });
-    }
+  for (const limitation of limitationDiff.removed) {
+    changes.push({
+      tool: current.name,
+      aspect: 'error_handling',
+      before: `[${limitation.category}] ${limitation.description}`,
+      after: '',
+      significance: 'low',
+      description: `Resolved ${limitation.category} limitation for ${current.name}`,
+    });
   }
 
   return {
@@ -228,7 +249,15 @@ function compareTool(
 }
 
 /**
- * Compare behavioral assertions.
+ * Compare behavioral assertions using SEMANTIC fingerprinting.
+ *
+ * Instead of exact string matching (which fails due to LLM non-determinism),
+ * we extract semantic fingerprints and compare those.
+ *
+ * Example:
+ *   "Returns error when file doesn't exist" → fingerprint: "read_file:error_handling:error:not_found:returns"
+ *   "The tool throws an error for missing files" → fingerprint: "read_file:error_handling:error:missing:throws"
+ *   These would have similar fingerprints and NOT be flagged as drift.
  */
 function compareAssertions(
   previous: BehavioralAssertion[],
@@ -236,17 +265,26 @@ function compareAssertions(
 ): BehaviorChange[] {
   const changes: BehaviorChange[] = [];
 
-  // Create maps keyed by tool+aspect+assertion
-  const prevMap = new Map(
-    previous.map((a) => [`${a.tool}:${a.aspect}:${a.assertion}`, a])
-  );
-  const currMap = new Map(
-    current.map((a) => [`${a.tool}:${a.aspect}:${a.assertion}`, a])
-  );
+  // Create fingerprints for semantic comparison
+  const createKey = (a: BehavioralAssertion) =>
+    createFingerprint(a.tool, a.aspect, a.assertion);
 
-  // Check for new assertions
-  for (const [key, assertion] of currMap) {
-    if (!prevMap.has(key)) {
+  // Create maps keyed by semantic fingerprint
+  const prevMap = new Map<string, BehavioralAssertion>();
+  for (const a of previous) {
+    const fingerprint = createKey(a);
+    prevMap.set(fingerprint, a);
+  }
+
+  const currMap = new Map<string, BehavioralAssertion>();
+  for (const a of current) {
+    const fingerprint = createKey(a);
+    currMap.set(fingerprint, a);
+  }
+
+  // Check for new assertions (fingerprint in current but not previous)
+  for (const [fingerprint, assertion] of currMap) {
+    if (!prevMap.has(fingerprint)) {
       const significance = getAssertionSignificance(assertion);
       changes.push({
         tool: assertion.tool,
@@ -259,9 +297,9 @@ function compareAssertions(
     }
   }
 
-  // Check for removed assertions
-  for (const [key, assertion] of prevMap) {
-    if (!currMap.has(key)) {
+  // Check for removed assertions (fingerprint in previous but not current)
+  for (const [fingerprint, assertion] of prevMap) {
+    if (!currMap.has(fingerprint)) {
       const significance = getAssertionSignificance(assertion);
       changes.push({
         tool: assertion.tool,

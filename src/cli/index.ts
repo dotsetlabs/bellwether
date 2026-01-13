@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { config } from 'dotenv';
+config(); // Load .env file before anything else
+
 import { Command } from 'commander';
 import { interviewCommand } from './commands/interview.js';
 import { discoverCommand } from './commands/discover.js';
@@ -8,7 +11,6 @@ import { loginCommand } from './commands/login.js';
 import { linkCommand, projectsCommand } from './commands/link.js';
 import { uploadCommand } from './commands/upload.js';
 import { historyCommand, diffCommand } from './commands/history.js';
-import { watchCommand } from './commands/watch.js';
 import { profileCommand } from './commands/profile.js';
 import { configureLogger, type LogLevel } from '../logging/logger.js';
 
@@ -36,19 +38,18 @@ Examples:
     $ inquest interview --save-baseline npx @mcp/my-server
     $ inquest interview --compare-baseline ./baseline.json npx @mcp/my-server
 
+  CI/CD workflow (fail on drift):
+    $ inquest interview --compare-baseline ./baseline.json --fail-on-drift npx @mcp/my-server
+
+  Quick interview (fast, for CI):
+    $ inquest interview --quick npx @mcp/my-server
+
   Cloud workflow:
     $ inquest login                    # Authenticate
     $ inquest link my-project          # Link to cloud project
     $ inquest upload                   # Upload baseline
     $ inquest history                  # View version history
     $ inquest diff 1 2                 # Compare versions
-
-  Watch for changes:
-    $ inquest watch npx @mcp/my-server
-
-  Use profiles:
-    $ inquest profile create production
-    $ inquest profile use production
 
 Documentation: https://inquest.dev/docs
 `;
@@ -92,13 +93,8 @@ program.addCommand(
   )
 );
 program.addCommand(
-  watchCommand.description(
-    'Watch for server changes and re-run interviews automatically'
-  )
-);
-program.addCommand(
   profileCommand.description(
-    'Manage interview profiles (create, list, use, delete)'
+    'Manage interview profiles'
   )
 );
 

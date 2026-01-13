@@ -18,6 +18,8 @@ export interface OpenAIClientOptions {
   model?: string;
   /** Base URL for API (for proxies/alternatives) */
   baseURL?: string;
+  /** Callback to receive token usage from each API call */
+  onUsage?: (inputTokens: number, outputTokens: number) => void;
 }
 
 /**
@@ -27,6 +29,7 @@ export class OpenAIClient implements LLMClient {
   private client: OpenAI;
   private defaultModel: string;
   private logger = getLogger('openai');
+  private onUsage?: (inputTokens: number, outputTokens: number) => void;
 
   constructor(options?: OpenAIClientOptions) {
     const apiKey = options?.apiKey ?? process.env.OPENAI_API_KEY;
@@ -40,6 +43,7 @@ export class OpenAIClient implements LLMClient {
     });
 
     this.defaultModel = options?.model ?? DEFAULT_MODELS.openai;
+    this.onUsage = options?.onUsage;
   }
 
   getProviderInfo(): ProviderInfo {
@@ -75,6 +79,14 @@ export class OpenAIClient implements LLMClient {
               ? { type: 'json_object' }
               : undefined,
           });
+
+          // Track actual token usage from API response
+          if (this.onUsage && response.usage) {
+            this.onUsage(
+              response.usage.prompt_tokens,
+              response.usage.completion_tokens
+            );
+          }
 
           const choice = response.choices[0];
           let content = choice?.message?.content;

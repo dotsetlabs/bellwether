@@ -1,0 +1,158 @@
+import {themes as prismThemes} from 'prism-react-renderer';
+import type {Config} from '@docusaurus/types';
+import type * as Preset from '@docusaurus/preset-classic';
+
+const config: Config = {
+  title: 'Inquest',
+  tagline: 'Automated behavioral documentation for MCP servers',
+  favicon: 'img/favicon.ico',
+
+  future: {
+    v4: true,
+  },
+
+  url: 'https://docs.inquest.dev',
+  baseUrl: '/',
+
+  organizationName: 'dotsetlabs',
+  projectName: 'inquest',
+
+  onBrokenLinks: 'throw',
+
+  i18n: {
+    defaultLocale: 'en',
+    locales: ['en'],
+  },
+
+  presets: [
+    [
+      'classic',
+      {
+        docs: {
+          sidebarPath: './sidebars.ts',
+          editUrl: 'https://github.com/dotsetlabs/inquest/tree/main/website/',
+          routeBasePath: '/',
+        },
+        blog: false,
+        theme: {
+          customCss: './src/css/custom.css',
+        },
+      } satisfies Preset.Options,
+    ],
+  ],
+
+  themeConfig: {
+    image: 'img/inquest-social-card.png',
+    colorMode: {
+      defaultMode: 'dark',
+      respectPrefersColorScheme: true,
+    },
+    navbar: {
+      title: 'Inquest',
+      logo: {
+        alt: 'Inquest Logo',
+        src: 'img/logo.svg',
+      },
+      items: [
+        {
+          type: 'docSidebar',
+          sidebarId: 'docsSidebar',
+          position: 'left',
+          label: 'Documentation',
+        },
+        {
+          href: 'https://inquest.cloud',
+          label: 'Cloud',
+          position: 'left',
+        },
+        {
+          href: 'https://github.com/dotsetlabs/inquest',
+          label: 'GitHub',
+          position: 'right',
+        },
+      ],
+    },
+    footer: {
+      style: 'dark',
+      links: [
+        {
+          title: 'Documentation',
+          items: [
+            {
+              label: 'Getting Started',
+              to: '/',
+            },
+            {
+              label: 'CLI Reference',
+              to: '/cli/interview',
+            },
+            {
+              label: 'CI/CD Integration',
+              to: '/guides/ci-cd',
+            },
+          ],
+        },
+        {
+          title: 'Product',
+          items: [
+            {
+              label: 'Inquest Cloud',
+              href: 'https://inquest.cloud',
+            },
+            {
+              label: 'Pricing',
+              href: 'https://inquest.cloud/pricing',
+            },
+            {
+              label: 'Changelog',
+              href: 'https://github.com/dotsetlabs/inquest/blob/main/CHANGELOG.md',
+            },
+          ],
+        },
+        {
+          title: 'Community',
+          items: [
+            {
+              label: 'GitHub',
+              href: 'https://github.com/dotsetlabs/inquest',
+            },
+            {
+              label: 'Issues',
+              href: 'https://github.com/dotsetlabs/inquest/issues',
+            },
+            {
+              label: 'Discussions',
+              href: 'https://github.com/dotsetlabs/inquest/discussions',
+            },
+          ],
+        },
+        {
+          title: 'Dotset Labs',
+          items: [
+            {
+              label: 'Website',
+              href: 'https://dotsetlabs.com',
+            },
+            {
+              label: 'Hardpoint',
+              href: 'https://github.com/dotsetlabs/hardpoint',
+            },
+            {
+              label: 'Overwatch',
+              href: 'https://github.com/dotsetlabs/overwatch',
+            },
+          ],
+        },
+      ],
+      copyright: `Copyright ${new Date().getFullYear()} Dotset Labs. Built with Docusaurus.`,
+    },
+    prism: {
+      theme: prismThemes.github,
+      darkTheme: prismThemes.dracula,
+      additionalLanguages: ['bash', 'yaml', 'json'],
+    },
+    algolia: undefined, // Can be added later for search
+  } satisfies Preset.ThemeConfig,
+};
+
+export default config;

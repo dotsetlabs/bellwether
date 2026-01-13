@@ -5,7 +5,7 @@
 import { Command } from 'commander';
 import { basename } from 'path';
 import {
-  getToken,
+  getSessionToken,
   getLinkedProject,
   saveProjectLink,
   removeProjectLink,
@@ -38,13 +38,13 @@ export const linkCommand = new Command('link')
     }
 
     // Check authentication
-    const token = getToken();
-    if (!token) {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) {
       console.error('Not authenticated. Run `inquest login` first.');
       process.exit(1);
     }
 
-    const client = createCloudClient({ token });
+    const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
       console.error('Authentication failed. Run `inquest login` to re-authenticate.');
@@ -137,13 +137,13 @@ export const projectsCommand = new Command('projects')
   .description('List Inquest Cloud projects')
   .option('--json', 'Output as JSON')
   .action(async (options) => {
-    const token = getToken();
-    if (!token) {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) {
       console.error('Not authenticated. Run `inquest login` first.');
       process.exit(1);
     }
 
-    const client = createCloudClient({ token });
+    const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
       console.error('Authentication failed. Run `inquest login` to re-authenticate.');

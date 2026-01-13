@@ -3,7 +3,7 @@
  */
 
 import { Command } from 'commander';
-import { getToken, getLinkedProject } from '../../cloud/auth.js';
+import { getSessionToken, getLinkedProject } from '../../cloud/auth.js';
 import { createCloudClient } from '../../cloud/client.js';
 
 export const historyCommand = new Command('history')
@@ -11,11 +11,11 @@ export const historyCommand = new Command('history')
   .argument('[project-id]', 'Project ID (uses linked project if not specified)')
   .option('-n, --limit <n>', 'Number of versions to show', '10')
   .option('--json', 'Output as JSON')
-  .option('--token <token>', 'API token (overrides stored/env token)')
+  .option('--session <session>', 'Session token (overrides stored/env session)')
   .action(async (projectIdArg: string | undefined, options) => {
-    // Get token
-    const token = options.token ?? getToken();
-    if (!token) {
+    // Get session
+    const sessionToken = options.session ?? getSessionToken();
+    if (!sessionToken) {
       console.error('Not authenticated. Run `inquest login` first.');
       process.exit(1);
     }
@@ -39,7 +39,7 @@ export const historyCommand = new Command('history')
     }
 
     // Create client and fetch history
-    const client = createCloudClient({ token });
+    const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
       console.error('Authentication failed. Run `inquest login` to re-authenticate.');
@@ -166,11 +166,11 @@ export const diffCommand = new Command('diff')
   .argument('<to>', 'To version number')
   .option('-p, --project <id>', 'Project ID (uses linked project if not specified)')
   .option('--json', 'Output as JSON')
-  .option('--token <token>', 'API token (overrides stored/env token)')
+  .option('--session <session>', 'Session token (overrides stored/env session)')
   .action(async (fromArg: string, toArg: string, options) => {
-    // Get token
-    const token = options.token ?? getToken();
-    if (!token) {
+    // Get session
+    const sessionToken = options.session ?? getSessionToken();
+    if (!sessionToken) {
       console.error('Not authenticated. Run `inquest login` first.');
       process.exit(1);
     }
@@ -200,7 +200,7 @@ export const diffCommand = new Command('diff')
     }
 
     // Create client and fetch diff
-    const client = createCloudClient({ token });
+    const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
       console.error('Authentication failed. Run `inquest login` to re-authenticate.');

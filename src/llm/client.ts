@@ -86,6 +86,8 @@ export interface LLMConfig {
   apiKeyEnvVar?: string;
   /** Base URL for API (for proxies/self-hosted) */
   baseUrl?: string;
+  /** Callback to receive actual token usage from each API call */
+  onUsage?: (inputTokens: number, outputTokens: number) => void;
 }
 
 /**

@@ -1,14 +1,14 @@
 /**
  * Authentication module for Inquest Cloud.
  *
- * Handles token storage, retrieval, and management.
- * Tokens are stored in ~/.inquest/auth.json with restricted permissions.
+ * Handles session storage, retrieval, and management.
+ * Sessions are stored in ~/.inquest/session.json with restricted permissions.
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import type { AuthConfig, ProjectLink } from './types.js';
+import type { StoredSession, ProjectLink } from './types.js';
 
 /**
  * Directory for inquest configuration.
@@ -16,9 +16,9 @@ import type { AuthConfig, ProjectLink } from './types.js';
 export const CONFIG_DIR = join(homedir(), '.inquest');
 
 /**
- * Path to auth configuration file.
+ * Path to session file.
  */
-export const AUTH_FILE = join(CONFIG_DIR, 'auth.json');
+export const SESSION_FILE = join(CONFIG_DIR, 'session.json');
 
 /**
  * Default API base URL.
@@ -26,9 +26,9 @@ export const AUTH_FILE = join(CONFIG_DIR, 'auth.json');
 export const DEFAULT_BASE_URL = 'https://api.inquest.dev';
 
 /**
- * Environment variable name for API token.
+ * Environment variable name for session token.
  */
-export const TOKEN_ENV_VAR = 'INQUEST_TOKEN';
+export const SESSION_ENV_VAR = 'INQUEST_SESSION';
 
 /**
  * Environment variable name for API base URL.
@@ -36,14 +36,14 @@ export const TOKEN_ENV_VAR = 'INQUEST_TOKEN';
 export const BASE_URL_ENV_VAR = 'INQUEST_API_URL';
 
 /**
- * Token prefix for validation.
+ * Session token prefix for validation.
  */
-export const TOKEN_PREFIX = 'iqt_';
+export const SESSION_PREFIX = 'sess_';
 
 /**
- * Mock token prefix for development.
+ * Mock session prefix for development.
  */
-export const MOCK_TOKEN_PREFIX = 'iqt_mock_';
+export const MOCK_SESSION_PREFIX = 'sess_mock_';
 
 /**
  * Ensure the config directory exists.
@@ -55,65 +55,70 @@ export function ensureConfigDir(): void {
 }
 
 /**
- * Get the stored auth configuration.
+ * Get the stored session.
  */
-export function getAuthConfig(): AuthConfig {
-  if (!existsSync(AUTH_FILE)) {
-    return {};
+export function getStoredSession(): StoredSession | null {
+  if (!existsSync(SESSION_FILE)) {
+    return null;
   }
 
   try {
-    const content = readFileSync(AUTH_FILE, 'utf-8');
-    return JSON.parse(content) as AuthConfig;
+    const content = readFileSync(SESSION_FILE, 'utf-8');
+    const session = JSON.parse(content) as StoredSession;
+
+    // Check if session is expired
+    if (new Date(session.expiresAt) <= new Date()) {
+      // Session expired, clear it
+      clearSession();
+      return null;
+    }
+
+    return session;
   } catch {
-    // If file is corrupted, return empty config
-    return {};
+    // If file is corrupted, return null
+    return null;
   }
 }
 
 /**
- * Save auth configuration to disk.
+ * Save session to disk.
  * File is created with 0600 permissions (owner read/write only).
  */
-export function saveAuthConfig(config: AuthConfig): void {
+export function saveSession(session: StoredSession): void {
   ensureConfigDir();
-  writeFileSync(AUTH_FILE, JSON.stringify(config, null, 2), { mode: 0o600 });
+  writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2), { mode: 0o600 });
 }
 
 /**
- * Get the API token.
+ * Clear the stored session.
+ */
+export function clearSession(): void {
+  if (existsSync(SESSION_FILE)) {
+    try {
+      unlinkSync(SESSION_FILE);
+    } catch {
+      // Ignore errors
+    }
+  }
+}
+
+/**
+ * Get the session token.
  *
  * Priority:
- * 1. INQUEST_TOKEN environment variable
- * 2. Stored token in ~/.inquest/auth.json
+ * 1. INQUEST_SESSION environment variable
+ * 2. Stored session in ~/.inquest/session.json
  */
-export function getToken(): string | undefined {
+export function getSessionToken(): string | undefined {
   // Check environment variable first
-  const envToken = process.env[TOKEN_ENV_VAR];
-  if (envToken) {
-    return envToken;
+  const envSession = process.env[SESSION_ENV_VAR];
+  if (envSession) {
+    return envSession;
   }
 
-  // Fall back to stored config
-  return getAuthConfig().token;
-}
-
-/**
- * Set and store the API token.
- */
-export function setToken(token: string): void {
-  const config = getAuthConfig();
-  config.token = token;
-  saveAuthConfig(config);
-}
-
-/**
- * Clear the stored API token.
- */
-export function clearToken(): void {
-  const config = getAuthConfig();
-  delete config.token;
-  saveAuthConfig(config);
+  // Fall back to stored session
+  const session = getStoredSession();
+  return session?.sessionToken;
 }
 
 /**
@@ -121,8 +126,7 @@ export function clearToken(): void {
  *
  * Priority:
  * 1. INQUEST_API_URL environment variable
- * 2. Stored baseUrl in ~/.inquest/auth.json
- * 3. Default: https://api.inquest.dev
+ * 2. Default: https://api.inquest.dev
  */
 export function getBaseUrl(): string {
   // Check environment variable first
@@ -131,58 +135,38 @@ export function getBaseUrl(): string {
     return envUrl;
   }
 
-  // Check stored config
-  const config = getAuthConfig();
-  if (config.baseUrl) {
-    return config.baseUrl;
-  }
-
   // Return default
   return DEFAULT_BASE_URL;
 }
 
 /**
- * Set the API base URL override.
+ * Check if a session token appears valid (basic format check).
  */
-export function setBaseUrl(baseUrl: string): void {
-  const config = getAuthConfig();
-  config.baseUrl = baseUrl;
-  saveAuthConfig(config);
+export function isValidSessionFormat(token: string): boolean {
+  return token.startsWith(SESSION_PREFIX) && token.length >= 40;
 }
 
 /**
- * Clear the API base URL override.
+ * Check if a session token is a mock session (for development).
  */
-export function clearBaseUrl(): void {
-  const config = getAuthConfig();
-  delete config.baseUrl;
-  saveAuthConfig(config);
-}
-
-/**
- * Check if a token appears valid (basic format check).
- */
-export function isValidTokenFormat(token: string): boolean {
-  // Token should start with our prefix and have reasonable length
-  return (
-    token.startsWith(TOKEN_PREFIX) &&
-    token.length >= TOKEN_PREFIX.length + 8
-  );
-}
-
-/**
- * Check if a token is a mock token (for development).
- */
-export function isMockToken(token: string): boolean {
-  return token.startsWith(MOCK_TOKEN_PREFIX);
+export function isMockSession(token: string): boolean {
+  return token.startsWith(MOCK_SESSION_PREFIX);
 }
 
 /**
  * Check if currently authenticated.
  */
 export function isAuthenticated(): boolean {
-  const token = getToken();
-  return token !== undefined && isValidTokenFormat(token);
+  const token = getSessionToken();
+  return token !== undefined && isValidSessionFormat(token);
+}
+
+/**
+ * Get the stored user info (if authenticated).
+ */
+export function getStoredUser(): StoredSession['user'] | null {
+  const session = getStoredSession();
+  return session?.user ?? null;
 }
 
 // ============================================================================

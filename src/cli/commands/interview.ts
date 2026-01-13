@@ -93,6 +93,7 @@ export const interviewCommand = new Command('interview')
   .option('--estimate-cost', 'Estimate cost before running interview')
   .option('--show-cost', 'Show cost summary after interview')
   .option('-i, --interactive', 'Run in interactive mode with prompts')
+  .option('-q, --quick', 'Quick mode for CI: 1 question per tool, cheaper model')
   .action(async (command: string | undefined, args: string[], options) => {
     // Load configuration
     const config = loadConfig(options.config);
@@ -129,10 +130,21 @@ export const interviewCommand = new Command('interview')
       process.exit(1);
     }
 
+    // Quick mode defaults for CI: cheap models, minimal questions
+    const QUICK_MODE_MODELS: Record<string, string> = {
+      openai: 'gpt-4o-mini',
+      anthropic: 'claude-3-5-haiku-20241022',
+      ollama: 'llama3.2',
+    };
+
     // Override with CLI options or interactive config
-    const model = options.model ?? config.llm.model;
-    const maxQuestions = interactiveConfig?.maxQuestions
-      ?? (options.maxQuestions ? parseInt(options.maxQuestions, 10) : config.interview.maxQuestionsPerTool);
+    const model = options.quick
+      ? (QUICK_MODE_MODELS[config.llm.provider] ?? config.llm.model)
+      : (options.model ?? config.llm.model);
+    const maxQuestions = options.quick
+      ? 1
+      : (interactiveConfig?.maxQuestions
+        ?? (options.maxQuestions ? parseInt(options.maxQuestions, 10) : config.interview.maxQuestionsPerTool));
     const timeout = options.timeout
       ? parseInt(options.timeout, 10)
       : config.interview.timeout;
@@ -150,6 +162,9 @@ export const interviewCommand = new Command('interview')
     const compareBaselinePath = interactiveConfig?.compareBaseline ?? options.compareBaseline;
 
     console.log('Inquest - MCP Server Documentation Generator\n');
+    if (options.quick) {
+      console.log('Quick mode enabled (fast CI mode)\n');
+    }
     console.log(`Server: ${command} ${args.join(' ')}`);
     console.log(`Provider: ${config.llm.provider}`);
     console.log(`Model: ${model}`);
@@ -159,18 +174,25 @@ export const interviewCommand = new Command('interview')
     }
     console.log('');
 
+    // Initialize cost tracker for real usage tracking
+    const costTracker = new CostTracker(model);
+
     // Initialize clients
     const mcpClient = new MCPClient({ timeout, debug: options.debug });
     let llmClient: LLMClient;
 
     try {
       // Use the LLM factory to create the appropriate provider client
+      // Pass usage callback to track actual token consumption
       llmClient = createLLMClient({
         provider: config.llm.provider,
         model,
         apiKey: config.llm.apiKey,
         apiKeyEnvVar: config.llm.apiKeyEnvVar,
         baseUrl: config.llm.baseUrl,
+        onUsage: (inputTokens, outputTokens) => {
+          costTracker.addUsage(inputTokens, outputTokens);
+        },
       });
     } catch (error) {
       console.error('Failed to initialize LLM client:', error instanceof Error ? error.message : error);
@@ -210,9 +232,6 @@ export const interviewCommand = new Command('interview')
         console.log(formatCostEstimate(estimate));
         console.log('');
       }
-
-      // Initialize cost tracker
-      const costTracker = new CostTracker(model);
 
       // Interview phase
       const interviewer = new Interviewer(llmClient, {
@@ -280,15 +299,8 @@ export const interviewCommand = new Command('interview')
       console.log(`Duration: ${(result.metadata.durationMs / 1000).toFixed(1)}s`);
       console.log(`Tool calls: ${result.metadata.toolCallCount} (${result.metadata.errorCount} errors)`);
 
-      // Show cost summary if requested
+      // Show cost summary if requested (uses real token counts from API responses)
       if (options.showCost || options.estimateCost) {
-        // Estimate tokens based on tool calls made
-        const avgInputTokens = 500;
-        const avgOutputTokens = 300;
-        costTracker.addUsage(
-          result.metadata.toolCallCount * avgInputTokens,
-          result.metadata.toolCallCount * avgOutputTokens
-        );
         console.log('\n' + costTracker.formatSummary());
       }
 

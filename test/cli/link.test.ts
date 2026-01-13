@@ -23,15 +23,28 @@ vi.mock('../../src/cloud/client.js', () => ({
 }));
 
 // Import types only - auth functions are imported dynamically after HOME is set
-import type { ProjectLink } from '../../src/cloud/types.js';
+import type { ProjectLink, StoredSession } from '../../src/cloud/types.js';
 
 // Auth functions will be imported dynamically in tests
-let getToken: () => string | undefined;
-let setToken: (token: string) => void;
-let clearToken: () => void;
+let saveSession: (session: StoredSession) => void;
+let clearSession: () => void;
 let getLinkedProject: (projectDir?: string) => ProjectLink | null;
 let saveProjectLink: (link: ProjectLink, projectDir?: string) => void;
 let removeProjectLink: (projectDir?: string) => boolean;
+
+// Helper to create a test session
+function createTestSession(token: string = 'sess_test_token_12345678901234567890'): StoredSession {
+  return {
+    sessionToken: token,
+    user: {
+      id: 'usr_test',
+      email: 'test@example.com',
+      githubLogin: 'testuser',
+      githubAvatarUrl: null,
+    },
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
+  };
+}
 
 describe('link command', () => {
   let testDir: string;
@@ -63,9 +76,8 @@ describe('link command', () => {
 
     // Dynamically import auth functions after HOME is set
     const auth = await import('../../src/cloud/auth.js');
-    getToken = auth.getToken;
-    setToken = auth.setToken;
-    clearToken = auth.clearToken;
+    saveSession = auth.saveSession;
+    clearSession = auth.clearSession;
     getLinkedProject = auth.getLinkedProject;
     saveProjectLink = auth.saveProjectLink;
     removeProjectLink = auth.removeProjectLink;
@@ -92,7 +104,7 @@ describe('link command', () => {
     mockListProjects.mockReset();
     mockIsAuthenticated.mockReset();
 
-    clearToken();
+    clearSession();
     removeProjectLink();
   });
 
@@ -165,7 +177,7 @@ describe('link command', () => {
 
   describe('link to existing project', () => {
     it('should link to existing project by ID', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetProject.mockResolvedValue({
         id: 'proj_existing',
@@ -183,7 +195,7 @@ describe('link command', () => {
     });
 
     it('should fail when project not found', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockGetProject.mockResolvedValue(null);
 
@@ -199,7 +211,7 @@ describe('link command', () => {
 
   describe('create new project', () => {
     it('should create project with inferred name', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockCreateProject.mockResolvedValue({
         id: 'proj_new',
@@ -216,7 +228,7 @@ describe('link command', () => {
     });
 
     it('should create project with custom name', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockCreateProject.mockResolvedValue({
         id: 'proj_custom',
@@ -233,7 +245,7 @@ describe('link command', () => {
     });
 
     it('should handle project creation failure', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockCreateProject.mockRejectedValue(new Error('API error'));
 
@@ -249,7 +261,7 @@ describe('link command', () => {
 
   describe('authentication required', () => {
     it('should fail when not authenticated', async () => {
-      clearToken();
+      clearSession();
 
       const { linkCommand } = await import('../../src/cli/commands/link.js');
 
@@ -261,7 +273,7 @@ describe('link command', () => {
     });
 
     it('should fail when token is invalid', async () => {
-      setToken('iqt_invalid_token_123');
+      saveSession(createTestSession('sess_invalid_token_1234567890123456'));
       mockIsAuthenticated.mockReturnValue(false);
 
       const { linkCommand } = await import('../../src/cli/commands/link.js');
@@ -276,7 +288,7 @@ describe('link command', () => {
 
   describe('projects command', () => {
     it('should list projects', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockListProjects.mockResolvedValue([
         {
@@ -302,7 +314,7 @@ describe('link command', () => {
     });
 
     it('should output JSON when --json flag is set', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockListProjects.mockResolvedValue([
         { id: 'proj_json', name: 'JSON Project', baselineCount: 1, lastUploadAt: null },
@@ -318,7 +330,7 @@ describe('link command', () => {
     });
 
     it('should show empty state when no projects', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockListProjects.mockResolvedValue([]);
 
@@ -329,7 +341,7 @@ describe('link command', () => {
     });
 
     it('should mark currently linked project', async () => {
-      setToken('iqt_valid_token_123456');
+      saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockListProjects.mockResolvedValue([
         { id: 'proj_linked', name: 'Linked', baselineCount: 1, lastUploadAt: null },

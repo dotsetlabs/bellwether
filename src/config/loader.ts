@@ -104,7 +104,14 @@ function createDefaultConfig(): InquestConfig {
 }
 
 /**
- * Default configuration (lazily evaluated to allow env detection).
+ * Default configuration (lazily evaluated to allow env detection after dotenv loads).
+ */
+export function getDefaultConfig(): InquestConfig {
+  return createDefaultConfig();
+}
+
+/**
+ * @deprecated Use getDefaultConfig() instead - this evaluates too early before dotenv loads
  */
 export const DEFAULT_CONFIG: InquestConfig = createDefaultConfig();
 
@@ -136,7 +143,7 @@ export function loadConfig(explicitPath?: string): InquestConfig {
     }
   }
 
-  return DEFAULT_CONFIG;
+  return getDefaultConfig();
 }
 
 /**
@@ -160,11 +167,12 @@ function loadConfigFile(path: string): InquestConfig {
 
   // Handle empty config files - return defaults
   if (parsed === null || parsed === undefined) {
-    return DEFAULT_CONFIG;
+    return getDefaultConfig();
   }
 
   // Merge with defaults first
-  const merged = mergeConfig(DEFAULT_CONFIG, parsed as Partial<InquestConfig>);
+  const defaults = getDefaultConfig();
+  const merged = mergeConfig(defaults, parsed as Partial<InquestConfig>);
 
   // Validate merged config
   const result = inquestConfigSchema.safeParse(merged);
@@ -212,21 +220,27 @@ version: 1
 # Supported providers: openai, anthropic, ollama
 llm:
   provider: openai
-  model: gpt-4o
-  # apiKeyEnvVar: OPENAI_API_KEY  # default for OpenAI
+  model: gpt-4o  # Use gpt-4o-mini for lower cost (~$0.02/interview)
+
+  # Cost comparison (10 tools, 3 questions each):
+  # - gpt-4o: ~$0.13 per interview (best quality)
+  # - gpt-4o-mini: ~$0.02 per interview (recommended for CI)
+  # - claude-sonnet: ~$0.13 per interview
+  # - claude-haiku: ~$0.03 per interview (fast, cheap)
+  # - ollama: free (local, no API key needed)
 
   # Anthropic Claude example:
   # provider: anthropic
-  # model: claude-sonnet-4-20250514
+  # model: claude-3-5-haiku-20241022  # Fast and cheap
   # apiKeyEnvVar: ANTHROPIC_API_KEY
 
-  # Ollama (local) example:
+  # Ollama (local, free) example:
   # provider: ollama
   # model: llama3.2
   # baseUrl: http://localhost:11434
 
 interview:
-  maxQuestionsPerTool: 3
+  maxQuestionsPerTool: 3  # Use --quick flag for CI (1 question per tool)
   timeout: 30000
   # skipErrorTests: false
   # personas: technical_writer,security_tester  # comma-separated

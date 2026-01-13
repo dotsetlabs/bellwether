@@ -1,20 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync, existsSync } from 'fs';
+import { mkdirSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
 // Import auth functions for testing
 import {
-  getToken,
-  setToken,
-  clearToken,
-  isValidTokenFormat,
-  isMockToken,
+  getSessionToken,
+  saveSession,
+  clearSession,
+  isValidSessionFormat,
+  isMockSession,
   getLinkedProject,
   saveProjectLink,
   removeProjectLink,
 } from '../../src/cloud/auth.js';
-import { generateMockToken } from '../../src/cloud/mock-client.js';
+import { generateMockSession } from '../../src/cloud/mock-client.js';
 import type { ProjectLink } from '../../src/cloud/types.js';
 
 describe('cli/cloud-commands', () => {
@@ -63,62 +63,67 @@ describe('cli/cloud-commands', () => {
   });
 
   describe('login command - auth functions', () => {
-    describe('token validation', () => {
-      it('should validate correct token format', () => {
-        expect(isValidTokenFormat('iqt_abcdef123456')).toBe(true);
-        expect(isValidTokenFormat('iqt_mock_dev_1234')).toBe(true);
+    describe('session validation', () => {
+      it('should validate correct session format', () => {
+        expect(isValidSessionFormat('sess_abcdef123456789012345678901234567890')).toBe(true);
+        expect(isValidSessionFormat('sess_mock_dev_1234567890abcdef1234567890')).toBe(true);
       });
 
-      it('should reject invalid token format', () => {
-        expect(isValidTokenFormat('invalid')).toBe(false);
-        expect(isValidTokenFormat('abc_123456')).toBe(false);
-        expect(isValidTokenFormat('')).toBe(false);
-        expect(isValidTokenFormat('iqt_short')).toBe(false); // Too short
+      it('should reject invalid session format', () => {
+        expect(isValidSessionFormat('invalid')).toBe(false);
+        expect(isValidSessionFormat('abc_123456')).toBe(false);
+        expect(isValidSessionFormat('')).toBe(false);
+        expect(isValidSessionFormat('sess_short')).toBe(false); // Too short
+        expect(isValidSessionFormat('iqt_oldformat123456')).toBe(false); // Old format
       });
 
-      it('should identify mock tokens', () => {
-        expect(isMockToken('iqt_mock_dev_1234567890')).toBe(true);
-        expect(isMockToken('iqt_real_token_here')).toBe(false);
-      });
-    });
-
-    describe('mock token generation', () => {
-      it('should generate valid mock token', () => {
-        const token = generateMockToken('dev');
-
-        expect(token).toMatch(/^iqt_mock_dev_/);
-        expect(isValidTokenFormat(token)).toBe(true);
-        expect(isMockToken(token)).toBe(true);
-      });
-
-      it('should generate unique tokens', () => {
-        const token1 = generateMockToken('test');
-        const token2 = generateMockToken('test');
-
-        expect(token1).not.toBe(token2);
+      it('should identify mock sessions', () => {
+        expect(isMockSession('sess_mock_dev_12345678901234567890')).toBe(true);
+        expect(isMockSession('sess_real_session_here_1234567890')).toBe(false);
       });
     });
 
-    describe('token storage', () => {
-      it('should store and retrieve token', () => {
-        const token = 'iqt_test_token_123456';
-        setToken(token);
+    describe('mock session generation', () => {
+      it('should generate valid mock session', () => {
+        const session = generateMockSession('dev');
 
-        const retrieved = getToken();
-        expect(retrieved).toBe(token);
+        expect(session.sessionToken).toMatch(/^sess_mock_dev_/);
+        expect(isValidSessionFormat(session.sessionToken)).toBe(true);
+        expect(isMockSession(session.sessionToken)).toBe(true);
+        expect(session.user).toBeDefined();
+        expect(session.user.githubLogin).toBe('dev');
+        expect(session.expiresAt).toBeDefined();
       });
 
-      it('should clear stored token', () => {
-        setToken('iqt_test_token_123456');
-        clearToken();
+      it('should generate unique sessions', () => {
+        const session1 = generateMockSession('test');
+        const session2 = generateMockSession('test');
 
-        const retrieved = getToken();
+        expect(session1.sessionToken).not.toBe(session2.sessionToken);
+      });
+    });
+
+    describe('session storage', () => {
+      it('should store and retrieve session', () => {
+        const session = generateMockSession('test');
+        saveSession(session);
+
+        const retrieved = getSessionToken();
+        expect(retrieved).toBe(session.sessionToken);
+      });
+
+      it('should clear stored session', () => {
+        const session = generateMockSession('test');
+        saveSession(session);
+        clearSession();
+
+        const retrieved = getSessionToken();
         expect(retrieved).toBeUndefined();
       });
 
-      it('should return undefined when no token stored', () => {
-        clearToken();
-        const token = getToken();
+      it('should return undefined when no session stored', () => {
+        clearSession();
+        const token = getSessionToken();
         expect(token).toBeUndefined();
       });
     });
