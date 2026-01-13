@@ -3,6 +3,28 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, unlink
 import { join } from 'path';
 import { homedir } from 'os';
 import { parse, stringify } from 'yaml';
+import { z } from 'zod';
+
+/**
+ * Zod schema for profile validation to prevent untrusted YAML injection.
+ */
+const profileSchema = z.object({
+  name: z.string().min(1).max(64),
+  llm: z.object({
+    provider: z.enum(['openai', 'anthropic', 'ollama']),
+    model: z.string().optional(),
+  }),
+  interview: z.object({
+    maxQuestionsPerTool: z.number().positive().optional(),
+    personas: z.array(z.string()).optional(),
+    timeout: z.number().positive().optional(),
+    skipErrorTests: z.boolean().optional(),
+  }).optional().default({}),
+  output: z.object({
+    format: z.enum(['markdown', 'json', 'both']).optional(),
+    outputDir: z.string().optional(),
+  }).optional().default({}),
+});
 
 /**
  * Profile configuration structure.
@@ -28,6 +50,14 @@ interface Profile {
 const PROFILES_DIR = join(homedir(), '.bellwether', 'profiles');
 const CURRENT_PROFILE_FILE = join(homedir(), '.bellwether', 'current-profile');
 
+/**
+ * Validate profile name to prevent path traversal attacks.
+ * Only alphanumeric characters, hyphens, and underscores are allowed.
+ */
+function isValidProfileName(name: string): boolean {
+  return /^[a-zA-Z0-9_-]+$/.test(name) && name.length > 0 && name.length <= 64;
+}
+
 function ensureProfilesDir(): void {
   if (!existsSync(PROFILES_DIR)) {
     mkdirSync(PROFILES_DIR, { recursive: true });
@@ -35,6 +65,9 @@ function ensureProfilesDir(): void {
 }
 
 function getProfilePath(name: string): string {
+  if (!isValidProfileName(name)) {
+    throw new Error(`Invalid profile name: "${name}". Only alphanumeric characters, hyphens, and underscores are allowed.`);
+  }
   return join(PROFILES_DIR, `${name}.yaml`);
 }
 
@@ -276,17 +309,23 @@ export const profileCommand = new Command('profile')
         }
 
         const content = readFileSync(file, 'utf-8');
-        const profile = parse(content) as Profile;
+        const rawProfile = parse(content);
 
-        if (options.name) {
-          profile.name = options.name;
-        }
+        // Validate profile against schema to prevent malicious YAML
+        const parseResult = profileSchema.safeParse({
+          ...rawProfile,
+          name: options.name || rawProfile?.name,
+        });
 
-        if (!profile.name) {
-          console.error('Profile must have a name. Use --name to specify one.');
+        if (!parseResult.success) {
+          console.error('Invalid profile format:');
+          for (const issue of parseResult.error.issues) {
+            console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
+          }
           process.exit(1);
         }
 
+        const profile = parseResult.data as Profile;
         saveProfile(profile);
         console.log(`Profile '${profile.name}' imported.`);
       })

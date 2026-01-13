@@ -115,9 +115,20 @@ export const watchCommand = new Command('watch')
             // Run on-change command if specified
             if (options.onChange) {
               console.log(`\nRunning: ${options.onChange}`);
-              const { execSync } = await import('child_process');
+              const { spawnSync } = await import('child_process');
               try {
-                execSync(options.onChange, { stdio: 'inherit' });
+                // Parse command safely - split on spaces but respect quoted strings
+                const parts = options.onChange.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+                const cmd = parts[0];
+                const cmdArgs = parts.slice(1).map((arg: string) => arg.replace(/^"|"$/g, ''));
+                // Use spawnSync without shell to prevent command injection
+                const result = spawnSync(cmd, cmdArgs, { stdio: 'inherit' });
+                if (result.error) {
+                  throw result.error;
+                }
+                if (result.status !== 0) {
+                  console.error(`On-change command exited with code ${result.status}`);
+                }
               } catch (e) {
                 console.error('On-change command failed:', e instanceof Error ? e.message : e);
               }

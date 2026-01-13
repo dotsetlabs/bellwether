@@ -406,7 +406,8 @@ describe('profile command', () => {
         profileCommand.parseAsync(['node', 'test', 'import', importFile])
       ).rejects.toThrow('Process exit: 1');
 
-      expect(consoleErrors.some(line => line.includes('must have a name'))).toBe(true);
+      // Zod validation produces "name: Required" error message
+      expect(consoleErrors.some(line => line.includes('Invalid profile format') || line.includes('name'))).toBe(true);
     });
   });
 });

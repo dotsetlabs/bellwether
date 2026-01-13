@@ -63,10 +63,15 @@ describe('cli/cloud-commands', () => {
   });
 
   describe('login command - auth functions', () => {
+    // Valid test tokens: sess_ + 64 hex characters
+    const VALID_TOKEN = 'sess_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
     describe('session validation', () => {
       it('should validate correct session format', () => {
-        expect(isValidSessionFormat('sess_abcdef123456789012345678901234567890')).toBe(true);
-        expect(isValidSessionFormat('sess_mock_dev_1234567890abcdef1234567890')).toBe(true);
+        // Valid: sess_ + 64 hex chars
+        expect(isValidSessionFormat(VALID_TOKEN)).toBe(true);
+        // Mock sessions are also valid
+        expect(isValidSessionFormat('sess_mock_dev_0123456789abcdef')).toBe(true);
       });
 
       it('should reject invalid session format', () => {
@@ -75,11 +80,13 @@ describe('cli/cloud-commands', () => {
         expect(isValidSessionFormat('')).toBe(false);
         expect(isValidSessionFormat('sess_short')).toBe(false); // Too short
         expect(isValidSessionFormat('iqt_oldformat123456')).toBe(false); // Old format
+        // Wrong length (not 64 hex chars)
+        expect(isValidSessionFormat('sess_abcdef123456789012345678901234567890')).toBe(false);
       });
 
       it('should identify mock sessions', () => {
-        expect(isMockSession('sess_mock_dev_12345678901234567890')).toBe(true);
-        expect(isMockSession('sess_real_session_here_1234567890')).toBe(false);
+        expect(isMockSession('sess_mock_dev_0123456789abcdef')).toBe(true);
+        expect(isMockSession(VALID_TOKEN)).toBe(false);
       });
     });
 
