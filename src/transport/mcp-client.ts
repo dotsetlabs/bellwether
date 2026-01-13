@@ -15,6 +15,23 @@ import type {
 import { getLogger, startTiming } from '../logging/logger.js';
 import { TIMEOUTS } from '../constants.js';
 
+/**
+ * Environment variables to filter out when spawning MCP server processes.
+ * These may contain sensitive credentials that should not be exposed.
+ */
+const FILTERED_ENV_VARS = new Set([
+  'OPENAI_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'BELLWETHER_SESSION',
+  'AWS_SECRET_ACCESS_KEY',
+  'AWS_SESSION_TOKEN',
+  'GITHUB_TOKEN',
+  'GH_TOKEN',
+  'NPM_TOKEN',
+  'DATABASE_URL',
+  'COOKIE_SECRET',
+]);
+
 export interface MCPClientOptions {
   /** Request timeout in milliseconds (default: 30000) */
   timeout?: number;
@@ -65,6 +82,27 @@ export class MCPClient {
   }
 
   /**
+   * Filter sensitive environment variables before passing to subprocess.
+   */
+  private filterEnv(baseEnv: NodeJS.ProcessEnv, additionalEnv?: Record<string, string>): Record<string, string> {
+    const filtered: Record<string, string> = {};
+
+    // Copy process.env, filtering out sensitive variables
+    for (const [key, value] of Object.entries(baseEnv)) {
+      if (value !== undefined && !FILTERED_ENV_VARS.has(key)) {
+        filtered[key] = value;
+      }
+    }
+
+    // Add additional env vars (these are explicitly provided, so allow them)
+    if (additionalEnv) {
+      Object.assign(filtered, additionalEnv);
+    }
+
+    return filtered;
+  }
+
+  /**
    * Connect to an MCP server by spawning it as a subprocess.
    */
   async connect(
@@ -74,9 +112,12 @@ export class MCPClient {
   ): Promise<void> {
     this.logger.info({ command, args: args.length }, 'Connecting to MCP server');
 
+    // Filter out sensitive environment variables before spawning subprocess
+    const filteredEnv = this.filterEnv(process.env, env);
+
     this.process = spawn(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, ...env },
+      env: filteredEnv,
     });
 
     if (!this.process.stdout || !this.process.stdin) {

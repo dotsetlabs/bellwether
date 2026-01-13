@@ -3,7 +3,7 @@
  */
 
 import { Command } from 'commander';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { platform } from 'os';
 import {
   getStoredSession,
@@ -202,26 +202,32 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Open URL in default browser.
+ * Uses execFile to prevent command injection via malicious URLs.
  */
 async function openBrowser(url: string): Promise<void> {
   const plat = platform();
   let command: string;
+  let args: string[];
 
   switch (plat) {
     case 'darwin':
-      command = `open "${url}"`;
+      command = 'open';
+      args = [url];
       break;
     case 'win32':
-      command = `start "" "${url}"`;
+      command = 'cmd';
+      args = ['/c', 'start', '', url];
       break;
     default:
       // Linux and others
-      command = `xdg-open "${url}"`;
+      command = 'xdg-open';
+      args = [url];
       break;
   }
 
   return new Promise((resolve) => {
-    exec(command, (error) => {
+    // Use execFile instead of exec to prevent shell injection
+    execFile(command, args, (error) => {
       if (error) {
         // Silently fail - user can open URL manually
         console.log('(Could not open browser automatically)');

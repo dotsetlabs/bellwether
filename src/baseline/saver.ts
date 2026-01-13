@@ -4,6 +4,7 @@
 
 import { createHash } from 'crypto';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { z } from 'zod';
 import type { InterviewResult, ToolProfile } from '../interview/types.js';
 import type {
   BehavioralBaseline,
@@ -12,6 +13,66 @@ import type {
   BehavioralAssertion,
   WorkflowSignature,
 } from './types.js';
+
+/**
+ * Zod schema for behavioral assertion validation.
+ */
+const behavioralAssertionSchema = z.object({
+  tool: z.string(),
+  aspect: z.enum(['response_format', 'error_handling', 'security', 'performance', 'schema', 'description']),
+  assertion: z.string(),
+  evidence: z.string().optional(),
+  isPositive: z.boolean(),
+});
+
+/**
+ * Zod schema for tool fingerprint validation.
+ */
+const toolFingerprintSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  schemaHash: z.string(),
+  assertions: z.array(behavioralAssertionSchema),
+  securityNotes: z.array(z.string()),
+  limitations: z.array(z.string()),
+});
+
+/**
+ * Zod schema for server fingerprint validation.
+ */
+const serverFingerprintSchema = z.object({
+  name: z.string(),
+  version: z.string(),
+  protocolVersion: z.string(),
+  capabilities: z.array(z.string()),
+});
+
+/**
+ * Zod schema for workflow signature validation.
+ */
+const workflowSignatureSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  toolSequence: z.array(z.string()),
+  succeeded: z.boolean(),
+  summary: z.string().optional(),
+});
+
+/**
+ * Zod schema for baseline validation.
+ * Validates untrusted JSON to prevent injection attacks.
+ */
+const baselineSchema = z.object({
+  version: z.number().int().positive(),
+  createdAt: z.string().or(z.date()),
+  serverCommand: z.string(),
+  server: serverFingerprintSchema,
+  tools: z.array(toolFingerprintSchema),
+  summary: z.string(),
+  assertions: z.array(behavioralAssertionSchema),
+  workflowSignatures: z.array(workflowSignatureSchema).optional(),
+  integrityHash: z.string(),
+});
 
 /**
  * Current baseline format version.
@@ -60,6 +121,7 @@ export function saveBaseline(baseline: BehavioralBaseline, path: string): void {
 
 /**
  * Load baseline from a file.
+ * Validates against Zod schema to prevent malicious JSON injection.
  */
 export function loadBaseline(path: string): BehavioralBaseline {
   if (!existsSync(path)) {
@@ -67,7 +129,27 @@ export function loadBaseline(path: string): BehavioralBaseline {
   }
 
   const content = readFileSync(path, 'utf-8');
-  const baseline = JSON.parse(content) as BehavioralBaseline;
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(content);
+  } catch (error) {
+    throw new Error(
+      `Invalid JSON in baseline file ${path}: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+
+  // Validate against schema to prevent malicious JSON
+  const result = baselineSchema.safeParse(parsed);
+  if (!result.success) {
+    const issues = result.error.issues.map((issue) => {
+      const fieldPath = issue.path.join('.');
+      return `  - ${fieldPath}: ${issue.message}`;
+    });
+    throw new Error(`Invalid baseline format in ${path}:\n${issues.join('\n')}`);
+  }
+
+  const baseline = result.data as BehavioralBaseline;
 
   // Restore Date objects
   baseline.createdAt = new Date(baseline.createdAt);

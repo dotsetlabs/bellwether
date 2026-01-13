@@ -170,6 +170,16 @@ function loadConfigFile(path: string): BellwetherConfig {
     return getDefaultConfig();
   }
 
+  // SECURITY WARNING: Check for API keys stored directly in config file
+  const rawConfig = parsed as Record<string, unknown>;
+  const llmConfig = rawConfig.llm as Record<string, unknown> | undefined;
+  if (llmConfig?.apiKey) {
+    console.warn('\n⚠️  SECURITY WARNING: API key found in config file.');
+    console.warn('   Storing API keys in config files is not recommended.');
+    console.warn('   Use apiKeyEnvVar to specify an environment variable instead.');
+    console.warn('   Example: apiKeyEnvVar: OPENAI_API_KEY\n');
+  }
+
   // Merge with defaults first
   const defaults = getDefaultConfig();
   const merged = mergeConfig(defaults, parsed as Partial<BellwetherConfig>);
