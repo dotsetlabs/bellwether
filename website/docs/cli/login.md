@@ -15,7 +15,7 @@ bellwether login [options]
 
 ## Description
 
-The `login` command authenticates you with Bellwether Cloud, enabling baseline syncing, history tracking, and team collaboration features.
+The `login` command authenticates you with Bellwether Cloud, enabling baseline syncing and history tracking.
 
 ## Options
 
@@ -52,7 +52,7 @@ bellwether login --status
 Output:
 ```
 Logged in as: user@example.com
-Organization: My Team
+Plan: pro
 Token expires: 2026-02-12
 ```
 

@@ -66,7 +66,7 @@ After linking, you can:
 - **Upload baselines** with `bellwether upload`
 - **View history** with `bellwether history`
 - **Get verification badges** for your README
-- **Track drift** across your team
+- **Track drift** over time
 
 ## Verification Badge
 

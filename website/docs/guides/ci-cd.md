@@ -207,7 +207,7 @@ jobs:
 
 ## Cloud Integration
 
-Sync with Bellwether Cloud for history and team visibility:
+Sync with Bellwether Cloud for history and drift tracking:
 
 ```yaml
 - name: Upload to Cloud

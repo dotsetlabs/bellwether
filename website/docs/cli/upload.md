@@ -15,7 +15,7 @@ bellwether upload [options]
 
 ## Description
 
-The `upload` command uploads your local baseline to Bellwether Cloud, enabling historical tracking, team collaboration, and CI/CD drift detection.
+The `upload` command uploads your local baseline to Bellwether Cloud, enabling historical tracking and CI/CD drift detection.
 
 ## Options
 
