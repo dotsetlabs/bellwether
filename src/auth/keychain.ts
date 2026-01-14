@@ -9,6 +9,8 @@
  * Gracefully degrades if keychain is unavailable (e.g., CI environments).
  */
 
+import { homedir } from 'os';
+import { join } from 'path';
 import type { LLMProviderId } from '../llm/client.js';
 
 // Service name for keychain entries
@@ -93,9 +95,7 @@ class FileBackend implements KeychainBackend {
   private credentials: Record<string, Record<string, string>> | null = null;
 
   constructor() {
-    const os = require('os');
-    const path = require('path');
-    this.credentialsPath = path.join(os.homedir(), '.bellwether', 'credentials.json');
+    this.credentialsPath = join(homedir(), '.bellwether', 'credentials.json');
   }
 
   private async load(): Promise<Record<string, Record<string, string>>> {
