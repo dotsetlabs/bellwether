@@ -12,7 +12,8 @@ const llmConfigSchema = z.object({
   provider: z.enum(['openai', 'anthropic', 'ollama']),
   model: z.string().min(1),
   apiKeyEnvVar: z.string().optional(),
-  apiKey: z.string().optional(),
+  // Note: apiKey is intentionally NOT allowed in config files for security
+  // Users must use apiKeyEnvVar to reference environment variables
   baseUrl: z.string().url().optional(),
 });
 
@@ -54,9 +55,13 @@ export interface LLMConfigSection {
   provider: LLMProviderId;
   /** Model to use (provider-specific) */
   model: string;
-  /** Environment variable containing API key */
+  /** Environment variable containing API key (recommended) */
   apiKeyEnvVar?: string;
-  /** Direct API key (not recommended in config files) */
+  /**
+   * Direct API key - NOT ALLOWED in config files for security.
+   * This field is only used for programmatic API calls.
+   * For config files, use apiKeyEnvVar to reference environment variables.
+   */
   apiKey?: string;
   /** Base URL for API (for proxies/self-hosted) */
   baseUrl?: string;
@@ -166,14 +171,21 @@ function loadConfigFile(path: string): BellwetherConfig {
     return getDefaultConfig();
   }
 
-  // SECURITY WARNING: Check for API keys stored directly in config file
+  // SECURITY: Reject API keys stored directly in config files
   const rawConfig = parsed as Record<string, unknown>;
   const llmConfig = rawConfig.llm as Record<string, unknown> | undefined;
   if (llmConfig?.apiKey) {
-    console.warn('\n⚠️  SECURITY WARNING: API key found in config file.');
-    console.warn('   Storing API keys in config files is not recommended.');
-    console.warn('   Use apiKeyEnvVar to specify an environment variable instead.');
-    console.warn('   Example: apiKeyEnvVar: OPENAI_API_KEY\n');
+    throw new Error(
+      `Security Error: API key found in config file "${path}".\n` +
+      `Storing API keys in config files is a security risk.\n` +
+      `Please use apiKeyEnvVar instead to reference an environment variable.\n\n` +
+      `Example:\n` +
+      `  llm:\n` +
+      `    provider: openai\n` +
+      `    apiKeyEnvVar: OPENAI_API_KEY  # References $OPENAI_API_KEY\n\n` +
+      `Remove the 'apiKey' field from your config file and set the API key\n` +
+      `as an environment variable instead.`
+    );
   }
 
   // Merge with defaults first

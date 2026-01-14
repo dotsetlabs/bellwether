@@ -536,21 +536,52 @@ export class Orchestrator {
 
   /**
    * Generate a sensible default string value for a prompt argument.
+   * Values are designed to be realistic and context-appropriate.
    */
   private generateDefaultStringValue(argName: string): string {
     const lowerName = argName.toLowerCase();
-    if (lowerName.includes('name')) return 'test-name';
-    if (lowerName.includes('title')) return 'Test Title';
-    if (lowerName.includes('description')) return 'A test description';
-    if (lowerName.includes('content')) return 'Test content';
-    if (lowerName.includes('text')) return 'Sample text';
-    if (lowerName.includes('query')) return 'test query';
-    if (lowerName.includes('url')) return 'https://example.com';
-    if (lowerName.includes('path')) return '/tmp/test';
-    if (lowerName.includes('id')) return '12345';
-    if (lowerName.includes('code')) return 'console.log("hello")';
-    if (lowerName.includes('language')) return 'javascript';
-    return 'test-value';
+
+    // Names and identifiers
+    if (lowerName.includes('name')) return 'example-resource';
+    if (lowerName.includes('title')) return 'Example Document Title';
+    if (lowerName.includes('id')) return 'res_12345';
+
+    // Content and text
+    if (lowerName.includes('description')) return 'A brief description of the resource for documentation purposes.';
+    if (lowerName.includes('content')) return 'This is sample content for testing. It includes multiple sentences to simulate realistic input.';
+    if (lowerName.includes('text')) return 'Sample text content for processing.';
+    if (lowerName.includes('message')) return 'Hello, this is a test message.';
+    if (lowerName.includes('comment')) return 'This is a code review comment.';
+
+    // Code-related
+    if (lowerName.includes('code') || lowerName.includes('snippet')) {
+      return 'function example() {\n  return "Hello, World!";\n}';
+    }
+    if (lowerName.includes('language') || lowerName.includes('lang')) return 'javascript';
+    if (lowerName.includes('syntax')) return 'typescript';
+
+    // Queries and search
+    if (lowerName.includes('query') || lowerName.includes('search')) return 'how to implement authentication';
+    if (lowerName.includes('keyword')) return 'authentication';
+    if (lowerName.includes('filter')) return 'status:active';
+
+    // URLs and paths
+    if (lowerName.includes('url') || lowerName.includes('link')) return 'https://example.com/api/v1/resource';
+    if (lowerName.includes('path') || lowerName.includes('file')) {
+      const baseDir = this.serverContext?.allowedDirectories?.[0] ?? '/tmp';
+      return `${baseDir}/example.txt`;
+    }
+
+    // Dates and times
+    if (lowerName.includes('date')) return new Date().toISOString().split('T')[0];
+    if (lowerName.includes('time')) return new Date().toISOString();
+
+    // Formats
+    if (lowerName.includes('format')) return 'json';
+    if (lowerName.includes('type')) return 'document';
+
+    // Default fallback
+    return 'example-value';
   }
 
   // ===========================================================================

@@ -31,7 +31,7 @@
     "openai",
     "anthropic"
   ],
-  "author": "Dotset Labs <hello@dotsetlabs.com>",
+  "author": "Dotset Labs LLC <hello@dotsetlabs.com>",
   "license": "MIT",
   "repository": {
     "type": "git",

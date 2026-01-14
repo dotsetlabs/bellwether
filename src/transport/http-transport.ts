@@ -179,8 +179,11 @@ export class HTTPTransport extends BaseTransport {
             try {
               const message = JSON.parse(data) as JSONRPCMessage;
               this.emit('message', message);
-            } catch {
-              this.log('Failed to parse streaming message:', data);
+            } catch (error) {
+              // Log streaming parse errors for visibility
+              const preview = data.length > 100 ? data.substring(0, 100) + '...' : data;
+              console.warn(`[HTTP Transport] Failed to parse SSE message: ${preview}`);
+              this.log('Parse error:', error instanceof Error ? error.message : error);
             }
           } else {
             // Try to parse as direct JSON
@@ -188,7 +191,8 @@ export class HTTPTransport extends BaseTransport {
               const message = JSON.parse(trimmedLine) as JSONRPCMessage;
               this.emit('message', message);
             } catch {
-              // Not JSON, ignore
+              // Not JSON - this is common for non-JSON lines in streams, log only in debug
+              this.log('Skipping non-JSON line:', trimmedLine.substring(0, 50));
             }
           }
         }
