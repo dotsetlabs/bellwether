@@ -66,7 +66,7 @@ export function evaluateAssertion(
               : undefined,
         };
 
-      case 'equals':
+      case 'equals': {
         const isEqual = JSON.stringify(actualValue) === JSON.stringify(assertion.value);
         return {
           assertion,
@@ -77,8 +77,9 @@ export function evaluateAssertion(
             : assertion.message ??
               `Expected ${JSON.stringify(actualValue)} to equal ${JSON.stringify(assertion.value)}`,
         };
+      }
 
-      case 'contains':
+      case 'contains': {
         let containsValue = false;
         if (typeof actualValue === 'string' && typeof assertion.value === 'string') {
           containsValue = actualValue.includes(assertion.value);
@@ -96,8 +97,9 @@ export function evaluateAssertion(
             : assertion.message ??
               `Expected ${JSON.stringify(actualValue)} to contain ${JSON.stringify(assertion.value)}`,
         };
+      }
 
-      case 'truthy':
+      case 'truthy': {
         const isTruthy = Boolean(actualValue);
         return {
           assertion,
@@ -107,8 +109,9 @@ export function evaluateAssertion(
             ? undefined
             : assertion.message ?? `Expected path "${assertion.path}" to be truthy`,
         };
+      }
 
-      case 'type':
+      case 'type': {
         let actualType: string;
         if (Array.isArray(actualValue)) {
           actualType = 'array';
@@ -127,6 +130,7 @@ export function evaluateAssertion(
             : assertion.message ??
               `Expected type "${assertion.value}" but got "${actualType}"`,
         };
+      }
 
       case 'not_error':
         return {
