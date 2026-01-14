@@ -1,7 +1,18 @@
 #!/usr/bin/env node
 
 import { config } from 'dotenv';
-config(); // Load .env file before anything else
+import { existsSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
+
+// Load global ~/.bellwether/.env first (if exists)
+const globalEnvPath = join(homedir(), '.bellwether', '.env');
+if (existsSync(globalEnvPath)) {
+  config({ path: globalEnvPath });
+}
+
+// Then load project .env (overrides global settings)
+config();
 
 import { Command } from 'commander';
 import { interviewCommand } from './commands/interview.js';
