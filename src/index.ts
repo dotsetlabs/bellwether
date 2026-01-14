@@ -6,7 +6,10 @@
 
 // Transport layer
 export { MCPClient, type MCPClientOptions } from './transport/mcp-client.js';
-export { StdioTransport, type TransportConfig } from './transport/stdio-transport.js';
+export { BaseTransport, type BaseTransportConfig, type TransportType } from './transport/base-transport.js';
+export { StdioTransport, type StdioTransportConfig, type TransportConfig } from './transport/stdio-transport.js';
+export { SSETransport, type SSETransportConfig } from './transport/sse-transport.js';
+export { HTTPTransport, type HTTPTransportConfig } from './transport/http-transport.js';
 export type {
   JSONRPCRequest,
   JSONRPCResponse,
@@ -60,3 +63,24 @@ export {
   isLevelEnabled,
 } from './logging/logger.js';
 export type { LogLevel, LoggerConfig, Logger, TimingResult } from './logging/logger.js';
+
+// Scenarios
+export {
+  loadScenariosFromFile,
+  tryLoadDefaultScenarios,
+  generateSampleScenariosYaml,
+  DEFAULT_SCENARIOS_FILE,
+  evaluateAssertion,
+  evaluateAssertions,
+  getValueAtPath,
+  formatAssertionResults,
+} from './scenarios/index.js';
+export type {
+  TestScenario,
+  PromptScenario,
+  ScenarioAssertion,
+  AssertionCondition,
+  LoadedScenarios,
+  AssertionResult,
+  ScenarioResult,
+} from './scenarios/index.js';

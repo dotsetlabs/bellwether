@@ -1,22 +1,25 @@
-import { EventEmitter } from 'events';
 import type { Readable, Writable } from 'stream';
 import type { JSONRPCMessage } from './types.js';
+import { BaseTransport, type BaseTransportConfig } from './base-transport.js';
 
 /**
  * Configuration for StdioTransport.
  */
-export interface TransportConfig {
+export interface StdioTransportConfig extends BaseTransportConfig {
   /** Maximum message size in bytes (default: 10MB) */
   maxMessageSize?: number;
   /** Maximum buffer size in bytes (default: 20MB) */
   maxBufferSize?: number;
   /** Maximum header size in bytes (default: 8KB) */
   maxHeaderSize?: number;
-  /** Enable debug logging of raw data */
-  debug?: boolean;
   /** Use newline-delimited JSON instead of Content-Length framing */
   useNewlineDelimited?: boolean;
 }
+
+/**
+ * @deprecated Use StdioTransportConfig instead
+ */
+export type TransportConfig = StdioTransportConfig;
 
 const DEFAULT_MAX_MESSAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const DEFAULT_MAX_BUFFER_SIZE = 20 * 1024 * 1024;  // 20MB
@@ -28,27 +31,33 @@ const DEFAULT_MAX_HEADER_SIZE = 8 * 1024;           // 8KB
  *
  * Adapted from Overwatch's MCPTransport for client-side usage.
  */
-export class StdioTransport extends EventEmitter {
+export class StdioTransport extends BaseTransport {
   private buffer = '';
   private contentLength: number | null = null;
   private readonly maxMessageSize: number;
   private readonly maxBufferSize: number;
   private readonly maxHeaderSize: number;
-  private readonly debug: boolean;
   private readonly useNewlineDelimited: boolean;
+  private connected = true;
 
   constructor(
     private input: Readable,
     private output: Writable,
-    config?: TransportConfig
+    config?: StdioTransportConfig
   ) {
-    super();
+    super(config);
     this.maxMessageSize = config?.maxMessageSize ?? DEFAULT_MAX_MESSAGE_SIZE;
     this.maxBufferSize = config?.maxBufferSize ?? DEFAULT_MAX_BUFFER_SIZE;
     this.maxHeaderSize = config?.maxHeaderSize ?? DEFAULT_MAX_HEADER_SIZE;
-    this.debug = config?.debug ?? false;
     this.useNewlineDelimited = config?.useNewlineDelimited ?? true; // Default to newline-delimited
     this.setupInputHandler();
+  }
+
+  /**
+   * Check if the transport is connected.
+   */
+  isConnected(): boolean {
+    return this.connected;
   }
 
   private setupInputHandler(): void {
@@ -218,6 +227,7 @@ export class StdioTransport extends EventEmitter {
   }
 
   close(): void {
+    this.connected = false;
     this.input.removeAllListeners();
     this.removeAllListeners();
   }

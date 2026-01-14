@@ -40,6 +40,12 @@ import {
   noviceUserPersona,
 } from '../../persona/builtins.js';
 import type { Persona } from '../../persona/types.js';
+import {
+  loadScenariosFromFile,
+  tryLoadDefaultScenarios,
+  generateSampleScenariosYaml,
+  DEFAULT_SCENARIOS_FILE,
+} from '../../scenarios/index.js';
 
 /**
  * Map of persona names to persona objects.
@@ -174,7 +180,23 @@ export const interviewCommand = new Command('interview')
   .option('-p, --preset <name>', 'Use a preset configuration: docs, security, thorough, ci')
   .option('--personas <list>', 'Comma-separated persona list: technical,security,qa,novice,all', 'technical')
   .option('--security', 'Include security testing persona (shorthand for --personas technical,security)')
+  .option('--transport <type>', 'Transport type: stdio, sse, streamable-http', 'stdio')
+  .option('--url <url>', 'URL for remote MCP server (requires --transport sse or streamable-http)')
+  .option('--session-id <id>', 'Session ID for remote server authentication')
+  .option('--scenarios <path>', 'Path to custom test scenarios YAML file')
+  .option('--scenarios-only', 'Only run custom scenarios (skip LLM-generated questions)')
+  .option('--init-scenarios', 'Generate a sample bellwether-tests.yaml file and exit')
   .action(async (command: string | undefined, args: string[], options) => {
+    // Handle --init-scenarios: generate sample file and exit
+    if (options.initScenarios) {
+      const outputPath = options.scenarios ?? DEFAULT_SCENARIOS_FILE;
+      const content = generateSampleScenariosYaml();
+      writeFileSync(outputPath, content);
+      console.log(`Generated sample scenarios file: ${outputPath}`);
+      console.log('\nEdit this file to add custom test scenarios for your MCP server.');
+      console.log('Then run: bellwether interview <command> --scenarios ' + outputPath);
+      return;
+    }
     // Load configuration
     const config = loadConfig(options.config);
 
@@ -278,11 +300,29 @@ export const interviewCommand = new Command('interview')
     console.log(banner);
     console.log('');
 
+    // Validate transport options
+    const transportType = options.transport as 'stdio' | 'sse' | 'streamable-http';
+    const isRemoteTransport = transportType === 'sse' || transportType === 'streamable-http';
+
+    if (isRemoteTransport && !options.url) {
+      console.error(`Error: --url is required when using --transport ${transportType}`);
+      process.exit(1);
+    }
+
+    if (options.url && !isRemoteTransport) {
+      console.error('Error: --url requires --transport sse or --transport streamable-http');
+      process.exit(1);
+    }
+
     // Initialize cost tracker for real usage tracking
     const costTracker = new CostTracker(model);
 
     // Initialize clients
-    const mcpClient = new MCPClient({ timeout, debug: options.debug });
+    const mcpClient = new MCPClient({
+      timeout,
+      debug: options.debug,
+      transport: transportType,
+    });
     let llmClient: LLMClient;
 
     try {
@@ -310,8 +350,16 @@ export const interviewCommand = new Command('interview')
 
     try {
       // Connect to MCP server
-      console.log('Connecting to MCP server...');
-      await mcpClient.connect(command, args);
+      if (isRemoteTransport) {
+        console.log(`Connecting to remote MCP server via ${transportType}...`);
+        await mcpClient.connectRemote(options.url, {
+          transport: transportType,
+          sessionId: options.sessionId,
+        });
+      } else {
+        console.log('Connecting to MCP server...');
+        await mcpClient.connect(command, args);
+      }
 
       // Discovery phase
       console.log('Discovering capabilities...');
@@ -336,6 +384,25 @@ export const interviewCommand = new Command('interview')
         console.log('');
       }
 
+      // Load custom scenarios if provided
+      let customScenarios: ReturnType<typeof loadScenariosFromFile> | undefined;
+      if (options.scenarios) {
+        try {
+          customScenarios = loadScenariosFromFile(options.scenarios);
+          console.log(`Loaded ${customScenarios.toolScenarios.length} tool scenarios, ${customScenarios.promptScenarios.length} prompt scenarios from ${options.scenarios}`);
+        } catch (error) {
+          console.error(`Failed to load scenarios: ${error instanceof Error ? error.message : error}`);
+          process.exit(1);
+        }
+      } else {
+        // Try loading default scenarios file from output directory
+        const defaultScenarios = tryLoadDefaultScenarios(outputDir);
+        if (defaultScenarios) {
+          customScenarios = defaultScenarios;
+          console.log(`Auto-loaded ${customScenarios.toolScenarios.length} tool scenarios from ${DEFAULT_SCENARIOS_FILE}`);
+        }
+      }
+
       // Interview phase
       const interviewer = new Interviewer(llmClient, {
         maxQuestionsPerTool: maxQuestions,
@@ -343,6 +410,8 @@ export const interviewCommand = new Command('interview')
         skipErrorTests: config.interview.skipErrorTests ?? false,
         model,
         personas: selectedPersonas,
+        customScenarios,
+        customScenariosOnly: options.scenariosOnly,
       });
 
       // Extract server context from command line arguments
@@ -411,6 +480,30 @@ export const interviewCommand = new Command('interview')
       console.log('\nInterview complete!');
       console.log(`Duration: ${(result.metadata.durationMs / 1000).toFixed(1)}s`);
       console.log(`Tool calls: ${result.metadata.toolCallCount} (${result.metadata.errorCount} errors)`);
+
+      // Display scenario results summary if scenarios were run
+      if (result.scenarioResults && result.scenarioResults.length > 0) {
+        const passed = result.scenarioResults.filter(r => r.passed).length;
+        const failed = result.scenarioResults.length - passed;
+        const statusIcon = failed === 0 ? '\u2713' : '\u2717';
+        console.log(`\nCustom scenarios: ${passed}/${result.scenarioResults.length} passed ${statusIcon}`);
+
+        // Show failed scenarios
+        if (failed > 0) {
+          console.log('\nFailed scenarios:');
+          for (const scenarioResult of result.scenarioResults.filter(r => !r.passed)) {
+            const scenario = scenarioResult.scenario;
+            const toolOrPrompt = 'tool' in scenario ? scenario.tool : scenario.prompt;
+            console.log(`  - ${toolOrPrompt}: ${scenario.description}`);
+            if (scenarioResult.error) {
+              console.log(`    Error: ${scenarioResult.error}`);
+            }
+            for (const assertion of scenarioResult.assertionResults.filter(a => !a.passed)) {
+              console.log(`    Assertion failed: ${assertion.error}`);
+            }
+          }
+        }
+      }
 
       // Show cost summary if requested (uses real token counts from API responses)
       if (options.showCost || options.estimateCost) {

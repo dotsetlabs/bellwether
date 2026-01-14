@@ -62,6 +62,8 @@ You'll see comprehensive documentation of what the server actually does, includi
 - Error handling patterns
 - Limitations and edge cases
 - Security considerations
+- Quick reference with tool signatures
+- Performance metrics (response times, error rates)
 
 ## What's Next?
 
@@ -101,6 +103,30 @@ Test with all personas for comprehensive coverage:
 
 ```bash
 bellwether interview --preset thorough npx your-server
+```
+
+### Custom Test Scenarios (No LLM Required)
+
+Run deterministic tests without LLM costs:
+
+```bash
+# Generate a sample scenarios file
+bellwether interview --init-scenarios
+
+# Run only custom scenarios (fast, no API costs)
+bellwether interview --scenarios-only npx your-server
+```
+
+### Remote MCP Servers
+
+Test remote MCP servers over HTTP:
+
+```bash
+# Via SSE transport
+bellwether interview --transport sse --url https://api.example.com/mcp npx placeholder
+
+# Via Streamable HTTP
+bellwether interview --transport streamable-http --url https://api.example.com/mcp npx placeholder
 ```
 
 ### Customize Configuration
@@ -208,6 +234,18 @@ Reads the contents of a file from the specified path.
 **Security Considerations:**
 - Path traversal attempts (../) are normalized within root
 - Does not expose absolute paths in error messages
+
+## Quick Reference
+
+| Tool | Signature |
+|------|-----------|
+| read_file | `read_file(path)` |
+
+## Performance
+
+| Tool | Calls | Avg | P95 | Max | Errors |
+|------|-------|-----|-----|-----|--------|
+| read_file | 5 | 45ms | 120ms | 150ms | 0% |
 ```
 
 ## Next Steps
@@ -216,3 +254,5 @@ Reads the contents of a file from the specified path.
 - [Personas](/concepts/personas) - Understanding testing personas
 - [Drift Detection](/concepts/drift-detection) - Set up behavioral regression testing
 - [CI/CD Integration](/guides/ci-cd) - Automate with GitHub Actions, GitLab CI, etc.
+- [Custom Scenarios](/guides/custom-scenarios) - Define deterministic YAML test scenarios
+- [Remote Servers](/guides/remote-servers) - Test MCP servers over HTTP

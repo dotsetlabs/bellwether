@@ -24,6 +24,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'cli/interview',
         'cli/discover',
+        'cli/badge',
         'cli/init',
         'cli/profile',
         'cli/watch',
@@ -60,6 +61,8 @@ const sidebars: SidebarsConfig = {
         'guides/configuration',
         'guides/cloud-integration',
         'guides/custom-personas',
+        'guides/custom-scenarios',
+        'guides/remote-servers',
         'guides/workflow-authoring',
       ],
     },

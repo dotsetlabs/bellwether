@@ -49,8 +49,10 @@ bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 
 ## Features
 
-- **AGENTS.md Generation** - Human-readable behavioral documentation
+- **AGENTS.md Generation** - Human-readable behavioral documentation with performance metrics
 - **Multi-Provider LLM** - OpenAI, Anthropic Claude, or Ollama (local/free)
+- **Remote MCP Servers** - Connect via SSE or Streamable HTTP transports
+- **Custom Test Scenarios** - Define YAML test cases alongside LLM-generated ones
 - **Drift Detection** - Compare baselines to detect behavioral changes
 - **Multiple Output Formats** - Markdown, JSON, JUnit, SARIF
 - **CI/CD Integration** - GitHub Actions, GitLab CI, and more

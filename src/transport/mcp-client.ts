@@ -1,5 +1,8 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { StdioTransport } from './stdio-transport.js';
+import { SSETransport, type SSETransportConfig } from './sse-transport.js';
+import { HTTPTransport, type HTTPTransportConfig } from './http-transport.js';
+import { type BaseTransport, type TransportType } from './base-transport.js';
 import type {
   JSONRPCMessage,
   JSONRPCRequest,
@@ -42,6 +45,12 @@ export interface MCPClientOptions {
   startupDelay?: number;
   /** Enable debug logging */
   debug?: boolean;
+  /** Transport type to use (default: stdio) */
+  transport?: TransportType;
+  /** Configuration for SSE transport */
+  sseConfig?: Omit<SSETransportConfig, 'debug'>;
+  /** Configuration for HTTP transport */
+  httpConfig?: Omit<HTTPTransportConfig, 'debug'>;
 }
 
 interface PendingRequest {
@@ -54,12 +63,17 @@ const DEFAULT_TIMEOUT = TIMEOUTS.DEFAULT;
 const DEFAULT_STARTUP_DELAY = TIMEOUTS.SERVER_STARTUP;
 
 /**
- * MCPClient connects to an MCP server via stdio and provides
+ * MCPClient connects to an MCP server via various transports and provides
  * methods to interact with the server's capabilities.
+ *
+ * Supported transports:
+ * - stdio: Local subprocess communication (default)
+ * - sse: Server-Sent Events for remote servers
+ * - streamable-http: HTTP POST with streaming responses
  */
 export class MCPClient {
   private process: ChildProcess | null = null;
-  private transport: StdioTransport | null = null;
+  private transport: BaseTransport | null = null;
   private requestId = 0;
   private pendingRequests = new Map<string | number, PendingRequest>();
   private serverCapabilities: MCPServerCapabilities | null = null;
@@ -68,12 +82,25 @@ export class MCPClient {
   private serverReady = false;
   private readyPromise: Promise<void> | null = null;
   private debug: boolean;
+  private transportType: TransportType;
+  private sseConfig?: Omit<SSETransportConfig, 'debug'>;
+  private httpConfig?: Omit<HTTPTransportConfig, 'debug'>;
   private logger = getLogger('mcp-client');
 
   constructor(options?: MCPClientOptions) {
     this.timeout = options?.timeout ?? DEFAULT_TIMEOUT;
     this.startupDelay = options?.startupDelay ?? DEFAULT_STARTUP_DELAY;
     this.debug = options?.debug ?? false;
+    this.transportType = options?.transport ?? 'stdio';
+    this.sseConfig = options?.sseConfig;
+    this.httpConfig = options?.httpConfig;
+  }
+
+  /**
+   * Get the current transport type.
+   */
+  getTransportType(): TransportType {
+    return this.transportType;
   }
 
   private log(...args: unknown[]): void {
@@ -172,6 +199,80 @@ export class MCPClient {
     // Wait for server to be ready (either stderr output or startup delay)
     this.readyPromise = this.waitForReady();
     this.logger.debug('Server ready, connection established');
+  }
+
+  /**
+   * Connect to a remote MCP server via SSE or HTTP.
+   *
+   * @param url - The base URL of the MCP server
+   * @param options - Optional configuration overrides
+   */
+  async connectRemote(
+    url: string,
+    options?: {
+      transport?: 'sse' | 'streamable-http';
+      sessionId?: string;
+      headers?: Record<string, string>;
+    }
+  ): Promise<void> {
+    const transport = options?.transport ?? (this.transportType === 'stdio' ? 'sse' : this.transportType as 'sse' | 'streamable-http');
+    this.transportType = transport;
+
+    this.logger.info({ url, transport }, 'Connecting to remote MCP server');
+
+    if (transport === 'sse') {
+      const sseTransport = new SSETransport({
+        baseUrl: url,
+        sessionId: options?.sessionId ?? this.sseConfig?.sessionId,
+        headers: options?.headers ?? this.sseConfig?.headers,
+        timeout: this.timeout,
+        debug: this.debug,
+        ...this.sseConfig,
+      });
+
+      await sseTransport.connect();
+      this.transport = sseTransport;
+    } else if (transport === 'streamable-http') {
+      const httpTransport = new HTTPTransport({
+        baseUrl: url,
+        sessionId: options?.sessionId ?? this.httpConfig?.sessionId,
+        headers: options?.headers ?? this.httpConfig?.headers,
+        timeout: this.timeout,
+        debug: this.debug,
+        ...this.httpConfig,
+      });
+
+      await httpTransport.connect();
+      this.transport = httpTransport;
+    } else {
+      throw new Error(`Unsupported transport type: ${transport}`);
+    }
+
+    this.setupTransportHandlers();
+
+    // For remote transports, server is ready immediately
+    this.serverReady = true;
+  }
+
+  /**
+   * Set up event handlers for the transport.
+   */
+  private setupTransportHandlers(): void {
+    if (!this.transport) return;
+
+    this.transport.on('message', (msg: JSONRPCMessage) => {
+      this.log('Received:', JSON.stringify(msg));
+      this.handleMessage(msg);
+    });
+
+    this.transport.on('error', (error: Error) => {
+      this.logger.error({ error: error.message }, 'Transport error');
+    });
+
+    this.transport.on('close', () => {
+      this.logger.debug('Transport closed');
+      this.cleanup();
+    });
   }
 
   /**

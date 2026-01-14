@@ -609,4 +609,231 @@ describe('docs/generator', () => {
       expect(md).toContain('Configuration Issue Detected');
     });
   });
+
+  describe('Performance Reporting', () => {
+    it('should include Performance section when interactions have duration data', () => {
+      mockResult.toolProfiles[0].interactions = [
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test', category: 'happy_path', args: { location: 'NYC' } },
+          response: { content: [{ type: 'text', text: '{"temp": 72}' }], isError: false },
+          error: null,
+          analysis: 'OK',
+          durationMs: 150,
+        },
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test 2', category: 'happy_path', args: { location: 'LA' } },
+          response: { content: [{ type: 'text', text: '{"temp": 85}' }], isError: false },
+          error: null,
+          analysis: 'OK',
+          durationMs: 200,
+        },
+      ];
+
+      const md = generateAgentsMd(mockResult);
+
+      expect(md).toContain('## Performance');
+      expect(md).toContain('Response time metrics');
+      expect(md).toContain('| Tool | Calls | Avg | P50 | P95 | Max | Error Rate |');
+    });
+
+    it('should calculate correct average duration', () => {
+      mockResult.toolProfiles[0].interactions = [
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test', category: 'happy_path', args: {} },
+          response: { content: [], isError: false },
+          error: null,
+          analysis: 'OK',
+          durationMs: 100,
+        },
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test 2', category: 'happy_path', args: {} },
+          response: { content: [], isError: false },
+          error: null,
+          analysis: 'OK',
+          durationMs: 200,
+        },
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test 3', category: 'happy_path', args: {} },
+          response: { content: [], isError: false },
+          error: null,
+          analysis: 'OK',
+          durationMs: 300,
+        },
+      ];
+
+      const md = generateAgentsMd(mockResult);
+
+      // Average should be 200ms
+      expect(md).toContain('200ms');
+    });
+
+    it('should calculate correct error rate', () => {
+      mockResult.toolProfiles[0].interactions = [
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test', category: 'happy_path', args: {} },
+          response: { content: [], isError: false },
+          error: null,
+          analysis: 'OK',
+          durationMs: 100,
+        },
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test 2', category: 'error_handling', args: {} },
+          response: null,
+          error: 'Failed',
+          analysis: 'Error',
+          durationMs: 50,
+        },
+      ];
+
+      const md = generateAgentsMd(mockResult);
+
+      // Error rate should be 50%
+      expect(md).toContain('50%');
+    });
+
+    it('should highlight high error rates in bold', () => {
+      mockResult.toolProfiles[0].interactions = [
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test', category: 'error_handling', args: {} },
+          response: null,
+          error: 'Failed 1',
+          analysis: 'Error',
+          durationMs: 50,
+        },
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test 2', category: 'error_handling', args: {} },
+          response: null,
+          error: 'Failed 2',
+          analysis: 'Error',
+          durationMs: 50,
+        },
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test 3', category: 'error_handling', args: {} },
+          response: null,
+          error: 'Failed 3',
+          analysis: 'Error',
+          durationMs: 50,
+        },
+      ];
+
+      const md = generateAgentsMd(mockResult);
+
+      // Error rate > 50% should be bold
+      expect(md).toContain('**100%**');
+    });
+
+    it('should show Performance Insights for slow tools', () => {
+      mockResult.toolProfiles[0].interactions = [
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test', category: 'happy_path', args: {} },
+          response: { content: [], isError: false },
+          error: null,
+          analysis: 'OK',
+          durationMs: 2000,
+        },
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test 2', category: 'happy_path', args: {} },
+          response: { content: [], isError: false },
+          error: null,
+          analysis: 'OK',
+          durationMs: 3000,
+        },
+      ];
+
+      const md = generateAgentsMd(mockResult);
+
+      expect(md).toContain('### Performance Insights');
+      expect(md).toContain('**Slow Tools**');
+      expect(md).toContain('2500ms average');
+    });
+
+    it('should show Performance Insights for unreliable tools', () => {
+      mockResult.toolProfiles[0].interactions = [
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test', category: 'happy_path', args: {} },
+          response: { content: [], isError: false },
+          error: null,
+          analysis: 'OK',
+          durationMs: 100,
+        },
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test 2', category: 'error_handling', args: {} },
+          response: null,
+          error: 'Failed',
+          analysis: 'Error',
+          durationMs: 100,
+        },
+      ];
+
+      const md = generateAgentsMd(mockResult);
+
+      expect(md).toContain('### Performance Insights');
+      expect(md).toContain('**Unreliable Tools**');
+      expect(md).toContain('50% error rate');
+    });
+
+    it('should not include Performance section when no interactions', () => {
+      mockResult.toolProfiles[0].interactions = [];
+
+      const md = generateAgentsMd(mockResult);
+
+      expect(md).not.toContain('## Performance');
+    });
+
+    it('should sort tools by average response time (slowest first)', () => {
+      // Add a second tool profile with faster response times
+      mockResult.toolProfiles.push({
+        name: 'calculate',
+        description: 'Fast calculator',
+        interactions: [
+          {
+            toolName: 'calculate',
+            question: { description: 'Test', category: 'happy_path', args: {} },
+            response: { content: [], isError: false },
+            error: null,
+            analysis: 'OK',
+            durationMs: 50,
+          },
+        ],
+        behavioralNotes: [],
+        limitations: [],
+        securityNotes: [],
+      });
+
+      // Make get_weather slower
+      mockResult.toolProfiles[0].interactions = [
+        {
+          toolName: 'get_weather',
+          question: { description: 'Test', category: 'happy_path', args: {} },
+          response: { content: [], isError: false },
+          error: null,
+          analysis: 'OK',
+          durationMs: 500,
+        },
+      ];
+
+      const md = generateAgentsMd(mockResult);
+
+      // get_weather should appear before calculate in the performance table
+      const perfSection = md.split('## Performance')[1]?.split('## ')[0] ?? '';
+      const weatherIndex = perfSection.indexOf('get_weather');
+      const calcIndex = perfSection.indexOf('calculate');
+
+      expect(weatherIndex).toBeLessThan(calcIndex);
+    });
+  });
 });

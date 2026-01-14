@@ -2,6 +2,7 @@ import type { DiscoveryResult } from '../discovery/types.js';
 import type { MCPToolCallResult, MCPPromptGetResult } from '../transport/types.js';
 import type { Persona, QuestionCategory } from '../persona/types.js';
 import type { WorkflowResult } from '../workflow/types.js';
+import type { LoadedScenarios, ScenarioResult } from '../scenarios/types.js';
 
 /**
  * Server context extracted during discovery/initial probing.
@@ -32,6 +33,10 @@ export interface InterviewConfig {
   model?: string;
   /** Personas to use for interviewing (default: technical_writer) */
   personas?: Persona[];
+  /** Custom test scenarios loaded from YAML */
+  customScenarios?: LoadedScenarios;
+  /** Whether to only run custom scenarios (skip LLM-generated questions) */
+  customScenariosOnly?: boolean;
 }
 
 /**
@@ -162,6 +167,8 @@ export interface InterviewResult {
   promptProfiles?: PromptProfile[];
   /** Workflow execution results */
   workflowResults?: WorkflowResult[];
+  /** Custom scenario results (if scenarios were provided) */
+  scenarioResults?: ScenarioResult[];
   /** Overall behavioral summary */
   summary: string;
   /** Overall limitations */
