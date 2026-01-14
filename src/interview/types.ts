@@ -1,5 +1,5 @@
 import type { DiscoveryResult } from '../discovery/types.js';
-import type { MCPToolCallResult } from '../transport/types.js';
+import type { MCPToolCallResult, MCPPromptGetResult } from '../transport/types.js';
 import type { Persona, QuestionCategory } from '../persona/types.js';
 import type { WorkflowResult } from '../workflow/types.js';
 
@@ -103,6 +103,54 @@ export interface ToolProfile {
 }
 
 /**
+ * A question/test case for a prompt.
+ */
+export interface PromptQuestion {
+  /** Description of what this test case evaluates */
+  description: string;
+  /** Arguments to pass to the prompt */
+  args: Record<string, string>;
+}
+
+/**
+ * Result of testing a single prompt invocation.
+ */
+export interface PromptInteraction {
+  /** Name of the prompt */
+  promptName: string;
+  /** The test case */
+  question: PromptQuestion;
+  /** The prompt's response (rendered messages) */
+  response: MCPPromptGetResult | null;
+  /** Error if the call failed */
+  error: string | null;
+  /** LLM analysis of the response */
+  analysis: string;
+  /** Time taken in ms */
+  durationMs: number;
+}
+
+/**
+ * Behavioral profile for a single prompt.
+ */
+export interface PromptProfile {
+  /** Prompt name */
+  name: string;
+  /** Prompt description */
+  description: string;
+  /** Arguments the prompt accepts */
+  arguments: Array<{ name: string; description?: string; required?: boolean }>;
+  /** Interactions during interview */
+  interactions: PromptInteraction[];
+  /** Synthesized behavioral notes */
+  behavioralNotes: string[];
+  /** Discovered limitations */
+  limitations: string[];
+  /** Example rendered output */
+  exampleOutput?: string;
+}
+
+/**
  * Complete interview result.
  */
 export interface InterviewResult {
@@ -110,6 +158,8 @@ export interface InterviewResult {
   discovery: DiscoveryResult;
   /** Profile for each tool */
   toolProfiles: ToolProfile[];
+  /** Profile for each prompt */
+  promptProfiles?: PromptProfile[];
   /** Workflow execution results */
   workflowResults?: WorkflowResult[];
   /** Overall behavioral summary */

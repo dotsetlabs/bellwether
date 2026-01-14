@@ -80,47 +80,83 @@ export function parseToolDetail(tool: MCPTool): ToolDetail {
 export function summarizeDiscovery(result: DiscoveryResult): string {
   const lines: string[] = [];
 
-  lines.push(`Server: ${result.serverInfo.name} v${result.serverInfo.version}`);
-  lines.push(`Protocol: ${result.protocolVersion}`);
+  // Header with box drawing
+  lines.push('┌─────────────────────────────────────────────────────────────────┐');
+  lines.push(`│  ${result.serverInfo.name} v${result.serverInfo.version}`.padEnd(66) + '│');
+  lines.push('└─────────────────────────────────────────────────────────────────┘');
   lines.push('');
-  lines.push('Capabilities:');
 
-  if (result.capabilities.tools) {
-    lines.push(`  - Tools: ${result.tools.length} available`);
-  }
-  if (result.capabilities.prompts) {
-    lines.push(`  - Prompts: ${result.prompts.length} available`);
-  }
-  if (result.capabilities.resources) {
-    lines.push('  - Resources: supported');
-  }
-  if (result.capabilities.logging) {
-    lines.push('  - Logging: supported');
-  }
+  // Server info
+  lines.push(`Protocol Version: ${result.protocolVersion}`);
+  lines.push(`Server Command: ${result.serverCommand} ${result.serverArgs.join(' ')}`);
+  lines.push('');
 
+  // Capabilities overview
+  lines.push('CAPABILITIES');
+  lines.push('────────────');
+  const caps: string[] = [];
+  if (result.capabilities.tools) caps.push(`${result.tools.length} Tools`);
+  if (result.capabilities.prompts) caps.push(`${result.prompts.length} Prompts`);
+  if (result.capabilities.resources) caps.push('Resources');
+  if (result.capabilities.logging) caps.push('Logging');
+  lines.push(caps.join(' • ') || 'None discovered');
+  lines.push('');
+
+  // Tools section
   if (result.tools.length > 0) {
-    lines.push('');
-    lines.push('Tools:');
+    lines.push('TOOLS');
+    lines.push('─────');
     for (const tool of result.tools) {
       const detail = parseToolDetail(tool);
-      const params = [...detail.requiredParams, ...detail.optionalParams.map(p => `${p}?`)];
-      lines.push(`  - ${tool.name}(${params.join(', ')})`);
+      const requiredStr = detail.requiredParams.length > 0
+        ? detail.requiredParams.join(', ')
+        : '';
+      const optionalStr = detail.optionalParams.length > 0
+        ? detail.optionalParams.map(p => `${p}?`).join(', ')
+        : '';
+      const allParams = [requiredStr, optionalStr].filter(Boolean).join(', ');
+
+      lines.push(`  ${tool.name}(${allParams})`);
       if (tool.description) {
-        lines.push(`    ${tool.description}`);
+        // Truncate long descriptions
+        const desc = tool.description.length > 70
+          ? tool.description.substring(0, 67) + '...'
+          : tool.description;
+        lines.push(`    └─ ${desc}`);
       }
     }
+    lines.push('');
   }
 
+  // Prompts section
   if (result.prompts.length > 0) {
-    lines.push('');
-    lines.push('Prompts:');
+    lines.push('PROMPTS');
+    lines.push('───────');
     for (const prompt of result.prompts) {
-      lines.push(`  - ${prompt.name}`);
+      const args = prompt.arguments?.map(a => {
+        return a.required ? a.name : `${a.name}?`;
+      }).join(', ') ?? '';
+      lines.push(`  ${prompt.name}(${args})`);
       if (prompt.description) {
-        lines.push(`    ${prompt.description}`);
+        const desc = prompt.description.length > 70
+          ? prompt.description.substring(0, 67) + '...'
+          : prompt.description;
+        lines.push(`    └─ ${desc}`);
       }
     }
+    lines.push('');
   }
+
+  // Quick start hint
+  lines.push('QUICK START');
+  lines.push('───────────');
+  lines.push(`  bellwether interview ${result.serverCommand} ${result.serverArgs.join(' ')}`);
+  lines.push('');
+  lines.push('  Options:');
+  lines.push('    --preset docs      Documentation-focused (recommended)');
+  lines.push('    --preset security  Include security testing');
+  lines.push('    --preset thorough  Comprehensive with all personas');
+  lines.push('    --preset ci        Fast CI/CD mode');
 
   return lines.join('\n');
 }

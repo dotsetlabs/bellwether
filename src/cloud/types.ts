@@ -381,6 +381,33 @@ export interface DevicePollResponse {
   user?: CloudUser;
 }
 
+/**
+ * Badge status for a project.
+ */
+export type BadgeStatus = 'passing' | 'failing' | 'drift' | 'unknown';
+
+/**
+ * Badge information for a project.
+ */
+export interface BadgeInfo {
+  /** Project ID */
+  projectId: string;
+  /** Project name */
+  projectName: string;
+  /** Current badge status */
+  status: BadgeStatus;
+  /** Human-readable status text */
+  statusText: string;
+  /** Badge URL (SVG) */
+  badgeUrl: string;
+  /** Badge markdown for README */
+  markdown: string;
+  /** Last verification date */
+  lastVerified?: string;
+  /** Latest version number */
+  latestVersion?: number;
+}
+
 // ============================================================================
 // Cloud Client Interface
 // ============================================================================
@@ -433,4 +460,7 @@ export interface BellwetherCloudClient {
 
   /** Get latest diff (current vs previous) */
   getLatestDiff(projectId: string): Promise<DiffSummary | null>;
+
+  /** Get badge info for a project */
+  getBadgeInfo(projectId: string): Promise<BadgeInfo | null>;
 }

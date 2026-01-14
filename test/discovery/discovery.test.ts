@@ -189,23 +189,23 @@ describe('discovery', () => {
       };
     });
 
-    it('should include server info', () => {
+    it('should include server info in header', () => {
       const summary = summarizeDiscovery(mockResult);
 
-      expect(summary).toContain('Server: test-server v1.0.0');
-      expect(summary).toContain('Protocol: 2024-11-05');
+      expect(summary).toContain('test-server v1.0.0');
+      expect(summary).toContain('Protocol Version: 2024-11-05');
     });
 
-    it('should list tool count', () => {
+    it('should list tool count in capabilities', () => {
       const summary = summarizeDiscovery(mockResult);
 
-      expect(summary).toContain('Tools: 2 available');
+      expect(summary).toContain('2 Tools');
     });
 
-    it('should list prompt count', () => {
+    it('should list prompt count in capabilities', () => {
       const summary = summarizeDiscovery(mockResult);
 
-      expect(summary).toContain('Prompts: 2 available');
+      expect(summary).toContain('2 Prompts');
     });
 
     it('should list tool signatures', () => {
@@ -221,11 +221,11 @@ describe('discovery', () => {
       expect(summary).toContain('Get the current weather for a location');
     });
 
-    it('should include prompt names', () => {
+    it('should include prompt names with signatures', () => {
       const summary = summarizeDiscovery(mockResult);
 
-      expect(summary).toContain('- summarize');
-      expect(summary).toContain('- translate');
+      expect(summary).toContain('summarize(text, max_length?)');
+      expect(summary).toContain('translate(text, target_language)');
     });
 
     it('should handle empty tools list', () => {
@@ -234,8 +234,8 @@ describe('discovery', () => {
 
       const summary = summarizeDiscovery(mockResult);
 
-      expect(summary).not.toContain('Tools:');
-      expect(summary).toContain('Prompts:');
+      expect(summary).not.toContain('TOOLS');
+      expect(summary).toContain('PROMPTS');
     });
 
     it('should handle empty prompts list', () => {
@@ -244,8 +244,8 @@ describe('discovery', () => {
 
       const summary = summarizeDiscovery(mockResult);
 
-      expect(summary).toContain('Tools:');
-      expect(summary).not.toMatch(/Prompts:/);
+      expect(summary).toContain('TOOLS');
+      expect(summary).not.toContain('PROMPTS');
     });
 
     it('should show resources capability when present', () => {
@@ -253,7 +253,8 @@ describe('discovery', () => {
 
       const summary = summarizeDiscovery(mockResult);
 
-      expect(summary).toContain('Resources: supported');
+      // Resources shown in capabilities line
+      expect(summary).toMatch(/2 Tools.*Resources|Resources.*2 Tools/);
     });
 
     it('should show logging capability when present', () => {
@@ -261,7 +262,24 @@ describe('discovery', () => {
 
       const summary = summarizeDiscovery(mockResult);
 
-      expect(summary).toContain('Logging: supported');
+      // Logging shown in capabilities line
+      expect(summary).toMatch(/2 Tools.*Logging|Logging.*2 Tools/);
+    });
+
+    it('should include quick start section with presets', () => {
+      const summary = summarizeDiscovery(mockResult);
+
+      expect(summary).toContain('QUICK START');
+      expect(summary).toContain('--preset docs');
+      expect(summary).toContain('--preset security');
+      expect(summary).toContain('--preset thorough');
+      expect(summary).toContain('--preset ci');
+    });
+
+    it('should include server command in quick start', () => {
+      const summary = summarizeDiscovery(mockResult);
+
+      expect(summary).toContain('bellwether interview test-server');
     });
   });
 });

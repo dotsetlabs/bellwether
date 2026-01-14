@@ -10,6 +10,7 @@ import type {
   MCPToolCallResult,
   MCPToolsListResult,
   MCPPromptsListResult,
+  MCPPromptGetResult,
   MCPServerCapabilities,
 } from './types.js';
 import { getLogger, startTiming } from '../logging/logger.js';
@@ -230,6 +231,24 @@ export class MCPClient {
   async listPrompts(): Promise<MCPPrompt[]> {
     const result = await this.sendRequest<MCPPromptsListResult>('prompts/list', {});
     return result.prompts;
+  }
+
+  /**
+   * Get a prompt from the server with the given arguments.
+   */
+  async getPrompt(name: string, args: Record<string, string> = {}): Promise<MCPPromptGetResult> {
+    const done = startTiming(this.logger, `getPrompt:${name}`);
+    try {
+      const result = await this.sendRequest<MCPPromptGetResult>('prompts/get', {
+        name,
+        arguments: args,
+      });
+      done();
+      return result;
+    } catch (error) {
+      done();
+      throw error;
+    }
   }
 
   /**

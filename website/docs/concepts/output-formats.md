@@ -60,7 +60,27 @@ Reads the contents of a file from the specified path.
 
 **Security Considerations:**
 - Path traversal normalized within root
+
+## Prompts
+
+### summarize_file
+
+Generates a summary of a file's contents.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| path | string | yes | Path to the file to summarize |
+| max_length | number | no | Maximum summary length |
+
+**Expected Output:**
+Returns a structured summary prompt message suitable for LLM processing.
+
+**Behavior Notes:**
+- Works best with text files under 50KB
+- Returns error for binary files
 ```
+
+The `AGENTS.md` output includes both **Tool Profiles** (for tools discovered from the server) and **Prompt Profiles** (for prompts, if the server exposes any).
 
 ## JSON Report
 
@@ -100,12 +120,29 @@ bellwether interview --json npx your-server
       }
     }
   ],
+  "prompts": [
+    {
+      "name": "summarize_file",
+      "description": "Generate a summary of file contents",
+      "arguments": [
+        { "name": "path", "required": true },
+        { "name": "max_length", "required": false }
+      ],
+      "interview": {
+        "questionsAsked": 2,
+        "observations": [...],
+        "errors": [...]
+      }
+    }
+  ],
   "cost": {
     "tokens": 1234,
     "estimatedCost": 0.02
   }
 }
 ```
+
+The JSON report includes both `tools` and `prompts` arrays with their respective interview results.
 
 ## SARIF (Security)
 
@@ -123,7 +160,7 @@ bellwether interview --output-format sarif -o ./results npx your-server
 - name: Run Bellwether Security Scan
   run: |
     bellwether interview \
-      --persona security_tester \
+      --preset security \
       --output-format sarif \
       -o ./results \
       npx your-server

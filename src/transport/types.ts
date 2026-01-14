@@ -90,6 +90,23 @@ export interface MCPPromptsListResult {
   prompts: MCPPrompt[];
 }
 
+export interface MCPPromptMessage {
+  role: 'user' | 'assistant';
+  content: MCPPromptContent;
+}
+
+export interface MCPPromptContent {
+  type: 'text' | 'image' | 'resource';
+  text?: string;
+  data?: string;
+  mimeType?: string;
+}
+
+export interface MCPPromptGetResult {
+  description?: string;
+  messages: MCPPromptMessage[];
+}
+
 /**
  * Type guards
  */

@@ -326,8 +326,56 @@ export function generateAgentsMd(result: InterviewResult): string {
     }
   }
 
-  // Prompts section
-  if (discovery.prompts.length > 0) {
+  // Prompts section - use profiles if available, otherwise basic listing
+  if (result.promptProfiles && result.promptProfiles.length > 0) {
+    lines.push('## Prompts');
+    lines.push('');
+    lines.push('Prompts are reusable templates that generate structured messages for LLM interactions.');
+    lines.push('');
+
+    for (const profile of result.promptProfiles) {
+      lines.push(`### ${profile.name}`);
+      lines.push('');
+      lines.push(profile.description);
+      lines.push('');
+
+      if (profile.arguments.length > 0) {
+        lines.push('**Arguments:**');
+        for (const arg of profile.arguments) {
+          const required = arg.required ? ' (required)' : '';
+          lines.push(`- \`${arg.name}\`${required}: ${arg.description ?? 'No description'}`);
+        }
+        lines.push('');
+      }
+
+      if (profile.exampleOutput) {
+        lines.push('**Example Output:**');
+        lines.push('```');
+        lines.push(profile.exampleOutput.length > 300
+          ? profile.exampleOutput.substring(0, 300) + '...'
+          : profile.exampleOutput);
+        lines.push('```');
+        lines.push('');
+      }
+
+      if (profile.behavioralNotes.length > 0) {
+        lines.push('**Observed Behavior:**');
+        for (const note of profile.behavioralNotes) {
+          lines.push(`- ${note}`);
+        }
+        lines.push('');
+      }
+
+      if (profile.limitations.length > 0) {
+        lines.push('**Limitations:**');
+        for (const limitation of profile.limitations) {
+          lines.push(`- ${limitation}`);
+        }
+        lines.push('');
+      }
+    }
+  } else if (discovery.prompts.length > 0) {
+    // Fallback to basic listing if no profiles
     lines.push('## Prompts');
     lines.push('');
     for (const prompt of discovery.prompts) {

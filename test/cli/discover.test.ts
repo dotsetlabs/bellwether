@@ -140,6 +140,7 @@ describe('cli/discover', () => {
   describe('summarizeDiscovery', () => {
     const baseDiscovery: DiscoveryResult = {
       serverInfo: { name: 'test-server', version: '1.0.0' },
+      protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
       tools: [
         {
@@ -152,6 +153,9 @@ describe('cli/discover', () => {
         },
       ],
       prompts: [],
+      serverCommand: 'npx',
+      serverArgs: ['@test/server'],
+      timestamp: new Date(),
     };
 
     it('should include server name and version', () => {
@@ -180,7 +184,7 @@ describe('cli/discover', () => {
 
       const summary = summarizeDiscovery(discoveryWithMultipleTools);
 
-      expect(summary).toContain('3');
+      expect(summary).toContain('3 Tools');
     });
 
     it('should handle discovery with prompts', () => {
@@ -200,15 +204,20 @@ describe('cli/discover', () => {
     it('should handle empty discovery', () => {
       const emptyDiscovery: DiscoveryResult = {
         serverInfo: { name: 'empty-server', version: '0.0.0' },
+        protocolVersion: '2024-11-05',
         capabilities: {},
         tools: [],
         prompts: [],
+        serverCommand: 'npx',
+        serverArgs: ['@test/server'],
+        timestamp: new Date(),
       };
 
       const summary = summarizeDiscovery(emptyDiscovery);
 
       expect(summary).toContain('empty-server');
-      expect(summary).toContain('0');
+      // Empty capabilities still shows in summary
+      expect(summary).toContain('CAPABILITIES');
     });
   });
 

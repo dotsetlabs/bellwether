@@ -29,7 +29,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           npx @dotsetlabs/bellwether interview \
-            --ci \
+            --preset ci \
             --compare-baseline ./bellwether-baseline.json \
             --fail-on-drift \
             npx your-mcp-server
@@ -43,7 +43,7 @@ bellwether:
   script:
     - |
       npx @dotsetlabs/bellwether interview \
-        --ci \
+        --preset ci \
         --compare-baseline ./bellwether-baseline.json \
         --fail-on-drift \
         npx your-mcp-server
@@ -71,7 +71,7 @@ Enable CI mode with `--ci` for:
 
 ### PR Checks
 
-Fast checks on every pull request:
+Fast checks on every pull request using the `ci` preset (~$0.01/run):
 
 ```yaml
 name: PR Check
@@ -88,8 +88,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           npx @dotsetlabs/bellwether interview \
-            --ci \
-            --quick \
+            --preset ci \
             --compare-baseline ./bellwether-baseline.json \
             --fail-on-drift \
             npx your-server
@@ -97,7 +96,7 @@ jobs:
 
 ### Nightly Full Tests
 
-Comprehensive testing on a schedule:
+Comprehensive testing on a schedule using the `thorough` preset:
 
 ```yaml
 name: Nightly Tests
@@ -116,9 +115,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           npx @dotsetlabs/bellwether interview \
-            --ci \
-            --persona technical_writer,security_tester,qa_engineer \
-            --max-questions 5 \
+            --preset thorough \
             --compare-baseline ./bellwether-baseline.json \
             --fail-on-drift \
             npx your-server
@@ -126,7 +123,7 @@ jobs:
 
 ### Security Scanning
 
-Security-focused pipeline:
+Security-focused pipeline using the `security` preset:
 
 ```yaml
 name: Security Scan
@@ -143,8 +140,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           npx @dotsetlabs/bellwether interview \
-            --ci \
-            --persona security_tester \
+            --preset security \
             --fail-on-security \
             --output-format sarif \
             -o ./security \
@@ -260,31 +256,69 @@ bellwether:
 
 ## Cost Optimization
 
-### Use Cheaper Models in CI
+### Use the CI Preset
+
+The `ci` preset is optimized for fast, cheap CI runs:
 
 ```yaml
 - run: |
     npx @dotsetlabs/bellwether interview \
-      --model gpt-4o-mini \
-      --max-questions 1 \
+      --preset ci \
       npx your-server
 ```
 
-### Quick Mode
+### Cost by Preset
+
+| Preset | Approx. Cost | Use Case |
+|:-------|:-------------|:---------|
+| `ci` | ~$0.01 | PR checks, fast validation |
+| `docs` | ~$0.02 | Documentation generation |
+| `security` | ~$0.05 | Security-focused testing |
+| `thorough` | ~$0.10 | Comprehensive nightly tests |
+
+## Verification Badges
+
+Display your server's verification status in your README:
+
+### Add Badge After CI Run
 
 ```yaml
-- run: |
-    npx @dotsetlabs/bellwether interview \
-      --quick \
-      npx your-server
+- name: Get Badge
+  env:
+    BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
+  run: |
+    npx @dotsetlabs/bellwether badge --markdown >> $GITHUB_STEP_SUMMARY
 ```
 
-Cost comparison:
-| Mode | Approx. Cost |
-|:-----|:-------------|
-| Quick | ~$0.01 |
-| Normal | ~$0.05 |
-| Thorough | ~$0.15 |
+### Update README Automatically
+
+```yaml
+name: Update Badge
+on:
+  workflow_run:
+    workflows: ["MCP Behavioral Testing"]
+    types: [completed]
+
+jobs:
+  badge:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Badge Status
+        env:
+          BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
+        run: |
+          BADGE_URL=$(npx @dotsetlabs/bellwether badge --url)
+          echo "Badge URL: $BADGE_URL"
+```
+
+Badge status reflects:
+- **Verified** (green): Server has been tested
+- **Stable** (green): No behavioral drift between versions
+- **Drift detected** (yellow): Behavioral changes found
+- **Breaking changes** (red): Significant breaking changes
 
 ## Troubleshooting
 
@@ -328,3 +362,5 @@ Increase timeout for slow servers:
 - [Output Formats](/concepts/output-formats) - SARIF, JUnit details
 - [Drift Detection](/concepts/drift-detection) - Understanding drift
 - [interview](/cli/interview) - CLI options
+- [badge](/cli/badge) - Verification badges
+- [Configuration](/guides/configuration) - Presets and options
