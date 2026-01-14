@@ -1,6 +1,6 @@
 import type { LLMClient } from '../llm/client.js';
-import type { MCPTool, MCPToolCallResult } from '../transport/types.js';
-import type { InterviewQuestion, ToolProfile, ServerContext } from './types.js';
+import type { MCPTool, MCPToolCallResult, MCPPrompt, MCPPromptGetResult } from '../transport/types.js';
+import type { InterviewQuestion, ToolProfile, ServerContext, PromptQuestion, PromptProfile } from './types.js';
 import type { DiscoveryResult } from '../discovery/types.js';
 import type { Persona, QuestionCategory } from '../persona/types.js';
 import { DEFAULT_PERSONA } from '../persona/builtins.js';
@@ -10,6 +10,9 @@ import {
   buildResponseAnalysisPrompt,
   buildToolProfileSynthesisPrompt,
   buildOverallSynthesisPrompt,
+  buildPromptQuestionGenerationPrompt,
+  buildPromptResponseAnalysisPrompt,
+  buildPromptProfileSynthesisPrompt,
   COMPLETION_OPTIONS,
 } from '../prompts/templates.js';
 
@@ -360,5 +363,178 @@ export class Orchestrator {
       default:
         return 'test';
     }
+  }
+
+  // ===========================================================================
+  // Prompt Interview Methods
+  // ===========================================================================
+
+  /**
+   * Generate interview questions for an MCP prompt.
+   */
+  async generatePromptQuestions(
+    prompt: MCPPrompt,
+    maxQuestions: number = 2
+  ): Promise<PromptQuestion[]> {
+    const promptText = buildPromptQuestionGenerationPrompt({
+      prompt,
+      maxQuestions,
+    });
+
+    try {
+      const response = await this.llm.complete(promptText, {
+        ...COMPLETION_OPTIONS.promptQuestionGeneration,
+        systemPrompt: this.getSystemPrompt(),
+      });
+
+      const questions = this.llm.parseJSON<PromptQuestion[]>(response);
+      return questions.slice(0, maxQuestions);
+    } catch {
+      // Fallback to basic questions
+      return this.generateFallbackPromptQuestions(prompt);
+    }
+  }
+
+  /**
+   * Analyze a prompt response.
+   */
+  async analyzePromptResponse(
+    prompt: MCPPrompt,
+    question: PromptQuestion,
+    response: MCPPromptGetResult | null,
+    error: string | null
+  ): Promise<string> {
+    const promptText = buildPromptResponseAnalysisPrompt({
+      prompt,
+      question,
+      response,
+      error,
+    });
+
+    try {
+      return await this.llm.complete(promptText, {
+        ...COMPLETION_OPTIONS.promptResponseAnalysis,
+        systemPrompt: this.getSystemPrompt(),
+      });
+    } catch {
+      // Graceful fallback
+      if (error) {
+        return `Prompt returned an error: ${error}`;
+      }
+      if (response?.messages?.length) {
+        return `Prompt generated ${response.messages.length} message(s).`;
+      }
+      return 'Prompt executed successfully.';
+    }
+  }
+
+  /**
+   * Synthesize findings for a prompt into a profile.
+   */
+  async synthesizePromptProfile(
+    prompt: MCPPrompt,
+    interactions: Array<{
+      question: PromptQuestion;
+      response: MCPPromptGetResult | null;
+      error: string | null;
+      analysis: string;
+    }>
+  ): Promise<Omit<PromptProfile, 'interactions'>> {
+    const promptText = buildPromptProfileSynthesisPrompt({ prompt, interactions });
+
+    try {
+      const response = await this.llm.complete(promptText, {
+        ...COMPLETION_OPTIONS.promptProfileSynthesis,
+        systemPrompt: this.getSystemPrompt(),
+      });
+
+      const result = this.llm.parseJSON<{
+        behavioralNotes: string[];
+        limitations: string[];
+      }>(response);
+
+      // Extract example output from first successful interaction
+      let exampleOutput: string | undefined;
+      const successful = interactions.find(i => !i.error && i.response?.messages?.length);
+      if (successful?.response) {
+        const firstMsg = successful.response.messages[0];
+        if (firstMsg?.content?.type === 'text' && firstMsg.content.text) {
+          exampleOutput = firstMsg.content.text.substring(0, 500);
+        }
+      }
+
+      return {
+        name: prompt.name,
+        description: prompt.description ?? 'No description provided',
+        arguments: prompt.arguments ?? [],
+        behavioralNotes: result.behavioralNotes ?? [],
+        limitations: result.limitations ?? [],
+        exampleOutput,
+      };
+    } catch {
+      return {
+        name: prompt.name,
+        description: prompt.description ?? 'No description provided',
+        arguments: prompt.arguments ?? [],
+        behavioralNotes: interactions.map(i => i.analysis).filter(a => a),
+        limitations: [],
+      };
+    }
+  }
+
+  /**
+   * Fallback questions when LLM fails for prompts.
+   */
+  private generateFallbackPromptQuestions(prompt: MCPPrompt): PromptQuestion[] {
+    const questions: PromptQuestion[] = [];
+    const args: Record<string, string> = {};
+
+    // Build args with required parameters
+    if (prompt.arguments) {
+      for (const arg of prompt.arguments) {
+        if (arg.required) {
+          args[arg.name] = this.generateDefaultStringValue(arg.name);
+        }
+      }
+    }
+
+    questions.push({
+      description: 'Basic usage with required arguments',
+      args,
+    });
+
+    // If there are optional args, add a test with all args
+    const optionalArgs = prompt.arguments?.filter(a => !a.required) ?? [];
+    if (optionalArgs.length > 0) {
+      const allArgs = { ...args };
+      for (const arg of optionalArgs) {
+        allArgs[arg.name] = this.generateDefaultStringValue(arg.name);
+      }
+      questions.push({
+        description: 'Usage with all arguments',
+        args: allArgs,
+      });
+    }
+
+    return questions;
+  }
+
+  /**
+   * Generate a sensible default string value for a prompt argument.
+   */
+  private generateDefaultStringValue(argName: string): string {
+    const lowerName = argName.toLowerCase();
+    if (lowerName.includes('name')) return 'test-name';
+    if (lowerName.includes('title')) return 'Test Title';
+    if (lowerName.includes('description')) return 'A test description';
+    if (lowerName.includes('content')) return 'Test content';
+    if (lowerName.includes('text')) return 'Sample text';
+    if (lowerName.includes('query')) return 'test query';
+    if (lowerName.includes('url')) return 'https://example.com';
+    if (lowerName.includes('path')) return '/tmp/test';
+    if (lowerName.includes('id')) return '12345';
+    if (lowerName.includes('code')) return 'console.log("hello")';
+    if (lowerName.includes('language')) return 'javascript';
+    return 'test-value';
   }
 }

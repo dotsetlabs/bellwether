@@ -50,17 +50,50 @@ bellwether upload
 
 ## Verification Badge
 
-Add a badge to your README showing verification status:
+Display your server's verification status in READMEs and documentation.
 
-```markdown
-[![Bellwether](https://bellwether.sh/badge/proj_abc123)](https://bellwether.sh/projects/proj_abc123)
+### Get Badge via CLI
+
+```bash
+# Get full badge information
+bellwether badge
+
+# Get just the markdown snippet
+bellwether badge --markdown
+
+# Get just the badge URL
+bellwether badge --url
+
+# Get badge for specific project
+bellwether badge --project proj_abc123
 ```
 
-Badge shows:
-- **Green**: Baseline verified, no drift
-- **Yellow**: Minor drift detected
-- **Red**: Breaking changes detected
-- **Gray**: No recent verification
+### Add to README
+
+Copy the markdown from the `badge` command:
+
+```markdown
+[![Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.dev/p/proj_abc123)
+```
+
+### Badge Status
+
+| Status | Color | Meaning |
+|:-------|:------|:--------|
+| `passing` | Green | Server verified, no drift |
+| `passing` (Stable) | Green | Multiple versions, no drift |
+| `drift` | Yellow | Behavioral changes detected |
+| `failing` | Red | Breaking changes detected |
+| `unknown` | Gray | No baseline uploaded yet |
+
+### Update Badge in CI
+
+```bash
+# After uploading baseline, get updated badge
+bellwether interview --preset ci npx your-server
+bellwether upload
+bellwether badge --markdown
+```
 
 ## CI/CD Integration
 
@@ -186,7 +219,9 @@ Cloud adds:
 
 ## See Also
 
+- [badge](/cli/badge) - Verification badges
 - [login](/cli/login) - Authentication
 - [link](/cli/link) - Project linking
 - [upload](/cli/upload) - Baseline uploads
 - [history](/cli/history) - View history
+- [CI/CD Integration](/guides/ci-cd) - Pipeline setup

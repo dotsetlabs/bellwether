@@ -139,19 +139,55 @@ No API key required.
 
 ## Interview Presets
 
-### Quick (CI)
+Bellwether provides built-in presets for common use cases. Use the `--preset` flag to apply them:
+
+```bash
+bellwether interview --preset docs npx your-server
+bellwether interview --preset security npx your-server
+bellwether interview --preset thorough npx your-server
+bellwether interview --preset ci npx your-server
+```
+
+| Preset | Personas | Questions | Description |
+|:-------|:---------|:----------|:------------|
+| `docs` | Technical Writer | 3 | Quick documentation generation |
+| `security` | Technical Writer, Security Tester | 3 | Security-focused testing |
+| `thorough` | All 4 personas | 5 | Comprehensive testing |
+| `ci` | Technical Writer | 1 | Fast CI/CD checks |
+
+### Override Preset Options
+
+You can override specific preset values with CLI flags:
+
+```bash
+# Use security preset but with more questions
+bellwether interview --preset security --max-questions 5 npx your-server
+```
+
+### Equivalent YAML Configurations
+
+If you prefer YAML configuration, here are the equivalent settings:
+
+#### docs Preset
 
 ```yaml
 interview:
-  maxQuestionsPerTool: 1
+  maxQuestionsPerTool: 3
   personas:
     - technical_writer
-
-llm:
-  model: gpt-4o-mini
 ```
 
-### Thorough (Release)
+#### security Preset
+
+```yaml
+interview:
+  maxQuestionsPerTool: 3
+  personas:
+    - technical_writer
+    - security_tester
+```
+
+#### thorough Preset
 
 ```yaml
 interview:
@@ -161,21 +197,15 @@ interview:
     - security_tester
     - qa_engineer
     - novice_user
-
-llm:
-  model: gpt-4o
 ```
 
-### Security Focus
+#### ci Preset
 
 ```yaml
 interview:
-  maxQuestionsPerTool: 10
+  maxQuestionsPerTool: 1
   personas:
-    - security_tester
-
-output:
-  format: sarif
+    - technical_writer
 ```
 
 ## Environment Variables

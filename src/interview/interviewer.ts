@@ -13,6 +13,8 @@ import type {
   PersonaSummary,
   ServerContext,
   InterviewQuestion,
+  PromptProfile,
+  PromptInteraction,
 } from './types.js';
 import type { Persona } from '../persona/types.js';
 import { DEFAULT_PERSONA } from '../persona/builtins.js';
@@ -350,6 +352,71 @@ export class Interviewer {
       toolProfiles.push(aggregatedProfile);
     }
 
+    // Interview prompts (if server has prompts capability)
+    const promptProfiles: PromptProfile[] = [];
+    if (discovery.prompts.length > 0) {
+      this.logger.info({ promptCount: discovery.prompts.length }, 'Interviewing prompts');
+
+      const primaryOrchestrator = new Orchestrator(this.llm, this.personas[0], this.serverContext);
+
+      for (const prompt of discovery.prompts) {
+        progress.currentTool = `prompt:${prompt.name}`;
+        onProgress?.(progress);
+
+        const promptInteractions: PromptInteraction[] = [];
+
+        // Generate questions for this prompt
+        const questions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
+
+        for (const question of questions) {
+          const interactionStart = Date.now();
+          let response = null;
+          let error = null;
+
+          try {
+            response = await client.getPrompt(prompt.name, question.args);
+          } catch (e) {
+            error = e instanceof Error ? e.message : String(e);
+          }
+
+          const analysis = await primaryOrchestrator.analyzePromptResponse(
+            prompt,
+            question,
+            response,
+            error
+          );
+
+          promptInteractions.push({
+            promptName: prompt.name,
+            question,
+            response,
+            error,
+            analysis,
+            durationMs: Date.now() - interactionStart,
+          });
+
+          progress.questionsAsked++;
+          onProgress?.(progress);
+        }
+
+        // Synthesize prompt profile
+        const profile = await primaryOrchestrator.synthesizePromptProfile(
+          prompt,
+          promptInteractions.map(i => ({
+            question: i.question,
+            response: i.response,
+            error: i.error,
+            analysis: i.analysis,
+          }))
+        );
+
+        promptProfiles.push({
+          ...profile,
+          interactions: promptInteractions,
+        });
+      }
+    }
+
     // Synthesize overall findings (use first persona's orchestrator for synthesis)
     progress.phase = 'synthesizing';
     onProgress?.(progress);
@@ -390,6 +457,7 @@ export class Interviewer {
     return {
       discovery,
       toolProfiles,
+      promptProfiles: promptProfiles.length > 0 ? promptProfiles : undefined,
       summary: overall.summary,
       limitations: overall.limitations,
       recommendations: overall.recommendations,

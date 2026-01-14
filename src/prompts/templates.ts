@@ -8,8 +8,8 @@
  * - Testing and validation
  */
 
-import type { MCPTool, MCPToolCallResult } from '../transport/types.js';
-import type { InterviewQuestion, ToolProfile, ServerContext } from '../interview/types.js';
+import type { MCPTool, MCPToolCallResult, MCPPrompt, MCPPromptGetResult } from '../transport/types.js';
+import type { InterviewQuestion, ToolProfile, ServerContext, PromptQuestion } from '../interview/types.js';
 import type { DiscoveryResult } from '../discovery/types.js';
 import type { Persona } from '../persona/types.js';
 import type { Workflow, WorkflowStep, WorkflowStepResult } from '../workflow/types.js';
@@ -323,6 +323,133 @@ Provide a 2-3 sentence summary of what the workflow demonstrated and any signifi
 }
 
 // =============================================================================
+// Prompt Testing Prompts
+// =============================================================================
+
+export interface PromptQuestionGenerationContext {
+  prompt: MCPPrompt;
+  maxQuestions: number;
+}
+
+/**
+ * Generate test cases for an MCP prompt.
+ */
+export function buildPromptQuestionGenerationPrompt(ctx: PromptQuestionGenerationContext): string {
+  const argsDescription = ctx.prompt.arguments?.length
+    ? ctx.prompt.arguments.map(a => {
+        const req = a.required ? '(required)' : '(optional)';
+        return `- ${a.name} ${req}: ${a.description ?? 'No description'}`;
+      }).join('\n')
+    : 'No arguments';
+
+  return `You are generating test cases for an MCP prompt template.
+
+Prompt Name: ${ctx.prompt.name}
+Description: ${ctx.prompt.description ?? 'No description provided'}
+Arguments:
+${argsDescription}
+
+Create ${ctx.maxQuestions} test cases that demonstrate different ways to use this prompt.
+
+Respond with a JSON array:
+[
+  {
+    "description": "What this test demonstrates",
+    "args": { ... argument values as strings ... }
+  }
+]
+
+Guidelines:
+- For required arguments, always include them
+- For optional arguments, sometimes include them, sometimes omit them
+- Use realistic, meaningful example values
+- Test both typical usage and edge cases (empty strings, special characters)
+- Keep descriptions under 100 characters
+- All argument values must be strings
+
+Respond with ONLY the JSON array.`;
+}
+
+export interface PromptResponseAnalysisContext {
+  prompt: MCPPrompt;
+  question: PromptQuestion;
+  response: MCPPromptGetResult | null;
+  error: string | null;
+}
+
+/**
+ * Generate the prompt for analyzing a prompt response.
+ */
+export function buildPromptResponseAnalysisPrompt(ctx: PromptResponseAnalysisContext): string {
+  let responseStr: string;
+  if (ctx.error) {
+    responseStr = `Error: ${ctx.error}`;
+  } else if (ctx.response) {
+    const messages = ctx.response.messages.map(m => {
+      const content = m.content.type === 'text' ? m.content.text : `[${m.content.type} content]`;
+      return `${m.role}: ${content}`;
+    }).join('\n');
+    responseStr = messages || 'Empty response';
+  } else {
+    responseStr = 'No response';
+  }
+
+  return `You called the MCP prompt "${ctx.prompt.name}" with these arguments:
+${JSON.stringify(ctx.question.args, null, 2)}
+
+Test description: ${ctx.question.description}
+
+The prompt rendered:
+${responseStr}
+
+Analyze this prompt output in 1-2 sentences:
+1. Does the output make sense for the given arguments?
+2. Is the content well-structured and useful?
+3. Any unexpected behavior or limitations?
+
+Be concise and factual.`;
+}
+
+export interface PromptProfileSynthesisContext {
+  prompt: MCPPrompt;
+  interactions: Array<{
+    question: PromptQuestion;
+    response: MCPPromptGetResult | null;
+    error: string | null;
+    analysis: string;
+  }>;
+}
+
+/**
+ * Generate the prompt for synthesizing a prompt profile.
+ */
+export function buildPromptProfileSynthesisPrompt(ctx: PromptProfileSynthesisContext): string {
+  const interactionSummary = ctx.interactions
+    .map((i, idx) => `${idx + 1}. ${i.question.description}\n   Result: ${i.analysis}`)
+    .join('\n\n');
+
+  return `Based on these test interactions with the "${ctx.prompt.name}" prompt, synthesize the findings.
+
+Prompt Description: ${ctx.prompt.description ?? 'No description'}
+
+Interactions:
+${interactionSummary}
+
+Generate a JSON object with:
+{
+  "behavioralNotes": ["Note about behavior 1", "Note about behavior 2"],
+  "limitations": ["Limitation 1", "Limitation 2"]
+}
+
+Keep each note under 150 characters. Focus on:
+- What the prompt generates
+- How it handles different argument combinations
+- Any edge cases or limitations observed
+
+Return ONLY the JSON object.`;
+}
+
+// =============================================================================
 // Completion Options Constants
 // =============================================================================
 
@@ -359,5 +486,20 @@ export const COMPLETION_OPTIONS = {
   workflowSummary: {
     temperature: 0.3,
     maxTokens: 200,
+  },
+  /** For prompt question generation */
+  promptQuestionGeneration: {
+    temperature: 0.4,
+    responseFormat: 'json' as const,
+  },
+  /** For prompt response analysis */
+  promptResponseAnalysis: {
+    temperature: 0.3,
+    maxTokens: 200,
+  },
+  /** For prompt profile synthesis */
+  promptProfileSynthesis: {
+    temperature: 0.3,
+    responseFormat: 'json' as const,
   },
 } as const;

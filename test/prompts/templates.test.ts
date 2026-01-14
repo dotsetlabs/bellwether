@@ -7,6 +7,9 @@ import {
   buildOverallSynthesisPrompt,
   buildWorkflowStepAnalysisPrompt,
   buildWorkflowSummaryPrompt,
+  buildPromptQuestionGenerationPrompt,
+  buildPromptResponseAnalysisPrompt,
+  buildPromptProfileSynthesisPrompt,
   COMPLETION_OPTIONS,
   type QuestionGenerationContext,
   type ResponseAnalysisContext,
@@ -14,8 +17,11 @@ import {
   type OverallSynthesisContext,
   type WorkflowStepAnalysisContext,
   type WorkflowSummaryContext,
+  type PromptQuestionGenerationContext,
+  type PromptResponseAnalysisContext,
+  type PromptProfileSynthesisContext,
 } from '../../src/prompts/templates.js';
-import type { MCPTool } from '../../src/transport/types.js';
+import type { MCPTool, MCPPrompt } from '../../src/transport/types.js';
 import type { Persona } from '../../src/persona/types.js';
 
 describe('prompts/templates', () => {
@@ -630,6 +636,252 @@ describe('prompts/templates', () => {
       expect(COMPLETION_OPTIONS.responseAnalysis.maxTokens).toBe(200);
       expect(COMPLETION_OPTIONS.workflowStepAnalysis.maxTokens).toBe(150);
       expect(COMPLETION_OPTIONS.workflowSummary.maxTokens).toBe(200);
+    });
+
+    it('should have prompt-specific options', () => {
+      expect(COMPLETION_OPTIONS.promptQuestionGeneration.temperature).toBe(0.4);
+      expect(COMPLETION_OPTIONS.promptQuestionGeneration.responseFormat).toBe('json');
+      expect(COMPLETION_OPTIONS.promptResponseAnalysis.temperature).toBe(0.3);
+      expect(COMPLETION_OPTIONS.promptResponseAnalysis.maxTokens).toBe(200);
+      expect(COMPLETION_OPTIONS.promptProfileSynthesis.temperature).toBe(0.3);
+      expect(COMPLETION_OPTIONS.promptProfileSynthesis.responseFormat).toBe('json');
+    });
+  });
+
+  // =============================================================================
+  // Prompt Testing Templates
+  // =============================================================================
+
+  describe('buildPromptQuestionGenerationPrompt', () => {
+    const sampleMCPPrompt: MCPPrompt = {
+      name: 'summarize',
+      description: 'Summarize the given text',
+      arguments: [
+        { name: 'text', description: 'Text to summarize', required: true },
+        { name: 'max_length', description: 'Maximum summary length', required: false },
+      ],
+    };
+
+    it('should include prompt name and description', () => {
+      const context: PromptQuestionGenerationContext = {
+        prompt: sampleMCPPrompt,
+        maxQuestions: 3,
+      };
+
+      const result = buildPromptQuestionGenerationPrompt(context);
+
+      expect(result).toContain('summarize');
+      expect(result).toContain('Summarize the given text');
+    });
+
+    it('should include argument information', () => {
+      const context: PromptQuestionGenerationContext = {
+        prompt: sampleMCPPrompt,
+        maxQuestions: 2,
+      };
+
+      const result = buildPromptQuestionGenerationPrompt(context);
+
+      expect(result).toContain('text');
+      expect(result).toContain('(required)');
+      expect(result).toContain('max_length');
+      expect(result).toContain('(optional)');
+    });
+
+    it('should specify the number of test cases to generate', () => {
+      const context: PromptQuestionGenerationContext = {
+        prompt: sampleMCPPrompt,
+        maxQuestions: 5,
+      };
+
+      const result = buildPromptQuestionGenerationPrompt(context);
+
+      expect(result).toContain('5 test cases');
+    });
+
+    it('should request JSON array output', () => {
+      const context: PromptQuestionGenerationContext = {
+        prompt: sampleMCPPrompt,
+        maxQuestions: 2,
+      };
+
+      const result = buildPromptQuestionGenerationPrompt(context);
+
+      expect(result).toContain('JSON array');
+      expect(result).toContain('description');
+      expect(result).toContain('args');
+    });
+
+    it('should handle prompt with no arguments', () => {
+      const promptNoArgs: MCPPrompt = {
+        name: 'get_info',
+        description: 'Get system info',
+      };
+
+      const context: PromptQuestionGenerationContext = {
+        prompt: promptNoArgs,
+        maxQuestions: 2,
+      };
+
+      const result = buildPromptQuestionGenerationPrompt(context);
+
+      expect(result).toContain('No arguments');
+    });
+  });
+
+  describe('buildPromptResponseAnalysisPrompt', () => {
+    const sampleMCPPrompt: MCPPrompt = {
+      name: 'summarize',
+      description: 'Summarize text',
+      arguments: [{ name: 'text', required: true }],
+    };
+
+    it('should include prompt name and arguments', () => {
+      const context: PromptResponseAnalysisContext = {
+        prompt: sampleMCPPrompt,
+        question: { description: 'Basic summary', args: { text: 'Hello world' } },
+        response: {
+          messages: [{ role: 'assistant', content: { type: 'text', text: 'Summary: Hello' } }],
+        },
+        error: null,
+      };
+
+      const result = buildPromptResponseAnalysisPrompt(context);
+
+      expect(result).toContain('summarize');
+      expect(result).toContain('Hello world');
+    });
+
+    it('should include test description', () => {
+      const context: PromptResponseAnalysisContext = {
+        prompt: sampleMCPPrompt,
+        question: { description: 'Test with long text', args: { text: 'abc' } },
+        response: {
+          messages: [{ role: 'assistant', content: { type: 'text', text: 'Sum' } }],
+        },
+        error: null,
+      };
+
+      const result = buildPromptResponseAnalysisPrompt(context);
+
+      expect(result).toContain('Test with long text');
+    });
+
+    it('should include rendered messages', () => {
+      const context: PromptResponseAnalysisContext = {
+        prompt: sampleMCPPrompt,
+        question: { description: 'Test', args: { text: 'abc' } },
+        response: {
+          messages: [
+            { role: 'user', content: { type: 'text', text: 'Summarize this' } },
+            { role: 'assistant', content: { type: 'text', text: 'Here is summary' } },
+          ],
+        },
+        error: null,
+      };
+
+      const result = buildPromptResponseAnalysisPrompt(context);
+
+      expect(result).toContain('user: Summarize this');
+      expect(result).toContain('assistant: Here is summary');
+    });
+
+    it('should handle error responses', () => {
+      const context: PromptResponseAnalysisContext = {
+        prompt: sampleMCPPrompt,
+        question: { description: 'Test', args: { text: '' } },
+        response: null,
+        error: 'Text is required',
+      };
+
+      const result = buildPromptResponseAnalysisPrompt(context);
+
+      expect(result).toContain('Error: Text is required');
+    });
+
+    it('should handle non-text content types', () => {
+      const context: PromptResponseAnalysisContext = {
+        prompt: sampleMCPPrompt,
+        question: { description: 'Test', args: { text: 'abc' } },
+        response: {
+          messages: [{ role: 'assistant', content: { type: 'image', data: 'base64...' } }],
+        },
+        error: null,
+      };
+
+      const result = buildPromptResponseAnalysisPrompt(context);
+
+      expect(result).toContain('[image content]');
+    });
+  });
+
+  describe('buildPromptProfileSynthesisPrompt', () => {
+    const sampleMCPPrompt: MCPPrompt = {
+      name: 'translate',
+      description: 'Translate text',
+      arguments: [
+        { name: 'text', required: true },
+        { name: 'language', required: true },
+      ],
+    };
+
+    it('should include prompt name and description', () => {
+      const context: PromptProfileSynthesisContext = {
+        prompt: sampleMCPPrompt,
+        interactions: [
+          {
+            question: { description: 'English to Spanish', args: { text: 'Hello', language: 'es' } },
+            response: { messages: [{ role: 'assistant', content: { type: 'text', text: 'Hola' } }] },
+            error: null,
+            analysis: 'Correctly translated',
+          },
+        ],
+      };
+
+      const result = buildPromptProfileSynthesisPrompt(context);
+
+      expect(result).toContain('translate');
+      expect(result).toContain('Translate text');
+    });
+
+    it('should include interaction summaries', () => {
+      const context: PromptProfileSynthesisContext = {
+        prompt: sampleMCPPrompt,
+        interactions: [
+          {
+            question: { description: 'English to Spanish', args: { text: 'Hi', language: 'es' } },
+            response: null,
+            error: null,
+            analysis: 'Translated successfully',
+          },
+          {
+            question: { description: 'Unknown language', args: { text: 'Hi', language: 'xyz' } },
+            response: null,
+            error: 'Unknown language',
+            analysis: 'Failed with error',
+          },
+        ],
+      };
+
+      const result = buildPromptProfileSynthesisPrompt(context);
+
+      expect(result).toContain('English to Spanish');
+      expect(result).toContain('Translated successfully');
+      expect(result).toContain('Unknown language');
+      expect(result).toContain('Failed with error');
+    });
+
+    it('should request JSON output with specific fields', () => {
+      const context: PromptProfileSynthesisContext = {
+        prompt: sampleMCPPrompt,
+        interactions: [],
+      };
+
+      const result = buildPromptProfileSynthesisPrompt(context);
+
+      expect(result).toContain('JSON object');
+      expect(result).toContain('behavioralNotes');
+      expect(result).toContain('limitations');
     });
   });
 });

@@ -28,15 +28,25 @@ export ANTHROPIC_API_KEY=sk-ant-xxx
 ## 3. Interview Your First MCP Server
 
 ```bash
-bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
+# Quick documentation generation (recommended for first use)
+bellwether interview --preset docs npx @modelcontextprotocol/server-filesystem /tmp
 ```
 
 This will:
 1. Connect to the MCP server
-2. Discover available tools
+2. Discover available tools and prompts
 3. Generate intelligent test scenarios using the LLM
-4. Execute tests against each tool
+4. Execute tests against each tool and prompt
 5. Generate `AGENTS.md` documentation
+
+### Available Presets
+
+| Preset | Use Case | Cost |
+|:-------|:---------|:-----|
+| `--preset docs` | Quick documentation generation | ~$0.02 |
+| `--preset security` | Security-focused testing | ~$0.05 |
+| `--preset thorough` | Comprehensive testing with all personas | ~$0.10 |
+| `--preset ci` | Fast CI/CD checks | ~$0.01 |
 
 ## 4. View the Results
 
@@ -74,15 +84,23 @@ bellwether interview npx your-server \
 For fast, cheap CI runs (~$0.01):
 
 ```bash
-bellwether interview --quick npx your-server
+bellwether interview --preset ci npx your-server
 ```
 
-### Use Different Personas
+### Security Testing
 
 Test with a security focus:
 
 ```bash
-bellwether interview --persona security_tester npx your-server
+bellwether interview --preset security npx your-server
+```
+
+### Thorough Testing
+
+Test with all personas for comprehensive coverage:
+
+```bash
+bellwether interview --preset thorough npx your-server
 ```
 
 ### Customize Configuration
@@ -114,8 +132,8 @@ bellwether interview npx your-server
 ### Development: Generate Documentation
 
 ```bash
-# Full interview for comprehensive docs
-bellwether interview npx your-server
+# Quick documentation with preset
+bellwether interview --preset docs npx your-server
 
 # View generated docs
 cat AGENTS.md
@@ -124,9 +142,9 @@ cat AGENTS.md
 ### CI/CD: Check for Behavioral Drift
 
 ```bash
-# In CI pipeline
+# In CI pipeline - fast and cheap
 bellwether interview \
-  --ci \
+  --preset ci \
   --compare-baseline ./baseline.json \
   --fail-on-drift \
   npx your-server
@@ -135,10 +153,10 @@ bellwether interview \
 ### Security: Audit an MCP Server
 
 ```bash
-# Security-focused interview
+# Security-focused interview with SARIF output
 bellwether interview \
-  --persona security_tester \
-  --output sarif \
+  --preset security \
+  --output-format sarif \
   npx your-server
 ```
 

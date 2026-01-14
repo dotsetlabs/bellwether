@@ -52,6 +52,38 @@ const PERSONA_MAP: Record<string, Persona> = {
 };
 
 /**
+ * Preset configurations for common interview scenarios.
+ */
+interface PresetConfig {
+  personas: Persona[];
+  maxQuestions: number;
+  description: string;
+}
+
+const PRESETS: Record<string, PresetConfig> = {
+  docs: {
+    personas: [DEFAULT_PERSONA],
+    maxQuestions: 3,
+    description: 'Documentation-focused: Technical Writer persona, 3 questions/tool',
+  },
+  security: {
+    personas: [DEFAULT_PERSONA, securityTesterPersona],
+    maxQuestions: 3,
+    description: 'Security audit: Technical + Security personas, 3 questions/tool',
+  },
+  thorough: {
+    personas: [DEFAULT_PERSONA, securityTesterPersona, qaEngineerPersona, noviceUserPersona],
+    maxQuestions: 5,
+    description: 'Comprehensive: All 4 personas, 5 questions/tool',
+  },
+  ci: {
+    personas: [DEFAULT_PERSONA],
+    maxQuestions: 1,
+    description: 'CI/CD optimized: Technical Writer only, 1 question/tool (fastest)',
+  },
+};
+
+/**
  * Parse persona list from CLI option.
  */
 function parsePersonas(personaList: string): Persona[] {
@@ -139,6 +171,7 @@ export const interviewCommand = new Command('interview')
   .option('-i, --interactive', 'Run in interactive mode with prompts')
   .option('-q, --quick', 'Quick mode for CI: 1 question per tool')
   .option('-Q, --quality', 'Use premium LLM models for higher quality output')
+  .option('-p, --preset <name>', 'Use a preset configuration: docs, security, thorough, ci')
   .option('--personas <list>', 'Comma-separated persona list: technical,security,qa,novice,all', 'technical')
   .option('--security', 'Include security testing persona (shorthand for --personas technical,security)')
   .action(async (command: string | undefined, args: string[], options) => {
@@ -183,19 +216,42 @@ export const interviewCommand = new Command('interview')
       ?? (isQualityMode ? PREMIUM_MODELS[config.llm.provider] : undefined)
       ?? config.llm.model;
 
+    // Handle preset configurations
+    let presetConfig: PresetConfig | undefined;
+    if (options.preset) {
+      presetConfig = PRESETS[options.preset.toLowerCase()];
+      if (!presetConfig) {
+        console.error(`Unknown preset: ${options.preset}`);
+        console.error(`Available presets: ${Object.keys(PRESETS).join(', ')}`);
+        console.error('\nPreset descriptions:');
+        for (const [name, cfg] of Object.entries(PRESETS)) {
+          console.error(`  ${name}: ${cfg.description}`);
+        }
+        process.exit(1);
+      }
+      console.log(`Using preset: ${options.preset} (${presetConfig.description})\n`);
+    }
+
     // Quick mode: 1 question per tool for fast CI runs
-    const maxQuestions = options.quick
-      ? 1
-      : (interactiveConfig?.maxQuestions
-        ?? (options.maxQuestions ? parseInt(options.maxQuestions, 10) : config.interview.maxQuestionsPerTool));
+    // Preset overrides quick mode if specified
+    const maxQuestions = presetConfig?.maxQuestions
+      ?? (options.quick
+        ? 1
+        : (interactiveConfig?.maxQuestions
+          ?? (options.maxQuestions ? parseInt(options.maxQuestions, 10) : config.interview.maxQuestionsPerTool)));
     const timeout = options.timeout
       ? parseInt(options.timeout, 10)
       : config.interview.timeout;
     const outputDir = interactiveConfig?.outputDir ?? options.output ?? config.output.outputDir ?? '.';
 
-    // Determine personas: --security is shorthand for technical,security
-    const personaList = options.security ? 'technical,security' : (options.personas ?? 'technical');
-    const selectedPersonas = parsePersonas(personaList);
+    // Determine personas: preset > --security > --personas
+    let selectedPersonas: Persona[];
+    if (presetConfig) {
+      selectedPersonas = presetConfig.personas;
+    } else {
+      const personaList = options.security ? 'technical,security' : (options.personas ?? 'technical');
+      selectedPersonas = parsePersonas(personaList);
+    }
 
     // Determine output format
     const wantsJson = interactiveConfig

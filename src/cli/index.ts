@@ -5,13 +5,14 @@ config(); // Load .env file before anything else
 
 import { Command } from 'commander';
 import { interviewCommand } from './commands/interview.js';
-import { discoverCommand } from './commands/discover.js';
+import { discoverCommand, summaryCommand } from './commands/discover.js';
 import { initCommand } from './commands/init.js';
 import { loginCommand } from './commands/login.js';
 import { linkCommand, projectsCommand } from './commands/link.js';
 import { uploadCommand } from './commands/upload.js';
 import { historyCommand, diffCommand } from './commands/history.js';
 import { profileCommand } from './commands/profile.js';
+import { badgeCommand } from './commands/badge.js';
 import { configureLogger, type LogLevel } from '../logging/logger.js';
 
 const program = new Command();
@@ -88,6 +89,11 @@ program.addCommand(
   )
 );
 program.addCommand(
+  summaryCommand.description(
+    'Quick overview of server capabilities (alias for discover)'
+  )
+);
+program.addCommand(
   initCommand.description(
     'Create a new bellwether.yaml configuration file'
   )
@@ -127,6 +133,11 @@ program.addCommand(
 program.addCommand(
   diffCommand.description(
     'Compare two baseline versions'
+  )
+);
+program.addCommand(
+  badgeCommand.description(
+    'Get embeddable verification badge for your project'
   )
 );
 

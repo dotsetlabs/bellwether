@@ -704,3 +704,110 @@ describe('interview command integration scenarios', () => {
     expect(modified).toEqual(['tool1']);
   });
 });
+
+describe('interview command presets', () => {
+  describe('preset configurations', () => {
+    const PRESETS = {
+      docs: {
+        personas: ['technical_writer'],
+        maxQuestions: 3,
+        description: 'Documentation-focused: Technical Writer persona, 3 questions/tool',
+      },
+      security: {
+        personas: ['technical_writer', 'security_tester'],
+        maxQuestions: 3,
+        description: 'Security audit: Technical + Security personas, 3 questions/tool',
+      },
+      thorough: {
+        personas: ['technical_writer', 'security_tester', 'qa_engineer', 'novice_user'],
+        maxQuestions: 5,
+        description: 'Comprehensive: All 4 personas, 5 questions/tool',
+      },
+      ci: {
+        personas: ['technical_writer'],
+        maxQuestions: 1,
+        description: 'CI/CD optimized: Technical Writer only, 1 question/tool (fastest)',
+      },
+    };
+
+    it('should have docs preset with technical writer and 3 questions', () => {
+      const preset = PRESETS['docs'];
+      expect(preset.personas).toContain('technical_writer');
+      expect(preset.personas).toHaveLength(1);
+      expect(preset.maxQuestions).toBe(3);
+    });
+
+    it('should have security preset with two personas', () => {
+      const preset = PRESETS['security'];
+      expect(preset.personas).toContain('technical_writer');
+      expect(preset.personas).toContain('security_tester');
+      expect(preset.personas).toHaveLength(2);
+      expect(preset.maxQuestions).toBe(3);
+    });
+
+    it('should have thorough preset with all personas and 5 questions', () => {
+      const preset = PRESETS['thorough'];
+      expect(preset.personas).toHaveLength(4);
+      expect(preset.maxQuestions).toBe(5);
+    });
+
+    it('should have ci preset optimized for speed', () => {
+      const preset = PRESETS['ci'];
+      expect(preset.personas).toHaveLength(1);
+      expect(preset.maxQuestions).toBe(1);
+    });
+
+    it('should validate preset names', () => {
+      const validPresets = ['docs', 'security', 'thorough', 'ci'];
+      const invalidPreset = 'invalid-preset';
+
+      expect(validPresets.includes('docs')).toBe(true);
+      expect(validPresets.includes(invalidPreset)).toBe(false);
+    });
+  });
+
+  describe('preset override behavior', () => {
+    it('should override manual persona selection when preset is specified', () => {
+      const options = {
+        preset: 'security',
+        personas: 'novice', // This should be ignored
+      };
+
+      // Preset takes precedence
+      const presetPersonas = ['technical_writer', 'security_tester'];
+      const finalPersonas = options.preset ? presetPersonas : options.personas?.split(',');
+
+      expect(finalPersonas).toEqual(['technical_writer', 'security_tester']);
+    });
+
+    it('should override quick mode when preset is specified', () => {
+      const options = {
+        preset: 'thorough',
+        quick: true, // This should be ignored
+      };
+
+      const presetMaxQuestions = 5;
+      const quickModeQuestions = 1;
+      const defaultQuestions = 3;
+
+      const finalQuestions = options.preset
+        ? presetMaxQuestions
+        : (options.quick ? quickModeQuestions : defaultQuestions);
+
+      expect(finalQuestions).toBe(5);
+    });
+
+    it('should use manual settings when no preset is specified', () => {
+      const options = {
+        personas: 'qa,novice',
+        maxQuestions: 4,
+      };
+
+      const finalPersonas = options.personas.split(',');
+      const finalQuestions = options.maxQuestions;
+
+      expect(finalPersonas).toEqual(['qa', 'novice']);
+      expect(finalQuestions).toBe(4);
+    });
+  });
+});

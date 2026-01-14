@@ -11,11 +11,14 @@ Quick discovery of MCP server capabilities without interviewing.
 
 ```bash
 bellwether discover [options] <command> [args...]
+bellwether summary [options] <command> [args...]  # alias
 ```
 
 ## Description
 
 The `discover` command connects to an MCP server and lists its capabilities (tools, prompts, and resources) without conducting a full interview. This is useful for quick reconnaissance or verifying server connectivity.
+
+The `summary` command is an alias for `discover` - both commands work identically.
 
 ## Arguments
 
@@ -42,19 +45,39 @@ bellwether discover npx @modelcontextprotocol/server-filesystem /tmp
 
 Output:
 ```
-Discovered capabilities for @modelcontextprotocol/server-filesystem
+╔════════════════════════════════════════════════════════════════╗
+║  @modelcontextprotocol/server-filesystem v1.0.0                ║
+║  Protocol Version: 2024-11-05                                  ║
+╚════════════════════════════════════════════════════════════════╝
 
-Tools (4):
-  - read_file: Read contents of a file
-  - write_file: Write content to a file
-  - list_directory: List directory contents
-  - search_files: Search for files matching a pattern
+CAPABILITIES
+  4 Tools · Resources
 
-Prompts (0):
-  (none)
+──────────────────────────────────────────────────────────────────
+TOOLS
+──────────────────────────────────────────────────────────────────
 
-Resources (1):
-  - file://{path}: Access file contents as a resource
+  read_file(path)
+    Read contents of a file
+
+  write_file(path, content)
+    Write content to a file
+
+  list_directory(path)
+    List directory contents
+
+  search_files(pattern, path?)
+    Search for files matching a pattern
+
+──────────────────────────────────────────────────────────────────
+QUICK START
+──────────────────────────────────────────────────────────────────
+
+  bellwether interview @modelcontextprotocol/server-filesystem /tmp --preset docs
+    Quick documentation generation
+
+  bellwether interview @modelcontextprotocol/server-filesystem /tmp --preset security
+    Security-focused testing
 ```
 
 ### JSON Output

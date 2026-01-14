@@ -18,6 +18,7 @@ import type {
   DiffSummary,
   BellwetherBaseline,
   StoredSession,
+  BadgeInfo,
 } from './types.js';
 import { isMockSession, MOCK_SESSION_PREFIX } from './auth.js';
 
@@ -384,6 +385,67 @@ export class MockCloudClient implements BellwetherCloudClient {
     const fromVersion = baselines[baselines.length - 2].version;
 
     return this.getDiff(projectId, fromVersion, toVersion);
+  }
+
+  async getBadgeInfo(projectId: string): Promise<BadgeInfo | null> {
+    // Note: Badge info is public and doesn't require authentication
+    const project = this.loadProjects().find((p) => p.id === projectId);
+
+    if (!project) {
+      return null;
+    }
+
+    const baselines = this.loadBaselines(projectId);
+    const latestBaseline = baselines.length > 0 ? baselines[baselines.length - 1] : null;
+
+    // Determine status based on latest diff
+    let status: BadgeInfo['status'] = 'unknown';
+    let statusText = 'Not verified';
+
+    if (baselines.length === 0) {
+      status = 'unknown';
+      statusText = 'No baseline';
+    } else if (baselines.length === 1) {
+      status = 'passing';
+      statusText = 'Verified';
+    } else {
+      // Check drift between last two versions
+      const diff = await this.getLatestDiff(projectId);
+      if (diff) {
+        if (diff.severity === 'none' || diff.severity === 'info') {
+          status = 'passing';
+          statusText = 'Stable';
+        } else if (diff.severity === 'warning') {
+          status = 'drift';
+          statusText = 'Drift detected';
+        } else {
+          status = 'failing';
+          statusText = 'Breaking changes';
+        }
+      } else {
+        status = 'passing';
+        statusText = 'Verified';
+      }
+    }
+
+    // Badge URL - using shields.io format for mock
+    const color = status === 'passing' ? 'brightgreen' : status === 'drift' ? 'yellow' : status === 'failing' ? 'red' : 'lightgrey';
+    const badgeUrl = `https://img.shields.io/badge/bellwether-${encodeURIComponent(statusText)}-${color}`;
+
+    // Generate markdown
+    const projectUrl = `https://bellwether.sh/projects/${projectId}`;
+    const markdown = `[![Bellwether](${badgeUrl})](${projectUrl})`;
+
+    return {
+      projectId,
+      projectName: project.name,
+      status,
+      statusText,
+      badgeUrl,
+      markdown,
+      lastVerified: latestBaseline?.uploadedAt,
+      latestVersion: latestBaseline?.version,
+    };
   }
 
   // ============================================================================

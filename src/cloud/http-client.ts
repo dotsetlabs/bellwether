@@ -12,6 +12,7 @@ import type {
   UploadResult,
   DiffSummary,
   BellwetherBaseline,
+  BadgeInfo,
 } from './types.js';
 
 /**
@@ -234,6 +235,18 @@ export class HttpCloudClient implements BellwetherCloudClient {
       }>('GET', `/projects/${projectId}/latest-diff`);
 
       return response.diff?.summary ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getBadgeInfo(projectId: string): Promise<BadgeInfo | null> {
+    try {
+      const response = await this.request<{ badge: BadgeInfo }>(
+        'GET',
+        `/projects/${projectId}/badge`
+      );
+      return response.badge;
     } catch {
       return null;
     }
