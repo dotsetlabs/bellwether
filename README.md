@@ -2,9 +2,9 @@
 
 [![Build Status](https://github.com/dotsetlabs/bellwether/actions/workflows/ci.yml/badge.svg)](https://github.com/dotsetlabs/bellwether/actions)
 [![npm version](https://img.shields.io/npm/v/@dotsetlabs/bellwether)](https://www.npmjs.com/package/@dotsetlabs/bellwether)
-[![Documentation](https://img.shields.io/badge/docs-docs.bellwether.sh-blue)](https://docs.bellwether.sh)
+[![Documentation](https://img.shields.io/badge/docs-bellwether.sh-blue)](https://bellwether.sh/docs)
 
-> Automated behavioral documentation for MCP servers through LLM-guided testing
+> Automated behavioral documentation and testing for MCP servers
 
 Bellwether is a CLI tool that generates comprehensive behavioral documentation for [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers. Instead of relying on manually written docs, Bellwether **interviews** your MCP server by:
 
@@ -15,13 +15,13 @@ Bellwether is a CLI tool that generates comprehensive behavioral documentation f
 
 ## Documentation
 
-**[docs.bellwether.sh](https://docs.bellwether.sh)** - Full documentation including:
+**[bellwether.sh/docs](https://bellwether.sh/docs)** - Full documentation including:
 
-- [Quick Start](https://docs.bellwether.sh/quickstart) - Get started in 5 minutes
-- [CLI Reference](https://docs.bellwether.sh/cli/interview) - Complete command documentation
-- [CI/CD Integration](https://docs.bellwether.sh/guides/ci-cd) - GitHub Actions, GitLab CI, etc.
-- [Personas](https://docs.bellwether.sh/concepts/personas) - Customize testing behavior
-- [Drift Detection](https://docs.bellwether.sh/concepts/drift-detection) - Catch breaking changes
+- [Quick Start](https://bellwether.sh/docs/quickstart) - Get started in 5 minutes
+- [CLI Reference](https://bellwether.sh/docs/cli/interview) - Complete command documentation
+- [CI/CD Integration](https://bellwether.sh/docs/guides/ci-cd) - GitHub Actions, GitLab CI
+- [Custom Scenarios](https://bellwether.sh/docs/guides/custom-scenarios) - YAML test definitions
+- [Remote Servers](https://bellwether.sh/docs/guides/remote-servers) - SSE and HTTP transports
 
 ## Quick Start
 
@@ -44,37 +44,72 @@ bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 |:--------|:---------|
 | Documentation says one thing, but what does the server actually do? | **Trust but verify** - Interview the server to document real behavior |
 | Breaking changes slip into production unnoticed | **Drift detection** - Catch behavioral changes before they hit production |
-| Security vulnerabilities are hard to discover manually | **Security insights** - Persona-based adversarial testing |
-| Manual testing is slow and expensive | **CI/CD integration** - Automated regression testing for MCP servers |
+| Security vulnerabilities are hard to discover manually | **Security testing** - Persona-based adversarial testing |
+| Manual testing is slow and expensive | **CI/CD integration** - Automated regression testing |
 
 ## Features
 
-- **AGENTS.md Generation** - Human-readable behavioral documentation with performance metrics
+### Core Features
+- **AGENTS.md Generation** - Human-readable behavioral documentation
+- **Performance Metrics** - Response times (avg/p50/p95/max) and error rates
 - **Multi-Provider LLM** - OpenAI, Anthropic Claude, or Ollama (local/free)
-- **Remote MCP Servers** - Connect via SSE or Streamable HTTP transports
-- **Custom Test Scenarios** - Define YAML test cases alongside LLM-generated ones
 - **Drift Detection** - Compare baselines to detect behavioral changes
 - **Multiple Output Formats** - Markdown, JSON, JUnit, SARIF
-- **CI/CD Integration** - GitHub Actions, GitLab CI, and more
-- **Cloud Sync** - Optional baseline history and verification badges
+
+### Server Support
+- **Local Servers** - Stdio transport for local MCP servers
+- **Remote Servers** - SSE and Streamable HTTP transports
+- **Resource Testing** - Discover and test MCP resources (data sources)
+
+### Testing
+- **Custom Test Scenarios** - Define YAML test cases with assertions
+- **Scenarios-Only Mode** - Run tests without LLM (free, deterministic)
+- **Multiple Personas** - Technical writer, security tester, QA engineer, novice user
+
+### Ecosystem
+- **MCP Registry Search** - Discover servers from the official registry
+- **Verification Program** - Get your server certified with badges
+- **GitHub Action** - One-line CI/CD integration
+- **Cloud Sync** - Optional baseline history and team features
+
+## Commands
+
+```bash
+# Interview a server
+bellwether interview npx @mcp/server-filesystem /tmp
+
+# Quick interview (fast, cheap - good for CI)
+bellwether interview --quick npx @mcp/server
+
+# Discover without full interview
+bellwether discover npx @mcp/server
+
+# Search the MCP Registry
+bellwether registry filesystem
+
+# Generate verification report
+bellwether verify npx @mcp/server
+
+# Initialize configuration
+bellwether init
+```
 
 ## Cost
 
 Bellwether uses LLMs for intelligent testing. Typical costs per interview:
 
-| Model | Cost | Quality |
-|:------|:-----|:--------|
-| `gpt-4o-mini` | ~$0.02 | Good (recommended for CI) |
-| `gpt-4o` | ~$0.13 | Best |
-| Ollama | Free | Variable |
+| Mode | Model | Cost | Use Case |
+|:-----|:------|:-----|:---------|
+| `--quick` | gpt-4o-mini | ~$0.01 | PR checks |
+| Default | gpt-4o-mini | ~$0.02 | CI/CD |
+| `--preset thorough` | gpt-4o | ~$0.15 | Releases |
+| Ollama | Local | Free | Development |
 
-Use `--quick` flag for fastest, cheapest runs (~$0.01).
-
-## CI/CD Example
+## GitHub Action
 
 ```yaml
 # .github/workflows/bellwether.yml
-name: Behavioral Testing
+name: MCP Behavioral Testing
 on: [push, pull_request]
 
 jobs:
@@ -84,15 +119,63 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Bellwether
+        uses: dotsetlabs/bellwether/action@v1
+        with:
+          server-command: 'npx @modelcontextprotocol/server-filesystem'
+          server-args: '/tmp'
+          baseline-path: './bellwether-baseline.json'
+          fail-on-drift: 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          npx @dotsetlabs/bellwether interview \
-            --ci \
-            --compare-baseline ./bellwether-baseline.json \
-            --fail-on-drift \
-            npx your-mcp-server
 ```
+
+See [action/README.md](./action/README.md) for full documentation.
+
+## Custom Test Scenarios
+
+Define deterministic tests in `bellwether-tests.yaml`:
+
+```yaml
+version: 1
+tools:
+  - name: get_weather
+    scenarios:
+      - name: "Valid location returns weather"
+        input:
+          location: "San Francisco"
+        assertions:
+          - path: "content[0].text"
+            condition: "contains"
+            expected: "temperature"
+
+      - name: "Invalid location returns error"
+        input:
+          location: ""
+        assertions:
+          - path: "isError"
+            condition: "equals"
+            expected: true
+```
+
+Run with:
+```bash
+bellwether interview --scenarios ./bellwether-tests.yaml npx @mcp/server
+bellwether interview --scenarios-only ./bellwether-tests.yaml npx @mcp/server  # No LLM needed
+```
+
+## Verified by Bellwether
+
+Get your MCP server certified:
+
+```bash
+bellwether verify --tier gold npx @mcp/your-server
+```
+
+Tiers based on test coverage:
+- 🥉 **Bronze** - Basic documentation
+- 🥈 **Silver** - Error handling tested
+- 🥇 **Gold** - Multiple personas + good coverage
+- 💎 **Platinum** - Security testing + comprehensive coverage
 
 ## Development
 
@@ -102,6 +185,9 @@ cd bellwether
 npm install
 npm run build
 npm test
+
+# Run CLI locally
+npm run dev -- interview npx @mcp/server
 
 # Documentation site
 cd website
@@ -119,10 +205,9 @@ MIT License - see [LICENSE](./LICENSE) for details.
 
 ## Related Projects
 
-- [Model Context Protocol](https://modelcontextprotocol.io/) - The protocol Bellwether interviews
-- [Bellwether Cloud](https://bellwether.sh) - Baseline history and drift detection
-- [Overwatch](https://github.com/dotsetlabs/overwatch) - MCP security proxy (tool shadowing detection)
-- [Hardpoint](https://github.com/dotsetlabs/hardpoint) - Rules File Backdoor detector
+- [Model Context Protocol](https://modelcontextprotocol.io/) - The protocol Bellwether tests
+- [MCP Registry](https://registry.modelcontextprotocol.io/) - Official server registry
+- [Bellwether Cloud](https://bellwether.sh) - Baseline history and team features
 
 ---
 

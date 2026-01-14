@@ -7,9 +7,63 @@ sidebar_position: 1
 
 Integrate Bellwether into your CI/CD pipeline for automated behavioral testing of MCP servers.
 
-## Quick Start
+## GitHub Action (Recommended)
 
-### GitHub Actions
+The easiest way to integrate Bellwether is with our official GitHub Action:
+
+```yaml
+name: MCP Behavioral Testing
+on: [push, pull_request]
+
+jobs:
+  bellwether:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Bellwether
+        uses: dotsetlabs/bellwether/action@v1
+        with:
+          server-command: 'npx @modelcontextprotocol/server-filesystem'
+          server-args: '/tmp'
+          baseline-path: './bellwether-baseline.json'
+          fail-on-drift: 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
+### Action Features
+
+- **Automatic setup** - Installs Node.js and Bellwether
+- **SARIF upload** - Results appear in GitHub Security tab
+- **Artifact upload** - AGENTS.md and baseline files saved
+- **All presets supported** - `ci`, `docs`, `security`, `thorough`
+- **Custom scenarios** - Pass your `bellwether-tests.yaml`
+
+### Action Inputs
+
+| Input | Description | Default |
+|:------|:------------|:--------|
+| `server-command` | Command to start the MCP server | Required |
+| `server-args` | Arguments for the server | `''` |
+| `preset` | Interview preset | - |
+| `quick` | Quick mode for PR checks | `false` |
+| `baseline-path` | Baseline for drift detection | - |
+| `fail-on-drift` | Fail if drift detected | `true` |
+| `fail-on-security` | Fail on security issues | `true` |
+| `output-format` | `sarif`, `junit`, `json`, `markdown` | `sarif` |
+| `scenarios-path` | Custom test scenarios file | - |
+| `scenarios-only` | Run only custom scenarios | `false` |
+
+See the [full action documentation](https://github.com/dotsetlabs/bellwether/blob/main/action/README.md) for all options.
+
+---
+
+## Manual Setup
+
+If you prefer not to use the action, you can run Bellwether directly:
+
+### GitHub Actions (Manual)
 
 ```yaml
 name: MCP Behavioral Testing

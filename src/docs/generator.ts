@@ -108,7 +108,7 @@ export function generateAgentsMd(result: InterviewResult): string {
     lines.push(`- **Prompts:** ${discovery.prompts.length} available`);
   }
   if (discovery.capabilities.resources) {
-    lines.push('- **Resources:** Supported');
+    lines.push(`- **Resources:** ${(discovery.resources ?? []).length} available`);
   }
   if (discovery.capabilities.logging) {
     lines.push('- **Logging:** Supported');
@@ -397,6 +397,69 @@ export function generateAgentsMd(result: InterviewResult): string {
           const required = arg.required ? ' (required)' : '';
           lines.push(`- \`${arg.name}\`${required}: ${arg.description ?? 'No description'}`);
         }
+        lines.push('');
+      }
+    }
+  }
+
+  // Resources section - use profiles if available, otherwise basic listing
+  if (result.resourceProfiles && result.resourceProfiles.length > 0) {
+    lines.push('## Resources');
+    lines.push('');
+    lines.push('Resources are data sources exposed by the server that can be read by clients.');
+    lines.push('');
+
+    for (const profile of result.resourceProfiles) {
+      lines.push(`### ${profile.name}`);
+      lines.push('');
+      lines.push(`**URI:** \`${profile.uri}\``);
+      if (profile.mimeType) {
+        lines.push(`**MIME Type:** ${profile.mimeType}`);
+      }
+      lines.push('');
+      lines.push(profile.description);
+      lines.push('');
+
+      if (profile.contentPreview) {
+        lines.push('**Content Preview:**');
+        lines.push('```');
+        lines.push(profile.contentPreview);
+        lines.push('```');
+        lines.push('');
+      }
+
+      if (profile.behavioralNotes.length > 0) {
+        lines.push('**Observed Behavior:**');
+        for (const note of profile.behavioralNotes) {
+          lines.push(`- ${note}`);
+        }
+        lines.push('');
+      }
+
+      if (profile.limitations.length > 0) {
+        lines.push('**Limitations:**');
+        for (const limitation of profile.limitations) {
+          lines.push(`- ${limitation}`);
+        }
+        lines.push('');
+      }
+    }
+  } else if ((discovery.resources ?? []).length > 0) {
+    // Fallback to basic listing if no profiles
+    lines.push('## Resources');
+    lines.push('');
+    lines.push('Resources are data sources exposed by the server that can be read by clients.');
+    lines.push('');
+    for (const resource of discovery.resources ?? []) {
+      lines.push(`### ${resource.name}`);
+      lines.push('');
+      lines.push(`**URI:** \`${resource.uri}\``);
+      if (resource.mimeType) {
+        lines.push(`**MIME Type:** ${resource.mimeType}`);
+      }
+      lines.push('');
+      if (resource.description) {
+        lines.push(resource.description);
         lines.push('');
       }
     }

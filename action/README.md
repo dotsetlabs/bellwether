@@ -1,0 +1,203 @@
+# Bellwether MCP Interview Action
+
+Behavioral testing, documentation generation, and drift detection for MCP servers in your CI/CD pipeline.
+
+## Features
+
+- Interview MCP servers with LLM-guided behavioral testing
+- Generate AGENTS.md documentation automatically
+- Detect behavioral drift with baseline comparison
+- Run custom test scenarios (with or without LLM)
+- Upload results to GitHub Security tab (SARIF)
+- JUnit report integration for test results
+- Multiple LLM providers: OpenAI, Anthropic, Ollama
+
+## Usage
+
+### Basic Usage
+
+```yaml
+name: MCP Interview
+on: [push, pull_request]
+
+jobs:
+  interview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Interview MCP Server
+        uses: dotsetlabs/bellwether/action@v1
+        with:
+          server-command: 'npx @modelcontextprotocol/server-filesystem'
+          server-args: '/tmp'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
+### Quick Mode (Recommended for PRs)
+
+```yaml
+- name: Quick Interview
+  uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx @modelcontextprotocol/server-filesystem'
+    server-args: '/tmp'
+    quick: 'true'
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
+### Using Presets
+
+```yaml
+- name: Security-focused Interview
+  uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx @modelcontextprotocol/server-filesystem'
+    server-args: '/tmp'
+    preset: 'security'  # Options: docs, security, thorough, ci
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
+### Drift Detection
+
+```yaml
+- name: Interview with Drift Detection
+  uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx @modelcontextprotocol/server-filesystem'
+    server-args: '/tmp'
+    baseline-path: './bellwether-baseline.json'
+    fail-on-drift: 'true'
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
+### Save Baseline
+
+```yaml
+- name: Interview and Save Baseline
+  uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx @modelcontextprotocol/server-filesystem'
+    server-args: '/tmp'
+    save-baseline: 'true'
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+- name: Commit Baseline
+  uses: stefanzweifel/git-auto-commit-action@v5
+  with:
+    commit_message: 'Update MCP baseline'
+    file_pattern: 'bellwether-baseline.json'
+```
+
+### Custom Scenarios (No LLM Required)
+
+```yaml
+- name: Run Custom Scenarios
+  uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx @modelcontextprotocol/server-filesystem'
+    server-args: '/tmp'
+    scenarios-path: './bellwether-tests.yaml'
+    scenarios-only: 'true'
+```
+
+### SARIF Upload to GitHub Security
+
+```yaml
+- name: Interview with SARIF
+  uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx @modelcontextprotocol/server-filesystem'
+    server-args: '/tmp'
+    output-format: 'sarif'
+    fail-on-security: 'true'
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
+Results automatically appear in the Security tab of your repository.
+
+## Inputs
+
+| Input | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `server-command` | Command to start the MCP server | Yes | - |
+| `server-args` | Arguments to pass to the server | No | `''` |
+| `preset` | Interview preset (docs, security, thorough, ci) | No | - |
+| `personas` | Comma-separated personas (if not using preset) | No | `technical_writer` |
+| `max-questions` | Max questions per tool (if not using preset) | No | `3` |
+| `quick` | Quick mode for fast CI runs | No | `false` |
+| `baseline-path` | Path to baseline file for drift comparison | No | - |
+| `fail-on-drift` | Fail if drift is detected | No | `true` |
+| `fail-on-security` | Fail if security issues found | No | `true` |
+| `save-baseline` | Save baseline after interview | No | `false` |
+| `output-format` | Output format: sarif, junit, json, markdown, both | No | `sarif` |
+| `output-dir` | Directory for output files | No | `.` |
+| `scenarios-path` | Path to custom test scenarios YAML | No | - |
+| `scenarios-only` | Run only custom scenarios (no LLM) | No | `false` |
+| `timeout` | Timeout for tool calls in ms | No | `30000` |
+| `llm-provider` | LLM provider (openai, anthropic, ollama) | No | `openai` |
+| `llm-model` | LLM model to use | No | - |
+| `openai-api-key` | OpenAI API key (or use env var) | No | - |
+| `anthropic-api-key` | Anthropic API key (or use env var) | No | - |
+
+## Outputs
+
+| Output | Description |
+|--------|-------------|
+| `result` | Check result: passed or failed |
+| `exit-code` | Exit code (0=pass, 1=fail, 2=error) |
+| `drift-detected` | Whether drift was detected |
+| `security-issues` | Number of security issues found |
+| `tool-count` | Number of tools discovered |
+| `error-count` | Number of errors encountered |
+| `agents-md` | Path to generated AGENTS.md file |
+| `sarif-file` | Path to SARIF output file |
+| `junit-file` | Path to JUnit output file |
+| `baseline-file` | Path to saved baseline file |
+
+## Artifacts
+
+The action automatically uploads:
+- `bellwether-docs`: The generated AGENTS.md file
+- `bellwether-baseline`: The baseline file (if saved)
+
+## Using with Different LLM Providers
+
+### Anthropic
+
+```yaml
+- uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx your-server'
+    llm-provider: 'anthropic'
+    llm-model: 'claude-3-5-sonnet-20241022'
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+### Self-hosted Ollama
+
+```yaml
+- uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx your-server'
+    llm-provider: 'ollama'
+    llm-model: 'llama2'
+```
+
+## Security
+
+- Never commit API keys to your repository
+- Use GitHub Secrets to store sensitive values
+- SARIF results appear in the GitHub Security tab
+- The action filters out sensitive environment variables when spawning servers
+
+## License
+
+MIT License - see [LICENSE](../LICENSE) for details.

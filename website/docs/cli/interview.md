@@ -20,6 +20,7 @@ The `interview` command is the core of Bellwether. It connects to an MCP server,
 The interview process includes:
 - **Tool Testing**: Each discovered tool is tested with multiple scenarios
 - **Prompt Testing**: If the server exposes prompts, they are also tested and documented
+- **Resource Testing**: If the server exposes resources (data sources), they are read and documented with content previews
 - **Multi-Persona Analysis**: Different perspectives (documentation, security, QA) provide comprehensive coverage
 - **Behavioral Profiling**: Results are synthesized into profiles describing expected behavior
 
@@ -261,6 +262,7 @@ The generated documentation includes:
 - **Performance Metrics**: Response times (avg/p50/p95/max) and error rates per tool
 - **Tool Profiles**: For each tool - description, parameters, expected behavior, edge cases
 - **Prompt Profiles**: For each prompt (if any) - description, arguments, expected output
+- **Resource Profiles**: For each resource (if any) - URI, MIME type, content preview, access patterns
 - **Security Findings**: Any security concerns discovered during testing
 - **Custom Scenario Results**: Pass/fail status for user-defined test scenarios (if provided)
 
@@ -276,6 +278,8 @@ The generated documentation includes:
 ## See Also
 
 - [discover](/cli/discover) - Quick capability discovery
+- [verify](/cli/verify) - Server verification and badges
+- [registry](/cli/registry) - Search MCP Registry
 - [Personas](/concepts/personas) - Understanding testing personas
 - [Drift Detection](/concepts/drift-detection) - Baseline comparison
 - [Custom Test Scenarios](/guides/custom-scenarios) - YAML-defined test cases

@@ -5,12 +5,18 @@
 
 import type { InterviewResult } from '../interview/types.js';
 import type { BehavioralDiff, CIFinding } from '../baseline/types.js';
+import { URLS } from '../constants.js';
 
 /**
  * SARIF schema version.
  */
 const SARIF_VERSION = '2.1.0';
-const SARIF_SCHEMA = 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json';
+
+/**
+ * Bellwether version for SARIF reports.
+ * This should match package.json version.
+ */
+const BELLWETHER_VERSION = '0.2.0';
 
 /**
  * SARIF severity levels.
@@ -87,7 +93,7 @@ const BELLWETHER_RULES: SarifRule[] = [
     shortDescription: { text: 'Security consideration identified' },
     fullDescription: { text: 'A security-related behavior was observed during tool testing' },
     defaultConfiguration: { level: 'warning' },
-    helpUri: 'https://github.com/dotsetlabs/bellwether#security',
+    helpUri: `${URLS.DOCS_BASE}#security`,
   },
   {
     id: 'BELLWETHER-002',
@@ -95,7 +101,7 @@ const BELLWETHER_RULES: SarifRule[] = [
     shortDescription: { text: 'Tool limitation discovered' },
     fullDescription: { text: 'A limitation in tool behavior was identified' },
     defaultConfiguration: { level: 'note' },
-    helpUri: 'https://github.com/dotsetlabs/bellwether#limitations',
+    helpUri: `${URLS.DOCS_BASE}#limitations`,
   },
   {
     id: 'BELLWETHER-003',
@@ -103,7 +109,7 @@ const BELLWETHER_RULES: SarifRule[] = [
     shortDescription: { text: 'Tool removed from server' },
     fullDescription: { text: 'A tool that existed in the baseline is no longer present' },
     defaultConfiguration: { level: 'error' },
-    helpUri: 'https://github.com/dotsetlabs/bellwether#drift',
+    helpUri: `${URLS.DOCS_BASE}#drift`,
   },
   {
     id: 'BELLWETHER-004',
@@ -111,7 +117,7 @@ const BELLWETHER_RULES: SarifRule[] = [
     shortDescription: { text: 'New tool added to server' },
     fullDescription: { text: 'A new tool was discovered that was not in the baseline' },
     defaultConfiguration: { level: 'note' },
-    helpUri: 'https://github.com/dotsetlabs/bellwether#drift',
+    helpUri: `${URLS.DOCS_BASE}#drift`,
   },
   {
     id: 'BELLWETHER-005',
@@ -119,7 +125,7 @@ const BELLWETHER_RULES: SarifRule[] = [
     shortDescription: { text: 'Tool schema changed' },
     fullDescription: { text: 'The input schema for a tool has changed' },
     defaultConfiguration: { level: 'warning' },
-    helpUri: 'https://github.com/dotsetlabs/bellwether#drift',
+    helpUri: `${URLS.DOCS_BASE}#drift`,
   },
   {
     id: 'BELLWETHER-006',
@@ -127,7 +133,7 @@ const BELLWETHER_RULES: SarifRule[] = [
     shortDescription: { text: 'Tool behavior changed' },
     fullDescription: { text: 'Observable tool behavior differs from baseline' },
     defaultConfiguration: { level: 'warning' },
-    helpUri: 'https://github.com/dotsetlabs/bellwether#drift',
+    helpUri: `${URLS.DOCS_BASE}#drift`,
   },
   {
     id: 'BELLWETHER-007',
@@ -135,7 +141,7 @@ const BELLWETHER_RULES: SarifRule[] = [
     shortDescription: { text: 'Workflow execution failed' },
     fullDescription: { text: 'A workflow that previously succeeded now fails' },
     defaultConfiguration: { level: 'error' },
-    helpUri: 'https://github.com/dotsetlabs/bellwether#workflows',
+    helpUri: `${URLS.DOCS_BASE}#workflows`,
   },
 ];
 
@@ -212,15 +218,15 @@ export function generateSarifReport(
   }
 
   const report: SarifReport = {
-    $schema: SARIF_SCHEMA,
+    $schema: URLS.SARIF_SCHEMA,
     version: SARIF_VERSION,
     runs: [
       {
         tool: {
           driver: {
             name: 'Bellwether',
-            version: '0.3.0',
-            informationUri: 'https://github.com/dotsetlabs/bellwether',
+            version: BELLWETHER_VERSION,
+            informationUri: URLS.DOCS_BASE,
             rules: BELLWETHER_RULES,
           },
         },
@@ -334,15 +340,15 @@ export function generateSarifFromDiff(
   }
 
   const report: SarifReport = {
-    $schema: SARIF_SCHEMA,
+    $schema: URLS.SARIF_SCHEMA,
     version: SARIF_VERSION,
     runs: [
       {
         tool: {
           driver: {
             name: 'Bellwether',
-            version: '0.3.0',
-            informationUri: 'https://github.com/dotsetlabs/bellwether',
+            version: BELLWETHER_VERSION,
+            informationUri: URLS.DOCS_BASE,
             rules: BELLWETHER_RULES,
           },
         },
@@ -396,15 +402,15 @@ export function generateSarifFromFindings(
   });
 
   const report: SarifReport = {
-    $schema: SARIF_SCHEMA,
+    $schema: URLS.SARIF_SCHEMA,
     version: SARIF_VERSION,
     runs: [
       {
         tool: {
           driver: {
             name: 'Bellwether',
-            version: '0.3.0',
-            informationUri: 'https://github.com/dotsetlabs/bellwether',
+            version: BELLWETHER_VERSION,
+            informationUri: URLS.DOCS_BASE,
             rules: BELLWETHER_RULES,
           },
         },

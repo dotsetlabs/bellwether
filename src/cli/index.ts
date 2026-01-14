@@ -13,6 +13,8 @@ import { uploadCommand } from './commands/upload.js';
 import { historyCommand, diffCommand } from './commands/history.js';
 import { profileCommand } from './commands/profile.js';
 import { badgeCommand } from './commands/badge.js';
+import { createRegistryCommand } from './commands/registry.js';
+import { createVerifyCommand } from './commands/verify.js';
 import { configureLogger, type LogLevel } from '../logging/logger.js';
 
 const program = new Command();
@@ -44,6 +46,10 @@ Examples:
 
   Quick interview (fast, for CI):
     $ bellwether interview --quick npx @mcp/my-server
+
+  Search MCP Registry:
+    $ bellwether registry filesystem    # Search for filesystem servers
+    $ bellwether registry --json        # List servers as JSON
 
   Cloud workflow:
     $ bellwether login                    # Authenticate
@@ -101,6 +107,16 @@ program.addCommand(
 program.addCommand(
   profileCommand.description(
     'Manage interview profiles'
+  )
+);
+program.addCommand(
+  createRegistryCommand().description(
+    'Search the MCP Registry for servers'
+  )
+);
+program.addCommand(
+  createVerifyCommand().description(
+    'Generate verification report for Verified by Bellwether program'
   )
 );
 

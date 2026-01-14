@@ -7,7 +7,7 @@
 // Transport layer
 export { MCPClient, type MCPClientOptions } from './transport/mcp-client.js';
 export { BaseTransport, type BaseTransportConfig, type TransportType } from './transport/base-transport.js';
-export { StdioTransport, type StdioTransportConfig, type TransportConfig } from './transport/stdio-transport.js';
+export { StdioTransport, type StdioTransportConfig } from './transport/stdio-transport.js';
 export { SSETransport, type SSETransportConfig } from './transport/sse-transport.js';
 export { HTTPTransport, type HTTPTransportConfig } from './transport/http-transport.js';
 export type {
@@ -17,10 +17,12 @@ export type {
   JSONRPCMessage,
   MCPTool,
   MCPPrompt,
+  MCPResource,
   MCPServerCapabilities,
   MCPServerInfo,
   MCPInitializeResult,
   MCPToolCallResult,
+  MCPResourceReadResult,
   MCPContentBlock,
 } from './transport/types.js';
 
@@ -38,6 +40,11 @@ export type {
   ToolProfile,
   ToolInteraction,
   InterviewMetadata,
+  PromptProfile,
+  PromptInteraction,
+  ResourceProfile,
+  ResourceInteraction,
+  ResourceQuestion,
 } from './interview/types.js';
 
 // LLM
@@ -48,7 +55,7 @@ export { OpenAIClient, type OpenAIClientOptions } from './llm/openai.js';
 export { generateAgentsMd, generateJsonReport } from './docs/generator.js';
 
 // Config
-export { loadConfig, generateDefaultConfig, getDefaultConfig, DEFAULT_CONFIG as DEFAULT_FILE_CONFIG } from './config/loader.js';
+export { loadConfig, generateDefaultConfig, getDefaultConfig } from './config/loader.js';
 export type { BellwetherConfig } from './config/loader.js';
 
 // Logging
@@ -84,3 +91,45 @@ export type {
   AssertionResult,
   ScenarioResult,
 } from './scenarios/index.js';
+
+// Registry
+export {
+  RegistryClient,
+  REGISTRY_BASE_URL,
+  API_VERSION,
+  generateRunCommand,
+  generatePackageCommand,
+  formatServerEntry,
+  formatServerList,
+} from './registry/index.js';
+export type {
+  RegistryRepository,
+  RegistryPackageArgument,
+  RegistryTransport,
+  RegistryPackage,
+  RegistryServerMeta,
+  RegistryServer,
+  RegistryServerEntry,
+  RegistryResponseMetadata,
+  RegistryServersResponse,
+  ListServersOptions,
+} from './registry/index.js';
+
+// Verification
+export {
+  generateVerificationResult,
+  generateVerificationReport,
+  generateVerificationBadge,
+  generateBadgeUrl,
+  generateBadgeMarkdown,
+  isVerificationValid,
+} from './verification/index.js';
+export type {
+  VerificationStatus,
+  VerificationTier,
+  VerificationResult,
+  VerificationBadge,
+  VerificationConfig,
+  VerificationReport,
+  VerificationSubmission,
+} from './verification/index.js';

@@ -34,10 +34,10 @@ bellwether interview --preset docs npx @modelcontextprotocol/server-filesystem /
 
 This will:
 1. Connect to the MCP server
-2. Discover available tools and prompts
+2. Discover available tools, prompts, and resources
 3. Generate intelligent test scenarios using the LLM
-4. Execute tests against each tool and prompt
-5. Generate `AGENTS.md` documentation
+4. Execute tests against each capability
+5. Generate `AGENTS.md` documentation with performance metrics
 
 ### Available Presets
 
@@ -66,6 +66,23 @@ You'll see comprehensive documentation of what the server actually does, includi
 - Performance metrics (response times, error rates)
 
 ## What's Next?
+
+### Discover MCP Servers
+
+Find servers to test from the official MCP Registry:
+
+```bash
+bellwether registry filesystem
+bellwether registry database
+```
+
+### Get Verified
+
+Run the verification process to certify your server:
+
+```bash
+bellwether verify --tier gold npx your-server
+```
 
 ### Save a Baseline for Drift Detection
 
@@ -251,6 +268,8 @@ Reads the contents of a file from the specified path.
 ## Next Steps
 
 - [CLI Reference](/cli/interview) - Full command options
+- [MCP Registry](/cli/registry) - Discover servers to test
+- [Verification](/cli/verify) - Get your server certified
 - [Personas](/concepts/personas) - Understanding testing personas
 - [Drift Detection](/concepts/drift-detection) - Set up behavioral regression testing
 - [CI/CD Integration](/guides/ci-cd) - Automate with GitHub Actions, GitLab CI, etc.
