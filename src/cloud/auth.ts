@@ -70,7 +70,7 @@ export function ensureConfigDir(): void {
  * Returns false if permissions could not be verified/fixed.
  */
 function verifySessionPermissions(): boolean {
-  // Skip permission checks on Windows
+  // Skip permission checks on Windows (Windows has different ACL system)
   if (platform() === 'win32') {
     return true;
   }
@@ -90,21 +90,22 @@ function verifySessionPermissions(): boolean {
         chmodSync(SESSION_FILE, 0o600);
         return true;
       } catch {
-        // Could not fix permissions - warn user
-        console.warn('Warning: Session file has insecure permissions and could not be fixed.');
-        console.warn(`Please run: chmod 600 ${SESSION_FILE}`);
+        // Could not fix permissions
         return false;
       }
     }
 
     return true;
-  } catch {
-    return true; // If we can't check, proceed anyway
+  } catch (error) {
+    // If we can't stat the file, there's a real problem
+    console.warn(`Warning: Could not verify session file permissions: ${error instanceof Error ? error.message : error}`);
+    return false;
   }
 }
 
 /**
  * Get the stored session.
+ * Returns null if no session exists, session is expired, or file is corrupted.
  */
 export function getStoredSession(): StoredSession | null {
   if (!existsSync(SESSION_FILE)) {
@@ -112,7 +113,13 @@ export function getStoredSession(): StoredSession | null {
   }
 
   // Verify file permissions before reading sensitive data
-  verifySessionPermissions();
+  const permissionsOk = verifySessionPermissions();
+  if (!permissionsOk) {
+    // Permissions are insecure and couldn't be fixed - refuse to use session
+    console.error('Error: Session file has insecure permissions. Please fix with:');
+    console.error(`  chmod 600 ${SESSION_FILE}`);
+    return null;
+  }
 
   try {
     const content = readFileSync(SESSION_FILE, 'utf-8');
@@ -126,8 +133,10 @@ export function getStoredSession(): StoredSession | null {
     }
 
     return session;
-  } catch {
-    // If file is corrupted, return null
+  } catch (error) {
+    // If file is corrupted, log and return null
+    console.warn('Warning: Session file is corrupted, clearing it.');
+    clearSession();
     return null;
   }
 }
@@ -179,12 +188,31 @@ export function getSessionToken(): string | undefined {
  * Priority:
  * 1. BELLWETHER_API_URL environment variable
  * 2. Default: https://api.bellwether.sh
+ *
+ * Security: Validates that custom URLs use HTTPS (except localhost for development).
  */
 export function getBaseUrl(): string {
   // Check environment variable first
   const envUrl = process.env[BASE_URL_ENV_VAR];
   if (envUrl) {
-    return envUrl;
+    // Validate URL format and security
+    try {
+      const url = new URL(envUrl);
+
+      // Allow HTTP only for localhost/127.0.0.1 (development)
+      const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+      if (url.protocol !== 'https:' && !isLocalhost) {
+        console.warn(`Warning: ${BASE_URL_ENV_VAR} uses insecure HTTP protocol.`);
+        console.warn('HTTPS is required for production use to protect authentication tokens.');
+        console.warn('Use HTTPS or localhost for secure communication.\n');
+      }
+
+      return envUrl;
+    } catch {
+      console.warn(`Warning: Invalid URL in ${BASE_URL_ENV_VAR}: ${envUrl}`);
+      console.warn('Falling back to default API URL.\n');
+      return DEFAULT_BASE_URL;
+    }
   }
 
   // Return default

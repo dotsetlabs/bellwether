@@ -184,8 +184,12 @@ export const watchCommand = new Command('watch')
               }
             }
           }
-        } catch {
-          // Ignore errors
+        } catch (error) {
+          // Log filesystem errors but continue watching
+          // This handles transient issues like files being deleted during scan
+          if (options.debug) {
+            console.error(`Warning: Error scanning ${dir}:`, error instanceof Error ? error.message : error);
+          }
         }
       }
 
@@ -198,26 +202,51 @@ export const watchCommand = new Command('watch')
 
     console.log('\nWatching for changes... (Press Ctrl+C to exit)\n');
 
-    // Poll for changes
-    const pollInterval = setInterval(async () => {
-      if (checkForChanges()) {
-        clearInterval(pollInterval);
-        await runInterview();
-        console.log('\nWatching for changes... (Press Ctrl+C to exit)\n');
-        // Restart polling
-        setInterval(async () => {
-          if (checkForChanges()) {
-            await runInterview();
-            console.log('\nWatching for changes... (Press Ctrl+C to exit)\n');
-          }
-        }, interval);
+    // Track current interval for proper cleanup
+    let currentInterval: NodeJS.Timeout | null = null;
+    let isRunningInterview = false;
+
+    /**
+     * Poll for file changes and run interview when changes detected.
+     * Uses mutex to prevent concurrent interviews.
+     */
+    async function pollForChanges(): Promise<void> {
+      // Prevent concurrent interviews
+      if (isRunningInterview) {
+        return;
       }
+
+      try {
+        if (checkForChanges()) {
+          isRunningInterview = true;
+          await runInterview();
+          console.log('\nWatching for changes... (Press Ctrl+C to exit)\n');
+        }
+      } catch (error) {
+        console.error('Watch polling error:', error instanceof Error ? error.message : error);
+      } finally {
+        isRunningInterview = false;
+      }
+    }
+
+    // Start polling interval
+    currentInterval = setInterval(() => {
+      // Wrap async call with error handling - don't use fire-and-forget
+      pollForChanges().catch((error) => {
+        console.error('Unexpected polling error:', error instanceof Error ? error.message : error);
+      });
     }, interval);
 
-    // Handle exit
-    process.on('SIGINT', () => {
+    // Handle exit - ensure interval is properly cleaned up
+    const cleanup = (): void => {
       console.log('\n\nExiting watch mode.');
-      clearInterval(pollInterval);
+      if (currentInterval) {
+        clearInterval(currentInterval);
+        currentInterval = null;
+      }
       process.exit(0);
-    });
+    };
+
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
   });

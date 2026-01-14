@@ -201,10 +201,58 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Validate a URL is safe to open in the browser.
+ * Only allows HTTPS URLs from trusted domains.
+ */
+function isValidBrowserUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+
+    // Only allow HTTPS (or HTTP for localhost during development)
+    if (parsed.protocol !== 'https:') {
+      const isLocalhost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+      if (!isLocalhost) {
+        return false;
+      }
+    }
+
+    // Block javascript: and data: URLs
+    if (parsed.protocol === 'javascript:' || parsed.protocol === 'data:') {
+      return false;
+    }
+
+    // Allow bellwether.sh and github.com domains
+    const trustedDomains = [
+      'bellwether.sh',
+      'api.bellwether.sh',
+      'github.com',
+      'localhost',
+      '127.0.0.1',
+    ];
+
+    const isDomainTrusted = trustedDomains.some(domain =>
+      parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
+    );
+
+    return isDomainTrusted;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Open URL in default browser.
  * Uses execFile to prevent command injection via malicious URLs.
+ * Validates URL before opening for additional security.
  */
 async function openBrowser(url: string): Promise<void> {
+  // Validate URL before opening
+  if (!isValidBrowserUrl(url)) {
+    console.warn('Warning: Skipping browser open for untrusted URL.');
+    console.warn(`URL: ${url}`);
+    return;
+  }
+
   const plat = platform();
   let command: string;
   let args: string[];

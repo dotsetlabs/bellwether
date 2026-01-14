@@ -126,31 +126,30 @@ function extractServerContextFromArgs(command: string, args: string[]): ServerCo
   // Check if this is a known server type
   const fullCommand = `${command} ${args.join(' ')}`.toLowerCase();
 
+  // Extract any arguments that look like absolute paths
+  const pathArgs = args.filter(arg => arg.startsWith('/') && !arg.startsWith('--'));
+
   // Filesystem servers - look for directory arguments
   if (fullCommand.includes('filesystem') || fullCommand.includes('file-system')) {
-    // Arguments that look like absolute paths are likely allowed directories
-    for (const arg of args) {
-      if (arg.startsWith('/') && !arg.startsWith('--')) {
-        context.allowedDirectories!.push(arg);
-      }
+    context.allowedDirectories = pathArgs;
+    if (context.allowedDirectories.length > 0) {
+      context.hints!.push(`Filesystem server with allowed directories: ${context.allowedDirectories.join(', ')}`);
     }
-    if (context.allowedDirectories!.length > 0) {
-      context.hints!.push(`Filesystem server with allowed directories: ${context.allowedDirectories!.join(', ')}`);
-    }
+    context.constraints!.push('Operations limited to specified directories');
   }
-
   // Database servers - might have connection strings
-  if (fullCommand.includes('postgres') || fullCommand.includes('mysql') || fullCommand.includes('sqlite')) {
+  else if (fullCommand.includes('postgres') || fullCommand.includes('mysql') || fullCommand.includes('sqlite')) {
     context.hints!.push('Database server - SQL operations expected');
+    context.constraints!.push('Database operations only');
   }
-
-  // Any argument that looks like an absolute path could be a constraint
-  if (context.allowedDirectories!.length === 0) {
-    for (const arg of args) {
-      if (arg.startsWith('/') && !arg.startsWith('--')) {
-        context.allowedDirectories!.push(arg);
-      }
-    }
+  // Git servers
+  else if (fullCommand.includes('git')) {
+    context.allowedDirectories = pathArgs;
+    context.hints!.push('Git server - repository operations expected');
+  }
+  // Generic case - any path arguments are potential allowed directories
+  else {
+    context.allowedDirectories = pathArgs;
   }
 
   return context;
@@ -555,7 +554,33 @@ export const interviewCommand = new Command('interview')
       }
 
     } catch (error) {
-      console.error('\nInterview failed:', error instanceof Error ? error.message : error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('\n--- Interview Failed ---');
+      console.error(`Error: ${errorMessage}`);
+
+      // Provide helpful context for common errors
+      if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('Connection refused')) {
+        console.error('\nPossible causes:');
+        console.error('  - The MCP server is not running');
+        console.error('  - The server address/port is incorrect');
+        console.error('  - A firewall is blocking the connection');
+      } else if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
+        console.error('\nPossible causes:');
+        console.error('  - The MCP server is taking too long to respond');
+        console.error('  - Try increasing --timeout value');
+        console.error('  - The server may be overloaded or stuck');
+      } else if (errorMessage.includes('ENOENT') || errorMessage.includes('not found')) {
+        console.error('\nPossible causes:');
+        console.error('  - The server command was not found');
+        console.error('  - Check that the command is installed and in PATH');
+        console.error('  - Try using an absolute path to the server executable');
+      } else if (errorMessage.includes('API') || errorMessage.includes('API_KEY')) {
+        console.error('\nPossible causes:');
+        console.error('  - Missing or invalid API key');
+        console.error('  - Set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable');
+        console.error('  - Or configure apiKeyEnvVar in bellwether.yaml');
+      }
+
       process.exit(1);
     } finally {
       await mcpClient.disconnect();

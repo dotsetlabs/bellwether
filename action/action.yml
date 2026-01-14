@@ -1,6 +1,6 @@
 name: 'Bellwether MCP Interview'
 description: 'Behavioral testing, documentation generation, and drift detection for MCP servers'
-author: 'Dotset Labs'
+author: 'Dotset Labs LLC'
 
 branding:
   icon: 'shield'

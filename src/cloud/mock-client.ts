@@ -1,8 +1,18 @@
 /**
- * Mock cloud client for local development and testing.
+ * Mock cloud client for LOCAL DEVELOPMENT AND TESTING ONLY.
  *
- * Stores data locally in ~/.bellwether/mock-cloud/ as JSON files.
- * This allows developers to use cloud features without a backend.
+ * ⚠️  WARNING: This is NOT a production implementation!
+ *
+ * This mock client:
+ * - Stores data locally in ~/.bellwether/mock-cloud/ as JSON files
+ * - Simulates cloud API responses for development purposes
+ * - Does NOT sync data to any remote server
+ * - Should ONLY be used with mock sessions (sess_mock_*)
+ *
+ * For production use, connect to the real Bellwether Cloud API.
+ *
+ * Usage:
+ *   bellwether login --mock   # Creates a mock session for development
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from 'fs';
@@ -33,27 +43,53 @@ const MOCK_DATA_DIR = join(homedir(), '.bellwether', 'mock-cloud');
 const PROJECTS_FILE = 'projects.json';
 
 /**
- * Generate a unique ID.
+ * Generate a unique ID using cryptographically secure random bytes.
+ * Format: {prefix}_{timestamp}_{random}
+ * Example: proj_1a2b3c4d_e5f6a7b8
  */
 function generateId(prefix: string): string {
   const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 8);
-  return `${prefix}_${timestamp}${random}`;
+  const random = randomBytes(8).toString('hex');
+  return `${prefix}_${timestamp}_${random}`;
 }
 
 /**
- * Mock cloud client implementation.
+ * Mock cloud client implementation for development and testing.
  *
- * Stores all data locally for development and testing.
+ * ⚠️  DEVELOPMENT ONLY - NOT FOR PRODUCTION USE!
+ *
+ * This client:
+ * - Stores all data locally in ~/.bellwether/mock-cloud/
+ * - Provides a full implementation of the BellwetherCloudClient interface
+ * - Does NOT communicate with any remote servers
+ * - Should only be used with mock sessions (generated via `bellwether login --mock`)
+ *
+ * Features that work differently in mock mode:
+ * - Badge URLs point to shields.io for display purposes only
+ * - Project URLs are local file:// paths
+ * - No data synchronization across machines
+ *
+ * For production deployments, use the real CloudClient with proper authentication.
  */
 export class MockCloudClient implements BellwetherCloudClient {
   private dataDir: string;
   private sessionToken: string | null;
 
+  /**
+   * Create a new MockCloudClient.
+   *
+   * @param sessionToken - A mock session token (must start with 'sess_mock_')
+   */
   constructor(sessionToken?: string) {
     this.dataDir = MOCK_DATA_DIR;
     this.sessionToken = sessionToken ?? null;
     this.ensureDataDir();
+
+    // Log warning if used with non-mock session
+    if (sessionToken && !isMockSession(sessionToken)) {
+      console.warn('Warning: MockCloudClient instantiated with non-mock session token.');
+      console.warn('This client stores data locally and does not sync to the cloud.');
+    }
   }
 
   /**
