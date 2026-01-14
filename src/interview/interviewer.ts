@@ -294,7 +294,7 @@ export class Interviewer {
             );
             questions = [...questions, ...llmQuestions];
           }
-        } else {
+        } else if (!this.config.customScenariosOnly) {
           // No custom scenarios - generate LLM questions as usual
           questions = await orchestrator.generateQuestions(
             tool,
@@ -302,6 +302,7 @@ export class Interviewer {
             this.config.skipErrorTests
           );
         }
+        // If customScenariosOnly and no scenarios for this tool, skip it
 
         // Ask each question with retry logic
         for (const question of questions) {
@@ -325,7 +326,9 @@ export class Interviewer {
             });
 
             // If we have multiple failures, regenerate remaining questions with error context
-            if (previousErrors.length >= 2 && personaInteractions.length < questions.length) {
+            // Skip in scenarios-only mode - we only run the defined scenarios
+            if (!this.config.customScenariosOnly &&
+                previousErrors.length >= 2 && personaInteractions.length < questions.length) {
               const remaining = this.config.maxQuestionsPerTool - personaInteractions.length;
               if (remaining > 0) {
                 this.logger.debug({ tool: tool.name, errors: previousErrors.length },
@@ -348,15 +351,27 @@ export class Interviewer {
         }
 
         // Synthesize this persona's findings for this tool
-        const personaProfile = await orchestrator.synthesizeToolProfile(
-          tool,
-          personaInteractions.map(i => ({
-            question: i.question,
-            response: i.response,
-            error: i.error,
-            analysis: i.analysis,
-          }))
-        );
+        // Skip LLM synthesis in scenarios-only mode
+        let personaProfile: { behavioralNotes: string[]; limitations: string[]; securityNotes: string[] };
+        if (this.config.customScenariosOnly) {
+          // In scenarios-only mode, generate simple profile from scenario results
+          const errors = personaInteractions.filter(i => i.error).map(i => i.error!);
+          personaProfile = {
+            behavioralNotes: [`Executed ${personaInteractions.length} scenario(s)`],
+            limitations: errors.length > 0 ? [`${errors.length} scenario(s) returned errors`] : [],
+            securityNotes: [],
+          };
+        } else {
+          personaProfile = await orchestrator.synthesizeToolProfile(
+            tool,
+            personaInteractions.map(i => ({
+              question: i.question,
+              response: i.response,
+              error: i.error,
+              analysis: i.analysis,
+            }))
+          );
+        }
 
         // Store findings
         const toolData = toolInteractionsMap.get(tool.name)!;
@@ -428,10 +443,11 @@ export class Interviewer {
             const llmQuestions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
             questions = [...questions, ...llmQuestions];
           }
-        } else {
+        } else if (!this.config.customScenariosOnly) {
           // No custom scenarios - generate LLM questions as usual
           questions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
         }
+        // If customScenariosOnly and no scenarios for this prompt, skip it
 
         for (const question of questions) {
           const interactionStart = Date.now();
@@ -444,12 +460,24 @@ export class Interviewer {
             error = e instanceof Error ? e.message : String(e);
           }
 
-          const analysis = await primaryOrchestrator.analyzePromptResponse(
-            prompt,
-            question,
-            response,
-            error
-          );
+          // Skip LLM analysis in scenarios-only mode
+          let analysis: string;
+          if (this.config.customScenariosOnly) {
+            if (error) {
+              analysis = `Error: ${error}`;
+            } else if (response) {
+              analysis = 'Prompt scenario executed successfully.';
+            } else {
+              analysis = 'No response received.';
+            }
+          } else {
+            analysis = await primaryOrchestrator.analyzePromptResponse(
+              prompt,
+              question,
+              response,
+              error
+            );
+          }
 
           promptInteractions.push({
             promptName: prompt.name,
@@ -465,15 +493,28 @@ export class Interviewer {
         }
 
         // Synthesize prompt profile
-        const profile = await primaryOrchestrator.synthesizePromptProfile(
-          prompt,
-          promptInteractions.map(i => ({
-            question: i.question,
-            response: i.response,
-            error: i.error,
-            analysis: i.analysis,
-          }))
-        );
+        // Skip LLM synthesis in scenarios-only mode
+        let profile: { name: string; description: string; arguments: Array<{ name: string; description?: string; required?: boolean }>; behavioralNotes: string[]; limitations: string[] };
+        if (this.config.customScenariosOnly) {
+          const errors = promptInteractions.filter(i => i.error).length;
+          profile = {
+            name: prompt.name,
+            description: prompt.description || prompt.name,
+            arguments: prompt.arguments || [],
+            behavioralNotes: [`Executed ${promptInteractions.length} scenario(s)${errors > 0 ? `, ${errors} with errors` : ''}`],
+            limitations: [],
+          };
+        } else {
+          profile = await primaryOrchestrator.synthesizePromptProfile(
+            prompt,
+            promptInteractions.map(i => ({
+              question: i.question,
+              response: i.response,
+              error: i.error,
+              analysis: i.analysis,
+            }))
+          );
+        }
 
         promptProfiles.push({
           ...profile,
@@ -483,10 +524,11 @@ export class Interviewer {
     }
 
     // Interview resources (if server has resources capability)
+    // Skip in scenarios-only mode since there's no resource scenario format
     const resourceProfiles: ResourceProfile[] = [];
     let resourceReadCount = 0;
     const discoveredResources = discovery.resources ?? [];
-    if (discoveredResources.length > 0) {
+    if (discoveredResources.length > 0 && !this.config.customScenariosOnly) {
       this.logger.info({ resourceCount: discoveredResources.length }, 'Interviewing resources');
 
       const primaryOrchestrator = new Orchestrator(this.llm, this.personas[0], this.serverContext);
@@ -568,11 +610,25 @@ export class Interviewer {
     }
 
     // Synthesize overall findings (use first persona's orchestrator for synthesis)
+    // Skip LLM synthesis in scenarios-only mode
     progress.phase = 'synthesizing';
     onProgress?.(progress);
 
-    const primaryOrchestrator = new Orchestrator(this.llm, this.personas[0]);
-    const overall = await primaryOrchestrator.synthesizeOverall(discovery, toolProfiles);
+    let overall: { summary: string; limitations: string[]; recommendations: string[] };
+    if (this.config.customScenariosOnly) {
+      const totalScenarios = toolProfiles.reduce((sum, p) => sum + p.interactions.length, 0);
+      const totalErrors = toolProfiles.reduce(
+        (sum, p) => sum + p.interactions.filter(i => i.error).length, 0
+      );
+      overall = {
+        summary: `Executed ${totalScenarios} custom scenario(s) across ${toolProfiles.length} tool(s).${totalErrors > 0 ? ` ${totalErrors} scenario(s) returned errors.` : ''}`,
+        limitations: [],
+        recommendations: [],
+      };
+    } else {
+      const primaryOrchestrator = new Orchestrator(this.llm, this.personas[0]);
+      overall = await primaryOrchestrator.synthesizeOverall(discovery, toolProfiles);
+    }
 
     // Calculate totals
     let totalToolCallCount = 0;
@@ -700,13 +756,26 @@ export class Interviewer {
     }
 
     // Analyze the response with this persona's perspective
-    const tool: MCPTool = { name: toolName, description: '' };
-    const analysis = await orchestrator.analyzeResponse(
-      tool,
-      question,
-      response,
-      error
-    );
+    // Skip LLM analysis in scenarios-only mode - just use assertion results
+    let analysis: string;
+    if (this.config.customScenariosOnly) {
+      // In scenarios-only mode, generate analysis from assertion results
+      if (error) {
+        analysis = `Error: ${error}`;
+      } else if (response) {
+        analysis = 'Scenario executed successfully.';
+      } else {
+        analysis = 'No response received.';
+      }
+    } else {
+      const tool: MCPTool = { name: toolName, description: '' };
+      analysis = await orchestrator.analyzeResponse(
+        tool,
+        question,
+        response,
+        error
+      );
+    }
 
     const interaction: ToolInteraction = {
       toolName,

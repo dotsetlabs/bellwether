@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { writeFileSync, existsSync } from 'fs';
+import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
@@ -463,6 +463,9 @@ export const interviewCommand = new Command('interview')
 
       // Generate documentation
       console.log('Generating documentation...');
+
+      // Ensure output directory exists
+      mkdirSync(outputDir, { recursive: true });
 
       const agentsMd = generateAgentsMd(result);
       const agentsMdPath = join(outputDir, 'AGENTS.md');
