@@ -41,23 +41,48 @@ Bellwether requires an LLM to generate test scenarios. Choose one of the followi
 
 ### OpenAI (Recommended)
 
-```bash
-export OPENAI_API_KEY=sk-your-key-here
-```
-
 Get your API key from [platform.openai.com](https://platform.openai.com/api-keys).
 
 Default model: `gpt-5-mini`
 
 ### Anthropic Claude
 
-```bash
-export ANTHROPIC_API_KEY=sk-ant-your-key-here
-```
-
 Get your API key from [console.anthropic.com](https://console.anthropic.com/).
 
 Default model: `claude-haiku-4-5`
+
+### Setting Your API Key
+
+Choose one of these methods (in order of recommendation):
+
+**Option A: Global config (recommended)**
+
+Set once, use everywhere:
+
+```bash
+mkdir -p ~/.bellwether
+echo "OPENAI_API_KEY=sk-your-key-here" >> ~/.bellwether/.env
+```
+
+**Option B: Project `.env` file**
+
+Per-project configuration (overrides global):
+
+```bash
+echo "OPENAI_API_KEY=sk-your-key-here" >> .env
+```
+
+**Option C: Shell environment**
+
+Temporary, for current session only:
+
+```bash
+export OPENAI_API_KEY=sk-your-key-here
+```
+
+:::tip
+The global `~/.bellwether/.env` file is the best option for most developers. Set it once and forget about it - Bellwether will automatically use your API key in any project.
+:::
 
 ### Ollama (Free, Local)
 
@@ -144,17 +169,18 @@ You should see:
 
 ### "API key not found"
 
-Ensure your environment variable is set correctly:
+Set your API key using one of these methods:
 
 ```bash
-# Check if set
-echo $OPENAI_API_KEY
+# Recommended: Global config (set once, use everywhere)
+mkdir -p ~/.bellwether
+echo "OPENAI_API_KEY=sk-xxx" >> ~/.bellwether/.env
 
-# Set in current session
+# Or: Project .env file
+echo "OPENAI_API_KEY=sk-xxx" >> .env
+
+# Or: Current session only
 export OPENAI_API_KEY=sk-xxx
-
-# Or add to your shell profile (~/.bashrc, ~/.zshrc)
-echo 'export OPENAI_API_KEY=sk-xxx' >> ~/.zshrc
 ```
 
 ### "Connection refused" with Ollama
