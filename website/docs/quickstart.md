@@ -16,10 +16,12 @@ npm install -g @dotsetlabs/bellwether
 ## 2. Set Your API Key
 
 ```bash
-# OpenAI (recommended)
-export OPENAI_API_KEY=sk-xxx
+# Interactive setup (recommended - stores securely in keychain)
+bellwether auth
 
-# Or Anthropic
+# Or set environment variable
+export OPENAI_API_KEY=sk-xxx
+# or
 export ANTHROPIC_API_KEY=sk-ant-xxx
 
 # Or use Ollama for free (ollama serve must be running)

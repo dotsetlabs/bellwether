@@ -108,8 +108,9 @@ Use `--quick` flag in CI for fastest, cheapest runs (~$0.01).
 # Install
 npm install -g @dotsetlabs/bellwether
 
-# Set your API key (or use Ollama for free)
-export OPENAI_API_KEY=sk-xxx
+# Set your API key (interactive setup - stores in keychain)
+bellwether auth
+# Or: export OPENAI_API_KEY=sk-xxx (or use Ollama for free)
 
 # Interview a local server during development
 bellwether interview node ./src/mcp-server.js
