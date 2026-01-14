@@ -55,7 +55,30 @@ Default model: `claude-haiku-4-5`
 
 Choose one of these methods (in order of recommendation):
 
-**Option A: Global config (recommended)**
+**Option A: Interactive setup (recommended)**
+
+The easiest way to configure your API key:
+
+```bash
+bellwether auth
+```
+
+This interactive wizard will:
+1. Ask which provider you want to use
+2. Prompt for your API key (input is hidden)
+3. Store it securely in your system keychain
+
+**Option B: System keychain (manual)**
+
+Store your API key in the system keychain directly:
+
+```bash
+bellwether auth add openai
+# or
+bellwether auth add anthropic
+```
+
+**Option C: Global `.env` file**
 
 Set once, use everywhere:
 
@@ -64,7 +87,7 @@ mkdir -p ~/.bellwether
 echo "OPENAI_API_KEY=sk-your-key-here" >> ~/.bellwether/.env
 ```
 
-**Option B: Project `.env` file**
+**Option D: Project `.env` file**
 
 Per-project configuration (overrides global):
 
@@ -72,7 +95,7 @@ Per-project configuration (overrides global):
 echo "OPENAI_API_KEY=sk-your-key-here" >> .env
 ```
 
-**Option C: Shell environment**
+**Option E: Shell environment**
 
 Temporary, for current session only:
 
@@ -81,8 +104,16 @@ export OPENAI_API_KEY=sk-your-key-here
 ```
 
 :::tip
-The global `~/.bellwether/.env` file is the best option for most developers. Set it once and forget about it - Bellwether will automatically use your API key in any project.
+Use `bellwether auth` for the best experience. It stores your API key securely in the system keychain (macOS Keychain, Windows Credential Manager, or Linux Secret Service) and works across all your projects.
 :::
+
+### Checking Auth Status
+
+See which providers are configured:
+
+```bash
+bellwether auth status
+```
 
 ### Ollama (Free, Local)
 
@@ -169,10 +200,25 @@ You should see:
 
 ### "API key not found"
 
-Set your API key using one of these methods:
+Set up your API key using the interactive wizard:
 
 ```bash
-# Recommended: Global config (set once, use everywhere)
+bellwether auth
+```
+
+Or check your current authentication status:
+
+```bash
+bellwether auth status
+```
+
+Alternative methods:
+
+```bash
+# Store in system keychain
+bellwether auth add openai
+
+# Or: Global .env file (set once, use everywhere)
 mkdir -p ~/.bellwether
 echo "OPENAI_API_KEY=sk-xxx" >> ~/.bellwether/.env
 

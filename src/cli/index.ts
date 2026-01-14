@@ -14,6 +14,36 @@ if (existsSync(globalEnvPath)) {
 // Then load project .env (overrides global settings)
 config();
 
+// Load credentials from keychain if not already in env
+// This is done async but we await it before parsing commands
+async function loadKeychainCredentials(): Promise<void> {
+  // Only load from keychain if env vars aren't already set
+  if (!process.env.OPENAI_API_KEY || !process.env.ANTHROPIC_API_KEY) {
+    try {
+      const { getKeychainService } = await import('../auth/keychain.js');
+      const keychain = getKeychainService();
+
+      // Load OpenAI key if not in env
+      if (!process.env.OPENAI_API_KEY) {
+        const key = await keychain.getApiKey('openai');
+        if (key) {
+          process.env.OPENAI_API_KEY = key;
+        }
+      }
+
+      // Load Anthropic key if not in env
+      if (!process.env.ANTHROPIC_API_KEY) {
+        const key = await keychain.getApiKey('anthropic');
+        if (key) {
+          process.env.ANTHROPIC_API_KEY = key;
+        }
+      }
+    } catch {
+      // Keychain not available - continue without it
+    }
+  }
+}
+
 import { Command } from 'commander';
 import { interviewCommand } from './commands/interview.js';
 import { discoverCommand, summaryCommand } from './commands/discover.js';
@@ -23,6 +53,7 @@ import { linkCommand, projectsCommand } from './commands/link.js';
 import { uploadCommand } from './commands/upload.js';
 import { historyCommand, diffCommand } from './commands/history.js';
 import { profileCommand } from './commands/profile.js';
+import { authCommand } from './commands/auth.js';
 import { badgeCommand } from './commands/badge.js';
 import { createRegistryCommand } from './commands/registry.js';
 import { createVerifyCommand } from './commands/verify.js';
@@ -116,6 +147,11 @@ program.addCommand(
   )
 );
 program.addCommand(
+  authCommand.description(
+    'Manage LLM provider API keys (keychain storage)'
+  )
+);
+program.addCommand(
   profileCommand.description(
     'Manage interview profiles'
   )
@@ -174,4 +210,10 @@ program.configureHelp({
   subcommandTerm: (cmd) => cmd.name() + ' ' + cmd.usage(),
 });
 
-program.parse();
+// Load keychain credentials, then parse commands
+loadKeychainCredentials().then(() => {
+  program.parse();
+}).catch(() => {
+  // If keychain loading fails, still parse commands
+  program.parse();
+});
