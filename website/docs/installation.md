@@ -180,5 +180,6 @@ nvm use 20
 ## Next Steps
 
 - [Quick Start](/quickstart) - Run your first interview
+- [Local Development](/guides/local-development) - Test your MCP server during development
 - [Configuration Guide](/guides/configuration) - Advanced configuration options
 - [CLI Reference](/cli/interview) - Full command documentation

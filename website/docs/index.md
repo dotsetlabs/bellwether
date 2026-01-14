@@ -108,19 +108,43 @@ Use `--quick` flag in CI for fastest, cheapest runs (~$0.01).
 # Install
 npm install -g @dotsetlabs/bellwether
 
-# Set your API key
+# Set your API key (or use Ollama for free)
 export OPENAI_API_KEY=sk-xxx
 
-# Interview an MCP server
+# Interview a local server during development
+bellwether interview node ./src/mcp-server.js
+
+# Or interview an npm package
 bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 
 # Output: AGENTS.md with behavioral documentation
 ```
 
+## Local Development Workflow
+
+Bellwether integrates into your development workflow to catch behavioral drift before deployment:
+
+```bash
+# 1. Test your local server
+bellwether interview node ./src/mcp-server.js
+
+# 2. Save a baseline after initial development
+bellwether interview --save-baseline node ./src/mcp-server.js
+
+# 3. Use watch mode for continuous testing
+bellwether watch node ./src/mcp-server.js --watch-path ./src
+
+# 4. Before committing, check for drift
+bellwether interview --compare-baseline ./baseline.json node ./src/mcp-server.js
+```
+
+Use Ollama for completely free testing during development.
+
 ## Next Steps
 
 - [Installation](/installation) - Install Bellwether and configure your LLM provider
 - [Quick Start](/quickstart) - Run your first interview in 5 minutes
+- [Local Development](/guides/local-development) - Test your server during development
 - [CLI Reference](/cli/interview) - Full command documentation
 - [MCP Registry](/cli/registry) - Discover servers to test
 - [Verification](/cli/verify) - Certify your server

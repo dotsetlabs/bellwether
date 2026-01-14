@@ -27,9 +27,17 @@ export ANTHROPIC_API_KEY=sk-ant-xxx
 
 ## 3. Interview Your First MCP Server
 
+You can interview any MCP server—local scripts, npm packages, or remote endpoints:
+
 ```bash
-# Quick documentation generation (recommended for first use)
-bellwether interview --preset docs npx @modelcontextprotocol/server-filesystem /tmp
+# Local Node.js server (most common during development)
+bellwether interview node ./src/mcp-server.js
+
+# npm package via npx
+bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
+
+# Python server
+bellwether interview python ./mcp_server.py
 ```
 
 This will:
@@ -172,11 +180,27 @@ bellwether interview npx your-server
 
 ## Common Workflows
 
-### Development: Generate Documentation
+### Local Development: Test While You Build
+
+```bash
+# Run against your local server during development
+bellwether interview node ./src/mcp-server.js
+
+# Save a baseline after initial development
+bellwether interview --save-baseline node ./src/mcp-server.js
+
+# Use watch mode for continuous testing (re-interviews on file changes)
+bellwether watch node ./src/mcp-server.js --watch-path ./src
+
+# Before committing, check for unintended drift
+bellwether interview --compare-baseline ./bellwether-baseline.json node ./src/mcp-server.js
+```
+
+### Documentation: Generate AGENTS.md
 
 ```bash
 # Quick documentation with preset
-bellwether interview --preset docs npx your-server
+bellwether interview --preset docs node ./src/mcp-server.js
 
 # View generated docs
 cat AGENTS.md
@@ -267,6 +291,7 @@ Reads the contents of a file from the specified path.
 
 ## Next Steps
 
+- [Local Development](/guides/local-development) - Test during development with watch mode and drift detection
 - [CLI Reference](/cli/interview) - Full command options
 - [MCP Registry](/cli/registry) - Discover servers to test
 - [Verification](/cli/verify) - Get your server certified
