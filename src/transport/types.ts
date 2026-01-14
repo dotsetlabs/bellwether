@@ -90,6 +90,40 @@ export interface MCPPromptsListResult {
   prompts: MCPPrompt[];
 }
 
+/**
+ * MCP Resource types
+ */
+
+export interface MCPResource {
+  /** URI identifying the resource */
+  uri: string;
+  /** Human-readable name */
+  name: string;
+  /** Description of the resource */
+  description?: string;
+  /** MIME type of the resource content */
+  mimeType?: string;
+}
+
+export interface MCPResourcesListResult {
+  resources: MCPResource[];
+}
+
+export interface MCPResourceReadResult {
+  contents: MCPResourceContent[];
+}
+
+export interface MCPResourceContent {
+  /** URI of the resource */
+  uri: string;
+  /** MIME type of the content */
+  mimeType?: string;
+  /** Text content (for text resources) */
+  text?: string;
+  /** Binary content as base64 (for binary resources) */
+  blob?: string;
+}
+
 export interface MCPPromptMessage {
   role: 'user' | 'assistant';
   content: MCPPromptContent;

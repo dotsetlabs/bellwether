@@ -1,5 +1,9 @@
 import type { DiscoveryResult } from '../discovery/types.js';
-import type { MCPToolCallResult, MCPPromptGetResult } from '../transport/types.js';
+import type {
+  MCPToolCallResult,
+  MCPPromptGetResult,
+  MCPResourceReadResult,
+} from '../transport/types.js';
 import type { Persona, QuestionCategory } from '../persona/types.js';
 import type { WorkflowResult } from '../workflow/types.js';
 import type { LoadedScenarios, ScenarioResult } from '../scenarios/types.js';
@@ -156,6 +160,58 @@ export interface PromptProfile {
 }
 
 /**
+ * A question/test case for a resource.
+ */
+export interface ResourceQuestion {
+  /** Description of what this test evaluates */
+  description: string;
+  /** Category of test */
+  category: QuestionCategory;
+}
+
+/**
+ * Result of reading a single resource.
+ */
+export interface ResourceInteraction {
+  /** URI of the resource */
+  resourceUri: string;
+  /** Name of the resource */
+  resourceName: string;
+  /** The test case */
+  question: ResourceQuestion;
+  /** The resource's content */
+  response: MCPResourceReadResult | null;
+  /** Error if the read failed */
+  error: string | null;
+  /** LLM analysis of the response */
+  analysis: string;
+  /** Time taken in ms */
+  durationMs: number;
+}
+
+/**
+ * Behavioral profile for a single resource.
+ */
+export interface ResourceProfile {
+  /** Resource URI */
+  uri: string;
+  /** Resource name */
+  name: string;
+  /** Resource description */
+  description: string;
+  /** MIME type */
+  mimeType?: string;
+  /** Interactions during interview */
+  interactions: ResourceInteraction[];
+  /** Synthesized behavioral notes */
+  behavioralNotes: string[];
+  /** Discovered limitations */
+  limitations: string[];
+  /** Content preview (truncated if large) */
+  contentPreview?: string;
+}
+
+/**
  * Complete interview result.
  */
 export interface InterviewResult {
@@ -165,6 +221,8 @@ export interface InterviewResult {
   toolProfiles: ToolProfile[];
   /** Profile for each prompt */
   promptProfiles?: PromptProfile[];
+  /** Profile for each resource */
+  resourceProfiles?: ResourceProfile[];
   /** Workflow execution results */
   workflowResults?: WorkflowResult[];
   /** Custom scenario results (if scenarios were provided) */
@@ -204,6 +262,8 @@ export interface InterviewMetadata {
   durationMs: number;
   /** Number of tool calls made */
   toolCallCount: number;
+  /** Number of resource reads made */
+  resourceReadCount?: number;
   /** Number of errors encountered */
   errorCount: number;
   /** LLM model used */

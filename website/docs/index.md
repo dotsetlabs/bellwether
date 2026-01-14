@@ -27,9 +27,12 @@ Bellwether is a CLI tool that generates comprehensive behavioral documentation f
 ## Key Features
 
 - **AGENTS.md Generation** - Human-readable behavioral documentation generated automatically from actual server responses
+- **Complete MCP Coverage** - Test tools, prompts, and resources with content previews and access patterns
 - **Drift Detection** - Compare baselines to detect behavioral changes between versions with semantic diff analysis
 - **Multi-Persona Testing** - Security tester, QA engineer, technical writer, and novice user personas for comprehensive coverage
-- **Cloud Sync** - Optional cloud storage for baseline history and verification badges
+- **MCP Registry Integration** - Search and discover servers from the official MCP Registry
+- **Verification Program** - Certify your server with Bronze, Silver, Gold, or Platinum tiers
+- **GitHub Action** - Official action for automated CI/CD integration
 - **Multiple Output Formats** - Markdown, JSON, JUnit XML, and SARIF for GitHub Code Scanning
 
 ## How It Works
@@ -119,4 +122,6 @@ bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 - [Installation](/installation) - Install Bellwether and configure your LLM provider
 - [Quick Start](/quickstart) - Run your first interview in 5 minutes
 - [CLI Reference](/cli/interview) - Full command documentation
-- [CI/CD Integration](/guides/ci-cd) - Automate behavioral testing in your pipeline
+- [MCP Registry](/cli/registry) - Discover servers to test
+- [Verification](/cli/verify) - Certify your server
+- [CI/CD Integration](/guides/ci-cd) - Automate with the GitHub Action

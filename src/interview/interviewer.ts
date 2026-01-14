@@ -15,6 +15,8 @@ import type {
   InterviewQuestion,
   PromptProfile,
   PromptInteraction,
+  ResourceProfile,
+  ResourceInteraction,
 } from './types.js';
 import type { Persona } from '../persona/types.js';
 import { DEFAULT_PERSONA } from '../persona/builtins.js';
@@ -480,6 +482,91 @@ export class Interviewer {
       }
     }
 
+    // Interview resources (if server has resources capability)
+    const resourceProfiles: ResourceProfile[] = [];
+    let resourceReadCount = 0;
+    const discoveredResources = discovery.resources ?? [];
+    if (discoveredResources.length > 0) {
+      this.logger.info({ resourceCount: discoveredResources.length }, 'Interviewing resources');
+
+      const primaryOrchestrator = new Orchestrator(this.llm, this.personas[0], this.serverContext);
+
+      for (const resource of discoveredResources) {
+        progress.currentTool = `resource:${resource.name}`;
+        onProgress?.(progress);
+
+        const resourceInteractions: ResourceInteraction[] = [];
+
+        // Generate resource questions using the orchestrator
+        const questions = await primaryOrchestrator.generateResourceQuestions(resource, 2);
+
+        for (const question of questions) {
+          const interactionStart = Date.now();
+          let response = null;
+          let error = null;
+
+          try {
+            response = await client.readResource(resource.uri);
+            resourceReadCount++;
+          } catch (e) {
+            error = e instanceof Error ? e.message : String(e);
+            resourceReadCount++;
+          }
+
+          const analysis = await primaryOrchestrator.analyzeResourceResponse(
+            resource,
+            question,
+            response,
+            error
+          );
+
+          resourceInteractions.push({
+            resourceUri: resource.uri,
+            resourceName: resource.name,
+            question,
+            response,
+            error,
+            analysis,
+            durationMs: Date.now() - interactionStart,
+          });
+
+          progress.questionsAsked++;
+          onProgress?.(progress);
+        }
+
+        // Synthesize resource profile
+        const profile = await primaryOrchestrator.synthesizeResourceProfile(
+          resource,
+          resourceInteractions.map(i => ({
+            question: i.question,
+            response: i.response,
+            error: i.error,
+            analysis: i.analysis,
+          }))
+        );
+
+        // Extract content preview from first successful read
+        let contentPreview: string | undefined;
+        const successfulRead = resourceInteractions.find(i => i.response && !i.error);
+        if (successfulRead?.response?.contents?.[0]) {
+          const content = successfulRead.response.contents[0];
+          if (content.text) {
+            contentPreview = content.text.length > 500
+              ? content.text.substring(0, 500) + '...'
+              : content.text;
+          } else if (content.blob) {
+            contentPreview = `[Binary data: ${content.blob.length} bytes base64]`;
+          }
+        }
+
+        resourceProfiles.push({
+          ...profile,
+          interactions: resourceInteractions,
+          contentPreview,
+        });
+      }
+    }
+
     // Synthesize overall findings (use first persona's orchestrator for synthesis)
     progress.phase = 'synthesizing';
     onProgress?.(progress);
@@ -501,6 +588,7 @@ export class Interviewer {
       endTime,
       durationMs: endTime.getTime() - startTime.getTime(),
       toolCallCount: totalToolCallCount,
+      resourceReadCount: resourceReadCount > 0 ? resourceReadCount : undefined,
       errorCount: totalErrorCount,
       model: this.config.model,
       personas: Array.from(personaStats.values()),
@@ -521,6 +609,7 @@ export class Interviewer {
       discovery,
       toolProfiles,
       promptProfiles: promptProfiles.length > 0 ? promptProfiles : undefined,
+      resourceProfiles: resourceProfiles.length > 0 ? resourceProfiles : undefined,
       scenarioResults: allScenarioResults.length > 0 ? allScenarioResults : undefined,
       summary: overall.summary,
       limitations: overall.limitations,

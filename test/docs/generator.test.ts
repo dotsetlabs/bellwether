@@ -25,6 +25,7 @@ describe('docs/generator', () => {
       capabilities: { tools: {}, prompts: {} },
       tools: [weatherTool, calculatorTool],
       prompts: samplePrompts,
+      resources: [],
       timestamp: now,
       serverCommand: 'npx test-server',
       serverArgs: ['--port', '3000'],
@@ -98,7 +99,7 @@ describe('docs/generator', () => {
       mockResult.discovery.capabilities = { ...mockCapabilities, resources: {} };
       const md = generateAgentsMd(mockResult);
 
-      expect(md).toContain('**Resources:** Supported');
+      expect(md).toContain('**Resources:** 0 available');
     });
 
     it('should show logging capability when present', () => {

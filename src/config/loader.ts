@@ -110,10 +110,6 @@ export function getDefaultConfig(): BellwetherConfig {
   return createDefaultConfig();
 }
 
-/**
- * @deprecated Use getDefaultConfig() instead - this evaluates too early before dotenv loads
- */
-export const DEFAULT_CONFIG: BellwetherConfig = createDefaultConfig();
 
 /**
  * Config file names to search for.

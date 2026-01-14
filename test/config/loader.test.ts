@@ -5,7 +5,7 @@ import { tmpdir } from 'os';
 import {
   loadConfig,
   generateDefaultConfig,
-  DEFAULT_CONFIG,
+  getDefaultConfig,
 } from '../../src/config/loader.js';
 
 describe('config/loader', () => {
@@ -32,7 +32,7 @@ describe('config/loader', () => {
   describe('loadConfig', () => {
     it('should return default config when no config file exists', () => {
       const config = loadConfig();
-      expect(config).toEqual(DEFAULT_CONFIG);
+      expect(config).toEqual(getDefaultConfig());
     });
 
     it('should load config from explicit path', () => {
@@ -54,7 +54,7 @@ interview:
       expect(config.llm.model).toBe('gpt-4-turbo');
       expect(config.interview.maxQuestionsPerTool).toBe(5);
       // Should still have defaults for unspecified fields
-      expect(config.interview.timeout).toBe(DEFAULT_CONFIG.interview.timeout);
+      expect(config.interview.timeout).toBe(getDefaultConfig().interview.timeout);
     });
 
     it('should throw error for non-existent explicit path', () => {
@@ -140,10 +140,10 @@ interview:
       // Specified value
       expect(config.interview.maxQuestionsPerTool).toBe(10);
       // Defaults for unspecified values
-      expect(config.interview.timeout).toBe(DEFAULT_CONFIG.interview.timeout);
-      expect(config.interview.skipErrorTests).toBe(DEFAULT_CONFIG.interview.skipErrorTests);
-      expect(config.llm.provider).toBe(DEFAULT_CONFIG.llm.provider);
-      expect(config.llm.model).toBe(DEFAULT_CONFIG.llm.model);
+      expect(config.interview.timeout).toBe(getDefaultConfig().interview.timeout);
+      expect(config.interview.skipErrorTests).toBe(getDefaultConfig().interview.skipErrorTests);
+      expect(config.llm.provider).toBe(getDefaultConfig().llm.provider);
+      expect(config.llm.model).toBe(getDefaultConfig().llm.model);
     });
 
     it('should handle empty config file gracefully', () => {
@@ -151,7 +151,7 @@ interview:
 
       // Empty YAML parses to null, loader should return defaults
       const config = loadConfig();
-      expect(config).toEqual(DEFAULT_CONFIG);
+      expect(config).toEqual(getDefaultConfig());
     });
 
     it('should handle config with only version', () => {
@@ -159,7 +159,7 @@ interview:
 
       const config = loadConfig();
       expect(config.version).toBe(2);
-      expect(config.llm).toEqual(DEFAULT_CONFIG.llm);
+      expect(config.llm).toEqual(getDefaultConfig().llm);
     });
 
     it('should handle output format variations', () => {
@@ -249,24 +249,26 @@ interview:
     });
   });
 
-  describe('DEFAULT_CONFIG', () => {
+  describe('getDefaultConfig', () => {
     it('should have sensible defaults', () => {
-      expect(DEFAULT_CONFIG.version).toBe(1);
+      const config = getDefaultConfig();
+      expect(config.version).toBe(1);
       // Provider is auto-detected based on environment
-      expect(['openai', 'anthropic', 'ollama']).toContain(DEFAULT_CONFIG.llm.provider);
-      expect(DEFAULT_CONFIG.llm.model).toBeDefined();
-      expect(DEFAULT_CONFIG.interview.maxQuestionsPerTool).toBe(3);
-      expect(DEFAULT_CONFIG.interview.timeout).toBe(30000);
-      expect(DEFAULT_CONFIG.interview.skipErrorTests).toBe(false);
-      expect(DEFAULT_CONFIG.output.format).toBe('agents.md');
+      expect(['openai', 'anthropic', 'ollama']).toContain(config.llm.provider);
+      expect(config.llm.model).toBeDefined();
+      expect(config.interview.maxQuestionsPerTool).toBe(3);
+      expect(config.interview.timeout).toBe(30000);
+      expect(config.interview.skipErrorTests).toBe(false);
+      expect(config.output.format).toBe('agents.md');
     });
 
     it('should not have undefined required fields', () => {
-      expect(DEFAULT_CONFIG.llm.provider).toBeDefined();
-      expect(DEFAULT_CONFIG.llm.model).toBeDefined();
-      expect(DEFAULT_CONFIG.interview.maxQuestionsPerTool).toBeDefined();
-      expect(DEFAULT_CONFIG.interview.timeout).toBeDefined();
-      expect(DEFAULT_CONFIG.output.format).toBeDefined();
+      const config = getDefaultConfig();
+      expect(config.llm.provider).toBeDefined();
+      expect(config.llm.model).toBeDefined();
+      expect(config.interview.maxQuestionsPerTool).toBeDefined();
+      expect(config.interview.timeout).toBeDefined();
+      expect(config.output.format).toBeDefined();
     });
   });
 });

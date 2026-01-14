@@ -1,6 +1,21 @@
 import type { LLMClient } from '../llm/client.js';
-import type { MCPTool, MCPToolCallResult, MCPPrompt, MCPPromptGetResult } from '../transport/types.js';
-import type { InterviewQuestion, ToolProfile, ServerContext, PromptQuestion, PromptProfile } from './types.js';
+import type {
+  MCPTool,
+  MCPToolCallResult,
+  MCPPrompt,
+  MCPPromptGetResult,
+  MCPResource,
+  MCPResourceReadResult,
+} from '../transport/types.js';
+import type {
+  InterviewQuestion,
+  ToolProfile,
+  ServerContext,
+  PromptQuestion,
+  PromptProfile,
+  ResourceQuestion,
+  ResourceProfile,
+} from './types.js';
 import type { DiscoveryResult } from '../discovery/types.js';
 import type { Persona, QuestionCategory } from '../persona/types.js';
 import { DEFAULT_PERSONA } from '../persona/builtins.js';
@@ -536,5 +551,205 @@ export class Orchestrator {
     if (lowerName.includes('code')) return 'console.log("hello")';
     if (lowerName.includes('language')) return 'javascript';
     return 'test-value';
+  }
+
+  // ===========================================================================
+  // Resource Interview Methods
+  // ===========================================================================
+
+  /**
+   * Generate interview questions for an MCP resource.
+   */
+  async generateResourceQuestions(
+    resource: MCPResource,
+    maxQuestions: number = 2
+  ): Promise<ResourceQuestion[]> {
+    const prompt = `You are analyzing an MCP resource to generate test questions.
+
+Resource:
+- Name: ${resource.name}
+- URI: ${resource.uri}
+- Description: ${resource.description ?? 'No description provided'}
+- MIME Type: ${resource.mimeType ?? 'Not specified'}
+
+Generate ${maxQuestions} test scenarios for reading this resource. Focus on:
+1. Basic read access
+2. Content validation (is the returned content appropriate for the MIME type?)
+3. Error handling if applicable
+
+Return JSON array:
+[
+  {
+    "description": "What this test evaluates",
+    "category": "happy_path" | "edge_case" | "error_handling"
+  }
+]
+
+Return ONLY valid JSON, no explanation.`;
+
+    try {
+      const response = await this.llm.complete(prompt, {
+        ...COMPLETION_OPTIONS.questionGeneration,
+        systemPrompt: this.getSystemPrompt(),
+      });
+
+      const questions = this.llm.parseJSON<ResourceQuestion[]>(response);
+      return questions.slice(0, maxQuestions);
+    } catch {
+      // Fallback to basic questions
+      return this.generateFallbackResourceQuestions(resource);
+    }
+  }
+
+  /**
+   * Analyze a resource read response.
+   */
+  async analyzeResourceResponse(
+    resource: MCPResource,
+    question: ResourceQuestion,
+    response: MCPResourceReadResult | null,
+    error: string | null
+  ): Promise<string> {
+    const contentSummary = this.summarizeResourceContent(response);
+
+    const prompt = `Analyze this resource read result.
+
+Resource: ${resource.name} (${resource.uri})
+Expected MIME type: ${resource.mimeType ?? 'Not specified'}
+
+Test case: ${question.description}
+
+Result:
+${error ? `Error: ${error}` : `Content: ${contentSummary}`}
+
+Provide a brief analysis (1-2 sentences) of:
+- Whether the content matches expectations
+- Any notable characteristics or issues
+- Relevance of content to the resource description`;
+
+    try {
+      return await this.llm.complete(prompt, {
+        ...COMPLETION_OPTIONS.responseAnalysis,
+        systemPrompt: this.getSystemPrompt(),
+      });
+    } catch {
+      // Graceful fallback
+      if (error) {
+        return `Resource read failed: ${error}`;
+      }
+      if (response?.contents?.length) {
+        return `Resource returned ${response.contents.length} content block(s).`;
+      }
+      return 'Resource read completed.';
+    }
+  }
+
+  /**
+   * Synthesize findings for a resource into a profile.
+   */
+  async synthesizeResourceProfile(
+    resource: MCPResource,
+    interactions: Array<{
+      question: ResourceQuestion;
+      response: MCPResourceReadResult | null;
+      error: string | null;
+      analysis: string;
+    }>
+  ): Promise<Omit<ResourceProfile, 'interactions' | 'contentPreview'>> {
+    const prompt = `Synthesize findings for this MCP resource.
+
+Resource: ${resource.name}
+URI: ${resource.uri}
+Description: ${resource.description ?? 'No description'}
+MIME Type: ${resource.mimeType ?? 'Not specified'}
+
+Test interactions:
+${interactions.map((i, idx) => `
+${idx + 1}. ${i.question.description}
+   ${i.error ? `Error: ${i.error}` : `Analysis: ${i.analysis}`}
+`).join('')}
+
+Generate a JSON object with:
+{
+  "behavioralNotes": ["List of observed behaviors"],
+  "limitations": ["List of limitations or issues discovered"]
+}
+
+Return ONLY valid JSON, no explanation.`;
+
+    try {
+      const response = await this.llm.complete(prompt, {
+        ...COMPLETION_OPTIONS.profileSynthesis,
+        systemPrompt: this.getSystemPrompt(),
+      });
+
+      const result = this.llm.parseJSON<{
+        behavioralNotes: string[];
+        limitations: string[];
+      }>(response);
+
+      return {
+        uri: resource.uri,
+        name: resource.name,
+        description: resource.description ?? 'No description provided',
+        mimeType: resource.mimeType,
+        behavioralNotes: result.behavioralNotes ?? [],
+        limitations: result.limitations ?? [],
+      };
+    } catch {
+      return {
+        uri: resource.uri,
+        name: resource.name,
+        description: resource.description ?? 'No description provided',
+        mimeType: resource.mimeType,
+        behavioralNotes: interactions.map(i => i.analysis).filter(a => a),
+        limitations: [],
+      };
+    }
+  }
+
+  /**
+   * Fallback questions when LLM fails for resources.
+   */
+  private generateFallbackResourceQuestions(resource: MCPResource): ResourceQuestion[] {
+    const questions: ResourceQuestion[] = [
+      {
+        description: `Basic read access for ${resource.name}`,
+        category: 'happy_path',
+      },
+    ];
+
+    // Add MIME type validation if specified
+    if (resource.mimeType) {
+      questions.push({
+        description: `Verify content matches expected MIME type (${resource.mimeType})`,
+        category: 'happy_path',
+      });
+    }
+
+    return questions;
+  }
+
+  /**
+   * Summarize resource content for analysis prompts.
+   */
+  private summarizeResourceContent(response: MCPResourceReadResult | null): string {
+    if (!response?.contents?.length) {
+      return 'No content returned';
+    }
+
+    const summaries: string[] = [];
+    for (const content of response.contents) {
+      if (content.text) {
+        const preview = content.text.length > 200
+          ? content.text.substring(0, 200) + '...'
+          : content.text;
+        summaries.push(`Text (${content.mimeType ?? 'unknown'}): ${preview}`);
+      } else if (content.blob) {
+        summaries.push(`Binary data (${content.mimeType ?? 'unknown'}): ${content.blob.length} bytes base64`);
+      }
+    }
+
+    return summaries.join('\n');
   }
 }

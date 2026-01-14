@@ -1,4 +1,10 @@
-import type { MCPTool, MCPPrompt, MCPServerInfo, MCPServerCapabilities } from '../transport/types.js';
+import type {
+  MCPTool,
+  MCPPrompt,
+  MCPResource,
+  MCPServerInfo,
+  MCPServerCapabilities,
+} from '../transport/types.js';
 
 /**
  * Result of discovering an MCP server's capabilities.
@@ -18,6 +24,9 @@ export interface DiscoveryResult {
 
   /** List of available prompts */
   prompts: MCPPrompt[];
+
+  /** List of available resources */
+  resources: MCPResource[];
 
   /** Timestamp of discovery */
   timestamp: Date;

@@ -213,7 +213,12 @@ describe('MCPClient', () => {
       await slowClient.initialize();
 
       // Start a request that will be pending (delayed by server)
+      // Attach a no-op catch handler immediately to prevent unhandled rejection warning
+      // (the actual assertion happens below)
       const pendingPromise = slowClient.callTool('get_weather', { location: 'Test' });
+      pendingPromise.catch(() => {
+        // Expected rejection - handled in assertion below
+      });
 
       // Give it a moment to send the request
       await new Promise(resolve => setTimeout(resolve, 100));

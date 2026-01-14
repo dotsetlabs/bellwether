@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, statSyn
 import { join } from 'path';
 import { homedir, platform } from 'os';
 import type { StoredSession, ProjectLink } from './types.js';
+import { URLS } from '../constants.js';
 
 /**
  * Directory for bellwether configuration.
@@ -22,8 +23,9 @@ export const SESSION_FILE = join(CONFIG_DIR, 'session.json');
 
 /**
  * Default API base URL.
+ * @deprecated Use URLS.CLOUD_API from constants.ts instead
  */
-export const DEFAULT_BASE_URL = 'https://api.bellwether.sh';
+export const DEFAULT_BASE_URL = URLS.CLOUD_API;
 
 /**
  * Environment variable name for session token.

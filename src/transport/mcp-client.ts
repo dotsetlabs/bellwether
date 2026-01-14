@@ -10,9 +10,12 @@ import type {
   MCPInitializeResult,
   MCPTool,
   MCPPrompt,
+  MCPResource,
   MCPToolCallResult,
   MCPToolsListResult,
   MCPPromptsListResult,
+  MCPResourcesListResult,
+  MCPResourceReadResult,
   MCPPromptGetResult,
   MCPServerCapabilities,
 } from './types.js';
@@ -332,6 +335,31 @@ export class MCPClient {
   async listPrompts(): Promise<MCPPrompt[]> {
     const result = await this.sendRequest<MCPPromptsListResult>('prompts/list', {});
     return result.prompts;
+  }
+
+  /**
+   * List all resources available on the server.
+   */
+  async listResources(): Promise<MCPResource[]> {
+    const result = await this.sendRequest<MCPResourcesListResult>('resources/list', {});
+    return result.resources;
+  }
+
+  /**
+   * Read a resource from the server by URI.
+   */
+  async readResource(uri: string): Promise<MCPResourceReadResult> {
+    const done = startTiming(this.logger, `readResource:${uri}`);
+    try {
+      const result = await this.sendRequest<MCPResourceReadResult>('resources/read', {
+        uri,
+      });
+      done();
+      return result;
+    } catch (error) {
+      done();
+      throw error;
+    }
   }
 
   /**

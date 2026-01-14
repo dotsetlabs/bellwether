@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Resource Testing** - MCP resources are now discovered and tested
+  - Resources discovered via `resources/list` are automatically interviewed
+  - New `listResources()` and `readResource()` methods on MCPClient
+  - Resource profiles with content previews in AGENTS.md output
+  - Support for text and binary resource types
+
+- **MCP Registry Integration** - Search and discover MCP servers
+  - New `bellwether registry [query]` command to search MCP Registry
+  - Browse official registry at https://registry.modelcontextprotocol.io
+  - Shows package managers, run commands, and transport types
+  - `--json` flag for machine-readable output
+  - `--limit` flag to control number of results
+
+- **GitHub Action** - Easy CI/CD integration
+  - New `.github/actions/bellwether/action.yml` composite action
+  - Configurable presets: docs, security, thorough, ci
+  - Supports baseline comparison with `--fail-on-drift`
+  - Custom scenarios file support
+  - Automatic Node.js setup and Bellwether installation
+
+- **Verified by Bellwether Program** - Server certification system
+  - New `bellwether verify` command for server certification
+  - Four verification tiers: Bronze, Silver, Gold, Platinum
+  - Tier determination based on test coverage and pass rate
+  - Generates verification reports in JSON format
+  - Shields.io-compatible badge URLs for README embedding
+  - 90-day verification validity with expiration tracking
+
 - **Remote MCP Server Support** - Connect to remote MCP servers via SSE or Streamable HTTP transports
   - New `--transport` flag: `stdio` (default), `sse`, `streamable-http`
   - New `--url` flag for remote server URL
@@ -33,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - AGENTS.md now includes Quick Reference section with tool signatures
+- AGENTS.md now includes Resources section when resources are present
 - Updated documentation with new features and guides
 
 ## [0.2.0] - 2026-01-13

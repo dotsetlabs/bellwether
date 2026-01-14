@@ -16,10 +16,6 @@ export interface StdioTransportConfig extends BaseTransportConfig {
   useNewlineDelimited?: boolean;
 }
 
-/**
- * @deprecated Use StdioTransportConfig instead
- */
-export type TransportConfig = StdioTransportConfig;
 
 const DEFAULT_MAX_MESSAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const DEFAULT_MAX_BUFFER_SIZE = 20 * 1024 * 1024;  // 20MB

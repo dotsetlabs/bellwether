@@ -1,6 +1,6 @@
 import type { MCPClient } from '../transport/mcp-client.js';
 import type { DiscoveryResult, ToolDetail, ToolInputSchema } from './types.js';
-import type { MCPTool, MCPPrompt } from '../transport/types.js';
+import type { MCPTool, MCPPrompt, MCPResource } from '../transport/types.js';
 import { getLogger } from '../logging/logger.js';
 
 const logger = getLogger('discovery');
@@ -36,12 +36,23 @@ export async function discover(
     }
   }
 
+  // Discover resources
+  let resources: MCPResource[] = [];
+  if (initResult.capabilities.resources) {
+    try {
+      resources = await client.listResources();
+    } catch (error) {
+      logger.error({ error }, 'Failed to list resources');
+    }
+  }
+
   return {
     serverInfo: initResult.serverInfo,
     protocolVersion: initResult.protocolVersion,
     capabilities: initResult.capabilities,
     tools,
     prompts,
+    resources,
     timestamp: new Date(),
     serverCommand: command,
     serverArgs: args,
@@ -97,7 +108,7 @@ export function summarizeDiscovery(result: DiscoveryResult): string {
   const caps: string[] = [];
   if (result.capabilities.tools) caps.push(`${result.tools.length} Tools`);
   if (result.capabilities.prompts) caps.push(`${result.prompts.length} Prompts`);
-  if (result.capabilities.resources) caps.push('Resources');
+  if (result.capabilities.resources) caps.push(`${(result.resources ?? []).length} Resources`);
   if (result.capabilities.logging) caps.push('Logging');
   lines.push(caps.join(' • ') || 'None discovered');
   lines.push('');
@@ -141,6 +152,25 @@ export function summarizeDiscovery(result: DiscoveryResult): string {
         const desc = prompt.description.length > 70
           ? prompt.description.substring(0, 67) + '...'
           : prompt.description;
+        lines.push(`    └─ ${desc}`);
+      }
+    }
+    lines.push('');
+  }
+
+  // Resources section
+  const resources = result.resources ?? [];
+  if (resources.length > 0) {
+    lines.push('RESOURCES');
+    lines.push('─────────');
+    for (const resource of resources) {
+      const mimeType = resource.mimeType ? ` [${resource.mimeType}]` : '';
+      lines.push(`  ${resource.name}${mimeType}`);
+      lines.push(`    URI: ${resource.uri}`);
+      if (resource.description) {
+        const desc = resource.description.length > 70
+          ? resource.description.substring(0, 67) + '...'
+          : resource.description;
         lines.push(`    └─ ${desc}`);
       }
     }
