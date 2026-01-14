@@ -51,25 +51,22 @@ npm install -g @dotsetlabs/bellwether
 Error: Failed to initialize LLM client - API key not found
 ```
 
-**Solution:** Set your API key:
+**Solution:** Set up your API key using one of these methods:
 
 ```bash
-# OpenAI
-export OPENAI_API_KEY=sk-xxx
+# Option 1: Interactive setup (recommended)
+bellwether auth
 
-# Anthropic
+# Option 2: Environment variable
+export OPENAI_API_KEY=sk-xxx
+# or
 export ANTHROPIC_API_KEY=sk-ant-xxx
 
-# Verify it's set
-echo $OPENAI_API_KEY
+# Verify configuration
+bellwether auth status
 ```
 
-For persistent configuration, add to `~/.bashrc` or `~/.zshrc`:
-
-```bash
-echo 'export OPENAI_API_KEY=sk-xxx' >> ~/.zshrc
-source ~/.zshrc
-```
+For persistent storage, `bellwether auth` stores your key in the system keychain (most secure) or in `~/.bellwether/.env`.
 
 ### Invalid API Key
 

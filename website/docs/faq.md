@@ -186,9 +186,13 @@ Bellwether only calls tools that exist on your server. It generates test scenari
 
 ### "API key not found"
 
-Set your environment variable:
+Set up your API key:
 
 ```bash
+# Interactive setup (recommended)
+bellwether auth
+
+# Or set environment variable
 export OPENAI_API_KEY=sk-xxx
 ```
 

@@ -29,8 +29,9 @@ Bellwether is a CLI tool that generates comprehensive behavioral documentation f
 # Install
 npm install -g @dotsetlabs/bellwether
 
-# Set your API key
-export OPENAI_API_KEY=sk-xxx
+# Set your API key (interactive setup - stores in system keychain)
+bellwether auth
+# Or: export OPENAI_API_KEY=sk-xxx
 
 # Interview an MCP server
 bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
