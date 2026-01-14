@@ -87,6 +87,26 @@ Preset options can be overridden with explicit flags.
 | `--fail-on-security` | Exit with error on security findings | `false` |
 | `--show-cost` | Show LLM token usage and cost | `false` |
 
+### Remote Server Options
+
+| Option | Description | Default |
+|:-------|:------------|:--------|
+| `--transport <type>` | Transport type: `stdio`, `sse`, `streamable-http` | `stdio` |
+| `--url <url>` | URL for remote MCP server (requires `--transport sse` or `streamable-http`) | - |
+| `--session-id <id>` | Session ID for remote server authentication | - |
+
+### Custom Scenario Options
+
+| Option | Description | Default |
+|:-------|:------------|:--------|
+| `--scenarios <path>` | Path to custom test scenarios YAML file | - |
+| `--scenarios-only` | Only run custom scenarios (skip LLM-generated questions) | `false` |
+| `--init-scenarios` | Generate a sample `bellwether-tests.yaml` and exit | - |
+
+:::tip Auto-detection
+If a `bellwether-tests.yaml` file exists in the output directory, it will be automatically loaded.
+:::
+
 ### Debug Options
 
 | Option | Description | Default |
@@ -180,6 +200,39 @@ bellwether interview \
   npx your-server
 ```
 
+### Remote MCP Servers
+
+```bash
+# Connect to a remote server via SSE
+bellwether interview \
+  --transport sse \
+  --url https://api.example.com/mcp \
+  --session-id "auth-token-123"
+
+# Connect via Streamable HTTP
+bellwether interview \
+  --transport streamable-http \
+  --url https://api.example.com/mcp
+```
+
+### Custom Test Scenarios
+
+```bash
+# Generate a sample scenarios file
+bellwether interview --init-scenarios
+
+# Run with custom scenarios (alongside LLM-generated)
+bellwether interview \
+  --scenarios ./bellwether-tests.yaml \
+  npx your-server
+
+# Run ONLY custom scenarios (no LLM generation)
+bellwether interview \
+  --scenarios ./bellwether-tests.yaml \
+  --scenarios-only \
+  npx your-server
+```
+
 ## Exit Codes
 
 | Code | Meaning |
@@ -204,10 +257,12 @@ Depending on options, the following files may be generated:
 
 The generated documentation includes:
 - **Server Information**: Name, version, protocol version
+- **Quick Reference**: Tool signatures and return types at a glance
+- **Performance Metrics**: Response times (avg/p50/p95/max) and error rates per tool
 - **Tool Profiles**: For each tool - description, parameters, expected behavior, edge cases
 - **Prompt Profiles**: For each prompt (if any) - description, arguments, expected output
 - **Security Findings**: Any security concerns discovered during testing
-- **Assertions**: Testable behavioral assertions extracted from interviews
+- **Custom Scenario Results**: Pass/fail status for user-defined test scenarios (if provided)
 
 ## Environment Variables
 
@@ -223,4 +278,6 @@ The generated documentation includes:
 - [discover](/cli/discover) - Quick capability discovery
 - [Personas](/concepts/personas) - Understanding testing personas
 - [Drift Detection](/concepts/drift-detection) - Baseline comparison
+- [Custom Test Scenarios](/guides/custom-scenarios) - YAML-defined test cases
+- [Remote MCP Servers](/guides/remote-servers) - SSE and HTTP transport options
 - [CI/CD Integration](/guides/ci-cd) - Pipeline integration

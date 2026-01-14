@@ -134,6 +134,12 @@ export function generateAgentsMd(result: InterviewResult): string {
     lines.push(...securitySection);
   }
 
+  // Performance section
+  const performanceSection = generatePerformanceSection(toolProfiles);
+  if (performanceSection.length > 0) {
+    lines.push(...performanceSection);
+  }
+
   // Tools section
   if (toolProfiles.length > 0) {
     lines.push('## Tools');
@@ -961,6 +967,111 @@ function classifySecuritySeverity(note: string): 'info' | 'warning' | 'critical'
   }
 
   return 'info';
+}
+
+/**
+ * Performance metrics for a single tool.
+ */
+interface ToolPerformanceMetrics {
+  toolName: string;
+  callCount: number;
+  avgMs: number;
+  minMs: number;
+  maxMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  errorRate: number;
+}
+
+/**
+ * Calculate performance metrics for all tools.
+ */
+function calculatePerformanceMetrics(profiles: ToolProfile[]): ToolPerformanceMetrics[] {
+  const metrics: ToolPerformanceMetrics[] = [];
+
+  for (const profile of profiles) {
+    if (profile.interactions.length === 0) {
+      continue;
+    }
+
+    const durations = profile.interactions.map(i => i.durationMs);
+    const errorCount = profile.interactions.filter(i => i.error || i.response?.isError).length;
+
+    // Sort durations for percentile calculations
+    const sortedDurations = [...durations].sort((a, b) => a - b);
+
+    const p50Index = Math.floor(sortedDurations.length * 0.5);
+    const p95Index = Math.floor(sortedDurations.length * 0.95);
+
+    metrics.push({
+      toolName: profile.name,
+      callCount: profile.interactions.length,
+      avgMs: Math.round(durations.reduce((a, b) => a + b, 0) / durations.length),
+      minMs: Math.min(...durations),
+      maxMs: Math.max(...durations),
+      p50Ms: sortedDurations[p50Index] ?? 0,
+      p95Ms: sortedDurations[Math.min(p95Index, sortedDurations.length - 1)] ?? 0,
+      errorRate: errorCount / profile.interactions.length,
+    });
+  }
+
+  // Sort by avg response time (slowest first)
+  return metrics.sort((a, b) => b.avgMs - a.avgMs);
+}
+
+/**
+ * Generate Performance section for AGENTS.md.
+ */
+function generatePerformanceSection(profiles: ToolProfile[]): string[] {
+  const lines: string[] = [];
+  const metrics = calculatePerformanceMetrics(profiles);
+
+  if (metrics.length === 0) {
+    return [];
+  }
+
+  lines.push('## Performance');
+  lines.push('');
+  lines.push('Response time metrics from interview sessions (in milliseconds):');
+  lines.push('');
+  lines.push('| Tool | Calls | Avg | P50 | P95 | Max | Error Rate |');
+  lines.push('|------|-------|-----|-----|-----|-----|------------|');
+
+  for (const m of metrics) {
+    const errorPct = (m.errorRate * 100).toFixed(0);
+    const errorDisplay = m.errorRate > 0.5 ? `**${errorPct}%**` : `${errorPct}%`;
+    lines.push(`| \`${m.toolName}\` | ${m.callCount} | ${m.avgMs}ms | ${m.p50Ms}ms | ${m.p95Ms}ms | ${m.maxMs}ms | ${errorDisplay} |`);
+  }
+
+  lines.push('');
+
+  // Add performance insights
+  const slowTools = metrics.filter(m => m.avgMs > 1000);
+  const unreliableTools = metrics.filter(m => m.errorRate > 0.3);
+
+  if (slowTools.length > 0 || unreliableTools.length > 0) {
+    lines.push('### Performance Insights');
+    lines.push('');
+
+    if (slowTools.length > 0) {
+      lines.push('**Slow Tools** (avg > 1s):');
+      for (const tool of slowTools) {
+        lines.push(`- \`${tool.toolName}\`: ${tool.avgMs}ms average`);
+      }
+      lines.push('');
+    }
+
+    if (unreliableTools.length > 0) {
+      lines.push('**Unreliable Tools** (error rate > 30%):');
+      for (const tool of unreliableTools) {
+        const errorPct = (tool.errorRate * 100).toFixed(0);
+        lines.push(`- \`${tool.toolName}\`: ${errorPct}% error rate`);
+      }
+      lines.push('');
+    }
+  }
+
+  return lines;
 }
 
 /**

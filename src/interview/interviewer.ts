@@ -19,6 +19,9 @@ import type {
 import type { Persona } from '../persona/types.js';
 import { DEFAULT_PERSONA } from '../persona/builtins.js';
 import { getLogger, startTiming } from '../logging/logger.js';
+import type { TestScenario, PromptScenario, ScenarioResult } from '../scenarios/types.js';
+import type { PromptQuestion } from './types.js';
+import { evaluateAssertions } from '../scenarios/evaluator.js';
 
 /**
  * Default interview configuration.
@@ -241,6 +244,9 @@ export class Interviewer {
       });
     }
 
+    // Track all scenario results
+    const allScenarioResults: ScenarioResult[] = [];
+
     // Interview with each persona
     progress.phase = 'interviewing';
     for (const persona of this.personas) {
@@ -259,12 +265,41 @@ export class Interviewer {
         const personaInteractions: ToolInteraction[] = [];
         const previousErrors: Array<{ args: Record<string, unknown>; error: string }> = [];
 
-        // Generate questions for this tool with this persona
-        let questions = await orchestrator.generateQuestions(
-          tool,
-          this.config.maxQuestionsPerTool,
-          this.config.skipErrorTests
-        );
+        // Check for custom scenarios for this tool
+        const customScenarios = this.getScenariosForTool(tool.name);
+
+        // If customScenariosOnly and we have scenarios, skip LLM generation
+        let questions: InterviewQuestion[] = [];
+
+        if (customScenarios.length > 0) {
+          // Execute custom scenarios
+          const scenarioResults = await this.executeToolScenarios(
+            client,
+            tool.name,
+            customScenarios
+          );
+          allScenarioResults.push(...scenarioResults);
+
+          // Convert scenarios to interview questions for integration with profiling
+          questions = customScenarios.map(s => this.scenarioToQuestion(s));
+
+          // If not custom-only mode, also generate LLM questions
+          if (!this.config.customScenariosOnly) {
+            const llmQuestions = await orchestrator.generateQuestions(
+              tool,
+              this.config.maxQuestionsPerTool,
+              this.config.skipErrorTests
+            );
+            questions = [...questions, ...llmQuestions];
+          }
+        } else {
+          // No custom scenarios - generate LLM questions as usual
+          questions = await orchestrator.generateQuestions(
+            tool,
+            this.config.maxQuestionsPerTool,
+            this.config.skipErrorTests
+          );
+        }
 
         // Ask each question with retry logic
         for (const question of questions) {
@@ -365,8 +400,36 @@ export class Interviewer {
 
         const promptInteractions: PromptInteraction[] = [];
 
-        // Generate questions for this prompt
-        const questions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
+        // Check for custom scenarios for this prompt
+        const customScenarios = this.getScenariosForPrompt(prompt.name);
+
+        // Build questions list - custom scenarios + LLM-generated (unless customScenariosOnly)
+        let questions: PromptQuestion[] = [];
+
+        if (customScenarios.length > 0) {
+          // Execute custom prompt scenarios
+          const scenarioResults = await this.executePromptScenarios(
+            client,
+            prompt.name,
+            customScenarios
+          );
+          allScenarioResults.push(...scenarioResults);
+
+          // Convert scenarios to prompt questions for profiling
+          questions = customScenarios.map(s => ({
+            description: s.description,
+            args: s.args,
+          }));
+
+          // If not custom-only mode, also generate LLM questions
+          if (!this.config.customScenariosOnly) {
+            const llmQuestions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
+            questions = [...questions, ...llmQuestions];
+          }
+        } else {
+          // No custom scenarios - generate LLM questions as usual
+          questions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
+        }
 
         for (const question of questions) {
           const interactionStart = Date.now();
@@ -458,6 +521,7 @@ export class Interviewer {
       discovery,
       toolProfiles,
       promptProfiles: promptProfiles.length > 0 ? promptProfiles : undefined,
+      scenarioResults: allScenarioResults.length > 0 ? allScenarioResults : undefined,
       summary: overall.summary,
       limitations: overall.limitations,
       recommendations: overall.recommendations,
@@ -600,5 +664,160 @@ export class Interviewer {
         }
       }
     }
+  }
+
+  /**
+   * Convert a TestScenario to an InterviewQuestion.
+   */
+  private scenarioToQuestion(scenario: TestScenario): InterviewQuestion {
+    return {
+      description: scenario.description,
+      category: scenario.category,
+      args: scenario.args,
+    };
+  }
+
+  /**
+   * Get custom scenarios for a specific tool.
+   */
+  private getScenariosForTool(toolName: string): TestScenario[] {
+    const scenarios = this.config.customScenarios?.toolScenarios ?? [];
+    return scenarios.filter(s => s.tool === toolName && !s.skip);
+  }
+
+  /**
+   * Get custom scenarios for a specific prompt.
+   */
+  private getScenariosForPrompt(promptName: string): PromptScenario[] {
+    const scenarios = this.config.customScenarios?.promptScenarios ?? [];
+    return scenarios.filter(s => s.prompt === promptName && !s.skip);
+  }
+
+  /**
+   * Execute custom test scenarios for a tool.
+   * Returns scenario results with assertion evaluations.
+   */
+  async executeToolScenarios(
+    client: MCPClient,
+    toolName: string,
+    scenarios: TestScenario[],
+    onScenarioComplete?: (result: ScenarioResult) => void
+  ): Promise<ScenarioResult[]> {
+    const results: ScenarioResult[] = [];
+
+    for (const scenario of scenarios) {
+      if (scenario.skip) {
+        continue;
+      }
+
+      const startTime = Date.now();
+      let response = null;
+      let error: string | undefined;
+      let isError = false;
+
+      try {
+        response = await client.callTool(toolName, scenario.args);
+        isError = response.isError ?? false;
+
+        if (isError) {
+          // Extract error text from response
+          const errorContent = response.content?.find(c => c.type === 'text');
+          if (errorContent && 'text' in errorContent) {
+            error = String(errorContent.text);
+          }
+        }
+      } catch (e) {
+        error = e instanceof Error ? e.message : String(e);
+        isError = true;
+      }
+
+      // Evaluate assertions if provided
+      const assertionResults = scenario.assertions
+        ? evaluateAssertions(scenario.assertions, response, isError)
+        : [];
+
+      // Scenario passes if no error (or expected error) and all assertions pass
+      const allAssertionsPassed = assertionResults.every(r => r.passed);
+      const passed = allAssertionsPassed && (!isError || scenario.category === 'error_handling');
+
+      const result: ScenarioResult = {
+        scenario,
+        passed,
+        assertionResults,
+        error,
+        response,
+        durationMs: Date.now() - startTime,
+      };
+
+      results.push(result);
+      onScenarioComplete?.(result);
+
+      this.logger.debug({
+        tool: toolName,
+        scenario: scenario.description,
+        passed,
+        assertions: assertionResults.length,
+      }, 'Scenario executed');
+    }
+
+    return results;
+  }
+
+  /**
+   * Execute custom test scenarios for a prompt.
+   * Returns scenario results with assertion evaluations.
+   */
+  async executePromptScenarios(
+    client: MCPClient,
+    promptName: string,
+    scenarios: PromptScenario[],
+    onScenarioComplete?: (result: ScenarioResult) => void
+  ): Promise<ScenarioResult[]> {
+    const results: ScenarioResult[] = [];
+
+    for (const scenario of scenarios) {
+      if (scenario.skip) {
+        continue;
+      }
+
+      const startTime = Date.now();
+      let response = null;
+      let error: string | undefined;
+
+      try {
+        response = await client.getPrompt(promptName, scenario.args);
+      } catch (e) {
+        error = e instanceof Error ? e.message : String(e);
+      }
+
+      // Evaluate assertions if provided
+      const assertionResults = scenario.assertions
+        ? evaluateAssertions(scenario.assertions, response, !!error)
+        : [];
+
+      const allAssertionsPassed = assertionResults.every(r => r.passed);
+      const passed = allAssertionsPassed && !error;
+
+      const result: ScenarioResult = {
+        scenario,
+        passed,
+        assertionResults,
+        error,
+        response,
+        durationMs: Date.now() - startTime,
+      };
+
+      results.push(result);
+      onScenarioComplete?.(result);
+
+      this.logger.debug({
+        prompt: promptName,
+        scenario: scenario.description,
+        passed,
+        assertions: assertionResults.length,
+      }, 'Prompt scenario executed');
+    }
+
+    return results;
   }
 }

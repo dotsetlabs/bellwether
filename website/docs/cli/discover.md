@@ -29,10 +29,20 @@ The `summary` command is an alias for `discover` - both commands work identicall
 
 ## Options
 
+### Output Options
+
 | Option | Description | Default |
 |:-------|:------------|:--------|
 | `--json` | Output as JSON | `false` |
 | `--timeout <ms>` | Connection timeout in milliseconds | `30000` |
+
+### Remote Server Options
+
+| Option | Description | Default |
+|:-------|:------------|:--------|
+| `--transport <type>` | Transport type: `stdio`, `sse`, `streamable-http` | `stdio` |
+| `--url <url>` | URL for remote MCP server (requires `--transport sse` or `streamable-http`) | - |
+| `--session-id <id>` | Session ID for remote server authentication | - |
 
 ## Examples
 
@@ -117,6 +127,21 @@ Output:
 ```bash
 # Increase timeout for slow servers
 bellwether discover --timeout 60000 npx slow-server
+```
+
+### Remote MCP Servers
+
+```bash
+# Discover capabilities of a remote server via SSE
+bellwether discover \
+  --transport sse \
+  --url https://api.example.com/mcp
+
+# With authentication
+bellwether discover \
+  --transport streamable-http \
+  --url https://api.example.com/mcp \
+  --session-id "auth-token-123"
 ```
 
 ## Use Cases

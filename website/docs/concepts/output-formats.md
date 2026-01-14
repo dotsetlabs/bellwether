@@ -61,6 +61,23 @@ Reads the contents of a file from the specified path.
 **Security Considerations:**
 - Path traversal normalized within root
 
+## Quick Reference
+
+| Tool | Signature |
+|------|-----------|
+| read_file | `read_file(path)` |
+| write_file | `write_file(path, content)` |
+
+## Performance
+
+| Tool | Calls | Avg | P95 | Max | Errors |
+|------|-------|-----|-----|-----|--------|
+| read_file | 5 | 45ms | 120ms | 150ms | 0% |
+| write_file | 3 | 89ms | 200ms | 250ms | 0% |
+
+### Performance Insights
+- All tools performing within acceptable limits
+
 ## Prompts
 
 ### summarize_file
@@ -80,7 +97,11 @@ Returns a structured summary prompt message suitable for LLM processing.
 - Returns error for binary files
 ```
 
-The `AGENTS.md` output includes both **Tool Profiles** (for tools discovered from the server) and **Prompt Profiles** (for prompts, if the server exposes any).
+The `AGENTS.md` output includes:
+- **Tool Profiles** - Behavioral documentation for each tool
+- **Prompt Profiles** - Documentation for prompts (if the server exposes any)
+- **Quick Reference** - Tool signatures for easy lookup
+- **Performance Metrics** - Response times and error rates for each tool
 
 ## JSON Report
 
@@ -135,6 +156,15 @@ bellwether interview --json npx your-server
       }
     }
   ],
+  "scenarioResults": [
+    {
+      "type": "tool",
+      "name": "read_file",
+      "description": "Read existing file",
+      "passed": true,
+      "assertions": [...]
+    }
+  ],
   "cost": {
     "tokens": 1234,
     "estimatedCost": 0.02
@@ -142,7 +172,9 @@ bellwether interview --json npx your-server
 }
 ```
 
-The JSON report includes both `tools` and `prompts` arrays with their respective interview results.
+The JSON report includes:
+- `tools` and `prompts` arrays with their respective interview results
+- `scenarioResults` array with custom scenario test results (if scenarios were run)
 
 ## SARIF (Security)
 
