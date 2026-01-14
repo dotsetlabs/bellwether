@@ -63,8 +63,8 @@ export interface LLMClient {
  * Uses budget-friendly models by default for cost efficiency.
  */
 export const DEFAULT_MODELS: Record<LLMProviderId, string> = {
-  openai: 'gpt-4o-mini',
-  anthropic: 'claude-3-5-haiku-20241022',
+  openai: 'gpt-5-mini',
+  anthropic: 'claude-haiku-4-5',
   ollama: 'llama3.2',
 };
 
@@ -73,8 +73,8 @@ export const DEFAULT_MODELS: Record<LLMProviderId, string> = {
  * Higher quality output but more expensive.
  */
 export const PREMIUM_MODELS: Record<LLMProviderId, string> = {
-  openai: 'gpt-4o',
-  anthropic: 'claude-sonnet-4-20250514',
+  openai: 'gpt-5.2',
+  anthropic: 'claude-sonnet-4-5',
   ollama: 'llama3.2:70b',
 };
 

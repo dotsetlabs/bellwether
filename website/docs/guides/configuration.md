@@ -110,7 +110,7 @@ cloud:
 ```yaml
 llm:
   provider: openai
-  model: gpt-4o          # or gpt-4o-mini, gpt-4-turbo
+  model: gpt-5-mini      # or gpt-5.2, gpt-5
   # baseUrl: https://...  # For Azure OpenAI or proxies
 ```
 
@@ -121,7 +121,7 @@ Environment: `OPENAI_API_KEY`
 ```yaml
 llm:
   provider: anthropic
-  model: claude-sonnet-4-20250514  # or claude-3-opus, claude-3-haiku
+  model: claude-haiku-4-5  # or claude-sonnet-4-5, claude-opus-4-5
 ```
 
 Environment: `ANTHROPIC_API_KEY`

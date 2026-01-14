@@ -100,9 +100,9 @@ Bellwether uses LLMs for intelligent testing. Typical costs per interview:
 
 | Mode | Model | Cost | Use Case |
 |:-----|:------|:-----|:---------|
-| `--quick` | gpt-4o-mini | ~$0.01 | PR checks |
-| Default | gpt-4o-mini | ~$0.02 | CI/CD |
-| `--preset thorough` | gpt-4o | ~$0.15 | Releases |
+| `--quick` | gpt-5-mini | ~$0.01 | PR checks |
+| Default | gpt-5-mini | ~$0.02 | CI/CD |
+| `--preset thorough` | gpt-5.2 | ~$0.12 | Releases |
 | Ollama | Local | Free | Development |
 
 ## GitHub Action

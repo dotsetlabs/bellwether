@@ -47,7 +47,7 @@ export OPENAI_API_KEY=sk-your-key-here
 
 Get your API key from [platform.openai.com](https://platform.openai.com/api-keys).
 
-Default model: `gpt-4o`
+Default model: `gpt-5-mini`
 
 ### Anthropic Claude
 
@@ -57,7 +57,7 @@ export ANTHROPIC_API_KEY=sk-ant-your-key-here
 
 Get your API key from [console.anthropic.com](https://console.anthropic.com/).
 
-Default model: `claude-sonnet-4-20250514`
+Default model: `claude-haiku-4-5`
 
 ### Ollama (Free, Local)
 

@@ -225,7 +225,7 @@ interview:
 
       expect(yaml).toContain('version: 1');
       expect(yaml).toContain('provider: openai');
-      expect(yaml).toContain('model: gpt-4o');
+      expect(yaml).toContain('model: gpt-5-mini');
       expect(yaml).toContain('maxQuestionsPerTool: 3');
       expect(yaml).toContain('timeout: 30000');
       expect(yaml).toContain('format: agents.md');
@@ -245,7 +245,7 @@ interview:
 
       const config = loadConfig();
       expect(config.version).toBe(1);
-      expect(config.llm.model).toBe('gpt-4o');
+      expect(config.llm.model).toBe('gpt-5-mini');
     });
   });
 

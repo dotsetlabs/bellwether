@@ -65,7 +65,7 @@ describe('cli/init', () => {
       const fileContent = readFileSync(configPath, 'utf-8');
       expect(fileContent).toContain('version: 1');
       expect(fileContent).toContain('provider: openai');
-      expect(fileContent).toContain('model: gpt-4o');
+      expect(fileContent).toContain('model: gpt-5-mini');
     });
 
     it('should not overwrite existing config without --force', () => {
