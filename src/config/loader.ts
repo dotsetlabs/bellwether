@@ -226,18 +226,18 @@ version: 1
 # Supported providers: openai, anthropic, ollama
 llm:
   provider: openai
-  model: gpt-4o  # Use gpt-4o-mini for lower cost (~$0.02/interview)
+  model: gpt-5-mini  # Budget-friendly default (~$0.02/interview)
 
   # Cost comparison (10 tools, 3 questions each):
-  # - gpt-4o: ~$0.13 per interview (best quality)
-  # - gpt-4o-mini: ~$0.02 per interview (recommended for CI)
-  # - claude-sonnet: ~$0.13 per interview
-  # - claude-haiku: ~$0.03 per interview (fast, cheap)
+  # - gpt-5.2: ~$0.12 per interview (best quality)
+  # - gpt-5-mini: ~$0.02 per interview (recommended for CI)
+  # - claude-sonnet-4-5: ~$0.13 per interview
+  # - claude-haiku-4-5: ~$0.04 per interview (fast, cheap)
   # - ollama: free (local, no API key needed)
 
   # Anthropic Claude example:
   # provider: anthropic
-  # model: claude-3-5-haiku-20241022  # Fast and cheap
+  # model: claude-haiku-4-5  # Fast and cheap
   # apiKeyEnvVar: ANTHROPIC_API_KEY
 
   # Ollama (local, free) example:

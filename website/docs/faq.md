@@ -31,10 +31,10 @@ Typical costs per interview:
 
 | Model | Cost |
 |:------|:-----|
-| gpt-4o-mini | ~$0.02 |
-| claude-3-5-haiku | ~$0.03 |
-| gpt-4o | ~$0.13 |
-| claude-sonnet | ~$0.13 |
+| gpt-5-mini | ~$0.02 |
+| claude-haiku-4-5 | ~$0.04 |
+| gpt-5.2 | ~$0.12 |
+| claude-sonnet-4-5 | ~$0.13 |
 | Ollama | Free |
 
 Quick mode (`--quick`) costs ~$0.01.

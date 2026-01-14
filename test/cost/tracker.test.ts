@@ -355,7 +355,7 @@ describe('isKnownModel', () => {
 
   it('should return false for unknown models', () => {
     expect(isKnownModel('unknown-model')).toBe(false);
-    expect(isKnownModel('gpt-5')).toBe(false);
+    expect(isKnownModel('gpt-99')).toBe(false);
     expect(isKnownModel('')).toBe(false);
   });
 });

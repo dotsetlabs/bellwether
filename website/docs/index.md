@@ -94,10 +94,10 @@ Bellwether uses LLMs for intelligent testing. Typical costs per interview (10 to
 
 | Model | Cost | Quality |
 |:------|:-----|:--------|
-| `gpt-4o-mini` | ~$0.02 | Good (recommended for CI) |
-| `claude-3-5-haiku` | ~$0.03 | Good |
-| `gpt-4o` | ~$0.13 | Best |
-| `claude-sonnet` | ~$0.13 | Best |
+| `gpt-5-mini` | ~$0.02 | Good (recommended for CI) |
+| `claude-haiku-4-5` | ~$0.04 | Good |
+| `gpt-5.2` | ~$0.12 | Best |
+| `claude-sonnet-4-5` | ~$0.13 | Best |
 | Ollama (local) | Free | Variable |
 
 Use `--quick` flag in CI for fastest, cheapest runs (~$0.01).

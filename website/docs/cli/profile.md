@@ -56,7 +56,7 @@ Example:
 ```bash
 bellwether profile create security-audit \
   --provider anthropic \
-  --model claude-sonnet-4-20250514 \
+  --model claude-sonnet-4-5 \
   --max-questions 5 \
   --personas security_tester
 ```
@@ -113,7 +113,7 @@ bellwether interview --ci npx your-server
 ```bash
 bellwether profile create security \
   --provider anthropic \
-  --model claude-sonnet-4-20250514 \
+  --model claude-sonnet-4-5 \
   --max-questions 10 \
   --personas security_tester,qa_engineer
 ```
@@ -123,7 +123,7 @@ bellwether profile create security \
 ```bash
 bellwether profile create release \
   --provider openai \
-  --model gpt-4o \
+  --model gpt-5.2 \
   --max-questions 5 \
   --personas technical_writer,security_tester,qa_engineer,novice_user
 ```
@@ -147,7 +147,7 @@ Each profile is a YAML file with interview settings:
 # ~/.bellwether/profiles/security.yaml
 llm:
   provider: anthropic
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-5
 
 interview:
   maxQuestionsPerTool: 10

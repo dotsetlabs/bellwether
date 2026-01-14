@@ -58,7 +58,7 @@ inputs:
     description: 'LLM provider: openai, anthropic, or ollama'
     default: 'openai'
   llm-model:
-    description: 'LLM model to use. Defaults to gpt-4o-mini (openai) or claude-3-5-haiku (anthropic) in quick mode.'
+    description: 'LLM model to use. Defaults to gpt-5-mini (openai) or claude-haiku-4-5 (anthropic) in quick mode.'
     required: false
   openai-api-key:
     description: 'OpenAI API key (alternative to OPENAI_API_KEY env var)'
