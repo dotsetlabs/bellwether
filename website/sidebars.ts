@@ -24,10 +24,13 @@ const sidebars: SidebarsConfig = {
       items: [
         'cli/interview',
         'cli/discover',
-        'cli/badge',
         'cli/init',
+        'cli/auth',
         'cli/profile',
         'cli/watch',
+        'cli/registry',
+        'cli/verify',
+        'cli/badge',
         {
           type: 'category',
           label: 'Cloud Commands',
@@ -57,6 +60,7 @@ const sidebars: SidebarsConfig = {
       label: 'Guides',
       collapsed: false,
       items: [
+        'guides/local-development',
         'guides/ci-cd',
         'guides/configuration',
         'guides/cloud-integration',
