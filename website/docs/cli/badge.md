@@ -57,7 +57,7 @@ Badge URL:
 https://img.shields.io/badge/bellwether-verified-brightgreen
 
 Markdown:
-[![Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.dev/p/proj_abc123)
+[![Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.sh/projects/proj_abc123)
 ```
 
 ### Get Markdown Only
@@ -93,7 +93,7 @@ Output:
   "latestVersion": 3,
   "lastVerified": "2024-01-15T10:30:00Z",
   "badgeUrl": "https://img.shields.io/badge/bellwether-verified-brightgreen",
-  "markdown": "[![Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.dev/p/proj_abc123)"
+  "markdown": "[![Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.sh/projects/proj_abc123)"
 }
 ```
 
@@ -121,7 +121,7 @@ Then add to your README.md:
 ```markdown
 # My MCP Server
 
-[![Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.dev/p/proj_abc123)
+[![Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.sh/projects/proj_abc123)
 
 A verified MCP server for...
 ```

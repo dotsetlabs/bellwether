@@ -314,7 +314,7 @@ Error: Failed to upload baseline
 
 2. **Verify project is linked:**
    ```bash
-   cat .bellwether.json
+   cat .bellwether/link.json
    ```
 
 3. **Re-link if needed:**

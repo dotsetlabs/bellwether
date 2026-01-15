@@ -73,7 +73,7 @@ bellwether badge --project proj_abc123
 Copy the markdown from the `badge` command:
 
 ```markdown
-[![Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.dev/p/proj_abc123)
+[![Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.sh/projects/proj_abc123)
 ```
 
 ### Badge Status
@@ -187,8 +187,8 @@ Send events to external services:
 
 | Tier | Price | Features |
 |:-----|:------|:---------|
-| Free | $0/mo | 1 project, 100 uploads/month, 30-day history |
-| Pro | $19/mo | 10 projects, 5,000 uploads/month, 1-year history, webhooks |
+| Free | $0 | 3 projects, 100 uploads/month, 30-day history, 3 webhooks per project |
+| Team | $29/mo | Unlimited projects, unlimited uploads, 1-year history, Slack & Discord notifications, GitHub App integration, unlimited webhooks, 5 team seats included (+$5/seat/month for additional) |
 
 Visit [bellwether.sh/pricing](https://bellwether.sh/pricing) for details.
 
@@ -197,7 +197,7 @@ Visit [bellwether.sh/pricing](https://bellwether.sh/pricing) for details.
 | Tier | Baseline History |
 |:-----|:-----------------|
 | Free | 30 days |
-| Pro | 1 year |
+| Team | 1 year |
 
 ## Security
 
