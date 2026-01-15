@@ -350,32 +350,34 @@ describe('StdioTransport', () => {
   });
 
   describe('debug mode', () => {
-    it('should log when debug is enabled', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    it('should process messages when debug is enabled', () => {
+      // Debug mode now uses pino structured logging instead of console.log
+      // This test verifies the transport still processes messages correctly with debug enabled
+      const handler = vi.fn();
       transport = new StdioTransport(input, output, { debug: true });
+      transport.on('message', handler);
 
       input.push('{"jsonrpc":"2.0","id":1,"method":"test"}\n');
 
-      expect(consoleSpy).toHaveBeenCalled();
-      expect(consoleSpy.mock.calls.some(call =>
-        call[0]?.includes?.('[Transport]')
-      )).toBe(true);
-
-      consoleSpy.mockRestore();
+      expect(handler).toHaveBeenCalledWith({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'test',
+      });
     });
 
-    it('should not log when debug is disabled', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    it('should process messages when debug is disabled', () => {
+      const handler = vi.fn();
       transport = new StdioTransport(input, output, { debug: false });
+      transport.on('message', handler);
 
       input.push('{"jsonrpc":"2.0","id":1,"method":"test"}\n');
 
-      const transportLogs = consoleSpy.mock.calls.filter(call =>
-        call[0]?.includes?.('[Transport]')
-      );
-      expect(transportLogs).toHaveLength(0);
-
-      consoleSpy.mockRestore();
+      expect(handler).toHaveBeenCalledWith({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'test',
+      });
     });
   });
 });

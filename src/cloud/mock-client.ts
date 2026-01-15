@@ -31,6 +31,7 @@ import type {
   BadgeInfo,
 } from './types.js';
 import { isMockSession, MOCK_SESSION_PREFIX } from './auth.js';
+import * as output from '../cli/output.js';
 
 /**
  * Directory for mock cloud storage.
@@ -87,8 +88,8 @@ export class MockCloudClient implements BellwetherCloudClient {
 
     // Log warning if used with non-mock session
     if (sessionToken && !isMockSession(sessionToken)) {
-      console.warn('Warning: MockCloudClient instantiated with non-mock session token.');
-      console.warn('This client stores data locally and does not sync to the cloud.');
+      output.warn('Warning: MockCloudClient instantiated with non-mock session token.');
+      output.warn('This client stores data locally and does not sync to the cloud.');
     }
   }
 

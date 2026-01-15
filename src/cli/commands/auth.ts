@@ -11,6 +11,7 @@ import type { LLMProviderId } from '../../llm/client.js';
 import { DEFAULT_MODELS } from '../../llm/client.js';
 import { getKeychainService } from '../../auth/keychain.js';
 import { getAuthStatus } from '../../auth/credentials.js';
+import * as output from '../output.js';
 
 /**
  * Provider display names and info.
@@ -98,9 +99,9 @@ async function promptSelect(
   question: string,
   options: { value: string; label: string }[]
 ): Promise<string> {
-  console.log(question);
+  output.info(question);
   options.forEach((opt, i) => {
-    console.log(`  ${i + 1}. ${opt.label}`);
+    output.info(`  ${i + 1}. ${opt.label}`);
   });
 
   const answer = await prompt(rl, `Enter choice (1-${options.length}): `);
@@ -110,7 +111,7 @@ async function promptSelect(
     return options[index].value;
   }
 
-  console.log('Invalid choice. Please try again.\n');
+  output.info('Invalid choice. Please try again.\n');
   return promptSelect(rl, question, options);
 }
 
@@ -151,21 +152,21 @@ function validateApiKey(provider: LLMProviderId, key: string): { valid: boolean;
 async function interactiveSetup(): Promise<void> {
   const rl = createPrompt();
 
-  console.log('Bellwether Authentication Setup');
-  console.log('================================\n');
+  output.info('Bellwether Authentication Setup');
+  output.info('================================\n');
 
   // Check current status
   const status = await getAuthStatus();
   const configuredProviders = status.filter(s => s.provider !== 'ollama' && s.configured);
 
   if (configuredProviders.length > 0) {
-    console.log('Currently configured:');
+    output.info('Currently configured:');
     for (const s of configuredProviders) {
       const source = s.source === 'keychain' ? 'keychain' :
                      s.source === 'env' ? `env (${s.envVar})` : s.source;
-      console.log(`  - ${PROVIDER_INFO[s.provider as keyof typeof PROVIDER_INFO]?.name ?? s.provider}: ${source}`);
+      output.info(`  - ${PROVIDER_INFO[s.provider as keyof typeof PROVIDER_INFO]?.name ?? s.provider}: ${source}`);
     }
-    console.log('');
+    output.newline();
   }
 
   // Select provider
@@ -175,8 +176,8 @@ async function interactiveSetup(): Promise<void> {
   ]) as Exclude<LLMProviderId, 'ollama'>;
 
   const info = PROVIDER_INFO[provider];
-  console.log(`\nGet your ${info.name} API key from:`);
-  console.log(`  ${info.url}\n`);
+  output.info(`\nGet your ${info.name} API key from:`);
+  output.info(`  ${info.url}\n`);
 
   // Get API key
   const apiKey = await prompt(rl, `Enter your ${info.name} API key: `, true);
@@ -184,7 +185,7 @@ async function interactiveSetup(): Promise<void> {
   // Validate
   const validation = validateApiKey(provider, apiKey);
   if (!validation.valid) {
-    console.log(`\nError: ${validation.error}`);
+    output.error(`\nError: ${validation.error}`);
     rl.close();
     process.exit(1);
   }
@@ -200,7 +201,7 @@ async function interactiveSetup(): Promise<void> {
       { value: 'env', label: `Environment file (~/.bellwether/.env)` },
     ]);
   } else {
-    console.log('\nNote: System keychain not available. Using file-based storage.');
+    output.info('\nNote: System keychain not available. Using file-based storage.');
     storageChoice = 'env';
   }
 
@@ -208,7 +209,7 @@ async function interactiveSetup(): Promise<void> {
   try {
     if (storageChoice === 'keychain') {
       await keychain.setApiKey(provider, apiKey);
-      console.log(`\n✓ API key stored in system keychain`);
+      output.success(`\n\u2713 API key stored in system keychain`);
     } else {
       // Store in ~/.bellwether/.env
       const fs = await import('fs');
@@ -234,15 +235,15 @@ async function interactiveSetup(): Promise<void> {
       lines.push(`${envVar}=${apiKey}`);
 
       fs.writeFileSync(envPath, lines.filter(l => l).join('\n') + '\n', { mode: 0o600 });
-      console.log(`\n✓ API key stored in ~/.bellwether/.env`);
+      output.success(`\n\u2713 API key stored in ~/.bellwether/.env`);
     }
 
-    console.log(`\nYou're all set! Bellwether will now use ${info.name} for interviews.`);
-    console.log(`\nDefault model: ${DEFAULT_MODELS[provider]}`);
-    console.log('\nTry it out:');
-    console.log('  bellwether interview npx @modelcontextprotocol/server-memory');
+    output.info(`\nYou're all set! Bellwether will now use ${info.name} for interviews.`);
+    output.info(`\nDefault model: ${DEFAULT_MODELS[provider]}`);
+    output.info('\nTry it out:');
+    output.info('  bellwether interview npx @modelcontextprotocol/server-memory');
   } catch (error) {
-    console.error(`\nFailed to store API key: ${error instanceof Error ? error.message : error}`);
+    output.error(`\nFailed to store API key: ${error instanceof Error ? error.message : error}`);
     process.exit(1);
   }
 
@@ -253,24 +254,24 @@ async function interactiveSetup(): Promise<void> {
  * Show auth status.
  */
 async function showStatus(): Promise<void> {
-  console.log('Bellwether Authentication Status');
-  console.log('=================================\n');
+  output.info('Bellwether Authentication Status');
+  output.info('=================================\n');
 
   const status = await getAuthStatus();
 
   for (const s of status) {
     if (s.provider === 'ollama') {
-      console.log('Ollama:');
-      console.log('  Status: No API key required (local)');
-      console.log('  Model:  llama3.2');
-      console.log('');
+      output.info('Ollama:');
+      output.info('  Status: No API key required (local)');
+      output.info('  Model:  llama3.2');
+      output.newline();
       continue;
     }
 
     const info = PROVIDER_INFO[s.provider as keyof typeof PROVIDER_INFO];
     if (!info) continue;
 
-    console.log(`${info.name}:`);
+    output.info(`${info.name}:`);
 
     if (s.configured) {
       let sourceDesc: string;
@@ -284,22 +285,22 @@ async function showStatus(): Promise<void> {
         default:
           sourceDesc = s.source;
       }
-      console.log(`  Status: ✓ Configured`);
-      console.log(`  Source: ${sourceDesc}`);
-      console.log(`  Model:  ${DEFAULT_MODELS[s.provider]}`);
+      output.info(`  Status: \u2713 Configured`);
+      output.info(`  Source: ${sourceDesc}`);
+      output.info(`  Model:  ${DEFAULT_MODELS[s.provider]}`);
     } else {
-      console.log(`  Status: ✗ Not configured`);
-      console.log(`  Setup:  Run 'bellwether auth' or set ${info.envVar}`);
+      output.info(`  Status: \u2717 Not configured`);
+      output.info(`  Setup:  Run 'bellwether auth' or set ${info.envVar}`);
     }
-    console.log('');
+    output.newline();
   }
 
   // Show priority order
-  console.log('Credential resolution order:');
-  console.log('  1. Environment variables (highest priority)');
-  console.log('  2. System keychain');
-  console.log('  3. ~/.bellwether/.env file');
-  console.log('  4. Project .env file');
+  output.info('Credential resolution order:');
+  output.info('  1. Environment variables (highest priority)');
+  output.info('  2. System keychain');
+  output.info('  3. ~/.bellwether/.env file');
+  output.info('  4. Project .env file');
 }
 
 /**
@@ -320,13 +321,13 @@ async function addProvider(providerArg?: string): Promise<void> {
   }
 
   const info = PROVIDER_INFO[provider];
-  console.log(`\nGet your API key from: ${info.url}\n`);
+  output.info(`\nGet your API key from: ${info.url}\n`);
 
   const apiKey = await prompt(rl, `Enter ${info.name} API key: `, true);
 
   const validation = validateApiKey(provider, apiKey);
   if (!validation.valid) {
-    console.log(`\nError: ${validation.error}`);
+    output.error(`\nError: ${validation.error}`);
     rl.close();
     process.exit(1);
   }
@@ -334,7 +335,7 @@ async function addProvider(providerArg?: string): Promise<void> {
   const keychain = getKeychainService();
   await keychain.setApiKey(provider, apiKey);
 
-  console.log(`\n✓ ${info.name} API key stored in keychain`);
+  output.success(`\n\u2713 ${info.name} API key stored in keychain`);
   rl.close();
 }
 
@@ -359,9 +360,9 @@ async function removeProvider(providerArg?: string): Promise<void> {
   const deleted = await keychain.deleteApiKey(provider);
 
   if (deleted) {
-    console.log(`\n✓ ${PROVIDER_INFO[provider].name} API key removed from keychain`);
+    output.success(`\n\u2713 ${PROVIDER_INFO[provider].name} API key removed from keychain`);
   } else {
-    console.log(`\nNo ${PROVIDER_INFO[provider].name} API key found in keychain`);
+    output.info(`\nNo ${PROVIDER_INFO[provider].name} API key found in keychain`);
   }
 
   rl.close();
@@ -395,7 +396,7 @@ export const authCommand = new Command('auth')
       .action(async () => {
         const keychain = getKeychainService();
         await keychain.clearAll();
-        console.log('All API keys removed from keychain.');
+        output.success('All API keys removed from keychain.');
       })
   )
   .action(interactiveSetup); // Default action is interactive setup

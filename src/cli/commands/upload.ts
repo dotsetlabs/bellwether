@@ -9,6 +9,7 @@ import { createCloudClient } from '../../cloud/client.js';
 import { loadBaseline } from '../../baseline/saver.js';
 import { convertToCloudBaseline } from '../../baseline/converter.js';
 import type { BellwetherBaseline } from '../../cloud/types.js';
+import * as output from '../output.js';
 
 /**
  * Default baseline file name.
@@ -31,21 +32,21 @@ export const uploadCommand = new Command('upload')
     const sessionToken = options.session ?? getSessionToken();
     if (!sessionToken) {
       if (isCiMode) {
-        console.error('BELLWETHER_SESSION not set');
+        output.error('BELLWETHER_SESSION not set');
         process.exit(1);
       }
-      console.error('Not authenticated. Run `bellwether login` first or set BELLWETHER_SESSION.');
+      output.error('Not authenticated. Run `bellwether login` first or set BELLWETHER_SESSION.');
       process.exit(1);
     }
 
     // Check baseline file exists
     if (!existsSync(baselinePath)) {
       if (isCiMode) {
-        console.error(`Baseline not found: ${baselinePath}`);
+        output.error(`Baseline not found: ${baselinePath}`);
         process.exit(1);
       }
-      console.error(`Baseline file not found: ${baselinePath}`);
-      console.error('\nRun `bellwether interview <server> --save-baseline` first.');
+      output.error(`Baseline file not found: ${baselinePath}`);
+      output.error('\nRun `bellwether interview <server> --save-baseline` first.');
       process.exit(1);
     }
 
@@ -57,20 +58,20 @@ export const uploadCommand = new Command('upload')
       if (link) {
         projectId = link.projectId;
         if (!isCiMode) {
-          console.log(`Using linked project: ${link.projectName}`);
+          output.info(`Using linked project: ${link.projectName}`);
         }
       }
     }
 
     if (!projectId) {
       if (isCiMode) {
-        console.error('No project specified');
+        output.error('No project specified');
         process.exit(1);
       }
-      console.error('No project specified.');
-      console.error('\nEither:');
-      console.error('  - Use --project <id> to specify a project');
-      console.error('  - Run `bellwether link` to link this directory to a project');
+      output.error('No project specified.');
+      output.error('\nEither:');
+      output.error('  - Use --project <id> to specify a project');
+      output.error('  - Run `bellwether link` to link this directory to a project');
       process.exit(1);
     }
 
@@ -92,10 +93,10 @@ export const uploadCommand = new Command('upload')
       }
     } catch (error) {
       if (isCiMode) {
-        console.error(`Failed to load baseline: ${error instanceof Error ? error.message : error}`);
+        output.error(`Failed to load baseline: ${error instanceof Error ? error.message : error}`);
         process.exit(1);
       }
-      console.error('Failed to load baseline:', error instanceof Error ? error.message : error);
+      output.error('Failed to load baseline: ' + (error instanceof Error ? error.message : String(error)));
       process.exit(1);
     }
 
@@ -104,15 +105,15 @@ export const uploadCommand = new Command('upload')
 
     if (!client.isAuthenticated()) {
       if (isCiMode) {
-        console.error('Authentication failed');
+        output.error('Authentication failed');
         process.exit(1);
       }
-      console.error('Authentication failed. Run `bellwether login` to re-authenticate.');
+      output.error('Authentication failed. Run `bellwether login` to re-authenticate.');
       process.exit(1);
     }
 
     if (!isCiMode) {
-      console.log(`Uploading baseline to project ${projectId}...`);
+      output.info(`Uploading baseline to project ${projectId}...`);
     }
 
     try {
@@ -122,7 +123,7 @@ export const uploadCommand = new Command('upload')
 
       if (isCiMode) {
         // CI mode - minimal output
-        console.log(result.viewUrl);
+        output.info(result.viewUrl);
 
         // Check for drift
         if (result.version > 1) {
@@ -130,45 +131,45 @@ export const uploadCommand = new Command('upload')
 
           if (diff) {
             if (diff.severity === 'breaking') {
-              console.error('Breaking changes detected');
+              output.error('Breaking changes detected');
               process.exit(1);
             }
 
             if (options.failOnDrift && diff.severity !== 'none') {
-              console.error(`Behavioral drift detected: ${diff.severity}`);
+              output.error(`Behavioral drift detected: ${diff.severity}`);
               process.exit(1);
             }
           }
         }
       } else {
         // Interactive mode - detailed output
-        console.log(`\nUpload successful!`);
-        console.log(`Version: ${result.version}`);
-        console.log(`View:    ${result.viewUrl}`);
+        output.info(`\nUpload successful!`);
+        output.info(`Version: ${result.version}`);
+        output.info(`View:    ${result.viewUrl}`);
 
         if (result.diffUrl) {
-          console.log(`Diff:    ${result.diffUrl}`);
+          output.info(`Diff:    ${result.diffUrl}`);
 
           // Show diff summary
           const diff = await client.getLatestDiff(projectId);
           if (diff) {
-            console.log('\nChanges from previous version:');
+            output.info('\nChanges from previous version:');
             printDiffSummary(diff);
 
             if (diff.severity === 'breaking') {
-              console.log('\n⚠️  Breaking changes detected!');
+              output.info('\n⚠️  Breaking changes detected!');
             }
           }
         } else {
-          console.log('\nThis is the first baseline for this project.');
+          output.info('\nThis is the first baseline for this project.');
         }
       }
     } catch (error) {
       if (isCiMode) {
-        console.error(`Upload failed: ${error instanceof Error ? error.message : error}`);
+        output.error(`Upload failed: ${error instanceof Error ? error.message : error}`);
         process.exit(1);
       }
-      console.error('Upload failed:', error instanceof Error ? error.message : error);
+      output.error('Upload failed: ' + (error instanceof Error ? error.message : String(error)));
       process.exit(1);
     }
   });
@@ -190,19 +191,19 @@ function printDiffSummary(diff: {
     breaking: '✗',
   };
 
-  console.log(`  Severity: ${severityIcon[diff.severity] ?? '?'} ${diff.severity}`);
+  output.info(`  Severity: ${severityIcon[diff.severity] ?? '?'} ${diff.severity}`);
 
   if (diff.toolsAdded > 0) {
-    console.log(`  Tools added: +${diff.toolsAdded}`);
+    output.info(`  Tools added: +${diff.toolsAdded}`);
   }
   if (diff.toolsRemoved > 0) {
-    console.log(`  Tools removed: -${diff.toolsRemoved}`);
+    output.info(`  Tools removed: -${diff.toolsRemoved}`);
   }
   if (diff.toolsModified > 0) {
-    console.log(`  Tools modified: ~${diff.toolsModified}`);
+    output.info(`  Tools modified: ~${diff.toolsModified}`);
   }
   if (diff.behaviorChanges > 0) {
-    console.log(`  Behavior changes: ${diff.behaviorChanges}`);
+    output.info(`  Behavior changes: ${diff.behaviorChanges}`);
   }
 
   if (
@@ -211,6 +212,6 @@ function printDiffSummary(diff: {
     diff.toolsModified === 0 &&
     diff.behaviorChanges === 0
   ) {
-    console.log('  No changes detected');
+    output.info('  No changes detected');
   }
 }

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import type { JSONRPCMessage } from './types.js';
+import { getLogger, type Logger } from '../logging/logger.js';
 
 /**
  * Base configuration for all transports.
@@ -33,10 +34,12 @@ export interface TransportEvents {
  */
 export abstract class BaseTransport extends EventEmitter {
   protected debug: boolean;
+  protected logger: Logger;
 
   constructor(config?: BaseTransportConfig) {
     super();
     this.debug = config?.debug ?? false;
+    this.logger = getLogger('transport');
   }
 
   /**
@@ -57,9 +60,9 @@ export abstract class BaseTransport extends EventEmitter {
   /**
    * Log a debug message if debug mode is enabled.
    */
-  protected log(...args: unknown[]): void {
+  protected log(message: string, data?: Record<string, unknown>): void {
     if (this.debug) {
-      console.log('[Transport]', ...args);
+      this.logger.debug(data ?? {}, message);
     }
   }
 

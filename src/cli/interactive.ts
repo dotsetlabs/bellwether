@@ -7,6 +7,7 @@
 
 import * as readline from 'readline';
 import type { BellwetherConfig } from '../config/loader.js';
+import * as output from './output.js';
 
 /**
  * Create a readline interface for prompting.
@@ -37,10 +38,8 @@ async function selectOption(
   prompt: string,
   options: string[]
 ): Promise<number> {
-  console.log(prompt);
-  options.forEach((opt, i) => {
-    console.log(`  ${i + 1}) ${opt}`);
-  });
+  output.info(prompt);
+  output.numberedList(options);
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -49,7 +48,7 @@ async function selectOption(
     if (num >= 1 && num <= options.length) {
       return num - 1;
     }
-    console.log(`Invalid choice. Please enter a number between 1 and ${options.length}.`);
+    output.info(`Invalid choice. Please enter a number between 1 and ${options.length}.`);
   }
 }
 
@@ -113,18 +112,18 @@ export async function promptForConfig(
   const rl = createPrompt();
 
   try {
-    console.log('\n=== Bellwether Interactive Mode ===\n');
+    output.info('\n=== Bellwether Interactive Mode ===\n');
 
     // Server command
     let serverCommand = providedCommand || '';
     let serverArgs = providedArgs || [];
 
     if (!serverCommand) {
-      console.log('Enter the command to start your MCP server.');
-      console.log('Examples:');
-      console.log('  npx @modelcontextprotocol/server-filesystem /path/to/dir');
-      console.log('  python mcp_server.py');
-      console.log('  node my-server.js\n');
+      output.info('Enter the command to start your MCP server.');
+      output.info('Examples:');
+      output.info('  npx @modelcontextprotocol/server-filesystem /path/to/dir');
+      output.info('  python mcp_server.py');
+      output.info('  node my-server.js\n');
 
       const fullCommand = await ask(rl, 'Server command: ');
       if (!fullCommand) {
@@ -137,7 +136,7 @@ export async function promptForConfig(
     }
 
     // Persona selection
-    console.log('\nSelect personas to use during the interview:');
+    output.info('\nSelect personas to use during the interview:');
     const selectedPersonas: string[] = [];
 
     for (const persona of AVAILABLE_PERSONAS) {
@@ -149,12 +148,12 @@ export async function promptForConfig(
     }
 
     if (selectedPersonas.length === 0) {
-      console.log('No personas selected. Using default "friendly" persona.');
+      output.info('No personas selected. Using default "friendly" persona.');
       selectedPersonas.push('friendly');
     }
 
     // Output format
-    console.log('\nSelect output format:');
+    output.info('\nSelect output format:');
     const formatIndex = await selectOption(
       rl,
       '',
@@ -223,7 +222,7 @@ export function createPauseController(): PauseController {
 
     pause() {
       paused = true;
-      console.log('\n[Interview paused. Press Enter to resume, or Ctrl+C to abort]');
+      output.info('\n[Interview paused. Press Enter to resume, or Ctrl+C to abort]');
     },
 
     resume() {
@@ -232,7 +231,7 @@ export function createPauseController(): PauseController {
         resumePromiseResolve();
         resumePromiseResolve = null;
       }
-      console.log('[Resumed]');
+      output.info('[Resumed]');
     },
 
     async waitIfPaused(): Promise<void> {
@@ -262,7 +261,7 @@ export function setupInteractiveKeyboard(controller: PauseController): () => voi
 
   // Handle SIGINT gracefully
   rl.on('SIGINT', () => {
-    console.log('\nInterview aborted by user.');
+    output.info('\nInterview aborted by user.');
     process.exit(130);
   });
 
@@ -275,17 +274,17 @@ export function setupInteractiveKeyboard(controller: PauseController): () => voi
  * Display a summary of the interactive configuration.
  */
 export function displayConfigSummary(config: InteractiveConfig): void {
-  console.log('\n=== Configuration Summary ===');
-  console.log(`Server: ${config.serverCommand} ${config.serverArgs.join(' ')}`);
-  console.log(`Personas: ${config.selectedPersonas.join(', ')}`);
-  console.log(`Output format: ${config.outputFormat}`);
-  console.log(`Output directory: ${config.outputDir}`);
-  console.log(`Max questions: ${config.maxQuestions ?? 'default'}`);
+  output.info('\n=== Configuration Summary ===');
+  output.info(`Server: ${config.serverCommand} ${config.serverArgs.join(' ')}`);
+  output.info(`Personas: ${config.selectedPersonas.join(', ')}`);
+  output.info(`Output format: ${config.outputFormat}`);
+  output.info(`Output directory: ${config.outputDir}`);
+  output.info(`Max questions: ${config.maxQuestions ?? 'default'}`);
   if (config.saveBaseline) {
-    console.log(`Save baseline: ${config.baselinePath}`);
+    output.info(`Save baseline: ${config.baselinePath}`);
   }
   if (config.compareBaseline) {
-    console.log(`Compare baseline: ${config.compareBaseline}`);
+    output.info(`Compare baseline: ${config.compareBaseline}`);
   }
-  console.log('');
+  output.newline();
 }
