@@ -55,7 +55,7 @@ bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 - **Performance Metrics** - Response times (avg/p50/p95/max) and error rates
 - **Multi-Provider LLM** - OpenAI, Anthropic Claude, or Ollama (local/free)
 - **Drift Detection** - Compare baselines to detect behavioral changes
-- **Multiple Output Formats** - Markdown, JSON, JUnit, SARIF
+- **Multiple Output Formats** - Markdown and JSON reports
 
 ### Server Support
 - **Local Servers** - Stdio transport for local MCP servers
@@ -137,31 +137,34 @@ See [action/README.md](./action/README.md) for full documentation.
 Define deterministic tests in `bellwether-tests.yaml`:
 
 ```yaml
-version: 1
-tools:
-  - name: get_weather
-    scenarios:
-      - name: "Valid location returns weather"
-        input:
-          location: "San Francisco"
-        assertions:
-          - path: "content[0].text"
-            condition: "contains"
-            expected: "temperature"
+version: "1"
+description: Custom test scenarios for my MCP server
 
-      - name: "Invalid location returns error"
-        input:
-          location: ""
-        assertions:
-          - path: "isError"
-            condition: "equals"
-            expected: true
+scenarios:
+  - tool: get_weather
+    description: Valid location returns weather
+    args:
+      location: "San Francisco"
+    assertions:
+      - path: "content[0].text"
+        condition: "contains"
+        value: "temperature"
+
+  - tool: get_weather
+    description: Invalid location returns error
+    category: error_handling
+    args:
+      location: ""
+    assertions:
+      - path: "isError"
+        condition: "equals"
+        value: true
 ```
 
 Run with:
 ```bash
 bellwether interview --scenarios ./bellwether-tests.yaml npx @mcp/server
-bellwether interview --scenarios-only ./bellwether-tests.yaml npx @mcp/server  # No LLM needed
+bellwether interview --scenarios-only npx @mcp/server  # No LLM needed, uses bellwether-tests.yaml
 ```
 
 ## Verified by Bellwether

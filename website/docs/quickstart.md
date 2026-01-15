@@ -165,7 +165,7 @@ version: 1
 
 llm:
   provider: openai
-  model: gpt-4o-mini  # Cheaper, faster
+  model: gpt-5-mini  # Cheaper, faster
 
 interview:
   maxQuestionsPerTool: 5
@@ -222,10 +222,10 @@ bellwether interview \
 ### Security: Audit an MCP Server
 
 ```bash
-# Security-focused interview with SARIF output
+# Security-focused interview with JSON output for analysis
 bellwether interview \
   --preset security \
-  --output-format sarif \
+  --json \
   npx your-server
 ```
 

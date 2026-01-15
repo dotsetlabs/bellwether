@@ -31,7 +31,7 @@ interview:
   timeout: 30000
 
 output:
-  format: markdown
+  format: agents.md
 ```
 
 ## Full Configuration Reference
@@ -46,13 +46,14 @@ llm:
   provider: openai
 
   # Specific model (optional, uses provider default)
-  model: gpt-4o
+  model: gpt-5-mini
 
-  # Custom API endpoint (optional)
+  # Environment variable containing API key (recommended)
+  # Note: apiKey directly in config is NOT allowed for security
+  apiKeyEnvVar: OPENAI_API_KEY
+
+  # Custom API endpoint (optional, for proxies/self-hosted)
   baseUrl: https://api.openai.com/v1
-
-  # Request timeout in ms (optional)
-  timeout: 60000
 
 # Interview Settings
 interview:
@@ -62,45 +63,21 @@ interview:
   # Tool call timeout in ms
   timeout: 30000
 
-  # Personas to use
+  # Skip error-generating tests
+  skipErrorTests: false
+
+  # Personas to use (comma-separated string or array)
   personas:
     - technical_writer
     - security_tester
 
-  # Custom persona files
-  personaFiles:
-    - ./personas/custom.persona.yaml
-
-  # Workflow files
-  workflowFiles:
-    - ./workflows/*.workflow.yaml
-
 # Output Settings
 output:
-  # Format: markdown, json, sarif, junit
-  format: markdown
+  # Format: agents.md, json, or both
+  format: agents.md
 
   # Output directory
-  directory: .
-
-  # Custom AGENTS.md filename
-  agentsFileName: AGENTS.md
-
-# Baseline Settings
-baseline:
-  # Default baseline path
-  path: ./bellwether-baseline.json
-
-  # Auto-save baseline after interview
-  autoSave: false
-
-# Cloud Settings (optional)
-cloud:
-  # Auto-upload after interview
-  autoUpload: false
-
-  # Project ID (usually set by `bellwether link`)
-  projectId: proj_xxx
+  outputDir: .
 ```
 
 ## Provider-Specific Configuration

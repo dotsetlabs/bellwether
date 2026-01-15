@@ -21,9 +21,6 @@ import {
   formatDiffText,
 } from '../../src/baseline/index.js';
 import { createCloudBaseline } from '../../src/baseline/converter.js';
-import { generateSarifReport } from '../../src/docs/sarif-reporter.js';
-import { generateJunitReport } from '../../src/docs/junit-reporter.js';
-import { generateHtmlReport } from '../../src/docs/html-reporter.js';
 import type { InterviewResult } from '../../src/interview/types.js';
 import type { DiscoveryResult } from '../../src/discovery/types.js';
 
@@ -359,40 +356,6 @@ interview:
       expect(parsed.summary).toBeTruthy();
     });
 
-    it('should generate SARIF report for GitHub integration', () => {
-      const result = createMockInterviewResult();
-      const sarif = generateSarifReport(result);
-
-      // Verify it's valid JSON
-      const parsed = JSON.parse(sarif);
-
-      expect(parsed.$schema).toContain('sarif');
-      expect(parsed.version).toBe('2.1.0');
-      expect(parsed.runs).toBeDefined();
-      expect(parsed.runs[0].tool.driver.name).toBe('Bellwether');
-    });
-
-    it('should generate JUnit report for CI integration', () => {
-      const result = createMockInterviewResult();
-      const junit = generateJunitReport(result);
-
-      // Verify it's valid XML structure
-      expect(junit).toContain('<?xml');
-      expect(junit).toContain('<testsuites');
-      expect(junit).toContain('testsuite');
-      expect(junit).toContain('testcase');
-    });
-
-    it('should generate HTML report', () => {
-      const result = createMockInterviewResult();
-      const html = generateHtmlReport(result);
-
-      // Verify HTML structure
-      expect(html).toContain('<!DOCTYPE html>');
-      expect(html).toContain('<html');
-      expect(html).toContain('test-server');
-      expect(html).toContain('read_file');
-    });
   });
 
   describe('Baseline workflow', () => {

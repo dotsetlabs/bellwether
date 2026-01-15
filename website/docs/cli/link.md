@@ -23,6 +23,15 @@ The `link` command connects your local directory to a Bellwether Cloud project. 
 |:---------|:------------|
 | `[project-id]` | Optional: Link to existing project ID |
 
+## Options
+
+| Option | Description | Default |
+|:-------|:------------|:--------|
+| `-n, --name <name>` | Project name (for new projects) | Directory name |
+| `-c, --command <cmd>` | Server command (for new projects) | `node dist/server.js` |
+| `--unlink` | Remove the project link from current directory | - |
+| `--status` | Show current link status | - |
+
 ## Examples
 
 ### Create and Link New Project
@@ -46,18 +55,41 @@ Linked to current directory.
 bellwether link proj_abc123
 ```
 
+### Check Link Status
+
+```bash
+bellwether link --status
+```
+
+Output:
+```
+Project Link Status
+───────────────────
+Project: my-mcp-server
+ID:      proj_abc123
+Linked:  1/13/2026, 10:30:00 AM
+Config:  .bellwether/link.json
+```
+
+### Unlink Project
+
+```bash
+bellwether link --unlink
+```
+
 ## Project Configuration
 
-Linking creates `.bellwether.json` in your project root:
+Linking creates `.bellwether/link.json` in your project root:
 
 ```json
 {
   "projectId": "proj_abc123",
-  "name": "my-mcp-server"
+  "projectName": "my-mcp-server",
+  "linkedAt": "2026-01-13T10:30:00.000Z"
 }
 ```
 
-This file should be committed to version control.
+This file can be committed to version control for team sharing.
 
 ## What Linking Enables
 

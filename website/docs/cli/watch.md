@@ -28,56 +28,79 @@ Watch mode monitors your source files and automatically re-runs interviews when 
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `--watch-path <path>` | Directory to watch for changes | `./src` |
-| `--debounce <ms>` | Debounce time before re-running | `1000` |
-| `--show-diff` | Show diff from previous interview | `true` |
-
-All options from [interview](/cli/interview) are also supported.
+| `-w, --watch-path <path>` | Directory to watch for changes | `.` |
+| `-i, --interval <ms>` | Polling interval in milliseconds | `5000` |
+| `--baseline <path>` | Baseline file to compare against | `bellwether-baseline.json` |
+| `--on-change <command>` | Command to run after detecting drift | - |
+| `-c, --config <path>` | Path to config file | - |
+| `--max-questions <n>` | Max questions per tool | Config value |
 
 ## Examples
 
 ### Basic Watch Mode
 
 ```bash
+# Watch current directory (default)
+bellwether watch npx your-server
+
+# Watch a specific directory
 bellwether watch npx your-server --watch-path ./src
 ```
 
-### Watch Multiple Directories
+### Custom Polling Interval
 
 ```bash
-bellwether watch npx your-server \
-  --watch-path ./src \
-  --watch-path ./lib
+# Check for changes every 2 seconds
+bellwether watch npx your-server --interval 2000
 ```
 
-### Quick Mode Watch
+### Run Command on Drift
 
 ```bash
-# Fast re-interviews during development
-bellwether watch --quick npx your-server --watch-path ./src
+# Run tests when drift is detected
+bellwether watch npx your-server --on-change "npm test"
 ```
 
 ## Behavior
 
-1. **Initial interview** - Runs a full interview on startup
-2. **File monitoring** - Watches specified directories for changes
-3. **Debouncing** - Waits for changes to settle before re-running
-4. **Re-interview** - Runs interview and shows diff from previous
-5. **Repeat** - Continues monitoring
+1. **Initial interview** - Runs a full interview on startup and saves baseline
+2. **File monitoring** - Polls the watch directory at the specified interval
+3. **Change detection** - Detects changes to `.ts`, `.js`, `.json`, `.py`, `.go` files
+4. **Re-interview** - Runs interview and compares against previous baseline
+5. **Optional action** - Runs `--on-change` command if drift is detected
+6. **Repeat** - Continues monitoring
 
 Output:
 ```
-[watch] Initial interview starting...
-[watch] Interview complete. Watching ./src for changes...
+Bellwether Watch Mode
 
-[watch] File changed: src/tools/read.ts
-[watch] Re-running interview...
+Server: npx your-server
+Watching: /path/to/project
+Baseline: /path/to/project/bellwether-baseline.json
+Poll interval: 5000ms
 
-Changes detected:
+--- Running Interview ---
+[10:30:45] Starting interview...
+Found 5 tools
+Interviewing: 5/5 tools
+Interview complete.
+
+Watching for changes... (Press Ctrl+C to exit)
+
+File changed: src/tools/read.ts
+
+--- Running Interview ---
+[10:31:02] Starting interview...
+Found 5 tools
+Interview complete.
+
+--- Behavioral Drift Detected ---
   + read_file now handles symlinks
   ~ error message format changed for ENOENT
 
-[watch] Interview complete. Watching for changes...
+Baseline updated: a1b2c3d4
+
+Watching for changes... (Press Ctrl+C to exit)
 ```
 
 ## Use Cases
@@ -88,11 +111,19 @@ Keep watch running in a terminal while developing:
 
 ```bash
 # Terminal 1: Watch for changes
-bellwether watch npx your-server --watch-path ./src
+bellwether watch npx your-server
 
 # Terminal 2: Edit your server code
 vim src/tools/read.ts
-# Watch automatically re-interviews
+# Watch automatically re-interviews when you save
+```
+
+### CI Integration Trigger
+
+Run tests automatically when behavior changes:
+
+```bash
+bellwether watch npx your-server --on-change "npm test"
 ```
 
 ### TDD for MCP Servers

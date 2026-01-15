@@ -16,8 +16,6 @@ export type {
   BehavioralBaseline,
   WorkflowSignature,
   CompareOptions,
-  CICheckResult,
-  CIFinding,
 } from './types.js';
 
 // Saver functions

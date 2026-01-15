@@ -7,7 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-15
+
 ### Added
+
+- **Structured Logging** - Production-ready logging with pino
+  - New `--log-level` flag: debug, info, warn, error, silent (default: info)
+  - New `--log-file <path>` flag to write logs to a file
+  - JSON-structured log output for better observability
+  - Comprehensive logging across all CLI commands
+
+- **Secure API Key Storage** - System keychain integration
+  - New `bellwether auth` command for managing API keys
+  - `bellwether auth set <provider>` - Store keys in system keychain
+  - `bellwether auth get <provider>` - Retrieve stored keys
+  - `bellwether auth delete <provider>` - Remove keys from keychain
+  - `bellwether auth list` - List configured providers
+  - Supports `openai` and `anthropic` providers
+  - Keys stored securely using OS keychain (macOS Keychain, Windows Credential Vault, Linux libsecret)
+
+- **Global Configuration** - User-wide API key support
+  - Support for global `~/.bellwether/.env` file
+  - API keys in global config apply to all projects
+  - Project-level `.env` overrides global settings
+  - Keychain credentials loaded if env vars not set
 
 - **Resource Testing** - MCP resources are now discovered and tested
   - Resources discovered via `resources/list` are automatically interviewed
@@ -23,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `--limit` flag to control number of results
 
 - **GitHub Action** - Easy CI/CD integration
-  - New `.github/actions/bellwether/action.yml` composite action
+  - New `action/action.yml` composite action
   - Configurable presets: docs, security, thorough, ci
   - Supports baseline comparison with `--fail-on-drift`
   - Custom scenarios file support
@@ -46,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Custom Test Scenarios (YAML)** - Define custom test scenarios alongside LLM-generated tests
   - New `bellwether-tests.yaml` file format for tool and prompt scenarios
   - New `--scenarios <path>` flag to specify custom scenarios file
-  - New `--scenarios-only` flag to run only custom scenarios (no LLM)
+  - New `--scenarios-only` flag to run only custom scenarios (no LLM required)
   - New `--init-scenarios` flag to generate sample YAML template
   - Auto-detection: loads `bellwether-tests.yaml` from output directory if present
   - Support for assertions: `exists`, `equals`, `contains`, `truthy`, `type`, `not_error`
@@ -62,7 +85,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - AGENTS.md now includes Quick Reference section with tool signatures
 - AGENTS.md now includes Resources section when resources are present
-- Updated documentation with new features and guides
+- Updated documentation website with comprehensive guides
+- Updated LLM model references to latest versions (gpt-5-mini, claude-haiku-4-5)
+
+### Fixed
+
+- `--scenarios-only` mode now truly skips all LLM calls (free, deterministic testing)
+- Various CLI enhancement fixes and improvements
+- Security vulnerability fixes (critical, high, and medium severity)
 
 ## [0.2.0] - 2026-01-13
 
@@ -98,7 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-persona support (Technical Writer, Security Tester, QA Engineer, Novice User)
 - AGENTS.md generation
 - Drift detection with baseline comparison
-- Multiple output formats (Markdown, JSON, SARIF, JUnit)
+- Multiple output formats (Markdown, JSON)
 - CI/CD integration support
 - Cloud sync for baseline history
 - OpenAI, Anthropic, and Ollama LLM provider support

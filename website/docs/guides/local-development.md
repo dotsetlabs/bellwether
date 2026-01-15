@@ -143,8 +143,8 @@ ollama serve
 # Pull a model
 ollama pull llama3.2
 
-# Run Bellwether with Ollama
-bellwether interview --provider ollama --model llama3.2 node ./src/mcp-server.js
+# Bellwether auto-detects Ollama when no API keys are set
+bellwether interview node ./src/mcp-server.js
 ```
 
 Or configure in `bellwether.yaml`:
@@ -166,7 +166,7 @@ For deterministic testing without LLM costs, define custom scenarios:
 bellwether interview --init-scenarios
 ```
 
-Edit `bellwether-scenarios.yaml`:
+Edit `bellwether-tests.yaml`:
 
 ```yaml
 version: 1
@@ -204,7 +204,7 @@ Add drift detection to your CI pipeline:
 ```bash
 # In CI - fail if drift detected
 bellwether interview \
-  --ci \
+  --preset ci \
   --compare-baseline ./bellwether-baseline.json \
   --fail-on-drift \
   node ./src/mcp-server.js
@@ -238,7 +238,6 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           bellwether interview \
-            --ci \
             --preset ci \
             --compare-baseline ./bellwether-baseline.json \
             --fail-on-drift \
@@ -292,10 +291,11 @@ bellwether interview --debug node ./src/mcp-server.js
 Ensure you're watching the right directory:
 
 ```bash
-# Watch multiple directories
-bellwether watch node ./src/mcp-server.js \
-  --watch-path ./src \
-  --watch-path ./lib
+# Watch a specific directory
+bellwether watch node ./src/mcp-server.js --watch-path ./src
+
+# Adjust polling interval if changes aren't detected
+bellwether watch node ./src/mcp-server.js --interval 2000
 ```
 
 ## See Also

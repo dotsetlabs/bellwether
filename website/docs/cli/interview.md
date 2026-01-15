@@ -39,25 +39,29 @@ The interview process includes:
 |:-------|:------------|:--------|
 | `-o, --output <dir>` | Output directory for generated files | `.` |
 | `--json` | Also output JSON report | `false` |
-| `--output-format <format>` | Output format: `markdown`, `json`, `sarif`, `junit` | `markdown` |
+| `--cloud-format` | Save baseline in cloud-ready format | `false` |
 
 ### LLM Options
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `--provider <provider>` | LLM provider: `openai`, `anthropic`, `ollama` | Auto-detect |
 | `--model <model>` | Specific model to use | Provider default |
-| `-q, --quick` | Quick mode: 1 question, cheap model | `false` |
+| `-q, --quick` | Quick mode: 1 question per tool | `false` |
+| `-Q, --quality` | Use premium LLM models for higher quality output | `false` |
+
+The LLM provider is auto-detected based on which API key environment variable is set (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`), or falls back to Ollama if no key is set.
 
 ### Interview Options
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `--preset <preset>` | Use a preset configuration (see below) | - |
+| `-p, --preset <preset>` | Use a preset configuration (see below) | - |
 | `--max-questions <n>` | Maximum questions per tool | `3` |
 | `--timeout <ms>` | Tool call timeout in milliseconds | `60000` |
-| `--persona <personas>` | Comma-separated list of personas | All |
+| `--personas <list>` | Comma-separated persona list: `technical`, `security`, `qa`, `novice`, `all` | `technical` |
+| `--security` | Include security testing persona (shorthand for `--personas technical,security`) | `false` |
 | `-c, --config <path>` | Config file path | `bellwether.yaml` |
+| `-i, --interactive` | Run in interactive mode with prompts | `false` |
 
 ### Presets
 
@@ -80,13 +84,12 @@ Preset options can be overridden with explicit flags.
 | `--compare-baseline <path>` | Compare against existing baseline | - |
 | `--fail-on-drift` | Exit with error if drift detected | `false` |
 
-### CI/CD Options
+### Cost Options
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `--ci` | CI mode: no colors, machine-readable output | `false` |
-| `--fail-on-security` | Exit with error on security findings | `false` |
-| `--show-cost` | Show LLM token usage and cost | `false` |
+| `--estimate-cost` | Estimate cost before running interview | `false` |
+| `--show-cost` | Show cost summary after interview | `false` |
 
 ### Remote Server Options
 
@@ -114,8 +117,6 @@ If a `bellwether-tests.yaml` file exists in the output directory, it will be aut
 |:-------|:------------|:--------|
 | `--verbose` | Verbose output | `false` |
 | `--debug` | Debug MCP protocol messages | `false` |
-| `--log-level <level>` | Log level: `debug`, `info`, `warn`, `error` | `info` |
-| `--log-file <path>` | Write logs to file | - |
 
 ## Examples
 
@@ -162,10 +163,10 @@ bellwether interview \
 bellwether interview --preset security --max-questions 5 npx your-server
 ```
 
-### Quick Mode for CI
+### Quick Mode
 
 ```bash
-bellwether interview --quick --ci npx your-server
+bellwether interview --quick npx your-server
 ```
 
 ### Save and Compare Baselines
@@ -184,21 +185,24 @@ bellwether interview \
 ### Security Testing
 
 ```bash
-bellwether interview \
-  --persona security_tester \
-  --fail-on-security \
-  --output-format sarif \
-  -o ./security \
-  npx your-server
+# Use the --security shorthand
+bellwether interview --security npx your-server
+
+# Or specify personas explicitly
+bellwether interview --personas technical,security npx your-server
 ```
 
 ### Multiple Personas
 
 ```bash
+# Use shorthand names: technical, security, qa, novice
 bellwether interview \
-  --persona technical_writer,security_tester,qa_engineer \
+  --personas technical,security,qa \
   --max-questions 5 \
   npx your-server
+
+# Or use all personas
+bellwether interview --personas all npx your-server
 ```
 
 ### Remote MCP Servers
@@ -249,10 +253,8 @@ Depending on options, the following files may be generated:
 | File | Description |
 |:-----|:------------|
 | `AGENTS.md` | Human-readable behavioral documentation (includes tool profiles and prompt profiles) |
-| `bellwether-report.json` | Machine-readable JSON report |
-| `bellwether-baseline.json` | Baseline for drift detection |
-| `bellwether.sarif` | SARIF output for GitHub Code Scanning |
-| `junit.xml` | JUnit XML for test runners |
+| `bellwether-report.json` | Machine-readable JSON report (with `--json` flag) |
+| `bellwether-baseline.json` | Baseline for drift detection (with `--save-baseline` flag) |
 
 ### AGENTS.md Contents
 
@@ -273,7 +275,6 @@ The generated documentation includes:
 | `OPENAI_API_KEY` | OpenAI API key |
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
-| `BELLWETHER_LOG_LEVEL` | Default log level |
 
 ## See Also
 

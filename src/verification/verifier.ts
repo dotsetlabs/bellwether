@@ -13,11 +13,9 @@ import type {
 } from './types.js';
 import type { InterviewResult } from '../interview/types.js';
 import { getLogger } from '../logging/logger.js';
+import { VERSION } from '../version.js';
 
 const logger = getLogger('verification');
-
-/** Bellwether version */
-const BELLWETHER_VERSION = '0.2.0';
 
 /** Verification validity period in days */
 const VERIFICATION_VALIDITY_DAYS = 90;
@@ -57,7 +55,7 @@ export function generateVerificationResult(
     testsTotal,
     passRate,
     reportHash,
-    bellwetherVersion: BELLWETHER_VERSION,
+    bellwetherVersion: VERSION,
   };
 
   logger.info({
@@ -138,7 +136,7 @@ export function generateVerificationReport(
     environment: {
       os: process.platform,
       nodeVersion: process.version,
-      bellwetherVersion: BELLWETHER_VERSION,
+      bellwetherVersion: VERSION,
     },
   };
 }
