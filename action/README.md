@@ -8,8 +8,7 @@ Behavioral testing, documentation generation, and drift detection for MCP server
 - Generate AGENTS.md documentation automatically
 - Detect behavioral drift with baseline comparison
 - Run custom test scenarios (with or without LLM)
-- Upload results to GitHub Security tab (SARIF)
-- JUnit report integration for test results
+- JSON report output for programmatic analysis
 - Multiple LLM providers: OpenAI, Anthropic, Ollama
 
 ## Usage
@@ -106,21 +105,21 @@ jobs:
     scenarios-only: 'true'
 ```
 
-### SARIF Upload to GitHub Security
+### Security-Focused Interview
 
 ```yaml
-- name: Interview with SARIF
+- name: Security Interview
   uses: dotsetlabs/bellwether/action@v1
   with:
     server-command: 'npx @modelcontextprotocol/server-filesystem'
     server-args: '/tmp'
-    output-format: 'sarif'
-    fail-on-security: 'true'
+    preset: 'security'
+    output-json: 'true'
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 ```
 
-Results automatically appear in the Security tab of your repository.
+The security preset includes the security testing persona for adversarial testing.
 
 ## Inputs
 
@@ -132,16 +131,16 @@ Results automatically appear in the Security tab of your repository.
 | `personas` | Comma-separated personas (if not using preset) | No | `technical_writer` |
 | `max-questions` | Max questions per tool (if not using preset) | No | `3` |
 | `quick` | Quick mode for fast CI runs | No | `false` |
+| `security` | Include security testing persona | No | `false` |
 | `baseline-path` | Path to baseline file for drift comparison | No | - |
 | `fail-on-drift` | Fail if drift is detected | No | `true` |
-| `fail-on-security` | Fail if security issues found | No | `true` |
 | `save-baseline` | Save baseline after interview | No | `false` |
-| `output-format` | Output format: sarif, junit, json, markdown, both | No | `sarif` |
+| `output-json` | Also generate JSON report | No | `false` |
 | `output-dir` | Directory for output files | No | `.` |
 | `scenarios-path` | Path to custom test scenarios YAML | No | - |
 | `scenarios-only` | Run only custom scenarios (no LLM) | No | `false` |
 | `timeout` | Timeout for tool calls in ms | No | `30000` |
-| `llm-provider` | LLM provider (openai, anthropic, ollama) | No | `openai` |
+| `llm-provider` | LLM provider (auto-detected from API key) | No | - |
 | `llm-model` | LLM model to use | No | - |
 | `openai-api-key` | OpenAI API key (or use env var) | No | - |
 | `anthropic-api-key` | Anthropic API key (or use env var) | No | - |
@@ -153,12 +152,11 @@ Results automatically appear in the Security tab of your repository.
 | `result` | Check result: passed or failed |
 | `exit-code` | Exit code (0=pass, 1=fail, 2=error) |
 | `drift-detected` | Whether drift was detected |
-| `security-issues` | Number of security issues found |
+| `security-tested` | Whether security persona was included |
 | `tool-count` | Number of tools discovered |
 | `error-count` | Number of errors encountered |
 | `agents-md` | Path to generated AGENTS.md file |
-| `sarif-file` | Path to SARIF output file |
-| `junit-file` | Path to JUnit output file |
+| `json-report` | Path to JSON report file |
 | `baseline-file` | Path to saved baseline file |
 
 ## Artifacts
@@ -166,6 +164,7 @@ Results automatically appear in the Security tab of your repository.
 The action automatically uploads:
 - `bellwether-docs`: The generated AGENTS.md file
 - `bellwether-baseline`: The baseline file (if saved)
+- `bellwether-report`: The JSON report (if `output-json: true`)
 
 ## Using with Different LLM Providers
 
@@ -195,7 +194,7 @@ The action automatically uploads:
 
 - Never commit API keys to your repository
 - Use GitHub Secrets to store sensitive values
-- SARIF results appear in the GitHub Security tab
+- Use `preset: security` or `security: true` for adversarial testing
 - The action filters out sensitive environment variables when spawning servers
 
 ## License

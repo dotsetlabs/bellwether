@@ -35,7 +35,6 @@ jobs:
 ### Action Features
 
 - **Automatic setup** - Installs Node.js and Bellwether
-- **SARIF upload** - Results appear in GitHub Security tab
 - **Artifact upload** - AGENTS.md and baseline files saved
 - **All presets supported** - `ci`, `docs`, `security`, `thorough`
 - **Custom scenarios** - Pass your `bellwether-tests.yaml`
@@ -46,12 +45,10 @@ jobs:
 |:------|:------------|:--------|
 | `server-command` | Command to start the MCP server | Required |
 | `server-args` | Arguments for the server | `''` |
-| `preset` | Interview preset | - |
+| `preset` | Interview preset (`ci`, `docs`, `security`, `thorough`) | - |
 | `quick` | Quick mode for PR checks | `false` |
 | `baseline-path` | Baseline for drift detection | - |
 | `fail-on-drift` | Fail if drift detected | `true` |
-| `fail-on-security` | Fail on security issues | `true` |
-| `output-format` | `sarif`, `junit`, `json`, `markdown` | `sarif` |
 | `scenarios-path` | Custom test scenarios file | - |
 | `scenarios-only` | Run only custom scenarios | `false` |
 
@@ -105,13 +102,12 @@ bellwether:
     OPENAI_API_KEY: $OPENAI_API_KEY
 ```
 
-## CI Mode
+## CI Preset
 
-Enable CI mode with `--ci` for:
-- **No colors** - Clean output for log parsing
-- **No progress bars** - Streaming-friendly output
-- **Machine-readable errors** - Structured error messages
-- **Proper exit codes** - Pipeline gates
+Use the `--preset ci` for optimized CI runs:
+- **Single persona** - Technical Writer only for speed
+- **One question per tool** - Minimal API calls
+- **Proper exit codes** - Pipeline gates via `--fail-on-drift`
 
 ## Exit Codes
 
@@ -195,16 +191,18 @@ jobs:
         run: |
           npx @dotsetlabs/bellwether interview \
             --preset security \
-            --fail-on-security \
-            --output-format sarif \
+            --compare-baseline ./bellwether-baseline.json \
+            --fail-on-drift \
+            --json \
             -o ./security \
             npx your-server
 
-      - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v3
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
         if: always()
         with:
-          sarif_file: ./security/bellwether.sarif
+          name: security-results
+          path: ./security/
 ```
 
 ## Baseline Management
@@ -271,30 +269,38 @@ Sync with Bellwether Cloud for history and drift tracking:
 
 ## Output Formats
 
-### SARIF for GitHub
+### JSON Report
+
+Generate a JSON report for programmatic analysis:
 
 ```yaml
-- name: Generate SARIF
+- name: Generate JSON Report
   run: |
     npx @dotsetlabs/bellwether interview \
-      --output-format sarif \
+      --json \
       -o ./results \
       npx your-server
 
-- uses: github/codeql-action/upload-sarif@v3
+- uses: actions/upload-artifact@v4
   with:
-    sarif_file: ./results/bellwether.sarif
+    name: bellwether-report
+    path: ./results/bellwether-report.json
 ```
 
-### JUnit for GitLab
+### Save Baseline for Tracking
 
 ```yaml
-bellwether:
-  script:
-    - npx @dotsetlabs/bellwether interview --output-format junit -o ./results npx your-server
-  artifacts:
-    reports:
-      junit: results/junit.xml
+- name: Save Baseline
+  run: |
+    npx @dotsetlabs/bellwether interview \
+      --save-baseline \
+      -o ./results \
+      npx your-server
+
+- uses: actions/upload-artifact@v4
+  with:
+    name: baseline
+    path: ./results/bellwether-baseline.json
 ```
 
 ## Environment Variables
@@ -399,10 +405,9 @@ Increase timeout for slow servers:
 ```yaml
 - run: |
     npx @dotsetlabs/bellwether interview \
-      --ci \
-      --log-level debug \
-      --log-file ./bellwether-debug.log \
-      npx your-server
+      --verbose \
+      --debug \
+      npx your-server 2>&1 | tee ./bellwether-debug.log
 
 - uses: actions/upload-artifact@v4
   if: failure()
@@ -413,7 +418,7 @@ Increase timeout for slow servers:
 
 ## See Also
 
-- [Output Formats](/concepts/output-formats) - SARIF, JUnit details
+- [Output Formats](/concepts/output-formats) - Markdown and JSON output
 - [Drift Detection](/concepts/drift-detection) - Understanding drift
 - [interview](/cli/interview) - CLI options
 - [badge](/cli/badge) - Verification badges

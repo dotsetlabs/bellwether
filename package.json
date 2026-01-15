@@ -1,6 +1,6 @@
 {
   "name": "@dotsetlabs/bellwether",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Interview MCP servers to generate behavioral documentation, detect drift, and identify security vulnerabilities",
   "type": "module",
   "main": "dist/index.js",

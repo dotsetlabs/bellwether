@@ -75,9 +75,7 @@ bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 ### What output formats are supported?
 
 - **Markdown** (AGENTS.md) - Human-readable documentation
-- **JSON** - Machine-readable data
-- **SARIF** - GitHub Code Scanning
-- **JUnit** - CI test runners
+- **JSON** - Machine-readable data for programmatic analysis
 
 ### How do I use different personas?
 

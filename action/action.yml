@@ -32,16 +32,16 @@ inputs:
   fail-on-drift:
     description: 'Fail the action if behavioral drift is detected'
     default: 'true'
-  fail-on-security:
-    description: 'Fail the action if security issues are found'
-    default: 'true'
+  security:
+    description: 'Include security testing persona'
+    default: 'false'
   save-baseline:
     description: 'Save baseline after interview. Set to "true" or provide a path.'
     required: false
     default: 'false'
-  output-format:
-    description: 'Output format: sarif, junit, json, markdown, or both (markdown + json)'
-    default: 'sarif'
+  output-json:
+    description: 'Also generate JSON report (bellwether-report.json)'
+    default: 'false'
   output-dir:
     description: 'Directory for output files'
     default: '.'
@@ -55,8 +55,8 @@ inputs:
     description: 'Timeout for tool calls in milliseconds'
     default: '30000'
   llm-provider:
-    description: 'LLM provider: openai, anthropic, or ollama'
-    default: 'openai'
+    description: 'LLM provider (auto-detected from API key env vars). Only set to override detection.'
+    required: false
   llm-model:
     description: 'LLM model to use. Defaults to gpt-5-mini (openai) or claude-haiku-4-5 (anthropic) in quick mode.'
     required: false
@@ -77,9 +77,9 @@ outputs:
   drift-detected:
     description: 'Whether behavioral drift was detected (true/false)'
     value: ${{ steps.interview.outputs.drift-detected }}
-  security-issues:
-    description: 'Number of security issues found'
-    value: ${{ steps.interview.outputs.security-issues }}
+  security-tested:
+    description: 'Whether security persona was included'
+    value: ${{ steps.interview.outputs.security-tested }}
   tool-count:
     description: 'Number of tools discovered'
     value: ${{ steps.interview.outputs.tool-count }}
@@ -89,12 +89,9 @@ outputs:
   agents-md:
     description: 'Path to generated AGENTS.md file'
     value: ${{ steps.interview.outputs.agents-md }}
-  sarif-file:
-    description: 'Path to SARIF output file (if output-format is sarif)'
-    value: ${{ steps.interview.outputs.sarif-file }}
-  junit-file:
-    description: 'Path to JUnit output file (if output-format is junit)'
-    value: ${{ steps.interview.outputs.junit-file }}
+  json-report:
+    description: 'Path to JSON report file (if output-json is true)'
+    value: ${{ steps.interview.outputs.json-report }}
   baseline-file:
     description: 'Path to saved baseline file'
     value: ${{ steps.interview.outputs.baseline-file }}
@@ -123,9 +120,10 @@ runs:
 
         # Build the command
         CMD="bellwether interview"
-        CMD="$CMD --ci"
         CMD="$CMD --timeout ${{ inputs.timeout }}"
-        CMD="$CMD --provider ${{ inputs.llm-provider }}"
+
+        OUTPUT_DIR="${{ inputs.output-dir }}"
+        CMD="$CMD -o $OUTPUT_DIR"
 
         # Preset takes precedence over individual settings
         if [ -n "${{ inputs.preset }}" ]; then
@@ -144,6 +142,14 @@ runs:
           CMD="$CMD --model ${{ inputs.llm-model }}"
         fi
 
+        # Add security persona if requested
+        if [ "${{ inputs.security }}" = "true" ]; then
+          CMD="$CMD --security"
+          echo "security-tested=true" >> $GITHUB_OUTPUT
+        else
+          echo "security-tested=false" >> $GITHUB_OUTPUT
+        fi
+
         # Add baseline comparison if specified
         if [ -n "${{ inputs.baseline-path }}" ]; then
           CMD="$CMD --compare-baseline ${{ inputs.baseline-path }}"
@@ -156,13 +162,9 @@ runs:
           CMD="$CMD --save-baseline ${{ inputs.save-baseline }}"
         fi
 
-        # Add fail flags
+        # Add fail-on-drift flag
         if [ "${{ inputs.fail-on-drift }}" = "true" ]; then
           CMD="$CMD --fail-on-drift"
-        fi
-
-        if [ "${{ inputs.fail-on-security }}" = "true" ]; then
-          CMD="$CMD --fail-on-security"
         fi
 
         # Custom scenarios support
@@ -174,33 +176,11 @@ runs:
           CMD="$CMD --scenarios-only"
         fi
 
-        # Output format handling
-        OUTPUT_FORMAT="${{ inputs.output-format }}"
-        OUTPUT_DIR="${{ inputs.output-dir }}"
-        OUTPUT_FILE="$OUTPUT_DIR/bellwether-results"
-
-        case "$OUTPUT_FORMAT" in
-          sarif)
-            CMD="$CMD --output sarif --output-file ${OUTPUT_FILE}.sarif"
-            echo "sarif-file=${OUTPUT_FILE}.sarif" >> $GITHUB_OUTPUT
-            ;;
-          junit)
-            CMD="$CMD --output junit --output-file ${OUTPUT_FILE}.xml"
-            echo "junit-file=${OUTPUT_FILE}.xml" >> $GITHUB_OUTPUT
-            ;;
-          json)
-            CMD="$CMD --output json --output-file ${OUTPUT_FILE}.json"
-            ;;
-          markdown)
-            CMD="$CMD --output markdown --output-file ${OUTPUT_DIR}/AGENTS.md"
-            ;;
-          both)
-            CMD="$CMD --output both --output-file ${OUTPUT_DIR}"
-            ;;
-          *)
-            CMD="$CMD --output $OUTPUT_FORMAT"
-            ;;
-        esac
+        # Output JSON report if requested
+        if [ "${{ inputs.output-json }}" = "true" ]; then
+          CMD="$CMD --json"
+          echo "json-report=${OUTPUT_DIR}/bellwether-report.json" >> $GITHUB_OUTPUT
+        fi
 
         # Add the server command and args
         CMD="$CMD ${{ inputs.server-command }} ${{ inputs.server-args }}"
@@ -241,9 +221,11 @@ runs:
           echo "drift-detected=false" >> $GITHUB_OUTPUT
         fi
 
-        # Check for security issues
-        SECURITY_ISSUES=$(echo "$OUTPUT" | grep -oP '\K\d+(?= security issue)' || echo "0")
-        echo "security-issues=$SECURITY_ISSUES" >> $GITHUB_OUTPUT
+        # Check JSON report
+        JSON_REPORT="${OUTPUT_DIR}/bellwether-report.json"
+        if [ -f "$JSON_REPORT" ]; then
+          echo "json-report=$JSON_REPORT" >> $GITHUB_OUTPUT
+        fi
 
         # Set result and provide helpful messages
         if [ $EXIT_CODE -eq 0 ]; then
@@ -270,21 +252,6 @@ runs:
 
         exit $EXIT_CODE
 
-    - name: Upload SARIF to GitHub Security
-      if: inputs.output-format == 'sarif' && always()
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: ${{ inputs.output-dir }}/bellwether-results.sarif
-      continue-on-error: true
-
-    - name: Upload JUnit Results
-      if: inputs.output-format == 'junit' && always()
-      uses: mikepenz/action-junit-report@v4
-      with:
-        report_paths: ${{ inputs.output-dir }}/bellwether-results.xml
-        fail_on_failure: false
-      continue-on-error: true
-
     - name: Upload AGENTS.md artifact
       if: always()
       uses: actions/upload-artifact@v4
@@ -299,4 +266,12 @@ runs:
       with:
         name: bellwether-baseline
         path: ${{ inputs.output-dir }}/bellwether-baseline.json
+        if-no-files-found: ignore
+
+    - name: Upload JSON report artifact
+      if: inputs.output-json == 'true' && always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: bellwether-report
+        path: ${{ inputs.output-dir }}/bellwether-report.json
         if-no-files-found: ignore

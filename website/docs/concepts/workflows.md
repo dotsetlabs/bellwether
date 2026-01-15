@@ -51,12 +51,18 @@ steps:
 
 ## Running Workflows
 
-```bash
-# Run workflows during interview
-bellwether interview --workflows ./workflows/ npx your-server
+:::note Planned Feature
+Multi-step workflows with argument mapping are a planned feature. Currently, use [custom scenarios](/guides/custom-scenarios) for deterministic testing with assertions.
+:::
 
-# Run a specific workflow
-bellwether workflow run my-workflow.workflow.yaml npx your-server
+For basic test scenarios today, use the `bellwether-tests.yaml` format:
+
+```bash
+# Generate a sample test scenarios file
+bellwether interview --init-scenarios
+
+# Run with custom scenarios
+bellwether interview --scenarios ./bellwether-tests.yaml npx your-server
 ```
 
 ## Argument Mapping

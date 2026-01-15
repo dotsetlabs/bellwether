@@ -58,6 +58,7 @@ import { badgeCommand } from './commands/badge.js';
 import { createRegistryCommand } from './commands/registry.js';
 import { createVerifyCommand } from './commands/verify.js';
 import { configureLogger, type LogLevel } from '../logging/logger.js';
+import { VERSION } from '../version.js';
 
 const program = new Command();
 
@@ -110,7 +111,7 @@ Interview MCP servers to generate behavioral documentation, detect drift, and en
 
 For more information on a specific command, use:
   bellwether <command> --help`)
-  .version('0.2.0')
+  .version(VERSION)
   .option('--log-level <level>', 'Log level: debug, info, warn, error, silent', 'info')
   .option('--log-file <path>', 'Write logs to file instead of stderr')
   .hook('preAction', (thisCommand) => {

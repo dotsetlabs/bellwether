@@ -5,16 +5,15 @@ sidebar_position: 5
 
 # Output Formats
 
-Bellwether supports multiple output formats for different use cases: documentation, CI/CD integration, and security scanning.
+Bellwether generates output in multiple formats to support different use cases: documentation and machine-readable reports.
 
 ## Available Formats
 
 | Format | File | Use Case |
 |:-------|:-----|:---------|
 | Markdown | `AGENTS.md` | Human-readable documentation |
-| JSON | `bellwether-report.json` | Machine-readable data |
-| SARIF | `bellwether.sarif` | GitHub Code Scanning |
-| JUnit | `junit.xml` | CI test runners |
+| JSON | `bellwether-report.json` | Machine-readable data (with `--json` flag) |
+| Baseline | `bellwether-baseline.json` | Drift detection (with `--save-baseline` flag) |
 
 ## Markdown (Default)
 
@@ -176,110 +175,53 @@ The JSON report includes:
 - `tools` and `prompts` arrays with their respective interview results
 - `scenarioResults` array with custom scenario test results (if scenarios were run)
 
-## SARIF (Security)
+## Baseline Format
 
-Static Analysis Results Interchange Format for GitHub Code Scanning.
+Save a baseline for drift detection:
 
 ```bash
-bellwether interview --output-format sarif -o ./results npx your-server
-# Output: results/bellwether.sarif
+bellwether interview --save-baseline npx your-server
+# Output: bellwether-baseline.json
 ```
 
-### Upload to GitHub
+The baseline captures the server's behavior at a point in time. Later, compare against it:
 
-```yaml
-# .github/workflows/security.yml
-- name: Run Bellwether Security Scan
-  run: |
-    bellwether interview \
-      --preset security \
-      --output-format sarif \
-      -o ./results \
-      npx your-server
-
-- name: Upload SARIF
-  uses: github/codeql-action/upload-sarif@v3
-  with:
-    sarif_file: ./results/bellwether.sarif
+```bash
+bellwether interview --compare-baseline ./bellwether-baseline.json npx your-server
 ```
 
-### Example Output
+### Example Baseline
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
-  "version": "2.1.0",
-  "runs": [
-    {
-      "tool": {
-        "driver": {
-          "name": "Bellwether",
-          "version": "0.2.0"
-        }
-      },
-      "results": [
-        {
-          "ruleId": "security/path-traversal",
-          "level": "warning",
-          "message": {
-            "text": "Potential path traversal vulnerability in read_file"
-          }
-        }
-      ]
+  "schemaVersion": 1,
+  "hash": "a1b2c3d4e5f6...",
+  "createdAt": "2026-01-12T10:30:00Z",
+  "server": {
+    "name": "@modelcontextprotocol/server-filesystem",
+    "version": "1.0.0"
+  },
+  "tools": {
+    "read_file": {
+      "observations": [...],
+      "errors": [...],
+      "security": [...]
     }
-  ]
+  }
 }
-```
-
-## JUnit XML
-
-For CI test runners that expect JUnit format.
-
-```bash
-bellwether interview --output-format junit -o ./results npx your-server
-# Output: results/junit.xml
-```
-
-### Use with GitLab CI
-
-```yaml
-bellwether:
-  script:
-    - bellwether interview --output-format junit -o ./results npx your-server
-  artifacts:
-    reports:
-      junit: results/junit.xml
-```
-
-### Example Output
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="Bellwether" tests="12" failures="1" time="45.2">
-  <testsuite name="read_file" tests="3" failures="0">
-    <testcase name="happy_path_read" time="2.1"/>
-    <testcase name="error_handling_missing" time="1.8"/>
-    <testcase name="security_path_traversal" time="3.2"/>
-  </testsuite>
-</testsuites>
 ```
 
 ## Multiple Formats
 
-Generate multiple formats in one run:
+Generate both documentation and JSON report:
 
 ```bash
-bellwether interview \
-  --json \
-  --output-format sarif \
-  -o ./output \
-  npx your-server
+bellwether interview --json -o ./output npx your-server
 ```
 
 This creates:
-- `output/AGENTS.md`
-- `output/bellwether-report.json`
-- `output/bellwether.sarif`
+- `output/AGENTS.md` (always generated)
+- `output/bellwether-report.json` (with `--json` flag)
 
 ## Custom Output Directory
 

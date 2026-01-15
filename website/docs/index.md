@@ -33,7 +33,7 @@ Bellwether is a CLI tool that generates comprehensive behavioral documentation f
 - **MCP Registry Integration** - Search and discover servers from the official MCP Registry
 - **Verification Program** - Certify your server with Bronze, Silver, Gold, or Platinum tiers
 - **GitHub Action** - Official action for automated CI/CD integration
-- **Multiple Output Formats** - Markdown, JSON, JUnit XML, and SARIF for GitHub Code Scanning
+- **Multiple Output Formats** - Markdown (AGENTS.md) and JSON for programmatic analysis
 
 ## How It Works
 

@@ -23,15 +23,7 @@ import type {
   CloudAssertionSeverity,
 } from '../cloud/types.js';
 import { BASELINE_FORMAT_VERSION } from '../cloud/types.js';
-
-/**
- * Get the current CLI version from package.json.
- */
-function getCliVersion(): string {
-  // In production, this would be injected at build time
-  // For now, return a default
-  return process.env.npm_package_version ?? '0.2.0';
-}
+import { VERSION } from '../version.js';
 
 /**
  * Hash a string using SHA-256.
@@ -117,7 +109,7 @@ export function convertToCloudBaseline(
   const metadata: BaselineMetadata = {
     formatVersion: BASELINE_FORMAT_VERSION,
     generatedAt: baseline.createdAt.toISOString(),
-    cliVersion: getCliVersion(),
+    cliVersion: VERSION,
     serverCommand: baseline.serverCommand,
     serverName: baseline.server.name,
     durationMs: interviewResult?.metadata.durationMs ?? 0,
@@ -451,7 +443,7 @@ export function createCloudBaseline(
   const metadata: BaselineMetadata = {
     formatVersion: BASELINE_FORMAT_VERSION,
     generatedAt: new Date().toISOString(),
-    cliVersion: getCliVersion(),
+    cliVersion: VERSION,
     serverCommand,
     serverName: result.discovery.serverInfo.name,
     durationMs: result.metadata.durationMs,

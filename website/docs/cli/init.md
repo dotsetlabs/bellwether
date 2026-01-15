@@ -91,7 +91,7 @@ interview:
 
 ```yaml
 output:
-  format: markdown      # markdown, json, sarif, junit
+  format: markdown      # markdown, json, or both
   directory: ./docs     # Where to write output files
   agentsFileName: AGENTS.md
 ```

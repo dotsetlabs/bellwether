@@ -23,12 +23,6 @@ export const CONFIG_DIR = join(homedir(), '.bellwether');
 export const SESSION_FILE = join(CONFIG_DIR, 'session.json');
 
 /**
- * Default API base URL.
- * @deprecated Use URLS.CLOUD_API from constants.ts instead
- */
-export const DEFAULT_BASE_URL = URLS.CLOUD_API;
-
-/**
  * Environment variable name for session token.
  */
 export const SESSION_ENV_VAR = 'BELLWETHER_SESSION';
@@ -212,12 +206,12 @@ export function getBaseUrl(): string {
     } catch {
       output.warn(`Warning: Invalid URL in ${BASE_URL_ENV_VAR}: ${envUrl}`);
       output.warn('Falling back to default API URL.\n');
-      return DEFAULT_BASE_URL;
+      return URLS.CLOUD_API;
     }
   }
 
   // Return default
-  return DEFAULT_BASE_URL;
+  return URLS.CLOUD_API;
 }
 
 /**

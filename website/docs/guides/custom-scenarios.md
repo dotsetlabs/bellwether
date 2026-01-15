@@ -303,7 +303,6 @@ jobs:
           npx @dotsetlabs/bellwether interview \
             --scenarios ./bellwether-tests.yaml \
             --scenarios-only \
-            --ci \
             npx your-server
 ```
 

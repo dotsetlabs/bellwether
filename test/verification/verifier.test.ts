@@ -9,6 +9,7 @@ import {
 } from '../../src/verification/verifier.js';
 import type { InterviewResult } from '../../src/interview/types.js';
 import type { VerificationConfig, VerificationResult } from '../../src/verification/types.js';
+import { VERSION } from '../../src/version.js';
 
 // Mock the logger
 vi.mock('../../src/logging/logger.js', () => ({
@@ -130,7 +131,7 @@ describe('Verification Module', () => {
 
       expect(result.serverId).toBe('test/server');
       expect(result.version).toBe('1.0.0');
-      expect(result.bellwetherVersion).toBe('0.2.0');
+      expect(result.bellwetherVersion).toBe(VERSION);
       expect(result.reportHash).toBeDefined();
       expect(result.verifiedAt).toBeDefined();
       expect(result.expiresAt).toBeDefined();
@@ -329,7 +330,7 @@ describe('Verification Module', () => {
       expect(report.environment).toBeDefined();
       expect(report.environment.os).toBe(process.platform);
       expect(report.environment.nodeVersion).toBe(process.version);
-      expect(report.environment.bellwetherVersion).toBe('0.2.0');
+      expect(report.environment.bellwetherVersion).toBe(VERSION);
     });
 
     it('should include prompt details when available', () => {
