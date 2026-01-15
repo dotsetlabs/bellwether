@@ -92,7 +92,7 @@ export class SSETransport extends BaseTransport {
 
     return new Promise((resolve, reject) => {
       const sseUrl = `${this.baseUrl}/sse`;
-      this.log('Connecting to SSE endpoint:', sseUrl);
+      this.log('Connecting to SSE endpoint', { url: sseUrl });
 
       try {
         // Create EventSource - headers need to be passed via URL params or custom implementation
@@ -122,7 +122,7 @@ export class SSETransport extends BaseTransport {
           // Server tells us where to send messages
           const messageEvent = event as MessageEvent;
           this.messageEndpoint = messageEvent.data;
-          this.log('Received message endpoint:', this.messageEndpoint);
+          this.log('Received message endpoint', { endpoint: this.messageEndpoint ?? '' });
         });
 
         this.eventSource.addEventListener('message', (event: Event) => {
@@ -130,7 +130,7 @@ export class SSETransport extends BaseTransport {
         });
 
         this.eventSource.onerror = (error: Event) => {
-          this.log('SSE error:', error);
+          this.log('SSE error', { type: error.type });
 
           if (!this.connected) {
             // Connection failed on initial connect
@@ -159,11 +159,11 @@ export class SSETransport extends BaseTransport {
         return;
       }
 
-      this.log('Received SSE message:', data);
+      this.log('Received SSE message', { data });
       const message = JSON.parse(data) as JSONRPCMessage;
       this.emit('message', message);
     } catch (error) {
-      this.log('Failed to parse SSE message:', error);
+      this.log('Failed to parse SSE message', { error: error instanceof Error ? error.message : String(error) });
       // Don't emit error for parse failures - just log
     }
   }
@@ -205,7 +205,7 @@ export class SSETransport extends BaseTransport {
     // Use the endpoint provided by the server, or default to /message
     const endpoint = this.messageEndpoint || `${this.baseUrl}/message`;
 
-    this.log('Sending message to:', endpoint, JSON.stringify(message));
+    this.log('Sending message', { endpoint, message });
 
     // Create a new abort controller for this request
     this.abortController = new AbortController();

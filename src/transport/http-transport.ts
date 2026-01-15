@@ -54,7 +54,7 @@ export class HTTPTransport extends BaseTransport {
    * For HTTP, there's no persistent connection, so this just validates the URL.
    */
   async connect(): Promise<void> {
-    this.log('Initializing HTTP transport for:', this.baseUrl);
+    this.log('Initializing HTTP transport', { baseUrl: this.baseUrl });
 
     // Optionally, we could do a health check here
     // For now, just mark as connected
@@ -82,7 +82,7 @@ export class HTTPTransport extends BaseTransport {
    * Send a JSON-RPC message and wait for the response.
    */
   async sendAsync(message: JSONRPCMessage): Promise<JSONRPCResponse | null> {
-    this.log('Sending message:', JSON.stringify(message));
+    this.log('Sending message', { message });
 
     this.abortController = new AbortController();
 
@@ -182,8 +182,7 @@ export class HTTPTransport extends BaseTransport {
             } catch (error) {
               // Log streaming parse errors for visibility
               const preview = data.length > 100 ? data.substring(0, 100) + '...' : data;
-              console.warn(`[HTTP Transport] Failed to parse SSE message: ${preview}`);
-              this.log('Parse error:', error instanceof Error ? error.message : error);
+              this.logger.warn({ preview, error: error instanceof Error ? error.message : String(error) }, 'Failed to parse SSE message');
             }
           } else {
             // Try to parse as direct JSON
@@ -192,7 +191,7 @@ export class HTTPTransport extends BaseTransport {
               this.emit('message', message);
             } catch {
               // Not JSON - this is common for non-JSON lines in streams, log only in debug
-              this.log('Skipping non-JSON line:', trimmedLine.substring(0, 50));
+              this.log('Skipping non-JSON line', { preview: trimmedLine.substring(0, 50) });
             }
           }
         }

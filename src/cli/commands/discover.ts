@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover, summarizeDiscovery } from '../../discovery/discovery.js';
+import * as output from '../output.js';
 
 interface DiscoverOptions {
   json?: boolean;
@@ -20,22 +21,22 @@ async function discoverAction(command: string | undefined, args: string[], optio
 
   // Validate transport options
   if (isRemoteTransport && !options.url) {
-    console.error(`Error: --url is required when using --transport ${transportType}`);
+    output.error(`Error: --url is required when using --transport ${transportType}`);
     process.exit(1);
   }
 
   if (options.url && !isRemoteTransport) {
-    console.error('Error: --url requires --transport sse or --transport streamable-http');
+    output.error('Error: --url requires --transport sse or --transport streamable-http');
     process.exit(1);
   }
 
   if (!isRemoteTransport && !command) {
-    console.error('Error: Server command is required for stdio transport');
+    output.error('Error: Server command is required for stdio transport');
     process.exit(1);
   }
 
   const serverIdentifier = isRemoteTransport ? options.url! : `${command} ${args.join(' ')}`;
-  console.log(`Connecting to MCP server: ${serverIdentifier}`);
+  output.info(`Connecting to MCP server: ${serverIdentifier}`);
 
   const client = new MCPClient({ timeout, transport: transportType });
 
@@ -49,17 +50,17 @@ async function discoverAction(command: string | undefined, args: string[], optio
       await client.connect(command!, args);
     }
 
-    console.log('Discovering capabilities...\n');
+    output.info('Discovering capabilities...\n');
 
     const result = await discover(client, command ?? options.url!, args);
 
     if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
+      output.json(result);
     } else {
-      console.log(summarizeDiscovery(result));
+      output.info(summarizeDiscovery(result));
     }
   } catch (error) {
-    console.error('Discovery failed:', error instanceof Error ? error.message : error);
+    output.error('Discovery failed: ' + (error instanceof Error ? error.message : String(error)));
     process.exit(1);
   } finally {
     await client.disconnect();

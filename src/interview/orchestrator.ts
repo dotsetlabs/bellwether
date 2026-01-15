@@ -30,6 +30,7 @@ import {
   buildPromptProfileSynthesisPrompt,
   COMPLETION_OPTIONS,
 } from '../prompts/templates.js';
+import { getLogger } from '../logging/logger.js';
 
 /**
  * Orchestrator uses an LLM to generate interview questions and synthesize findings.
@@ -38,6 +39,7 @@ import {
 export class Orchestrator {
   private persona: Persona;
   private serverContext?: ServerContext;
+  private logger = getLogger('orchestrator');
 
   constructor(
     private llm: LLMClient,
@@ -177,7 +179,7 @@ export class Orchestrator {
       // Fallback to basic questions if LLM fails or refuses
       const reason = error instanceof Error ? error.message : 'unknown';
       if (reason.includes('refused')) {
-        console.log(`  Note: Using fallback examples for ${tool.name} (LLM declined)`);
+        this.logger.info({ tool: tool.name }, 'Using fallback examples (LLM declined)');
       }
       return this.generateFallbackQuestions(tool, skipErrorTests);
     }
@@ -252,7 +254,7 @@ export class Orchestrator {
       // Graceful fallback if LLM fails or refuses
       const reason = error instanceof Error ? error.message : '';
       if (reason.includes('refused')) {
-        console.log(`  Note: Using basic profile for ${tool.name} (LLM declined)`);
+        this.logger.info({ tool: tool.name }, 'Using basic profile (LLM declined)');
       }
       return {
         name: tool.name,
@@ -288,7 +290,7 @@ export class Orchestrator {
       // Graceful fallback if LLM fails or refuses
       const reason = error instanceof Error ? error.message : '';
       if (reason.includes('refused')) {
-        console.log('  Note: Using basic summary (LLM declined)');
+        this.logger.info({}, 'Using basic summary (LLM declined)');
       }
       return {
         summary: `${discovery.serverInfo.name} provides ${discovery.tools.length} tools for MCP integration.`,

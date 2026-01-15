@@ -5,6 +5,7 @@
 import { Command } from 'commander';
 import { getSessionToken, getLinkedProject } from '../../cloud/auth.js';
 import { createCloudClient } from '../../cloud/client.js';
+import * as output from '../output.js';
 
 export const historyCommand = new Command('history')
   .description('View baseline history for a project')
@@ -16,7 +17,7 @@ export const historyCommand = new Command('history')
     // Get session
     const sessionToken = options.session ?? getSessionToken();
     if (!sessionToken) {
-      console.error('Not authenticated. Run `bellwether login` first.');
+      output.error('Not authenticated. Run `bellwether login` first.');
       process.exit(1);
     }
 
@@ -31,10 +32,10 @@ export const historyCommand = new Command('history')
     }
 
     if (!projectId) {
-      console.error('No project specified.');
-      console.error('\nEither:');
-      console.error('  - Provide a project ID as argument');
-      console.error('  - Run `bellwether link` to link this directory to a project');
+      output.error('No project specified.');
+      output.error('\nEither:');
+      output.error('  - Provide a project ID as argument');
+      output.error('  - Run `bellwether link` to link this directory to a project');
       process.exit(1);
     }
 
@@ -42,7 +43,7 @@ export const historyCommand = new Command('history')
     const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
-      console.error('Authentication failed. Run `bellwether login` to re-authenticate.');
+      output.error('Authentication failed. Run `bellwether login` to re-authenticate.');
       process.exit(1);
     }
 
@@ -52,13 +53,13 @@ export const historyCommand = new Command('history')
       const history = await client.getHistory(projectId, limit);
 
       if (options.json) {
-        console.log(JSON.stringify(history, null, 2));
+        output.info(JSON.stringify(history, null, 2));
         return;
       }
 
       if (history.length === 0) {
-        console.log('No baselines uploaded yet.');
-        console.log('\nRun `bellwether interview <server> --save-baseline` then `bellwether upload`.');
+        output.info('No baselines uploaded yet.');
+        output.info('\nRun `bellwether interview <server> --save-baseline` then `bellwether upload`.');
         return;
       }
 
@@ -66,18 +67,18 @@ export const historyCommand = new Command('history')
       const project = await client.getProject(projectId);
       const projectName = project?.name ?? projectId;
 
-      console.log(`Baseline History: ${projectName}`);
-      console.log(`Showing ${history.length} version(s)\n`);
+      output.info(`Baseline History: ${projectName}`);
+      output.info(`Showing ${history.length} version(s)\n`);
 
-      console.log('Ver  Uploaded                 CLI Version  Hash');
-      console.log('───  ───────────────────────  ───────────  ────────────────');
+      output.info('Ver  Uploaded                 CLI Version  Hash');
+      output.info('───  ───────────────────────  ───────────  ────────────────');
 
       for (const baseline of history) {
         const date = formatDate(baseline.uploadedAt);
         const cliVersion = baseline.cliVersion.padEnd(11);
         const hash = baseline.hash.slice(0, 16);
 
-        console.log(
+        output.info(
           `${baseline.version.toString().padStart(3)}  ` +
             `${date.padEnd(23)}  ` +
             `${cliVersion}  ` +
@@ -87,7 +88,7 @@ export const historyCommand = new Command('history')
 
       // Show diff summary if multiple versions
       if (history.length >= 2) {
-        console.log('\nLatest changes:');
+        output.info('\nLatest changes:');
 
         try {
           const diff = await client.getLatestDiff(projectId);
@@ -99,7 +100,7 @@ export const historyCommand = new Command('history')
         }
       }
     } catch (error) {
-      console.error('Failed to fetch history:', error instanceof Error ? error.message : error);
+      output.error('Failed to fetch history: ' + (error instanceof Error ? error.message : String(error)));
       process.exit(1);
     }
   });
@@ -144,7 +145,7 @@ function printDiffSummary(diff: {
   }
 
   if (parts.length === 0) {
-    console.log('  No changes from previous version');
+    output.info('  No changes from previous version');
   } else {
     const severityIcon: Record<string, string> = {
       none: '✓',
@@ -153,7 +154,7 @@ function printDiffSummary(diff: {
       breaking: '✗',
     };
     const icon = severityIcon[diff.severity] ?? '?';
-    console.log(`  ${icon} ${diff.severity}: ${parts.join(', ')}`);
+    output.info(`  ${icon} ${diff.severity}: ${parts.join(', ')}`);
   }
 }
 
@@ -171,7 +172,7 @@ export const diffCommand = new Command('diff')
     // Get session
     const sessionToken = options.session ?? getSessionToken();
     if (!sessionToken) {
-      console.error('Not authenticated. Run `bellwether login` first.');
+      output.error('Not authenticated. Run `bellwether login` first.');
       process.exit(1);
     }
 
@@ -186,7 +187,7 @@ export const diffCommand = new Command('diff')
     }
 
     if (!projectId) {
-      console.error('No project specified. Use --project <id> or run `bellwether link`.');
+      output.error('No project specified. Use --project <id> or run `bellwether link`.');
       process.exit(1);
     }
 
@@ -195,7 +196,7 @@ export const diffCommand = new Command('diff')
     const toVersion = parseInt(toArg, 10);
 
     if (isNaN(fromVersion) || isNaN(toVersion)) {
-      console.error('Invalid version numbers. Provide integers (e.g., `bellwether diff 1 2`).');
+      output.error('Invalid version numbers. Provide integers (e.g., `bellwether diff 1 2`).');
       process.exit(1);
     }
 
@@ -203,7 +204,7 @@ export const diffCommand = new Command('diff')
     const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
-      console.error('Authentication failed. Run `bellwether login` to re-authenticate.');
+      output.error('Authentication failed. Run `bellwether login` to re-authenticate.');
       process.exit(1);
     }
 
@@ -211,11 +212,11 @@ export const diffCommand = new Command('diff')
       const diff = await client.getDiff(projectId, fromVersion, toVersion);
 
       if (options.json) {
-        console.log(JSON.stringify(diff, null, 2));
+        output.info(JSON.stringify(diff, null, 2));
         return;
       }
 
-      console.log(`Comparing v${fromVersion} → v${toVersion}\n`);
+      output.info(`Comparing v${fromVersion} → v${toVersion}\n`);
 
       const severityIcon: Record<string, string> = {
         none: '✓',
@@ -224,20 +225,20 @@ export const diffCommand = new Command('diff')
         breaking: '✗',
       };
 
-      console.log(`Severity: ${severityIcon[diff.severity] ?? '?'} ${diff.severity.toUpperCase()}`);
-      console.log('');
+      output.info(`Severity: ${severityIcon[diff.severity] ?? '?'} ${diff.severity.toUpperCase()}`);
+      output.info('');
 
       if (diff.toolsAdded > 0) {
-        console.log(`Tools added:     +${diff.toolsAdded}`);
+        output.info(`Tools added:     +${diff.toolsAdded}`);
       }
       if (diff.toolsRemoved > 0) {
-        console.log(`Tools removed:   -${diff.toolsRemoved}`);
+        output.info(`Tools removed:   -${diff.toolsRemoved}`);
       }
       if (diff.toolsModified > 0) {
-        console.log(`Tools modified:  ~${diff.toolsModified}`);
+        output.info(`Tools modified:  ~${diff.toolsModified}`);
       }
       if (diff.behaviorChanges > 0) {
-        console.log(`Behavior changes: ${diff.behaviorChanges}`);
+        output.info(`Behavior changes: ${diff.behaviorChanges}`);
       }
 
       if (
@@ -246,15 +247,15 @@ export const diffCommand = new Command('diff')
         diff.toolsModified === 0 &&
         diff.behaviorChanges === 0
       ) {
-        console.log('No changes detected between these versions.');
+        output.info('No changes detected between these versions.');
       }
 
       if (diff.severity === 'breaking') {
-        console.log('\n⚠️  Breaking changes detected!');
-        console.log('   Tools were removed or modified in incompatible ways.');
+        output.info('\n⚠️  Breaking changes detected!');
+        output.info('   Tools were removed or modified in incompatible ways.');
       }
     } catch (error) {
-      console.error('Failed to compute diff:', error instanceof Error ? error.message : error);
+      output.error('Failed to compute diff: ' + (error instanceof Error ? error.message : String(error)));
       process.exit(1);
     }
   });

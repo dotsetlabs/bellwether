@@ -4,6 +4,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { parse, stringify } from 'yaml';
 import { z } from 'zod';
+import * as output from '../output.js';
 
 /**
  * Zod schema for profile validation to prevent untrusted YAML injection.
@@ -132,7 +133,7 @@ export const profileCommand = new Command('profile')
       .option('--use', 'Set as current profile after creation')
       .action((name: string, options) => {
         if (loadProfile(name)) {
-          console.error(`Profile '${name}' already exists. Use 'profile update' to modify it.`);
+          output.error(`Profile '${name}' already exists. Use 'profile update' to modify it.`);
           process.exit(1);
         }
 
@@ -152,11 +153,11 @@ export const profileCommand = new Command('profile')
         };
 
         saveProfile(profile);
-        console.log(`Profile '${name}' created.`);
+        output.info(`Profile '${name}' created.`);
 
         if (options.use) {
           setCurrentProfile(name);
-          console.log(`Set '${name}' as current profile.`);
+          output.info(`Set '${name}' as current profile.`);
         }
       })
   )
@@ -168,20 +169,20 @@ export const profileCommand = new Command('profile')
         const current = getCurrentProfile();
 
         if (profiles.length === 0) {
-          console.log('No profiles found.');
-          console.log('Create one with: bellwether profile create <name>');
+          output.info('No profiles found.');
+          output.info('Create one with: bellwether profile create <name>');
           return;
         }
 
-        console.log('Available profiles:\n');
+        output.info('Available profiles:\n');
         for (const name of profiles) {
           const marker = name === current ? ' (current)' : '';
           const profile = loadProfile(name);
           if (profile) {
-            console.log(`  ${name}${marker}`);
-            console.log(`    Provider: ${profile.llm.provider}`);
+            output.info(`  ${name}${marker}`);
+            output.info(`    Provider: ${profile.llm.provider}`);
             if (profile.llm.model) {
-              console.log(`    Model: ${profile.llm.model}`);
+              output.info(`    Model: ${profile.llm.model}`);
             }
           }
         }
@@ -193,13 +194,13 @@ export const profileCommand = new Command('profile')
       .argument('<name>', 'Profile name')
       .action((name: string) => {
         if (!loadProfile(name)) {
-          console.error(`Profile '${name}' not found.`);
-          console.log('Available profiles:', listProfiles().join(', ') || 'none');
+          output.error(`Profile '${name}' not found.`);
+          output.info('Available profiles: ' + (listProfiles().join(', ') || 'none'));
           process.exit(1);
         }
 
         setCurrentProfile(name);
-        console.log(`Set '${name}' as current profile.`);
+        output.info(`Set '${name}' as current profile.`);
       })
   )
   .addCommand(
@@ -209,18 +210,18 @@ export const profileCommand = new Command('profile')
       .action((name?: string) => {
         const profileName = name ?? getCurrentProfile();
         if (!profileName) {
-          console.error('No profile specified and no current profile set.');
+          output.error('No profile specified and no current profile set.');
           process.exit(1);
         }
 
         const profile = loadProfile(profileName);
         if (!profile) {
-          console.error(`Profile '${profileName}' not found.`);
+          output.error(`Profile '${profileName}' not found.`);
           process.exit(1);
         }
 
-        console.log(`Profile: ${profileName}`);
-        console.log(stringify(profile));
+        output.info(`Profile: ${profileName}`);
+        output.info(stringify(profile));
       })
   )
   .addCommand(
@@ -229,7 +230,7 @@ export const profileCommand = new Command('profile')
       .argument('<name>', 'Profile name')
       .action((name: string) => {
         if (!deleteProfile(name)) {
-          console.error(`Profile '${name}' not found.`);
+          output.error(`Profile '${name}' not found.`);
           process.exit(1);
         }
 
@@ -238,7 +239,7 @@ export const profileCommand = new Command('profile')
           setCurrentProfile(null);
         }
 
-        console.log(`Profile '${name}' deleted.`);
+        output.info(`Profile '${name}' deleted.`);
       })
   )
   .addCommand(
@@ -253,7 +254,7 @@ export const profileCommand = new Command('profile')
       .action((name: string, options) => {
         const profile = loadProfile(name);
         if (!profile) {
-          console.error(`Profile '${name}' not found.`);
+          output.error(`Profile '${name}' not found.`);
           process.exit(1);
         }
 
@@ -274,7 +275,7 @@ export const profileCommand = new Command('profile')
         }
 
         saveProfile(profile);
-        console.log(`Profile '${name}' updated.`);
+        output.info(`Profile '${name}' updated.`);
       })
   )
   .addCommand(
@@ -284,17 +285,17 @@ export const profileCommand = new Command('profile')
       .action((name?: string) => {
         const profileName = name ?? getCurrentProfile();
         if (!profileName) {
-          console.error('No profile specified and no current profile set.');
+          output.error('No profile specified and no current profile set.');
           process.exit(1);
         }
 
         const profile = loadProfile(profileName);
         if (!profile) {
-          console.error(`Profile '${profileName}' not found.`);
+          output.error(`Profile '${profileName}' not found.`);
           process.exit(1);
         }
 
-        console.log(stringify(profile));
+        output.info(stringify(profile));
       })
   )
   .addCommand(
@@ -304,7 +305,7 @@ export const profileCommand = new Command('profile')
       .option('-n, --name <name>', 'Override profile name')
       .action((file: string, options) => {
         if (!existsSync(file)) {
-          console.error(`File not found: ${file}`);
+          output.error(`File not found: ${file}`);
           process.exit(1);
         }
 
@@ -318,16 +319,16 @@ export const profileCommand = new Command('profile')
         });
 
         if (!parseResult.success) {
-          console.error('Invalid profile format:');
+          output.error('Invalid profile format:');
           for (const issue of parseResult.error.issues) {
-            console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
+            output.error(`  - ${issue.path.join('.')}: ${issue.message}`);
           }
           process.exit(1);
         }
 
         const profile = parseResult.data as Profile;
         saveProfile(profile);
-        console.log(`Profile '${profile.name}' imported.`);
+        output.info(`Profile '${profile.name}' imported.`);
       })
   );
 

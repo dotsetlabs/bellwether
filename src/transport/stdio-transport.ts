@@ -59,7 +59,7 @@ export class StdioTransport extends BaseTransport {
   private setupInputHandler(): void {
     this.input.on('data', (chunk: Buffer) => {
       if (this.debug) {
-        console.log('[Transport] Raw input:', chunk.toString('utf-8').substring(0, 500));
+        this.logger.debug({ preview: chunk.toString('utf-8').substring(0, 500) }, 'Raw input received');
       }
       const newSize = this.buffer.length + chunk.length;
       if (newSize > this.maxBufferSize) {
@@ -122,13 +122,10 @@ export class StdioTransport extends BaseTransport {
               const message = JSON.parse(line) as JSONRPCMessage;
               this.emit('message', message);
             } catch (error) {
-              // Invalid JSON - always log at warn level for visibility
+              // Invalid JSON - log at warn level for visibility
               // This helps diagnose issues with malformed server responses
               const preview = line.length > 100 ? line.substring(0, 100) + '...' : line;
-              console.warn(`[Transport] Skipping invalid JSON message: ${preview}`);
-              if (this.debug && error instanceof Error) {
-                console.warn(`[Transport] Parse error: ${error.message}`);
-              }
+              this.logger.warn({ preview, error: error instanceof Error ? error.message : String(error) }, 'Skipping invalid JSON message');
             }
           }
           continue;
@@ -156,13 +153,10 @@ export class StdioTransport extends BaseTransport {
               const message = JSON.parse(line) as JSONRPCMessage;
               this.emit('message', message);
             } catch (error) {
-              // Invalid JSON - always log at warn level for visibility
+              // Invalid JSON - log at warn level for visibility
               // This helps diagnose issues with malformed server responses
               const preview = line.length > 100 ? line.substring(0, 100) + '...' : line;
-              console.warn(`[Transport] Skipping invalid JSON message: ${preview}`);
-              if (this.debug && error instanceof Error) {
-                console.warn(`[Transport] Parse error: ${error.message}`);
-              }
+              this.logger.warn({ preview, error: error instanceof Error ? error.message : String(error) }, 'Skipping invalid JSON message');
             }
           }
           continue;
@@ -215,14 +209,14 @@ export class StdioTransport extends BaseTransport {
     if (this.useNewlineDelimited) {
       // Newline-delimited JSON format
       if (this.debug) {
-        console.log('[Transport] Sending (newline):', content);
+        this.logger.debug({ format: 'newline', content }, 'Sending message');
       }
       this.output.write(content + '\n');
     } else {
       // Content-Length framing
       const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`;
       if (this.debug) {
-        console.log('[Transport] Sending (content-length):', header + content);
+        this.logger.debug({ format: 'content-length', content: header + content }, 'Sending message');
       }
       this.output.write(header + content);
     }

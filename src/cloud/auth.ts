@@ -10,6 +10,7 @@ import { join } from 'path';
 import { homedir, platform } from 'os';
 import type { StoredSession, ProjectLink } from './types.js';
 import { URLS } from '../constants.js';
+import * as output from '../cli/output.js';
 
 /**
  * Directory for bellwether configuration.
@@ -98,7 +99,7 @@ function verifySessionPermissions(): boolean {
     return true;
   } catch (error) {
     // If we can't stat the file, there's a real problem
-    console.warn(`Warning: Could not verify session file permissions: ${error instanceof Error ? error.message : error}`);
+    output.warn(`Warning: Could not verify session file permissions: ${error instanceof Error ? error.message : error}`);
     return false;
   }
 }
@@ -116,8 +117,8 @@ export function getStoredSession(): StoredSession | null {
   const permissionsOk = verifySessionPermissions();
   if (!permissionsOk) {
     // Permissions are insecure and couldn't be fixed - refuse to use session
-    console.error('Error: Session file has insecure permissions. Please fix with:');
-    console.error(`  chmod 600 ${SESSION_FILE}`);
+    output.error('Error: Session file has insecure permissions. Please fix with:');
+    output.error(`  chmod 600 ${SESSION_FILE}`);
     return null;
   }
 
@@ -133,9 +134,9 @@ export function getStoredSession(): StoredSession | null {
     }
 
     return session;
-  } catch (error) {
+  } catch {
     // If file is corrupted, log and return null
-    console.warn('Warning: Session file is corrupted, clearing it.');
+    output.warn('Warning: Session file is corrupted, clearing it.');
     clearSession();
     return null;
   }
@@ -202,15 +203,15 @@ export function getBaseUrl(): string {
       // Allow HTTP only for localhost/127.0.0.1 (development)
       const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
       if (url.protocol !== 'https:' && !isLocalhost) {
-        console.warn(`Warning: ${BASE_URL_ENV_VAR} uses insecure HTTP protocol.`);
-        console.warn('HTTPS is required for production use to protect authentication tokens.');
-        console.warn('Use HTTPS or localhost for secure communication.\n');
+        output.warn(`Warning: ${BASE_URL_ENV_VAR} uses insecure HTTP protocol.`);
+        output.warn('HTTPS is required for production use to protect authentication tokens.');
+        output.warn('Use HTTPS or localhost for secure communication.\n');
       }
 
       return envUrl;
     } catch {
-      console.warn(`Warning: Invalid URL in ${BASE_URL_ENV_VAR}: ${envUrl}`);
-      console.warn('Falling back to default API URL.\n');
+      output.warn(`Warning: Invalid URL in ${BASE_URL_ENV_VAR}: ${envUrl}`);
+      output.warn('Falling back to default API URL.\n');
       return DEFAULT_BASE_URL;
     }
   }

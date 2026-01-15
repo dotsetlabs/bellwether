@@ -12,6 +12,7 @@ import {
 } from '../../cloud/auth.js';
 import { createCloudClient } from '../../cloud/client.js';
 import type { ProjectLink } from '../../cloud/types.js';
+import * as output from '../output.js';
 
 export const linkCommand = new Command('link')
   .description('Link current directory to a Bellwether Cloud project')
@@ -30,9 +31,9 @@ export const linkCommand = new Command('link')
     // Handle --unlink
     if (options.unlink) {
       if (removeProjectLink()) {
-        console.log('Project link removed.');
+        output.info('Project link removed.');
       } else {
-        console.log('No project link to remove.');
+        output.info('No project link to remove.');
       }
       return;
     }
@@ -40,14 +41,14 @@ export const linkCommand = new Command('link')
     // Check authentication
     const sessionToken = getSessionToken();
     if (!sessionToken) {
-      console.error('Not authenticated. Run `bellwether login` first.');
+      output.error('Not authenticated. Run `bellwether login` first.');
       process.exit(1);
     }
 
     const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
-      console.error('Authentication failed. Run `bellwether login` to re-authenticate.');
+      output.error('Authentication failed. Run `bellwether login` to re-authenticate.');
       process.exit(1);
     }
 
@@ -55,32 +56,29 @@ export const linkCommand = new Command('link')
 
     if (projectIdArg) {
       // Link to existing project
-      console.log(`Looking up project ${projectIdArg}...`);
+      output.info(`Looking up project ${projectIdArg}...`);
 
       project = await client.getProject(projectIdArg);
 
       if (!project) {
-        console.error(`Project not found: ${projectIdArg}`);
-        console.error('\nUse `bellwether link` without an ID to create a new project.');
+        output.error(`Project not found: ${projectIdArg}`);
+        output.error('\nUse `bellwether link` without an ID to create a new project.');
         process.exit(1);
       }
 
-      console.log(`Found project: ${project.name}`);
+      output.info(`Found project: ${project.name}`);
     } else {
       // Create new project
       const projectName = options.name ?? inferProjectName();
       const serverCommand = options.command;
 
-      console.log(`Creating project "${projectName}"...`);
+      output.info(`Creating project "${projectName}"...`);
 
       try {
         project = await client.createProject(projectName, serverCommand);
-        console.log(`Project created: ${project.id}`);
+        output.info(`Project created: ${project.id}`);
       } catch (error) {
-        console.error(
-          'Failed to create project:',
-          error instanceof Error ? error.message : error
-        );
+        output.error('Failed to create project: ' + (error instanceof Error ? error.message : String(error)));
         process.exit(1);
       }
     }
@@ -94,13 +92,13 @@ export const linkCommand = new Command('link')
 
     saveProjectLink(link);
 
-    console.log(`\nLinked to project: ${project.name}`);
-    console.log(`Project ID: ${project.id}`);
-    console.log(`Server command: ${project.serverCommand}`);
-    console.log('\nSaved to .bellwether/link.json');
-    console.log('\nYou can now run:');
-    console.log('  bellwether interview <server> --save-baseline');
-    console.log('  bellwether upload');
+    output.info(`\nLinked to project: ${project.name}`);
+    output.info(`Project ID: ${project.id}`);
+    output.info(`Server command: ${project.serverCommand}`);
+    output.info('\nSaved to .bellwether/link.json');
+    output.info('\nYou can now run:');
+    output.info('  bellwether interview <server> --save-baseline');
+    output.info('  bellwether upload');
   });
 
 /**
@@ -117,17 +115,17 @@ function showLinkStatus(): void {
   const link = getLinkedProject();
 
   if (!link) {
-    console.log('Not linked to any project.');
-    console.log('\nRun `bellwether link` to create or link to a project.');
+    output.info('Not linked to any project.');
+    output.info('\nRun `bellwether link` to create or link to a project.');
     return;
   }
 
-  console.log('Project Link Status');
-  console.log('───────────────────');
-  console.log(`Project: ${link.projectName}`);
-  console.log(`ID:      ${link.projectId}`);
-  console.log(`Linked:  ${new Date(link.linkedAt).toLocaleString()}`);
-  console.log(`Config:  .bellwether/link.json`);
+  output.info('Project Link Status');
+  output.info('───────────────────');
+  output.info(`Project: ${link.projectName}`);
+  output.info(`ID:      ${link.projectId}`);
+  output.info(`Linked:  ${new Date(link.linkedAt).toLocaleString()}`);
+  output.info(`Config:  .bellwether/link.json`);
 }
 
 /**
@@ -139,36 +137,36 @@ export const projectsCommand = new Command('projects')
   .action(async (options) => {
     const sessionToken = getSessionToken();
     if (!sessionToken) {
-      console.error('Not authenticated. Run `bellwether login` first.');
+      output.error('Not authenticated. Run `bellwether login` first.');
       process.exit(1);
     }
 
     const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
-      console.error('Authentication failed. Run `bellwether login` to re-authenticate.');
+      output.error('Authentication failed. Run `bellwether login` to re-authenticate.');
       process.exit(1);
     }
 
     const projects = await client.listProjects();
 
     if (options.json) {
-      console.log(JSON.stringify(projects, null, 2));
+      output.info(JSON.stringify(projects, null, 2));
       return;
     }
 
     if (projects.length === 0) {
-      console.log('No projects found.');
-      console.log('\nRun `bellwether link` to create a project.');
+      output.info('No projects found.');
+      output.info('\nRun `bellwether link` to create a project.');
       return;
     }
 
     // Get current link for highlighting
     const currentLink = getLinkedProject();
 
-    console.log('Your Projects\n');
-    console.log('ID                    Name                 Baselines  Last Upload');
-    console.log('────────────────────  ───────────────────  ─────────  ───────────────────');
+    output.info('Your Projects\n');
+    output.info('ID                    Name                 Baselines  Last Upload');
+    output.info('────────────────────  ───────────────────  ─────────  ───────────────────');
 
     for (const project of projects) {
       const isLinked = currentLink?.projectId === project.id;
@@ -177,7 +175,7 @@ export const projectsCommand = new Command('projects')
         ? new Date(project.lastUploadAt).toLocaleDateString()
         : 'Never';
 
-      console.log(
+      output.info(
         `${marker}${project.id.padEnd(20)}  ` +
         `${project.name.slice(0, 19).padEnd(19)}  ` +
         `${project.baselineCount.toString().padStart(9)}  ` +
@@ -186,6 +184,6 @@ export const projectsCommand = new Command('projects')
     }
 
     if (currentLink) {
-      console.log('\n* = Currently linked project');
+      output.info('\n* = Currently linked project');
     }
   });

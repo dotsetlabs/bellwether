@@ -14,6 +14,7 @@ import {
   compareBaselines,
   formatDiffText,
 } from '../../baseline/index.js';
+import * as output from '../output.js';
 
 export const watchCommand = new Command('watch')
   .description('Watch for MCP server changes and auto-interview')
@@ -34,12 +35,12 @@ export const watchCommand = new Command('watch')
       : config.interview.maxQuestionsPerTool;
     const baselinePath = resolve(options.baseline);
 
-    console.log('Bellwether Watch Mode\n');
-    console.log(`Server: ${command} ${args.join(' ')}`);
-    console.log(`Watching: ${watchPath}`);
-    console.log(`Baseline: ${baselinePath}`);
-    console.log(`Poll interval: ${interval}ms`);
-    console.log('');
+    output.info('Bellwether Watch Mode\n');
+    output.info(`Server: ${command} ${args.join(' ')}`);
+    output.info(`Watching: ${watchPath}`);
+    output.info(`Baseline: ${baselinePath}`);
+    output.info(`Poll interval: ${interval}ms`);
+    output.info('');
 
     // Initialize LLM client
     let llmClient: LLMClient;
@@ -52,7 +53,7 @@ export const watchCommand = new Command('watch')
         baseUrl: config.llm.baseUrl,
       });
     } catch (error) {
-      console.error('Failed to initialize LLM client:', error instanceof Error ? error.message : error);
+      output.error('Failed to initialize LLM client: ' + (error instanceof Error ? error.message : String(error)));
       process.exit(1);
     }
 
@@ -61,7 +62,7 @@ export const watchCommand = new Command('watch')
     if (existsSync(baselinePath)) {
       const baseline = loadBaseline(baselinePath);
       lastBaselineHash = baseline.integrityHash;
-      console.log(`Loaded existing baseline: ${lastBaselineHash.slice(0, 8)}`);
+      output.info(`Loaded existing baseline: ${lastBaselineHash.slice(0, 8)}`);
     }
 
     // Track watched file modification times
@@ -71,15 +72,15 @@ export const watchCommand = new Command('watch')
       const mcpClient = new MCPClient({ timeout: 60000 });
 
       try {
-        console.log('\n--- Running Interview ---');
-        console.log(`[${new Date().toLocaleTimeString()}] Starting interview...`);
+        output.info('\n--- Running Interview ---');
+        output.info(`[${new Date().toLocaleTimeString()}] Starting interview...`);
 
         await mcpClient.connect(command, args);
         const discovery = await discover(mcpClient, command, args);
-        console.log(`Found ${discovery.tools.length} tools`);
+        output.info(`Found ${discovery.tools.length} tools`);
 
         if (discovery.tools.length === 0) {
-          console.log('No tools found. Skipping.');
+          output.info('No tools found. Skipping.');
           await mcpClient.disconnect();
           return;
         }
@@ -98,7 +99,7 @@ export const watchCommand = new Command('watch')
         };
 
         const result = await interviewer.interview(mcpClient, discovery, progressCallback);
-        console.log('\n');
+        output.info('\n');
 
         // Create and compare baseline
         const serverCommand = `${command} ${args.join(' ')}`;
@@ -109,12 +110,12 @@ export const watchCommand = new Command('watch')
           const diff = compareBaselines(previousBaseline, newBaseline);
 
           if (diff.severity !== 'none') {
-            console.log('\n--- Behavioral Drift Detected ---');
-            console.log(formatDiffText(diff));
+            output.info('\n--- Behavioral Drift Detected ---');
+            output.info(formatDiffText(diff));
 
             // Run on-change command if specified
             if (options.onChange) {
-              console.log(`\nRunning: ${options.onChange}`);
+              output.info(`\nRunning: ${options.onChange}`);
               const { spawnSync } = await import('child_process');
               try {
                 // Parse command safely - split on spaces but respect quoted strings
@@ -127,24 +128,24 @@ export const watchCommand = new Command('watch')
                   throw result.error;
                 }
                 if (result.status !== 0) {
-                  console.error(`On-change command exited with code ${result.status}`);
+                  output.error(`On-change command exited with code ${result.status}`);
                 }
               } catch (e) {
-                console.error('On-change command failed:', e instanceof Error ? e.message : e);
+                output.error('On-change command failed: ' + (e instanceof Error ? e.message : String(e)));
               }
             }
           } else {
-            console.log('No drift detected.');
+            output.info('No drift detected.');
           }
         }
 
         // Save new baseline
         saveBaseline(newBaseline, baselinePath);
         lastBaselineHash = newBaseline.integrityHash;
-        console.log(`Baseline updated: ${newBaseline.integrityHash.slice(0, 8)}`);
+        output.info(`Baseline updated: ${newBaseline.integrityHash.slice(0, 8)}`);
 
       } catch (error) {
-        console.error('Interview failed:', error instanceof Error ? error.message : error);
+        output.error('Interview failed: ' + (error instanceof Error ? error.message : String(error)));
       } finally {
         await mcpClient.disconnect();
       }
@@ -178,7 +179,7 @@ export const watchCommand = new Command('watch')
                   fileModTimes.set(fullPath, modTime);
                 } else if (modTime > lastMod) {
                   fileModTimes.set(fullPath, modTime);
-                  console.log(`\nFile changed: ${fullPath}`);
+                  output.info(`\nFile changed: ${fullPath}`);
                   changed = true;
                 }
               }
@@ -188,7 +189,7 @@ export const watchCommand = new Command('watch')
           // Log filesystem errors but continue watching
           // This handles transient issues like files being deleted during scan
           if (options.debug) {
-            console.error(`Warning: Error scanning ${dir}:`, error instanceof Error ? error.message : error);
+            output.error(`Warning: Error scanning ${dir}: ` + (error instanceof Error ? error.message : String(error)));
           }
         }
       }
@@ -200,7 +201,7 @@ export const watchCommand = new Command('watch')
     // Initial interview
     await runInterview();
 
-    console.log('\nWatching for changes... (Press Ctrl+C to exit)\n');
+    output.info('\nWatching for changes... (Press Ctrl+C to exit)\n');
 
     // Track current interval for proper cleanup
     let currentInterval: NodeJS.Timeout | null = null;
@@ -220,10 +221,10 @@ export const watchCommand = new Command('watch')
         if (checkForChanges()) {
           isRunningInterview = true;
           await runInterview();
-          console.log('\nWatching for changes... (Press Ctrl+C to exit)\n');
+          output.info('\nWatching for changes... (Press Ctrl+C to exit)\n');
         }
       } catch (error) {
-        console.error('Watch polling error:', error instanceof Error ? error.message : error);
+        output.error('Watch polling error: ' + (error instanceof Error ? error.message : String(error)));
       } finally {
         isRunningInterview = false;
       }
@@ -233,13 +234,13 @@ export const watchCommand = new Command('watch')
     currentInterval = setInterval(() => {
       // Wrap async call with error handling - don't use fire-and-forget
       pollForChanges().catch((error) => {
-        console.error('Unexpected polling error:', error instanceof Error ? error.message : error);
+        output.error('Unexpected polling error: ' + (error instanceof Error ? error.message : String(error)));
       });
     }, interval);
 
     // Handle exit - ensure interval is properly cleaned up
     const cleanup = (): void => {
-      console.log('\n\nExiting watch mode.');
+      output.info('\n\nExiting watch mode.');
       if (currentInterval) {
         clearInterval(currentInterval);
         currentInterval = null;

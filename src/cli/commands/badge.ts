@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { createCloudClient } from '../../cloud/client.js';
 import { getLinkedProject } from '../../cloud/auth.js';
+import * as output from '../output.js';
 
 export const badgeCommand = new Command('badge')
   .description('Get embeddable badge for your project')
@@ -15,8 +16,8 @@ export const badgeCommand = new Command('badge')
     if (!projectId) {
       const link = getLinkedProject();
       if (!link) {
-        console.error('No project specified and no linked project found.');
-        console.error('Run `bellwether link <project>` first or use --project <id>');
+        output.error('No project specified and no linked project found.');
+        output.error('Run `bellwether link <project>` first or use --project <id>');
         process.exit(1);
       }
       projectId = link.projectId;
@@ -29,49 +30,49 @@ export const badgeCommand = new Command('badge')
       const badge = await client.getBadgeInfo(projectId);
 
       if (!badge) {
-        console.error(`Project not found: ${projectId}`);
+        output.error(`Project not found: ${projectId}`);
         process.exit(1);
       }
 
       if (options.json) {
-        console.log(JSON.stringify(badge, null, 2));
+        output.info(JSON.stringify(badge, null, 2));
         return;
       }
 
       if (options.markdown) {
-        console.log(badge.markdown);
+        output.info(badge.markdown);
         return;
       }
 
       if (options.url) {
-        console.log(badge.badgeUrl);
+        output.info(badge.badgeUrl);
         return;
       }
 
       // Default: formatted output
-      console.log('');
-      console.log(`Project: ${badge.projectName}`);
-      console.log(`Status:  ${badge.statusText}`);
+      output.info('');
+      output.info(`Project: ${badge.projectName}`);
+      output.info(`Status:  ${badge.statusText}`);
       if (badge.lastVerified) {
-        console.log(`Verified: ${new Date(badge.lastVerified).toLocaleString()}`);
+        output.info(`Verified: ${new Date(badge.lastVerified).toLocaleString()}`);
       }
       if (badge.latestVersion) {
-        console.log(`Version: v${badge.latestVersion}`);
+        output.info(`Version: v${badge.latestVersion}`);
       }
-      console.log('');
-      console.log('Badge URL:');
-      console.log(`  ${badge.badgeUrl}`);
-      console.log('');
-      console.log('Add to your README.md:');
-      console.log('');
-      console.log(`  ${badge.markdown}`);
-      console.log('');
-      console.log('Or with HTML:');
-      console.log('');
-      console.log(`  <a href="https://bellwether.sh/projects/${projectId}"><img src="${badge.badgeUrl}" alt="Bellwether"></a>`);
-      console.log('');
+      output.info('');
+      output.info('Badge URL:');
+      output.info(`  ${badge.badgeUrl}`);
+      output.info('');
+      output.info('Add to your README.md:');
+      output.info('');
+      output.info(`  ${badge.markdown}`);
+      output.info('');
+      output.info('Or with HTML:');
+      output.info('');
+      output.info(`  <a href="https://bellwether.sh/projects/${projectId}"><img src="${badge.badgeUrl}" alt="Bellwether"></a>`);
+      output.info('');
     } catch (error) {
-      console.error('Failed to get badge info:', error instanceof Error ? error.message : error);
+      output.error('Failed to get badge info: ' + (error instanceof Error ? error.message : String(error)));
       process.exit(1);
     }
   });

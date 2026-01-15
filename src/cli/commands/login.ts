@@ -15,6 +15,7 @@ import {
 } from '../../cloud/auth.js';
 import { generateMockSession } from '../../cloud/mock-client.js';
 import type { DeviceAuthorizationResponse, DevicePollResponse, StoredSession } from '../../cloud/types.js';
+import * as output from '../output.js';
 
 export const loginCommand = new Command('login')
   .description('Authenticate with Bellwether Cloud via GitHub')
@@ -32,8 +33,8 @@ export const loginCommand = new Command('login')
     // Handle --logout
     if (options.logout) {
       clearSession();
-      console.log('Logged out successfully.');
-      console.log('Stored credentials removed from ~/.bellwether/session.json');
+      output.info('Logged out successfully.');
+      output.info('Stored credentials removed from ~/.bellwether/session.json');
       return;
     }
 
@@ -41,37 +42,37 @@ export const loginCommand = new Command('login')
     if (options.mock) {
       const mockSession = generateMockSession();
       saveSession(mockSession);
-      console.log('Mock session generated and saved.');
-      console.log(`Logged in as: ${mockSession.user.githubLogin} (mock)`);
-      console.log('\nYou can now use cloud commands in mock mode.');
-      console.log('Data will be stored locally in ~/.bellwether/mock-cloud/');
+      output.info('Mock session generated and saved.');
+      output.info(`Logged in as: ${mockSession.user.githubLogin} (mock)`);
+      output.info('\nYou can now use cloud commands in mock mode.');
+      output.info('Data will be stored locally in ~/.bellwether/mock-cloud/');
       return;
     }
 
     // Check if already logged in
     const existing = getStoredSession();
     if (existing) {
-      console.log(`Already logged in as ${existing.user.githubLogin}`);
-      console.log(`Email: ${existing.user.email || 'N/A'}`);
-      console.log(`Plan: ${existing.user.plan}`);
+      output.info(`Already logged in as ${existing.user.githubLogin}`);
+      output.info(`Email: ${existing.user.email || 'N/A'}`);
+      output.info(`Plan: ${existing.user.plan}`);
       if (isMockSession(existing.sessionToken)) {
-        console.log('\nUsing mock session - data stored locally.');
+        output.info('\nUsing mock session - data stored locally.');
       }
-      console.log('\nUse --logout to sign out.');
+      output.info('\nUse --logout to sign out.');
       return;
     }
 
     // Start OAuth device flow
-    console.log('Bellwether Cloud Authentication\n');
-    console.log('Signing in with GitHub...\n');
+    output.info('Bellwether Cloud Authentication\n');
+    output.info('Signing in with GitHub...\n');
 
     try {
       // Step 1: Start device flow
       const deviceAuth = await startDeviceFlow();
 
-      console.log('To authenticate, visit:\n');
-      console.log(`  ${deviceAuth.verification_uri}\n`);
-      console.log(`Enter code: ${deviceAuth.user_code}\n`);
+      output.info('To authenticate, visit:\n');
+      output.info(`  ${deviceAuth.verification_uri}\n`);
+      output.info(`Enter code: ${deviceAuth.user_code}\n`);
 
       // Try to open browser automatically
       if (options.browser !== false) {
@@ -79,7 +80,7 @@ export const loginCommand = new Command('login')
       }
 
       // Step 2: Poll for completion
-      console.log('Waiting for authorization...');
+      output.info('Waiting for authorization...');
       const result = await pollForCompletion(
         deviceAuth.device_code,
         deviceAuth.interval,
@@ -87,7 +88,7 @@ export const loginCommand = new Command('login')
       );
 
       if (!result.session_token || !result.user) {
-        console.error('\nAuthorization failed or expired.');
+        output.error('\nAuthorization failed or expired.');
         process.exit(1);
       }
 
@@ -99,14 +100,14 @@ export const loginCommand = new Command('login')
       };
       saveSession(session);
 
-      console.log(`\nLogged in as ${result.user.githubLogin}`);
+      output.info(`\nLogged in as ${result.user.githubLogin}`);
       if (result.user.email) {
-        console.log(`Email: ${result.user.email}`);
+        output.info(`Email: ${result.user.email}`);
       }
-      console.log(`Plan: ${result.user.plan}`);
-      console.log(`\nSession saved to ${CONFIG_DIR}/session.json`);
+      output.info(`Plan: ${result.user.plan}`);
+      output.info(`\nSession saved to ${CONFIG_DIR}/session.json`);
     } catch (err) {
-      console.error('Authentication failed:', err instanceof Error ? err.message : String(err));
+      output.error('Authentication failed: ' + (err instanceof Error ? err.message : String(err)));
       process.exit(1);
     }
   });
@@ -248,8 +249,8 @@ function isValidBrowserUrl(url: string): boolean {
 async function openBrowser(url: string): Promise<void> {
   // Validate URL before opening
   if (!isValidBrowserUrl(url)) {
-    console.warn('Warning: Skipping browser open for untrusted URL.');
-    console.warn(`URL: ${url}`);
+    output.warn('Warning: Skipping browser open for untrusted URL.');
+    output.warn(`URL: ${url}`);
     return;
   }
 
@@ -278,7 +279,7 @@ async function openBrowser(url: string): Promise<void> {
     execFile(command, args, (error) => {
       if (error) {
         // Silently fail - user can open URL manually
-        console.log('(Could not open browser automatically)');
+        output.info('(Could not open browser automatically)');
       }
       resolve();
     });
@@ -292,29 +293,29 @@ async function showStatus(): Promise<void> {
   const session = getStoredSession();
 
   if (!session) {
-    console.log('Not logged in.');
-    console.log('\nRun `bellwether login` to authenticate with GitHub.');
+    output.info('Not logged in.');
+    output.info('\nRun `bellwether login` to authenticate with GitHub.');
     return;
   }
 
-  console.log('Authentication Status');
-  console.log('---------------------');
-  console.log(`GitHub: ${session.user.githubLogin}`);
+  output.info('Authentication Status');
+  output.info('---------------------');
+  output.info(`GitHub: ${session.user.githubLogin}`);
   if (session.user.githubName) {
-    console.log(`Name:   ${session.user.githubName}`);
+    output.info(`Name:   ${session.user.githubName}`);
   }
   if (session.user.email) {
-    console.log(`Email:  ${session.user.email}`);
+    output.info(`Email:  ${session.user.email}`);
   }
-  console.log(`Plan:   ${session.user.plan}`);
-  console.log(`Mode:   ${isMockSession(session.sessionToken) ? 'Mock (local storage)' : 'Cloud'}`);
+  output.info(`Plan:   ${session.user.plan}`);
+  output.info(`Mode:   ${isMockSession(session.sessionToken) ? 'Mock (local storage)' : 'Cloud'}`);
 
   const expiresAt = new Date(session.expiresAt);
   const now = new Date();
   const daysRemaining = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  console.log(`Session expires in ${daysRemaining} days`);
+  output.info(`Session expires in ${daysRemaining} days`);
 
   if (isMockSession(session.sessionToken)) {
-    console.log('\nData is stored locally in ~/.bellwether/mock-cloud/');
+    output.info('\nData is stored locally in ~/.bellwether/mock-cloud/');
   }
 }
