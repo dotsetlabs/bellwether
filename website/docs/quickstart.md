@@ -75,6 +75,30 @@ You'll see comprehensive documentation of what the server actually does, includi
 - Quick reference with tool signatures
 - Performance metrics (response times, error rates)
 
+## Deterministic Testing (No LLM Required)
+
+For CI/CD pipelines and situations where you need 100% deterministic results, Bellwether offers scenarios-only mode:
+
+```bash
+# Generate a sample scenarios file
+bellwether interview --init-scenarios
+
+# Run only your custom scenarios (no LLM, no API costs, fully deterministic)
+bellwether interview --scenarios-only npx your-server
+```
+
+This is ideal for:
+- **CI/CD pipelines** where you need consistent pass/fail results
+- **Cost-sensitive environments** where you want to avoid LLM API costs
+- **Compliance requirements** where non-deterministic testing is not acceptable
+
+See [Custom Scenarios](/guides/custom-scenarios) for details on writing YAML test scenarios.
+
+:::tip When to use each mode
+- **LLM-guided testing**: Discovery, initial documentation, exploratory testing
+- **Scenarios-only mode**: CI/CD gates, regression testing, deterministic verification
+:::
+
 ## What's Next?
 
 ### Discover MCP Servers
@@ -86,9 +110,9 @@ bellwether registry filesystem
 bellwether registry database
 ```
 
-### Get Verified
+### Get Documented
 
-Run the verification process to certify your server:
+Run the documentation process to earn coverage badges:
 
 ```bash
 bellwether verify --tier gold npx your-server

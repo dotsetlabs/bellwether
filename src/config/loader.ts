@@ -36,6 +36,20 @@ const outputConfigSchema = z.object({
 });
 
 /**
+ * Zod schema for drift detection configuration.
+ */
+const driftConfigSchema = z.object({
+  /** Strict mode: only report structural (deterministic) changes */
+  strict: z.boolean().optional().default(false),
+  /** Minimum confidence score (0-100) to report a change */
+  minConfidence: z.number().int().min(0).max(100).optional(),
+  /** Confidence threshold (0-100) for CI to fail on breaking changes */
+  confidenceThreshold: z.number().int().min(0).max(100).optional().default(80),
+  /** Fail on drift in CI mode */
+  failOnDrift: z.boolean().optional().default(false),
+});
+
+/**
  * Complete Zod schema for bellwether configuration.
  * Note: We allow any positive version number for forward compatibility,
  * but only version 1 is currently supported.
@@ -45,6 +59,7 @@ const bellwetherConfigSchema = z.object({
   llm: llmConfigSchema,
   interview: interviewConfigSchema,
   output: outputConfigSchema,
+  drift: driftConfigSchema.optional(),
 });
 
 /**
@@ -84,6 +99,16 @@ export interface BellwetherConfig {
     format: 'agents.md' | 'json' | 'both';
     outputDir?: string;
   };
+  drift?: {
+    /** Strict mode: only report structural (deterministic) changes */
+    strict?: boolean;
+    /** Minimum confidence score (0-100) to report a change */
+    minConfidence?: number;
+    /** Confidence threshold (0-100) for CI to fail on breaking changes */
+    confidenceThreshold?: number;
+    /** Fail on drift in CI mode */
+    failOnDrift?: boolean;
+  };
 }
 
 /**
@@ -104,6 +129,11 @@ function createDefaultConfig(): BellwetherConfig {
     },
     output: {
       format: 'agents.md',
+    },
+    drift: {
+      strict: false,
+      confidenceThreshold: 80,
+      failOnDrift: false,
     },
   };
 }
@@ -224,6 +254,10 @@ function mergeConfig(defaults: BellwetherConfig, overrides: Partial<BellwetherCo
       ...defaults.output,
       ...overrides.output,
     },
+    drift: {
+      ...defaults.drift,
+      ...overrides.drift,
+    },
   };
 }
 
@@ -266,5 +300,23 @@ interview:
 output:
   format: agents.md
   # outputDir: ./docs
+
+# Drift Detection Configuration
+drift:
+  # Strict mode: only report structural (deterministic) changes
+  # Use this in CI for 100% reproducible results
+  strict: false
+
+  # Minimum confidence score (0-100) to report a change
+  # Changes below this threshold are filtered out
+  # minConfidence: 50
+
+  # Confidence threshold (0-100) for CI to fail on breaking changes
+  # Breaking changes with confidence below this are still reported
+  # but may be LLM non-determinism rather than actual drift
+  confidenceThreshold: 80
+
+  # Fail on drift in CI mode
+  failOnDrift: false
 `;
 }

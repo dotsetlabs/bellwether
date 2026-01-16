@@ -5,7 +5,7 @@ sidebar_position: 3
 
 # Cloud Integration
 
-Bellwether Cloud provides baseline history, webhooks, and verification badges for your MCP servers.
+Bellwether Cloud provides baseline history, webhooks, and documentation badges for your MCP servers.
 
 ## Features
 
@@ -14,7 +14,7 @@ Bellwether Cloud provides baseline history, webhooks, and verification badges fo
 | **Baseline History** | Track all baseline versions over time |
 | **Drift Timeline** | See when and how behavior changed |
 | **Webhook Notifications** | Get alerts when drift is detected |
-| **Verification Badges** | Display status in your README |
+| **Documentation Badges** | Display status in your README |
 | **CI/CD Integration** | Automated uploads and drift checks |
 
 ## Getting Started
@@ -48,9 +48,9 @@ bellwether interview --save-baseline npx your-server
 bellwether upload
 ```
 
-## Verification Badge
+## Documentation Badge
 
-Display your server's verification status in READMEs and documentation.
+Display your server's documentation status in READMEs and documentation.
 
 ### Get Badge via CLI
 
@@ -73,14 +73,14 @@ bellwether badge --project proj_abc123
 Copy the markdown from the `badge` command:
 
 ```markdown
-[![Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.sh/projects/proj_abc123)
+[![Documented by Bellwether](https://img.shields.io/badge/bellwether-documented-brightgreen)](https://bellwether.sh/projects/proj_abc123)
 ```
 
 ### Badge Status
 
 | Status | Color | Meaning |
 |:-------|:------|:--------|
-| `passing` | Green | Server verified, no drift |
+| `passing` | Green | Server documented, no drift |
 | `passing` (Stable) | Green | Multiple versions, no drift |
 | `drift` | Yellow | Behavioral changes detected |
 | `failing` | Red | Breaking changes detected |
@@ -215,11 +215,11 @@ Bellwether works fully offline. Cloud is optional for:
 Cloud adds:
 - Historical tracking across versions
 - Webhook notifications for drift
-- Verification badges for your README
+- Documentation badges for your README
 
 ## See Also
 
-- [badge](/cli/badge) - Verification badges
+- [badge](/cli/badge) - Documentation badges
 - [login](/cli/login) - Authentication
 - [link](/cli/link) - Project linking
 - [upload](/cli/upload) - Baseline uploads

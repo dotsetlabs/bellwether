@@ -15,6 +15,7 @@ import {
   formatDiffText,
 } from '../../baseline/index.js';
 import * as output from '../output.js';
+import { TIMEOUTS } from '../../constants.js';
 
 export const watchCommand = new Command('watch')
   .description('Watch for MCP server changes and auto-interview')
@@ -26,6 +27,7 @@ export const watchCommand = new Command('watch')
   .option('--max-questions <n>', 'Max questions per tool')
   .option('--baseline <path>', 'Baseline file to compare against', 'bellwether-baseline.json')
   .option('--on-change <command>', 'Command to run after detecting drift')
+  .option('--debug', 'Show debug output for file scanning')
   .action(async (command: string, args: string[], options) => {
     const config = loadConfig(options.config);
     const watchPath = resolve(options.watchPath);
@@ -69,7 +71,7 @@ export const watchCommand = new Command('watch')
     const fileModTimes = new Map<string, number>();
 
     async function runInterview(): Promise<void> {
-      const mcpClient = new MCPClient({ timeout: 60000 });
+      const mcpClient = new MCPClient({ timeout: TIMEOUTS.INTERVIEW });
 
       try {
         output.info('\n--- Running Interview ---');
@@ -87,7 +89,7 @@ export const watchCommand = new Command('watch')
 
         const interviewer = new Interviewer(llmClient, {
           maxQuestionsPerTool: maxQuestions,
-          timeout: 60000,
+          timeout: TIMEOUTS.INTERVIEW,
           skipErrorTests: config.interview.skipErrorTests ?? false,
           model: config.llm.model,
         });

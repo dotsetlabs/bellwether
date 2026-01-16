@@ -6,6 +6,14 @@
  * raw prose strings.
  */
 
+import type { ChangeConfidence, ConfidenceFactor } from './types.js';
+import {
+  calculateKeywordOverlap,
+  calculateLengthSimilarity,
+  calculateSemanticIndicators,
+  CONFIDENCE_WEIGHTS,
+} from './confidence.js';
+
 /**
  * Security finding categories (normalized).
  * These map to common vulnerability patterns.
@@ -308,6 +316,86 @@ export function securityFindingsMatch(
 }
 
 /**
+ * Compare two structured security findings with confidence.
+ * Returns a confidence score indicating how similar they are.
+ */
+export function securityFindingsMatchWithConfidence(
+  a: StructuredSecurityFinding,
+  b: StructuredSecurityFinding
+): { matches: boolean; confidence: ChangeConfidence } {
+  const factors: ConfidenceFactor[] = [];
+
+  // Category match is critical (50% weight)
+  const categoryMatch = a.category === b.category;
+  factors.push({
+    name: 'category_match',
+    weight: 0.5,
+    value: categoryMatch ? 100 : 0,
+    description: categoryMatch
+      ? `Categories match: ${a.category}`
+      : `Categories differ: ${a.category} vs ${b.category}`,
+  });
+
+  // Tool match (20% weight)
+  const toolMatch = a.tool === b.tool;
+  factors.push({
+    name: 'tool_match',
+    weight: 0.2,
+    value: toolMatch ? 100 : 0,
+    description: toolMatch
+      ? `Tools match: ${a.tool}`
+      : `Tools differ: ${a.tool} vs ${b.tool}`,
+  });
+
+  // Severity match (15% weight)
+  const severityMatch = a.severity === b.severity;
+  factors.push({
+    name: 'severity_match',
+    weight: 0.15,
+    value: severityMatch ? 100 : severityDistance(a.severity, b.severity),
+    description: severityMatch
+      ? `Severities match: ${a.severity}`
+      : `Severities differ: ${a.severity} vs ${b.severity}`,
+  });
+
+  // Description similarity (15% weight)
+  const descSimilarity = calculateKeywordOverlap(a.description, b.description);
+  factors.push({
+    name: 'description_similarity',
+    weight: 0.15,
+    value: descSimilarity,
+    description: `${descSimilarity}% description keyword overlap`,
+  });
+
+  const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
+  const score = Math.round(
+    factors.reduce((sum, f) => sum + f.weight * f.value, 0) / totalWeight
+  );
+
+  return {
+    matches: categoryMatch && toolMatch && severityMatch,
+    confidence: {
+      score,
+      method: 'semantic',
+      factors,
+    },
+  };
+}
+
+/**
+ * Calculate similarity between severity levels.
+ */
+function severityDistance(
+  a: 'low' | 'medium' | 'high' | 'critical',
+  b: 'low' | 'medium' | 'high' | 'critical'
+): number {
+  const levels = { low: 0, medium: 1, high: 2, critical: 3 };
+  const distance = Math.abs(levels[a] - levels[b]);
+  // 0 distance = 100%, 1 = 66%, 2 = 33%, 3 = 0%
+  return Math.round(100 - (distance / 3) * 100);
+}
+
+/**
  * Compare two structured limitations.
  * Returns true if they represent the same limitation.
  */
@@ -323,6 +411,103 @@ export function limitationsMatch(
 }
 
 /**
+ * Compare two structured limitations with confidence.
+ * Returns a confidence score indicating how similar they are.
+ */
+export function limitationsMatchWithConfidence(
+  a: StructuredLimitation,
+  b: StructuredLimitation
+): { matches: boolean; confidence: ChangeConfidence } {
+  const factors: ConfidenceFactor[] = [];
+
+  // Category match is critical (50% weight)
+  const categoryMatch = a.category === b.category;
+  factors.push({
+    name: 'category_match',
+    weight: 0.5,
+    value: categoryMatch ? 100 : 0,
+    description: categoryMatch
+      ? `Categories match: ${a.category}`
+      : `Categories differ: ${a.category} vs ${b.category}`,
+  });
+
+  // Tool match (25% weight)
+  const toolMatch = a.tool === b.tool;
+  factors.push({
+    name: 'tool_match',
+    weight: 0.25,
+    value: toolMatch ? 100 : 0,
+    description: toolMatch
+      ? `Tools match: ${a.tool}`
+      : `Tools differ: ${a.tool} vs ${b.tool}`,
+  });
+
+  // Constraint similarity (10% weight)
+  const constraintScore = constraintsMatch(a.constraint, b.constraint);
+  factors.push({
+    name: 'constraint_match',
+    weight: 0.1,
+    value: constraintScore,
+    description: constraintScore === 100
+      ? 'Constraints match'
+      : constraintScore > 50
+        ? 'Constraints similar'
+        : 'Constraints differ or missing',
+  });
+
+  // Description similarity (15% weight)
+  const descSimilarity = calculateKeywordOverlap(a.description, b.description);
+  factors.push({
+    name: 'description_similarity',
+    weight: 0.15,
+    value: descSimilarity,
+    description: `${descSimilarity}% description keyword overlap`,
+  });
+
+  const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
+  const score = Math.round(
+    factors.reduce((sum, f) => sum + f.weight * f.value, 0) / totalWeight
+  );
+
+  return {
+    matches: categoryMatch && toolMatch,
+    confidence: {
+      score,
+      method: 'semantic',
+      factors,
+    },
+  };
+}
+
+/**
+ * Compare constraint values, handling variations like "10MB" vs "10 MB".
+ */
+function constraintsMatch(a?: string, b?: string): number {
+  if (!a && !b) return 100;
+  if (!a || !b) return 50; // One missing
+
+  // Normalize: remove spaces, lowercase
+  const normA = a.replace(/\s/g, '').toLowerCase();
+  const normB = b.replace(/\s/g, '').toLowerCase();
+
+  if (normA === normB) return 100;
+
+  // Try to extract numeric values
+  const numA = parseFloat(normA.replace(/[^0-9.]/g, ''));
+  const numB = parseFloat(normB.replace(/[^0-9.]/g, ''));
+
+  if (!isNaN(numA) && !isNaN(numB)) {
+    // Both have numbers - check if they're the same
+    if (numA === numB) return 90;
+    // Check if within 10%
+    const ratio = Math.min(numA, numB) / Math.max(numA, numB);
+    if (ratio > 0.9) return 75;
+  }
+
+  return 30;
+}
+
+/**
  * Compare two normalized assertions.
  * Returns true if they have the same fingerprint.
  */
@@ -331,6 +516,89 @@ export function assertionsMatch(
   b: NormalizedAssertion
 ): boolean {
   return a.fingerprint === b.fingerprint;
+}
+
+/**
+ * Compare two normalized assertions with confidence.
+ * Returns a confidence score indicating how similar they are.
+ */
+export function assertionsMatchWithConfidence(
+  a: NormalizedAssertion,
+  b: NormalizedAssertion
+): { matches: boolean; confidence: ChangeConfidence } {
+  const factors: ConfidenceFactor[] = [];
+
+  // Fingerprint match (40% weight)
+  const fingerprintMatch = a.fingerprint === b.fingerprint;
+  factors.push({
+    name: 'fingerprint_match',
+    weight: 0.4,
+    value: fingerprintMatch ? 100 : fingerprintSimilarity(a.fingerprint, b.fingerprint),
+    description: fingerprintMatch
+      ? 'Fingerprints match exactly'
+      : `Fingerprints ${fingerprintSimilarity(a.fingerprint, b.fingerprint)}% similar`,
+  });
+
+  // Tool and aspect match (25% weight)
+  const toolAspectMatch = a.tool === b.tool && a.aspect === b.aspect;
+  factors.push({
+    name: 'tool_aspect_match',
+    weight: 0.25,
+    value: toolAspectMatch ? 100 : (a.tool === b.tool ? 50 : 0),
+    description: toolAspectMatch
+      ? `Tool and aspect match: ${a.tool}/${a.aspect}`
+      : `Tool/aspect differ`,
+  });
+
+  // Polarity match (15% weight)
+  const polarityMatch = a.isPositive === b.isPositive;
+  factors.push({
+    name: 'polarity_match',
+    weight: 0.15,
+    value: polarityMatch ? 100 : 0,
+    description: polarityMatch
+      ? 'Same polarity'
+      : 'Different polarity (positive/negative)',
+  });
+
+  // Description similarity (20% weight)
+  const descSimilarity = calculateKeywordOverlap(a.description, b.description);
+  factors.push({
+    name: 'description_similarity',
+    weight: 0.2,
+    value: descSimilarity,
+    description: `${descSimilarity}% description keyword overlap`,
+  });
+
+  const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
+  const score = Math.round(
+    factors.reduce((sum, f) => sum + f.weight * f.value, 0) / totalWeight
+  );
+
+  return {
+    matches: fingerprintMatch,
+    confidence: {
+      score,
+      method: 'semantic',
+      factors,
+    },
+  };
+}
+
+/**
+ * Calculate similarity between two fingerprints.
+ */
+function fingerprintSimilarity(a: string, b: string): number {
+  const partsA = new Set(a.split(':'));
+  const partsB = new Set(b.split(':'));
+
+  if (partsA.size === 0 && partsB.size === 0) return 100;
+  if (partsA.size === 0 || partsB.size === 0) return 0;
+
+  const intersection = new Set([...partsA].filter((p) => partsB.has(p)));
+  const union = new Set([...partsA, ...partsB]);
+
+  return Math.round((intersection.size / union.size) * 100);
 }
 
 /**
@@ -371,4 +639,157 @@ export function compareArraysSemantic<T>(
   }
 
   return { added, removed };
+}
+
+/**
+ * Result of a semantic comparison with confidence.
+ */
+export interface SemanticComparisonResult<T> {
+  /** Items in current but not in previous */
+  added: Array<{ item: T; confidence: ChangeConfidence }>;
+  /** Items in previous but not in current */
+  removed: Array<{ item: T; confidence: ChangeConfidence }>;
+  /** Items that match between versions */
+  matched: Array<{ previous: T; current: T; confidence: ChangeConfidence }>;
+}
+
+/**
+ * Compare two arrays using semantic matching with confidence scores.
+ * Returns detailed comparison results including confidence for each item.
+ */
+export function compareArraysSemanticWithConfidence<T>(
+  previous: T[],
+  current: T[],
+  matcherWithConfidence: (a: T, b: T) => { matches: boolean; confidence: ChangeConfidence }
+): SemanticComparisonResult<T> {
+  const added: Array<{ item: T; confidence: ChangeConfidence }> = [];
+  const removed: Array<{ item: T; confidence: ChangeConfidence }> = [];
+  const matched: Array<{ previous: T; current: T; confidence: ChangeConfidence }> = [];
+
+  const matchedCurrentIndices = new Set<number>();
+
+  // For each previous item, find best match in current
+  for (const prev of previous) {
+    let bestMatch: { index: number; current: T; confidence: ChangeConfidence } | null = null;
+
+    for (let i = 0; i < current.length; i++) {
+      if (matchedCurrentIndices.has(i)) continue;
+
+      const result = matcherWithConfidence(prev, current[i]);
+      if (result.matches) {
+        if (!bestMatch || result.confidence.score > bestMatch.confidence.score) {
+          bestMatch = { index: i, current: current[i], confidence: result.confidence };
+        }
+      }
+    }
+
+    if (bestMatch) {
+      matchedCurrentIndices.add(bestMatch.index);
+      matched.push({
+        previous: prev,
+        current: bestMatch.current,
+        confidence: bestMatch.confidence,
+      });
+    } else {
+      // Item was removed - calculate confidence that it's truly gone
+      removed.push({
+        item: prev,
+        confidence: {
+          score: 95, // High confidence for removals (we checked all items)
+          method: 'semantic',
+          factors: [
+            {
+              name: 'removal_check',
+              weight: 1.0,
+              value: 95,
+              description: `No matching item found in ${current.length} current items`,
+            },
+          ],
+        },
+      });
+    }
+  }
+
+  // Any unmatched current items are additions
+  for (let i = 0; i < current.length; i++) {
+    if (!matchedCurrentIndices.has(i)) {
+      added.push({
+        item: current[i],
+        confidence: {
+          score: 95, // High confidence for additions (we checked all items)
+          method: 'semantic',
+          factors: [
+            {
+              name: 'addition_check',
+              weight: 1.0,
+              value: 95,
+              description: `No matching item found in ${previous.length} previous items`,
+            },
+          ],
+        },
+      });
+    }
+  }
+
+  return { added, removed, matched };
+}
+
+/**
+ * Calculate overall confidence for a semantic comparison operation.
+ */
+export function calculateComparisonConfidence(
+  before: string,
+  after: string,
+  categoryMatch: boolean
+): ChangeConfidence {
+  const factors: ConfidenceFactor[] = [];
+
+  // Factor 1: Keyword overlap
+  const keywordScore = calculateKeywordOverlap(before, after);
+  factors.push({
+    name: 'keyword_overlap',
+    weight: CONFIDENCE_WEIGHTS.keywordOverlap,
+    value: keywordScore,
+    description: `${keywordScore}% keyword overlap between old and new text`,
+  });
+
+  // Factor 2: Length similarity
+  const lengthScore = calculateLengthSimilarity(before, after);
+  factors.push({
+    name: 'length_similarity',
+    weight: CONFIDENCE_WEIGHTS.structuralAlignment,
+    value: lengthScore,
+    description: `${lengthScore}% length similarity`,
+  });
+
+  // Factor 3: Semantic indicators
+  const semanticScore = calculateSemanticIndicators(before, after);
+  factors.push({
+    name: 'semantic_indicators',
+    weight: CONFIDENCE_WEIGHTS.semanticSimilarity,
+    value: semanticScore,
+    description: `${semanticScore}% semantic indicator match`,
+  });
+
+  // Factor 4: Category consistency
+  const categoryScore = categoryMatch ? 100 : 30;
+  factors.push({
+    name: 'category_consistency',
+    weight: CONFIDENCE_WEIGHTS.categoryConsistency,
+    value: categoryScore,
+    description: categoryMatch
+      ? 'Categories match between versions'
+      : 'Categories differ between versions',
+  });
+
+  const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
+  const score = Math.round(
+    factors.reduce((sum, f) => sum + f.weight * f.value, 0) / totalWeight
+  );
+
+  return {
+    score,
+    method: 'semantic',
+    factors,
+  };
 }

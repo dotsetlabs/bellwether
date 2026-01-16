@@ -32,6 +32,7 @@ Watch mode monitors your source files and automatically re-runs interviews when 
 | `-i, --interval <ms>` | Polling interval in milliseconds | `5000` |
 | `--baseline <path>` | Baseline file to compare against | `bellwether-baseline.json` |
 | `--on-change <command>` | Command to run after detecting drift | - |
+| `--debug` | Show debug output for file scanning errors | `false` |
 | `-c, --config <path>` | Path to config file | - |
 | `--max-questions <n>` | Max questions per tool | Config value |
 

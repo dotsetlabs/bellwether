@@ -32,12 +32,18 @@ vi.mock('../../../src/llm/index.js', () => ({
   }),
 }));
 
-// Mock MCPClient
+// Shared mock instance for MCPClient
+const mockMCPClientInstance = {
+  connect: vi.fn().mockResolvedValue(undefined),
+  disconnect: vi.fn().mockResolvedValue(undefined),
+};
+
+// Mock MCPClient - class returning shared instance methods
 vi.mock('../../../src/transport/mcp-client.js', () => ({
-  MCPClient: vi.fn().mockImplementation(() => ({
-    connect: vi.fn().mockResolvedValue(undefined),
-    disconnect: vi.fn().mockResolvedValue(undefined),
-  })),
+  MCPClient: class MockMCPClient {
+    connect = mockMCPClientInstance.connect;
+    disconnect = mockMCPClientInstance.disconnect;
+  },
 }));
 
 // Mock discovery
@@ -50,31 +56,42 @@ vi.mock('../../../src/discovery/discovery.js', () => ({
   }),
 }));
 
-// Mock interviewer
+// Shared mock instance for Interviewer - track constructor calls
+const mockInterviewerInstance = {
+  interview: vi.fn().mockResolvedValue({
+    discovery: {
+      serverInfo: { name: 'test-server', version: '1.0.0' },
+    },
+    toolProfiles: [
+      {
+        name: 'test-tool',
+        interactions: [
+          { input: {}, response: { content: [] }, error: null },
+        ],
+      },
+    ],
+    promptProfiles: [],
+    resourceProfiles: [],
+    metadata: {
+      startTime: new Date(),
+      endTime: new Date(),
+      personas: [{ name: 'friendly', id: 'friendly' }],
+    },
+    summary: 'Test summary',
+  }),
+};
+
+// Track Interviewer constructor calls for persona verification
+const interviewerConstructorCalls: Array<[unknown, unknown]> = [];
+
+// Mock interviewer - class that tracks constructor args
 vi.mock('../../../src/interview/interviewer.js', () => ({
-  Interviewer: vi.fn().mockImplementation(() => ({
-    interview: vi.fn().mockResolvedValue({
-      discovery: {
-        serverInfo: { name: 'test-server', version: '1.0.0' },
-      },
-      toolProfiles: [
-        {
-          name: 'test-tool',
-          interactions: [
-            { input: {}, response: { content: [] }, error: null },
-          ],
-        },
-      ],
-      promptProfiles: [],
-      resourceProfiles: [],
-      metadata: {
-        startTime: new Date(),
-        endTime: new Date(),
-        personas: [{ name: 'friendly', id: 'friendly' }],
-      },
-      summary: 'Test summary',
-    }),
-  })),
+  Interviewer: class MockInterviewer {
+    constructor(...args: unknown[]) {
+      interviewerConstructorCalls.push(args as [unknown, unknown]);
+    }
+    interview = mockInterviewerInstance.interview;
+  },
   DEFAULT_CONFIG: {
     maxQuestionsPerTool: 3,
   },
@@ -129,6 +146,20 @@ describe('Verify Command', () => {
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
     stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    // Reset shared mock instances
+    mockMCPClientInstance.connect.mockReset().mockResolvedValue(undefined);
+    mockMCPClientInstance.disconnect.mockReset().mockResolvedValue(undefined);
+    mockInterviewerInstance.interview.mockReset().mockResolvedValue({
+      discovery: { serverInfo: { name: 'test-server', version: '1.0.0' } },
+      toolProfiles: [{ name: 'test-tool', interactions: [{ input: {}, response: { content: [] }, error: null }] }],
+      promptProfiles: [],
+      resourceProfiles: [],
+      metadata: { startTime: new Date(), endTime: new Date(), personas: [{ name: 'friendly', id: 'friendly' }] },
+      summary: 'Test summary',
+    });
+    interviewerConstructorCalls.length = 0;
+
     vi.clearAllMocks();
   });
 
@@ -172,9 +203,8 @@ describe('Verify Command', () => {
       const command = createVerifyCommand();
       await command.parseAsync(['node', 'test', 'node', 'server.js']);
 
-      expect(MCPClient).toHaveBeenCalled();
-      const mockInstance = vi.mocked(MCPClient).mock.results[0].value;
-      expect(mockInstance.connect).toHaveBeenCalledWith('node', ['server.js']);
+      // Verify MCPClient was used by checking the shared mock instance methods
+      expect(mockMCPClientInstance.connect).toHaveBeenCalledWith('node', ['server.js']);
     });
 
     it('should run discovery on the server', async () => {
@@ -188,7 +218,8 @@ describe('Verify Command', () => {
       const command = createVerifyCommand();
       await command.parseAsync(['node', 'test', 'node', 'server.js']);
 
-      expect(Interviewer).toHaveBeenCalled();
+      // Verify Interviewer was used by checking the shared mock instance methods
+      expect(mockInterviewerInstance.interview).toHaveBeenCalled();
     });
 
     it('should generate verification report', async () => {
@@ -212,8 +243,7 @@ describe('Verify Command', () => {
       const command = createVerifyCommand();
       await command.parseAsync(['node', 'test', 'node', 'server.js']);
 
-      const mockInstance = vi.mocked(MCPClient).mock.results[0].value;
-      expect(mockInstance.disconnect).toHaveBeenCalled();
+      expect(mockMCPClientInstance.disconnect).toHaveBeenCalled();
     });
   });
 
@@ -301,11 +331,8 @@ describe('Verify Command', () => {
     });
 
     it('should handle server connection failure', async () => {
-      const mockConnect = vi.fn().mockRejectedValue(new Error('Connection failed'));
-      vi.mocked(MCPClient).mockImplementationOnce(() => ({
-        connect: mockConnect,
-        disconnect: vi.fn(),
-      }) as unknown as InstanceType<typeof MCPClient>);
+      // Make the shared mock instance reject connection
+      mockMCPClientInstance.connect.mockRejectedValueOnce(new Error('Connection failed'));
 
       const command = createVerifyCommand();
       await command.parseAsync(['node', 'test', 'node', 'server.js']);
@@ -354,8 +381,8 @@ describe('Verify Command', () => {
       const command = createVerifyCommand();
       await command.parseAsync(['node', 'test', 'node', 'server.js', '--tier', 'silver']);
 
-      const interviewerCall = vi.mocked(Interviewer).mock.calls[0];
-      const config = interviewerCall[1];
+      expect(interviewerConstructorCalls.length).toBeGreaterThan(0);
+      const config = interviewerConstructorCalls[0][1] as { personas: Array<{ id: string }> };
       expect(config.personas.length).toBeGreaterThanOrEqual(2);
     });
 
@@ -363,8 +390,8 @@ describe('Verify Command', () => {
       const command = createVerifyCommand();
       await command.parseAsync(['node', 'test', 'node', 'server.js', '--tier', 'gold', '--security']);
 
-      const interviewerCall = vi.mocked(Interviewer).mock.calls[0];
-      const config = interviewerCall[1];
+      expect(interviewerConstructorCalls.length).toBeGreaterThan(0);
+      const config = interviewerConstructorCalls[0][1] as { personas: Array<{ id: string }> };
       const personaIds = config.personas.map((p: { id: string }) => p.id);
       expect(personaIds).toContain('security_tester');
     });
@@ -373,8 +400,8 @@ describe('Verify Command', () => {
       const command = createVerifyCommand();
       await command.parseAsync(['node', 'test', 'node', 'server.js', '--tier', 'platinum']);
 
-      const interviewerCall = vi.mocked(Interviewer).mock.calls[0];
-      const config = interviewerCall[1];
+      expect(interviewerConstructorCalls.length).toBeGreaterThan(0);
+      const config = interviewerConstructorCalls[0][1] as { personas: Array<{ id: string }> };
       expect(config.personas.length).toBeGreaterThanOrEqual(4);
     });
   });

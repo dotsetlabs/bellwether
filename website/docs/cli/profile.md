@@ -91,6 +91,70 @@ Delete a profile.
 bellwether profile delete <name>
 ```
 
+### update
+
+Update an existing profile's settings.
+
+```bash
+bellwether profile update <name> [options]
+```
+
+Options:
+| Option | Description |
+|:-------|:------------|
+| `-p, --provider <provider>` | Update LLM provider |
+| `-m, --model <model>` | Update LLM model |
+| `-q, --max-questions <n>` | Update questions per tool |
+| `--personas <list>` | Update comma-separated personas |
+| `-f, --format <format>` | Update output format |
+
+Example:
+```bash
+# Change model and increase questions
+bellwether profile update ci --model gpt-4o --max-questions 2
+```
+
+### export
+
+Export a profile as YAML to stdout.
+
+```bash
+bellwether profile export [name]
+```
+
+If no name is provided, exports the current active profile.
+
+Example:
+```bash
+# Export to file
+bellwether profile export security > security-profile.yaml
+
+# View current profile
+bellwether profile export
+```
+
+### import
+
+Import a profile from a YAML file.
+
+```bash
+bellwether profile import <file> [options]
+```
+
+Options:
+| Option | Description |
+|:-------|:------------|
+| `-n, --name <name>` | Override the profile name |
+
+Example:
+```bash
+# Import profile
+bellwether profile import ./security-profile.yaml
+
+# Import with different name
+bellwether profile import ./security-profile.yaml --name production-security
+```
+
 ## Examples
 
 ### Create a CI Profile

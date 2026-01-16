@@ -19,6 +19,7 @@ import { createLLMClient } from '../../llm/index.js';
 import { loadConfig } from '../../config/loader.js';
 import { BUILTIN_PERSONAS } from '../../persona/builtins.js';
 import type { Persona } from '../../persona/types.js';
+import { TIMEOUTS } from '../../constants.js';
 
 // Convert BUILTIN_PERSONAS record to array
 const ALL_PERSONAS: Persona[] = Object.values(BUILTIN_PERSONAS);
@@ -80,7 +81,7 @@ async function handleVerify(
 
   // Connect to server
   console.log(chalk.gray(`Connecting to ${command} ${args.join(' ')}...`));
-  const client = new MCPClient({ timeout: 30000 });
+  const client = new MCPClient({ timeout: TIMEOUTS.DEFAULT });
 
   try {
     await client.connect(command, args);

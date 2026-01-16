@@ -53,32 +53,45 @@ describe('SSETransport', () => {
         baseUrl: 'https://example.com/mcp',
       });
 
-      // Mock EventSource for this test
-      const mockEventSource = {
-        onopen: null as ((event: Event) => void) | null,
-        onmessage: null as ((event: MessageEvent) => void) | null,
-        onerror: null as ((event: Event) => void) | null,
-        addEventListener: vi.fn(),
-        close: vi.fn(),
-        readyState: 1,
-      };
+      // Track EventSource instantiation
+      let eventSourceCallCount = 0;
+      let mockInstance: {
+        onopen: ((event: Event) => void) | null;
+        onmessage: ((event: MessageEvent) => void) | null;
+        onerror: ((event: Event) => void) | null;
+        addEventListener: ReturnType<typeof vi.fn>;
+        close: ReturnType<typeof vi.fn>;
+        readyState: number;
+      } | null = null;
 
+      // Mock EventSource as a class for vitest 4.x
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (globalThis as any).EventSource = vi.fn(() => mockEventSource);
+      (globalThis as any).EventSource = class MockEventSource {
+        onopen: ((event: Event) => void) | null = null;
+        onmessage: ((event: MessageEvent) => void) | null = null;
+        onerror: ((event: Event) => void) | null = null;
+        addEventListener = vi.fn();
+        close = vi.fn();
+        readyState = 1;
+
+        constructor() {
+          eventSourceCallCount++;
+          mockInstance = this;
+        }
+      };
 
       // First connect should start
       const connectPromise = transport.connect();
 
       // Trigger onopen
-      mockEventSource.onopen?.({} as Event);
+      mockInstance?.onopen?.({} as Event);
       await connectPromise;
 
       // Second connect should return immediately
       await transport.connect();
 
       // EventSource should only be created once
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect((globalThis as any).EventSource).toHaveBeenCalledTimes(1);
+      expect(eventSourceCallCount).toBe(1);
 
       // Cleanup
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

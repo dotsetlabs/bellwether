@@ -11,14 +11,15 @@ import type {
   ListServersOptions,
 } from './types.js';
 import { getLogger } from '../logging/logger.js';
+import { URLS, REGISTRY } from '../constants.js';
 
 const logger = getLogger('registry');
 
 /** Default registry base URL */
-export const REGISTRY_BASE_URL = 'https://registry.modelcontextprotocol.io';
+export const REGISTRY_BASE_URL = URLS.MCP_REGISTRY;
 
 /** API version */
-export const API_VERSION = 'v0';
+export const API_VERSION = REGISTRY.API_VERSION;
 
 /**
  * Client for interacting with the MCP Registry API.
@@ -29,7 +30,7 @@ export class RegistryClient {
 
   constructor(options?: { baseUrl?: string; timeout?: number }) {
     this.baseUrl = options?.baseUrl ?? REGISTRY_BASE_URL;
-    this.timeout = options?.timeout ?? 10000;
+    this.timeout = options?.timeout ?? REGISTRY.TIMEOUT;
   }
 
   /**

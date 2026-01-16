@@ -74,6 +74,41 @@ jobs:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 ```
 
+### Deterministic Drift Detection (Strict Mode)
+
+For CI/CD pipelines requiring 100% reproducible results, use strict mode:
+
+```yaml
+- name: Deterministic Drift Detection
+  uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx @modelcontextprotocol/server-filesystem'
+    server-args: '/tmp'
+    baseline-path: './bellwether-baseline.json'
+    fail-on-drift: 'true'
+    strict: 'true'  # Only structural changes (no LLM comparison)
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
+### Confidence-Based Drift Detection
+
+Filter changes by confidence score:
+
+```yaml
+- name: High-Confidence Drift Detection
+  uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx @modelcontextprotocol/server-filesystem'
+    server-args: '/tmp'
+    baseline-path: './bellwether-baseline.json'
+    fail-on-drift: 'true'
+    min-confidence: '80'  # Only report changes with 80%+ confidence
+    confidence-threshold: '90'  # Only fail on breaking changes with 90%+ confidence
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
 ### Save Baseline
 
 ```yaml
@@ -134,6 +169,9 @@ The security preset includes the security testing persona for adversarial testin
 | `security` | Include security testing persona | No | `false` |
 | `baseline-path` | Path to baseline file for drift comparison | No | - |
 | `fail-on-drift` | Fail if drift is detected | No | `true` |
+| `strict` | Strict mode: only structural changes (deterministic) | No | `false` |
+| `min-confidence` | Minimum confidence (0-100) to report changes | No | `0` |
+| `confidence-threshold` | Confidence threshold (0-100) for failures | No | `80` |
 | `save-baseline` | Save baseline after interview | No | `false` |
 | `output-json` | Also generate JSON report | No | `false` |
 | `output-dir` | Directory for output files | No | `.` |

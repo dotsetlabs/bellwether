@@ -15,7 +15,10 @@ import {
   loadBaseline,
   compareBaselines,
   formatDiffText,
+  meetsConfidenceRequirements,
+  CONFIDENCE_THRESHOLDS,
 } from '../../baseline/index.js';
+import type { CompareOptions } from '../../baseline/types.js';
 import { createCloudBaseline } from '../../baseline/converter.js';
 import {
   CostTracker,
@@ -186,6 +189,9 @@ export const interviewCommand = new Command('interview')
   .option('--scenarios <path>', 'Path to custom test scenarios YAML file')
   .option('--scenarios-only', 'Only run custom scenarios (skip LLM-generated questions)')
   .option('--init-scenarios', 'Generate a sample bellwether-tests.yaml file and exit')
+  .option('--strict', 'Strict mode: only report structural (deterministic) changes for CI')
+  .option('--min-confidence <n>', 'Minimum confidence score (0-100) to report a change', '0')
+  .option('--confidence-threshold <n>', 'Confidence threshold (0-100) for CI to fail on breaking changes')
   .action(async (command: string | undefined, args: string[], options) => {
     // Handle --init-scenarios: generate sample file and exit
     if (options.initScenarios) {
@@ -541,17 +547,52 @@ export const interviewCommand = new Command('interview')
         const serverCommand = `${command} ${args.join(' ')}`;
         const previousBaseline = loadBaseline(compareBaselinePath);
         const currentBaseline = createBaseline(result, serverCommand);
-        const diff = compareBaselines(previousBaseline, currentBaseline);
+
+        // Build compare options from CLI flags (with config file fallbacks)
+        const compareOptions: CompareOptions = {
+          strict: options.strict ?? config.drift?.strict ?? false,
+          minConfidence: options.minConfidence
+            ? parseInt(options.minConfidence, 10)
+            : config.drift?.minConfidence,
+          confidenceThreshold: options.confidenceThreshold
+            ? parseInt(options.confidenceThreshold, 10)
+            : config.drift?.confidenceThreshold ?? CONFIDENCE_THRESHOLDS.ci,
+        };
+
+        const diff = compareBaselines(previousBaseline, currentBaseline, compareOptions);
 
         output.info('\n--- Behavioral Diff ---');
+        if (options.strict) {
+          output.info('(Strict mode: only structural changes reported)\n');
+        }
         output.info(formatDiffText(diff));
 
-        if (options.failOnDrift) {
+        // Show confidence summary
+        if (diff.confidence) {
+          output.info('\n--- Confidence Summary ---');
+          output.info(`Overall: ${diff.confidence.overallScore}% (min: ${diff.confidence.minScore}%, max: ${diff.confidence.maxScore}%)`);
+          output.info(`Structural changes: ${diff.confidence.structuralCount}`);
+          output.info(`Semantic changes: ${diff.confidence.semanticCount}`);
+        }
+
+        const shouldFailOnDrift = options.failOnDrift ?? config.drift?.failOnDrift ?? false;
+        if (shouldFailOnDrift) {
+          // Get the effective confidence threshold
+          const confThreshold = compareOptions.confidenceThreshold ?? CONFIDENCE_THRESHOLDS.ci;
+
           if (diff.severity === 'breaking') {
-            output.error('\nBreaking changes detected!');
-            process.exit(1);
+            // Check if breaking changes meet confidence threshold
+            if (meetsConfidenceRequirements(diff, confThreshold)) {
+              output.error(`\nBreaking changes detected (confidence >= ${confThreshold}%)!`);
+              process.exit(1);
+            } else {
+              output.warn(`\nBreaking changes detected but confidence < ${confThreshold}%`);
+              output.warn('Consider these changes may be LLM non-determinism. Use --strict for deterministic results.');
+              // Still exit with error for breaking changes, but different code
+              process.exit(1);
+            }
           } else if (diff.severity === 'warning') {
-            output.error('\nWarning-level changes detected.');
+            output.warn('\nWarning-level changes detected.');
             process.exit(1);
           }
         }

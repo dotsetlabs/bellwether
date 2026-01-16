@@ -49,6 +49,9 @@ jobs:
 | `quick` | Quick mode for PR checks | `false` |
 | `baseline-path` | Baseline for drift detection | - |
 | `fail-on-drift` | Fail if drift detected | `true` |
+| `strict` | Strict mode: only structural changes (deterministic) | `false` |
+| `min-confidence` | Minimum confidence (0-100) to report changes | `0` |
+| `confidence-threshold` | Confidence threshold (0-100) for failures | `80` |
 | `scenarios-path` | Custom test scenarios file | - |
 | `scenarios-only` | Run only custom scenarios | `false` |
 
@@ -108,6 +111,61 @@ Use the `--preset ci` for optimized CI runs:
 - **Single persona** - Technical Writer only for speed
 - **One question per tool** - Minimal API calls
 - **Proper exit codes** - Pipeline gates via `--fail-on-drift`
+
+## Deterministic Mode
+
+For CI/CD pipelines requiring **100% reproducible results**, use strict mode:
+
+```yaml
+- name: Deterministic Drift Check
+  run: |
+    npx @dotsetlabs/bellwether interview \
+      --preset ci \
+      --compare-baseline ./bellwether-baseline.json \
+      --fail-on-drift \
+      --strict \
+      npx your-server
+```
+
+### Strict Mode Benefits
+
+| Feature | Default Mode | Strict Mode |
+|:--------|:-------------|:------------|
+| Structural changes (schema, tools) | Reported (100% confidence) | Reported (100% confidence) |
+| Semantic changes (assertions) | Reported (variable confidence) | **Skipped** |
+| LLM calls for comparison | Yes | **No** |
+| Determinism | Non-deterministic | **100% deterministic** |
+| API costs | Per comparison | **Zero** |
+
+### Confidence Thresholds
+
+When not using strict mode, configure confidence thresholds:
+
+```yaml
+- name: High-Confidence Drift Check
+  run: |
+    npx @dotsetlabs/bellwether interview \
+      --compare-baseline ./bellwether-baseline.json \
+      --fail-on-drift \
+      --min-confidence 80 \
+      --confidence-threshold 90 \
+      npx your-server
+```
+
+| Option | Description |
+|:-------|:------------|
+| `--strict` | Only report structural changes (no LLM comparison) |
+| `--min-confidence <n>` | Filter out changes below this confidence (0-100) |
+| `--confidence-threshold <n>` | Only fail if breaking changes exceed this confidence (default: 80) |
+
+### Recommended Configurations
+
+| Use Case | Configuration |
+|:---------|:--------------|
+| Deployment gates | `--strict --fail-on-drift` |
+| PR review | `--min-confidence 60 --fail-on-drift` |
+| Security compliance | `--strict --fail-on-drift` |
+| Nightly exploratory | Default (no flags) |
 
 ## Exit Codes
 
@@ -336,9 +394,9 @@ The `ci` preset is optimized for fast, cheap CI runs:
 | `security` | ~$0.05 | Security-focused testing |
 | `thorough` | ~$0.10 | Comprehensive nightly tests |
 
-## Verification Badges
+## Documentation Badges
 
-Display your server's verification status in your README:
+Display your server's documentation status in your README:
 
 ### Add Badge After CI Run
 
@@ -375,7 +433,7 @@ jobs:
 ```
 
 Badge status reflects:
-- **Verified** (green): Server has been tested
+- **Documented** (green): Server has been documented
 - **Stable** (green): No behavioral drift between versions
 - **Drift detected** (yellow): Behavioral changes found
 - **Breaking changes** (red): Significant breaking changes
@@ -421,5 +479,5 @@ Increase timeout for slow servers:
 - [Output Formats](/concepts/output-formats) - Markdown and JSON output
 - [Drift Detection](/concepts/drift-detection) - Understanding drift
 - [interview](/cli/interview) - CLI options
-- [badge](/cli/badge) - Verification badges
+- [badge](/cli/badge) - Documentation badges
 - [Configuration](/guides/configuration) - Presets and options

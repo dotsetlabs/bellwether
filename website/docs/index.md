@@ -8,7 +8,23 @@ sidebar_position: 1
 
 **Automated behavioral documentation for MCP servers through LLM-guided testing.**
 
-Bellwether is a CLI tool that generates comprehensive behavioral documentation for [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers. Instead of relying on manually written docs, Bellwether **interviews** your MCP server by:
+## What is MCP?
+
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io) is an open standard created by Anthropic for connecting AI assistants to external tools. When you hear "MCP server," think "a service that gives AI agents capabilities"—like reading files, querying databases, or calling APIs.
+
+```
+Your AI Assistant (Claude, GPT, Cursor, etc.)
+        ↓
+    MCP Protocol
+        ↓
+Your MCP Server (tools, data, capabilities)
+```
+
+**Already familiar with MCP?** Skip to [Quick Start](/quickstart).
+
+---
+
+Bellwether is a CLI tool that generates comprehensive behavioral documentation for MCP servers. Instead of relying on manually written docs, Bellwether **interviews** your MCP server by:
 
 1. **Discovering** available tools, prompts, and resources
 2. **Generating** realistic test scenarios using an LLM
@@ -21,7 +37,7 @@ Bellwether is a CLI tool that generates comprehensive behavioral documentation f
 |:--------|:---------|
 | Documentation says one thing, but what does the server actually do? | **Trust but verify** - Interview the server to document real behavior |
 | Breaking changes slip into production unnoticed | **Drift detection** - Catch behavioral changes before they hit production |
-| Security vulnerabilities are hard to discover manually | **Security insights** - Persona-based adversarial testing |
+| Security vulnerabilities are hard to discover manually | **Security hygiene** - Persona-based testing catches common issues |
 | Manual testing is slow and expensive | **CI/CD integration** - Automated regression testing for MCP servers |
 
 ## Key Features
@@ -31,7 +47,7 @@ Bellwether is a CLI tool that generates comprehensive behavioral documentation f
 - **Drift Detection** - Compare baselines to detect behavioral changes between versions with semantic diff analysis
 - **Multi-Persona Testing** - Security tester, QA engineer, technical writer, and novice user personas for comprehensive coverage
 - **MCP Registry Integration** - Search and discover servers from the official MCP Registry
-- **Verification Program** - Certify your server with Bronze, Silver, Gold, or Platinum tiers
+- **Documentation Program** - Earn Bronze, Silver, Gold, or Platinum coverage badges for your server
 - **GitHub Action** - Official action for automated CI/CD integration
 - **Multiple Output Formats** - Markdown (AGENTS.md) and JSON for programmatic analysis
 
@@ -148,5 +164,5 @@ Use Ollama for completely free testing during development.
 - [Local Development](/guides/local-development) - Test your server during development
 - [CLI Reference](/cli/interview) - Full command documentation
 - [MCP Registry](/cli/registry) - Discover servers to test
-- [Verification](/cli/verify) - Certify your server
+- [Documentation Badges](/cli/verify) - Earn coverage badges for your server
 - [CI/CD Integration](/guides/ci-cd) - Automate with the GitHub Action

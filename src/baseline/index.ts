@@ -7,6 +7,10 @@ export type {
   ChangeSeverity,
   BehaviorAspect,
   ChangeSignificance,
+  ComparisonMethod,
+  ConfidenceFactor,
+  ChangeConfidence,
+  DiffConfidence,
   BehavioralAssertion,
   BehaviorChange,
   ToolDiff,
@@ -35,7 +39,31 @@ export {
   hasBreakingChanges,
   hasSecurityChanges,
   filterByMinimumSeverity,
+  meetsConfidenceRequirements,
+  getLowConfidenceChanges,
+  separateByMethod,
 } from './comparator.js';
+
+// Confidence scoring functions
+export {
+  CONFIDENCE_WEIGHTS,
+  CONFIDENCE_THRESHOLDS,
+  STRUCTURAL_ASPECTS,
+  SEMANTIC_ASPECTS,
+  createStructuralConfidence,
+  calculateSemanticConfidence,
+  calculateKeywordOverlap,
+  calculateLengthSimilarity,
+  calculateSemanticIndicators,
+  getComparisonMethod,
+  isStructuralAspect,
+  aggregateToolConfidence,
+  aggregateDiffConfidence,
+  getConfidenceLabel,
+  formatConfidenceScore,
+  filterByConfidence,
+  meetsConfidenceThreshold,
+} from './confidence.js';
 
 // Diff formatting functions
 export {
@@ -63,6 +91,11 @@ export {
   limitationsMatch,
   assertionsMatch,
   compareArraysSemantic,
+  securityFindingsMatchWithConfidence,
+  limitationsMatchWithConfidence,
+  assertionsMatchWithConfidence,
+  compareArraysSemanticWithConfidence,
+  calculateComparisonConfidence,
   SECURITY_CATEGORIES,
   LIMITATION_CATEGORIES,
   type SecurityCategory,
@@ -70,4 +103,5 @@ export {
   type StructuredSecurityFinding,
   type StructuredLimitation,
   type NormalizedAssertion,
+  type SemanticComparisonResult,
 } from './semantic.js';
