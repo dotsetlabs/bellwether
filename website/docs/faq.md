@@ -67,7 +67,7 @@ Three things make Bellwether sustainable:
 
 1. **MIT License**: The CLI is fully open source. If the project is ever abandoned, the code is yours to fork and maintain.
 
-2. **Simple Business Model**: Free CLI for adoption, $29/mo team plan for ongoing cloud costs. No VC pressure, no growth-at-all-costs.
+2. **Simple Business Model**: Free CLI for adoption, paid plans ($12/mo Solo, $29/mo Team) for ongoing cloud costs. No VC pressure, no growth-at-all-costs.
 
 3. **Community Building**: Contributions welcome. The goal is community-maintained infrastructure, not a one-person dependency.
 

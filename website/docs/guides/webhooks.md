@@ -309,7 +309,8 @@ curl "https://api.bellwether.sh/webhooks/wh_xyz789/secret" \
 
 | Tier | Webhooks per Project |
 |:-----|:--------------------|
-| Free | 3 |
+| Free | None |
+| Solo | Unlimited |
 | Team | Unlimited |
 
 ## Best Practices

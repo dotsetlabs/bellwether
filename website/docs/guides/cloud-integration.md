@@ -187,8 +187,9 @@ Send events to external services:
 
 | Tier | Price | Features |
 |:-----|:------|:---------|
-| Free | $0 | 3 projects, 100 uploads/month, 30-day history, 3 webhooks per project |
-| Team | $29/mo | Unlimited projects, unlimited uploads, 1-year history, Slack & Discord notifications, GitHub App integration, unlimited webhooks, 5 team seats included (+$5/seat/month for additional) |
+| Free | $0 | 1 project, 30 uploads/month, 14-day history |
+| Solo | $12/mo | 5 projects, unlimited uploads, 90-day history, unlimited webhooks, GitHub OR GitLab integration, API access |
+| Team | $29/mo | Unlimited projects, unlimited uploads, 365-day history, unlimited webhooks, GitHub & GitLab, Slack & Discord notifications, 3 team seats included (+$5/seat/month for additional) |
 
 Visit [bellwether.sh/pricing](https://bellwether.sh/pricing) for details.
 
@@ -196,8 +197,9 @@ Visit [bellwether.sh/pricing](https://bellwether.sh/pricing) for details.
 
 | Tier | Baseline History |
 |:-----|:-----------------|
-| Free | 30 days |
-| Team | 1 year |
+| Free | 14 days |
+| Solo | 90 days |
+| Team | 365 days |
 
 ## Security
 

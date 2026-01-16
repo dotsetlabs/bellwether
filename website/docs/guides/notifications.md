@@ -177,13 +177,13 @@ To reduce notification volume:
 
 ## Availability
 
-| Feature | Free Plan | Team Plan |
-|:--------|:----------|:----------|
-| Slack notifications | - | Yes |
-| Discord notifications | - | Yes |
-| Channels per project | - | Unlimited |
+| Feature | Free Plan | Solo Plan | Team Plan |
+|:--------|:----------|:----------|:----------|
+| Slack notifications | - | - | Yes |
+| Discord notifications | - | - | Yes |
+| Channels per project | - | - | Unlimited |
 
-Notifications are available on the Team plan.
+Slack and Discord notifications are available on the Team plan. Solo plan users can use [webhooks](/guides/webhooks) to receive notifications via custom integrations.
 
 ---
 

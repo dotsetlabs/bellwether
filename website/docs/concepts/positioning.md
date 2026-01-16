@@ -87,7 +87,7 @@ Bellwether is built by [Dotset Labs](https://dotsetlabs.com), a bootstrapped sof
 
 1. **MIT Licensed CLI**: The core tool is fully open source. If the project is ever abandoned, the code is yours to fork and maintain.
 
-2. **Simple Business Model**: Free CLI for adoption, $29/mo team plan for cloud costs. No VC pressure, no growth-at-all-costs.
+2. **Simple Business Model**: Free CLI for adoption, paid plans ($12/mo Solo, $29/mo Team) for cloud costs. No VC pressure, no growth-at-all-costs.
 
 3. **Community Building**: Contributions welcome. The goal is community-maintained infrastructure, not a one-person dependency.
 
