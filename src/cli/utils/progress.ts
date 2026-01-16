@@ -4,6 +4,7 @@
 
 import cliProgress from 'cli-progress';
 import type { InterviewProgress } from '../../interview/interviewer.js';
+import { suppressLogs, restoreLogLevel } from '../../logging/logger.js';
 
 export interface ProgressBarOptions {
   /** Whether to show the progress bar (false for verbose mode) */
@@ -21,7 +22,9 @@ export class InterviewProgressBar {
   private started = false;
 
   constructor(options: ProgressBarOptions = {}) {
-    this.enabled = options.enabled ?? true;
+    const stream = options.stream ?? process.stderr;
+    // Only enable progress bar if running in a TTY terminal
+    this.enabled = (options.enabled ?? true) && (stream.isTTY ?? false);
 
     if (this.enabled) {
       this.bar = new cliProgress.SingleBar(
@@ -32,7 +35,13 @@ export class InterviewProgressBar {
           barIncompleteChar: '\u2591',
           hideCursor: true,
           clearOnComplete: true,
-          stream: options.stream ?? process.stdout,
+          stream,
+          // Force redraw on every update to prevent stale display
+          forceRedraw: true,
+          // Disable line wrapping to prevent display issues
+          linewrap: false,
+          // Synchronous updates prevent race conditions with terminal output
+          synchronousUpdate: true,
         },
         cliProgress.Presets.shades_classic
       );
@@ -44,6 +53,9 @@ export class InterviewProgressBar {
    */
   start(totalTools: number, totalPersonas: number): void {
     if (!this.enabled || !this.bar) return;
+
+    // Suppress logging while progress bar is active to prevent interference
+    suppressLogs();
 
     const total = totalTools * totalPersonas;
     this.bar.start(total, 0, {
@@ -82,6 +94,9 @@ export class InterviewProgressBar {
 
     this.bar.stop();
     this.started = false;
+
+    // Restore logging after progress bar is done
+    restoreLogLevel();
   }
 }
 

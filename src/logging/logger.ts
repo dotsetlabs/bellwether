@@ -102,6 +102,32 @@ export function resetLogger(): void {
 }
 
 /**
+ * Saved log level for restoration after temporary suppression.
+ */
+let savedLogLevel: LogLevel | null = null;
+
+/**
+ * Temporarily suppress all logging (set level to 'silent').
+ * Call restoreLogLevel() to restore the previous level.
+ */
+export function suppressLogs(): void {
+  if (globalLogger && savedLogLevel === null) {
+    savedLogLevel = globalLogger.level as LogLevel;
+    globalLogger.level = 'silent';
+  }
+}
+
+/**
+ * Restore the log level after suppression.
+ */
+export function restoreLogLevel(): void {
+  if (globalLogger && savedLogLevel !== null) {
+    globalLogger.level = savedLogLevel;
+    savedLogLevel = null;
+  }
+}
+
+/**
  * Create a child logger with additional context.
  */
 export function childLogger(parent: PinoLogger, context: Record<string, unknown>): PinoLogger {

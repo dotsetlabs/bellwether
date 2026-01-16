@@ -11,7 +11,11 @@
 
 import { homedir } from 'os';
 import { join } from 'path';
+import { createRequire } from 'module';
 import type { LLMProviderId } from '../llm/client.js';
+
+// Create require function for loading CommonJS optional dependencies in ESM
+const require = createRequire(import.meta.url);
 
 // Service name for keychain entries
 const SERVICE_NAME = 'bellwether';

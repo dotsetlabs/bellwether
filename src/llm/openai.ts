@@ -26,6 +26,32 @@ export interface OpenAIClientOptions {
 /**
  * OpenAI LLM client implementation.
  */
+/**
+ * Models that require special parameter handling.
+ * This includes reasoning models (o1, o3) and newer GPT models (gpt-5+).
+ * These models:
+ * - Require max_completion_tokens instead of max_tokens
+ * - Don't support custom temperature (only default of 1)
+ */
+const MODELS_WITH_RESTRICTED_PARAMS = [
+  'o1',
+  'o1-mini',
+  'o1-preview',
+  'o3',
+  'o3-mini',
+  'gpt-5',
+];
+
+/**
+ * Check if a model has restricted parameters (newer reasoning/GPT-5 models).
+ */
+function hasRestrictedParams(model: string): boolean {
+  const modelLower = model.toLowerCase();
+  return MODELS_WITH_RESTRICTED_PARAMS.some(prefix =>
+    modelLower.startsWith(prefix)
+  );
+}
+
 export class OpenAIClient implements LLMClient {
   private client: OpenAI;
   private defaultModel: string;
@@ -68,14 +94,26 @@ export class OpenAIClient implements LLMClient {
           : messages;
 
         try {
+          // Build request parameters - newer models have restricted params
+          const maxTokensValue = options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS;
+          const restrictedParams = hasRestrictedParams(model);
+
           const response = await this.client.chat.completions.create({
             model,
             messages: allMessages.map(m => ({
               role: m.role,
               content: m.content,
             })),
-            max_tokens: options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS,
-            temperature: options?.temperature ?? LLM_DEFAULTS.TEMPERATURE,
+            // Use max_completion_tokens for newer models (o1, o3, gpt-5+)
+            // Use max_tokens for older models (gpt-4, gpt-3.5, etc.)
+            ...(restrictedParams
+              ? { max_completion_tokens: maxTokensValue }
+              : { max_tokens: maxTokensValue }),
+            // Newer models (o1, o3, gpt-5+) don't support custom temperature
+            // Only include temperature for models that support it
+            ...(restrictedParams
+              ? {}
+              : { temperature: options?.temperature ?? LLM_DEFAULTS.TEMPERATURE }),
             response_format: options?.responseFormat === 'json'
               ? { type: 'json_object' }
               : undefined,
