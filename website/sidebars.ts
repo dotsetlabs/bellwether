@@ -53,6 +53,7 @@ const sidebars: SidebarsConfig = {
         'concepts/baselines',
         'concepts/drift-detection',
         'concepts/output-formats',
+        'concepts/positioning',
       ],
     },
     {

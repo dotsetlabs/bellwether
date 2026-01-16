@@ -13,7 +13,9 @@ Bellwether is a CLI tool that generates behavioral documentation for MCP (Model 
 
 ### What is MCP?
 
-[Model Context Protocol](https://modelcontextprotocol.io/) is a standard for AI agents to interact with external tools and data sources. MCP servers expose tools that AI assistants can call.
+[Model Context Protocol](https://modelcontextprotocol.io/) is an open standard created by Anthropic for connecting AI assistants (Claude, GPT, Cursor) to external tools and data sources.
+
+When you build an MCP server, you're creating capabilities that AI agents can call—reading files, querying databases, calling APIs, or running custom business logic. MCP is supported by Claude Desktop, Zed, Cursor, Cline, and other AI-powered tools.
 
 ### Is Bellwether free?
 
@@ -38,6 +40,36 @@ Typical costs per interview:
 | Ollama | Free |
 
 Quick mode (`--quick`) costs ~$0.01.
+
+### Why not just write unit tests?
+
+Unit tests verify YOUR expectations. Bellwether discovers UNEXPECTED behaviors.
+
+Think of the difference:
+- **Unit test**: "Does `get_weather('NYC')` return weather data?"
+- **Bellwether**: "What happens when someone calls `get_weather` with a SQL injection string?"
+
+They're complementary. Unit tests catch regressions in known behavior. Bellwether surfaces behaviors you haven't thought to test yet. Use both for complete coverage.
+
+### How reliable is drift detection if it uses LLMs?
+
+Drift detection has two modes:
+
+1. **Structural comparison** (deterministic): Schema changes, parameter changes, tool additions/removals. No LLM involved—100% reliable.
+
+2. **Semantic comparison** (LLM-assisted): Behavioral changes in responses. This flags *potential* changes for human review; it doesn't auto-fail pipelines unless you configure it to.
+
+For maximum determinism, use `--scenarios-only` with your own YAML test files. This mode runs your predefined tests without any LLM involvement.
+
+### Is this project sustainable as a solo developer effort?
+
+Three things make Bellwether sustainable:
+
+1. **MIT License**: The CLI is fully open source. If the project is ever abandoned, the code is yours to fork and maintain.
+
+2. **Simple Business Model**: Free CLI for adoption, $29/mo team plan for ongoing cloud costs. No VC pressure, no growth-at-all-costs.
+
+3. **Community Building**: Contributions welcome. The goal is community-maintained infrastructure, not a one-person dependency.
 
 ## Installation
 
@@ -179,6 +211,17 @@ API keys are:
 ### Can Bellwether damage my server?
 
 Bellwether only calls tools that exist on your server. It generates test scenarios but doesn't execute arbitrary code. Use appropriate test environments.
+
+### Are "Documented by Bellwether" badges security certifications?
+
+No. Documentation badges indicate testing coverage levels, not security certifications.
+
+- **Bronze-Gold**: Documentation and testing coverage tiers
+- **Platinum**: Comprehensive documentation with all testing personas
+
+Badges show that a server has been systematically documented and tested with Bellwether. While security hygiene checks are included, this is a first line of defense, not a replacement for professional security audits.
+
+For production systems handling sensitive data, you should still conduct professional security reviews.
 
 ## Troubleshooting
 

@@ -39,7 +39,7 @@ The interview process includes:
 |:-------|:------------|:--------|
 | `-o, --output <dir>` | Output directory for generated files | `.` |
 | `--json` | Also output JSON report | `false` |
-| `--cloud-format` | Save baseline in cloud-ready format | `false` |
+| `--cloud-format` | Save baseline in cloud-ready format (see [Cloud Format](#cloud-baseline-format)) | `false` |
 
 ### LLM Options
 
@@ -58,7 +58,7 @@ The LLM provider is auto-detected based on which API key environment variable is
 | `-p, --preset <preset>` | Use a preset configuration (see below) | - |
 | `--max-questions <n>` | Maximum questions per tool | `3` |
 | `--timeout <ms>` | Tool call timeout in milliseconds | `60000` |
-| `--personas <list>` | Comma-separated persona list: `technical`, `security`, `qa`, `novice`, `all` | `technical` |
+| `--personas <list>` | Comma-separated persona list (see [Persona Names](#persona-names)) | `technical` |
 | `--security` | Include security testing persona (shorthand for `--personas technical,security`) | `false` |
 | `-c, --config <path>` | Config file path | `bellwether.yaml` |
 | `-i, --interactive` | Run in interactive mode with prompts | `false` |
@@ -83,6 +83,9 @@ Preset options can be overridden with explicit flags.
 | `--save-baseline [path]` | Save baseline for drift detection | - |
 | `--compare-baseline <path>` | Compare against existing baseline | - |
 | `--fail-on-drift` | Exit with error if drift detected | `false` |
+| `--strict` | Strict mode: only report structural (deterministic) changes | `false` |
+| `--min-confidence <n>` | Minimum confidence score (0-100) to report a change | `0` |
+| `--confidence-threshold <n>` | Confidence threshold (0-100) for CI to fail on breaking changes | `80` |
 
 ### Cost Options
 
@@ -182,6 +185,30 @@ bellwether interview \
   npx your-server
 ```
 
+### Drift Detection with Confidence
+
+```bash
+# Use strict mode for 100% deterministic results (CI/CD recommended)
+bellwether interview \
+  --compare-baseline ./baseline.json \
+  --strict \
+  --fail-on-drift \
+  npx your-server
+
+# Only report changes with high confidence (>80%)
+bellwether interview \
+  --compare-baseline ./baseline.json \
+  --min-confidence 80 \
+  npx your-server
+
+# Custom confidence threshold for breaking change failures
+bellwether interview \
+  --compare-baseline ./baseline.json \
+  --fail-on-drift \
+  --confidence-threshold 90 \
+  npx your-server
+```
+
 ### Security Testing
 
 ```bash
@@ -267,6 +294,63 @@ The generated documentation includes:
 - **Resource Profiles**: For each resource (if any) - URI, MIME type, content preview, access patterns
 - **Security Findings**: Any security concerns discovered during testing
 - **Custom Scenario Results**: Pass/fail status for user-defined test scenarios (if provided)
+
+## Persona Names
+
+Personas can be specified using either short names (CLI) or full names (config files):
+
+| Short Name | Full Name | Description |
+|:-----------|:----------|:------------|
+| `technical` | `technical_writer` | Documentation-focused testing |
+| `security` | `security_tester` | Security vulnerability testing |
+| `qa` | `qa_engineer` | Quality assurance testing |
+| `novice` | `novice_user` | New user experience testing |
+| `all` | - | All four personas |
+
+**CLI usage** (short names):
+```bash
+bellwether interview --personas technical,security npx server
+```
+
+**Config file** (full names):
+```yaml
+interview:
+  personas:
+    - technical_writer
+    - security_tester
+```
+
+Both formats are interchangeable - use whichever is more convenient.
+
+## Cloud Baseline Format
+
+The `--cloud-format` flag saves the baseline in a format optimized for Bellwether Cloud upload. This format includes additional metadata and structure that enables:
+
+- **Richer visualization** in the cloud dashboard
+- **Assertion categorization** (expects, requires, warns, notes)
+- **Severity classification** for security findings
+- **Persona-based interview organization**
+
+### Format Differences
+
+| Feature | Local Format | Cloud Format |
+|:--------|:-------------|:-------------|
+| Assertions | Raw behavioral assertions | Categorized (expects/requires/warns/notes) |
+| Security | Findings in tool profiles | Severity-classified (critical/high/medium/low) |
+| Structure | Flat tool list | Organized by persona interviews |
+| Metadata | Basic | Extended (CLI version, model, duration) |
+
+### When to Use
+
+- **Local development**: Use default format (simpler, smaller)
+- **Cloud upload**: Use `--cloud-format` for full dashboard features
+- **CI/CD**: Cloud format if uploading to Bellwether Cloud
+
+```bash
+# For cloud upload
+bellwether interview --save-baseline --cloud-format npx server
+bellwether upload
+```
 
 ## Environment Variables
 

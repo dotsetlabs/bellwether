@@ -78,6 +78,23 @@ output:
 
   # Output directory
   outputDir: .
+
+# Drift Detection Settings
+drift:
+  # Strict mode: only report structural (deterministic) changes
+  # Use this in CI for 100% reproducible results
+  strict: false
+
+  # Minimum confidence score (0-100) to report a change
+  # Changes below this threshold are filtered out
+  minConfidence: 0
+
+  # Confidence threshold (0-100) for CI to fail on breaking changes
+  # Breaking changes with confidence below this may be LLM noise
+  confidenceThreshold: 80
+
+  # Fail on drift in CI mode
+  failOnDrift: false
 ```
 
 ## Provider-Specific Configuration
@@ -185,6 +202,64 @@ interview:
     - technical_writer
 ```
 
+## Drift Detection Configuration
+
+Configure how drift detection behaves when comparing baselines:
+
+```yaml
+drift:
+  strict: false           # Only structural changes (deterministic)
+  minConfidence: 0        # Minimum confidence to report (0-100)
+  confidenceThreshold: 80 # Threshold for CI failures (0-100)
+  failOnDrift: false      # Exit with error on drift
+```
+
+### Confidence Scoring
+
+Every detected change includes a confidence score indicating how certain Bellwether is about the change:
+
+| Change Type | Confidence | Method |
+|:------------|:-----------|:-------|
+| Tool added/removed | 100% | Structural |
+| Schema changed | 100% | Structural |
+| Assertion changed | 60-95% | Semantic (LLM) |
+| Security finding | 70-95% | Semantic (LLM) |
+
+### Strict Mode
+
+For CI/CD pipelines requiring **100% deterministic results**, enable strict mode:
+
+```yaml
+drift:
+  strict: true
+  failOnDrift: true
+```
+
+In strict mode:
+- Only structural changes (tool presence, schema) are reported
+- Semantic comparisons (LLM-based) are completely skipped
+- Results are 100% reproducible across runs
+- Zero additional API costs for comparison
+
+### Confidence Thresholds
+
+When not using strict mode, filter out low-confidence changes:
+
+```yaml
+drift:
+  minConfidence: 60       # Don't report changes below 60% confidence
+  confidenceThreshold: 80 # Only fail CI on high-confidence breaking changes
+```
+
+### Recommended Configurations
+
+| Environment | Configuration |
+|:------------|:--------------|
+| CI deployment gates | `strict: true, failOnDrift: true` |
+| PR review | `minConfidence: 60, failOnDrift: true` |
+| Nightly tests | Default settings |
+| Security compliance | `strict: true, failOnDrift: true` |
+
 ## Environment Variables
 
 Override configuration with environment variables:
@@ -267,4 +342,6 @@ Creates a documented `bellwether.yaml` with sensible defaults.
 
 - [Profiles](/cli/profile) - Save and switch configurations
 - [Custom Personas](/guides/custom-personas) - Create personas
+- [Drift Detection](/concepts/drift-detection) - Understanding confidence scores
+- [CI/CD Integration](/guides/ci-cd) - Pipeline configurations
 - [init](/cli/init) - Generate configuration

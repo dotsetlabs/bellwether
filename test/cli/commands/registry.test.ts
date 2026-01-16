@@ -18,12 +18,18 @@ vi.mock('chalk', () => ({
   },
 }));
 
-// Mock the registry module
+// Shared mock instance for test access
+const mockClientInstance = {
+  searchServers: vi.fn(),
+  listServers: vi.fn(),
+};
+
+// Mock the registry module - class that uses shared instance methods
 vi.mock('../../../src/registry/index.js', () => ({
-  RegistryClient: vi.fn().mockImplementation(() => ({
-    searchServers: vi.fn(),
-    listServers: vi.fn(),
-  })),
+  RegistryClient: class MockRegistryClient {
+    searchServers = mockClientInstance.searchServers;
+    listServers = mockClientInstance.listServers;
+  },
   generateRunCommand: vi.fn(),
 }));
 
@@ -32,20 +38,16 @@ import { RegistryClient, generateRunCommand } from '../../../src/registry/index.
 describe('Registry Command', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
-  let mockClient: {
-    searchServers: ReturnType<typeof vi.fn>;
-    listServers: ReturnType<typeof vi.fn>;
-  };
+  let mockClient: typeof mockClientInstance;
 
   beforeEach(() => {
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    mockClient = {
-      searchServers: vi.fn(),
-      listServers: vi.fn(),
-    };
-    vi.mocked(RegistryClient).mockImplementation(() => mockClient as unknown as InstanceType<typeof RegistryClient>);
+    // Reset mock functions
+    mockClientInstance.searchServers.mockReset();
+    mockClientInstance.listServers.mockReset();
+    mockClient = mockClientInstance;
     vi.mocked(generateRunCommand).mockReturnValue('npx test-server');
   });
 

@@ -32,6 +32,15 @@ inputs:
   fail-on-drift:
     description: 'Fail the action if behavioral drift is detected'
     default: 'true'
+  strict:
+    description: 'Strict mode: only report structural (deterministic) changes for CI'
+    default: 'false'
+  min-confidence:
+    description: 'Minimum confidence score (0-100) to report a change'
+    default: '0'
+  confidence-threshold:
+    description: 'Confidence threshold (0-100) for CI to fail on breaking changes'
+    default: '80'
   security:
     description: 'Include security testing persona'
     default: 'false'
@@ -165,6 +174,20 @@ runs:
         # Add fail-on-drift flag
         if [ "${{ inputs.fail-on-drift }}" = "true" ]; then
           CMD="$CMD --fail-on-drift"
+        fi
+
+        # Strict mode for deterministic results
+        if [ "${{ inputs.strict }}" = "true" ]; then
+          CMD="$CMD --strict"
+        fi
+
+        # Confidence threshold options
+        if [ "${{ inputs.min-confidence }}" != "0" ]; then
+          CMD="$CMD --min-confidence ${{ inputs.min-confidence }}"
+        fi
+
+        if [ "${{ inputs.confidence-threshold }}" != "80" ]; then
+          CMD="$CMD --confidence-threshold ${{ inputs.confidence-threshold }}"
         fi
 
         # Custom scenarios support

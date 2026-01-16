@@ -58,11 +58,12 @@ describe('watch command', () => {
     vi.resetModules();
 
     // Mock external dependencies using vi.doMock after resetModules
+    // vitest 4.x requires class mocks to use a class or function constructor
     vi.doMock('../../src/transport/mcp-client.js', () => ({
-      MCPClient: vi.fn().mockImplementation(() => ({
-        connect: vi.fn().mockResolvedValue(undefined),
-        disconnect: vi.fn().mockResolvedValue(undefined),
-      })),
+      MCPClient: class MockMCPClient {
+        connect = vi.fn().mockResolvedValue(undefined);
+        disconnect = vi.fn().mockResolvedValue(undefined);
+      },
     }));
 
     vi.doMock('../../src/discovery/discovery.js', () => ({
@@ -79,13 +80,13 @@ describe('watch command', () => {
     }));
 
     vi.doMock('../../src/interview/interviewer.js', () => ({
-      Interviewer: vi.fn().mockImplementation(() => ({
-        interview: vi.fn().mockResolvedValue({
+      Interviewer: class MockInterviewer {
+        interview = vi.fn().mockResolvedValue({
           serverInfo: { name: 'test', version: '1.0.0' },
           tools: [],
           toolProfiles: [],
-        }),
-      })),
+        });
+      },
     }));
 
     vi.doMock('../../src/config/loader.js', () => ({

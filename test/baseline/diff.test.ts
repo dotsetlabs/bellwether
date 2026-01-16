@@ -340,7 +340,7 @@ describe('Diff Formatting', () => {
       const output = formatDiffMarkdown(diff);
 
       expect(output).toContain('### Tool Changes');
-      expect(output).toContain('| Tool | Status | Details |');
+      expect(output).toContain('| Tool | Status | Confidence | Details |');
       expect(output).toContain('removed');
       expect(output).toContain('added');
       expect(output).toContain('modified');
@@ -366,7 +366,7 @@ describe('Diff Formatting', () => {
       const output = formatDiffMarkdown(diff);
 
       expect(output).toContain('### Behavioral Changes');
-      expect(output).toContain('| Tool | Aspect | Significance | Description |');
+      expect(output).toContain('| Tool | Aspect | Significance | Confidence | Description |');
       expect(output).toContain('test_tool');
       expect(output).toContain('security');
     });

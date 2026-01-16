@@ -57,4 +57,45 @@ export const URLS = {
   DOCS_BASE: 'https://github.com/dotsetlabs/bellwether',
   /** Placeholder host for URL generation */
   PLACEHOLDER_HOST: 'https://example.com',
+  /** MCP Registry base URL */
+  MCP_REGISTRY: 'https://registry.modelcontextprotocol.io',
 } as const;
+
+// ==================== Registry ====================
+
+/**
+ * MCP Registry configuration.
+ */
+export const REGISTRY = {
+  /** Default request timeout (10 seconds) */
+  TIMEOUT: 10000,
+  /** API version */
+  API_VERSION: 'v0',
+} as const;
+
+// ==================== HTTP Status Codes ====================
+
+/**
+ * Common HTTP status codes for error handling.
+ */
+export const HTTP_STATUS = {
+  OK: 200,
+  CREATED: 201,
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  RATE_LIMITED: 429,
+  SERVER_ERROR: 500,
+  BAD_GATEWAY: 502,
+  SERVICE_UNAVAILABLE: 503,
+} as const;
+
+/**
+ * HTTP status codes that indicate retryable server errors.
+ */
+export const RETRYABLE_STATUS_CODES = [
+  HTTP_STATUS.SERVER_ERROR,
+  HTTP_STATUS.BAD_GATEWAY,
+  HTTP_STATUS.SERVICE_UNAVAILABLE,
+] as const;

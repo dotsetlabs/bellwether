@@ -34,6 +34,55 @@ Drift occurs when your MCP server's behavior differs from its documented baselin
             - Error message changed (info)
 ```
 
+## Determinism and Reliability
+
+Bellwether's drift detection operates in two distinct modes with different reliability characteristics:
+
+### Structural Comparison (Deterministic)
+
+Schema-level changes are detected **deterministically without any LLM involvement**:
+
+- Tool added/removed
+- Parameter added/removed/renamed
+- Type changes
+- Required status changes
+
+These detections are 100% reliable and consistent across runs.
+
+### Semantic Comparison (LLM-Assisted)
+
+Behavioral changes in responses use LLM analysis:
+
+- Return value format changes
+- Error message wording changes
+- Side effect differences
+
+**Important**: Semantic comparison flags *potential* changes for human review. Because LLMs are non-deterministic, the same comparison might produce slightly different results across runs.
+
+### Achieving 100% Determinism
+
+For CI/CD pipelines requiring deterministic results:
+
+```bash
+# Use scenarios-only mode with your own YAML test definitions
+bellwether interview --scenarios-only --compare-baseline ./baseline.json npx your-server
+```
+
+This mode:
+- Runs only your predefined test scenarios
+- No LLM calls = no non-determinism
+- Consistent pass/fail results every time
+- Zero API costs
+
+### Recommendations by Use Case
+
+| Use Case | Recommended Mode | Why |
+|:---------|:-----------------|:----|
+| CI/CD deployment gates | `--scenarios-only` | Deterministic, no false positives |
+| PR review checks | Default (LLM-assisted) | Catches unexpected behaviors |
+| Initial documentation | Default (LLM-assisted) | Discovers behaviors you didn't think to test |
+| Compliance environments | `--scenarios-only` | Auditable, reproducible results |
+
 ## Drift Severity Levels
 
 | Level | Description | Examples | CI Behavior |
@@ -69,7 +118,7 @@ bellwether interview \
 
 ### Strict Mode
 
-Fail on any change, including documentation:
+**Strict mode** (`--strict`) provides 100% deterministic drift detection by only reporting structural changes:
 
 ```bash
 bellwether interview \
@@ -77,6 +126,88 @@ bellwether interview \
   --fail-on-drift \
   --strict \
   npx your-server
+```
+
+In strict mode:
+- Only structural changes are reported (tool presence, schema changes)
+- Semantic comparisons (LLM-based) are skipped entirely
+- Results are 100% reproducible across runs
+- All reported changes have 100% confidence
+
+Use strict mode for:
+- CI/CD deployment gates requiring determinism
+- Compliance environments with audit requirements
+- Detecting breaking API changes only
+
+## Confidence Scores
+
+Every detected change includes a confidence score (0-100%) indicating how certain we are about the change:
+
+### Confidence Levels
+
+| Confidence | Label | Meaning |
+|:-----------|:------|:--------|
+| 85-100% | High | Very confident this is a real change |
+| 60-84% | Medium | Likely a real change, worth investigating |
+| 40-59% | Low | May be LLM non-determinism |
+| 0-39% | Very Low | Likely false positive from LLM variance |
+
+### Structural vs Semantic Confidence
+
+| Change Type | Method | Confidence | Examples |
+|:------------|:-------|:-----------|:---------|
+| Tool added/removed | Structural | 100% | Tool list differs |
+| Schema changed | Structural | 100% | Hash differs |
+| Description changed | Structural | 100% | Text differs exactly |
+| Assertion changed | Semantic | 60-95% | LLM-generated text comparison |
+| Security finding | Semantic | 70-95% | Category-based matching |
+| Limitation changed | Semantic | 65-90% | Category + keyword matching |
+
+### Using Confidence Thresholds
+
+There are two threshold options with different purposes:
+
+| Option | Purpose | Default |
+|:-------|:--------|:--------|
+| `--min-confidence <n>` | **Filter**: Only report changes above this confidence | `0` |
+| `--confidence-threshold <n>` | **CI gate**: Only fail on breaking changes above this confidence | `80` |
+
+**Filter example** - hide low-confidence changes from output:
+
+```bash
+# Only report changes with >80% confidence
+bellwether interview \
+  --compare-baseline ./baseline.json \
+  --min-confidence 80 \
+  npx your-server
+```
+
+**CI gate example** - only fail when confident about breaking changes:
+
+```bash
+# Only fail CI if breaking changes have 90%+ confidence
+bellwether interview \
+  --compare-baseline ./baseline.json \
+  --fail-on-drift \
+  --confidence-threshold 90 \
+  npx your-server
+```
+
+### Confidence in Output
+
+```
+Drift Detection Results
+=======================
+Overall Confidence: 92% (high)
+Structural changes: 3 (avg 100%)
+Semantic changes: 2 (avg 78%)
+
+BREAKING (1):
+  - Tool "legacy_read" was removed [100% structural]
+
+WARNING (2):
+  - read_file: Maximum file size changed [85% semantic]
+  - write_file: Error message format changed [72% semantic]
 ```
 
 ## Understanding Drift Output
@@ -196,4 +327,5 @@ Cloud provides:
 
 - [Baselines](/concepts/baselines) - Creating and managing baselines
 - [CI/CD Integration](/guides/ci-cd) - Automated drift checking
+- [Configuration](/guides/configuration) - Config file drift options
 - [interview](/cli/interview) - Running drift detection

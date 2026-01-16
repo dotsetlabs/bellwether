@@ -6,6 +6,17 @@
 
 > Automated behavioral documentation and testing for MCP servers
 
+<details>
+<summary><strong>New to MCP?</strong> Click to learn what Model Context Protocol is.</summary>
+
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io) is an open standard for connecting AI assistants (Claude, GPT, Cursor) to external tools and data sources.
+
+If you're building capabilities for AI agents—file access, database queries, API integrations—you're likely building an MCP server.
+
+Bellwether interviews your MCP server to document what it *actually does*, catching behaviors that manual testing and static documentation miss.
+
+</details>
+
 Bellwether is a CLI tool that generates comprehensive behavioral documentation for [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers. Instead of relying on manually written docs, Bellwether **interviews** your MCP server by:
 
 1. **Discovering** available tools, prompts, and resources
@@ -45,8 +56,19 @@ bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 |:--------|:---------|
 | Documentation says one thing, but what does the server actually do? | **Trust but verify** - Interview the server to document real behavior |
 | Breaking changes slip into production unnoticed | **Drift detection** - Catch behavioral changes before they hit production |
-| Security vulnerabilities are hard to discover manually | **Security testing** - Persona-based adversarial testing |
+| Security vulnerabilities are hard to discover manually | **Security hygiene checks** - Persona-based testing for common issues |
 | Manual testing is slow and expensive | **CI/CD integration** - Automated regression testing |
+
+### Bellwether vs. Traditional Testing
+
+| Approach | What it catches | What it misses |
+|:---------|:----------------|:---------------|
+| **Unit tests** | Regressions in expected behavior | Behaviors you didn't think to test |
+| **Integration tests** | System-level failures | Edge cases in tool interactions |
+| **Manual testing** | Issues you look for | Issues you don't know to look for |
+| **Bellwether** | Unexpected behaviors across 4 personas | (Use with above for complete coverage) |
+
+Bellwether complements your existing tests—it doesn't replace them.
 
 ## Features
 
@@ -167,19 +189,24 @@ bellwether interview --scenarios ./bellwether-tests.yaml npx @mcp/server
 bellwether interview --scenarios-only npx @mcp/server  # No LLM needed, uses bellwether-tests.yaml
 ```
 
-## Verified by Bellwether
+## Documented by Bellwether
 
-Get your MCP server certified:
+Get your MCP server documented and earn coverage badges:
 
 ```bash
 bellwether verify --tier gold npx @mcp/your-server
 ```
 
-Tiers based on test coverage:
-- 🥉 **Bronze** - Basic documentation
-- 🥈 **Silver** - Error handling tested
-- 🥇 **Gold** - Multiple personas + good coverage
-- 💎 **Platinum** - Security testing + comprehensive coverage
+### Verification Tiers
+
+| Tier | Requirements | What it signals |
+|:-----|:-------------|:----------------|
+| 🥉 Bronze | Basic documentation (happy path) | "This server has been tested" |
+| 🥈 Silver | + Error handling coverage | "This server handles errors gracefully" |
+| 🥇 Gold | + All personas, good coverage | "This server is thoroughly documented" |
+| 💎 Platinum | + Comprehensive testing, all personas | "This server has thorough documentation" |
+
+**Note:** Documentation badges indicate testing coverage, not security certification. Badges show that a server has been systematically documented with Bellwether—a first line of defense, not a replacement for professional security audits.
 
 ## Development
 

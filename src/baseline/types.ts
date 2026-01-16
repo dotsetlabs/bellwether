@@ -26,6 +26,39 @@ export type BehaviorAspect =
 export type ChangeSignificance = 'low' | 'medium' | 'high';
 
 /**
+ * Method used to detect a change.
+ * - structural: Deterministic comparison (schema, tool presence, etc.)
+ * - semantic: LLM-based comparison (behavioral assertions, security notes, etc.)
+ */
+export type ComparisonMethod = 'structural' | 'semantic';
+
+/**
+ * A factor contributing to confidence score calculation.
+ */
+export interface ConfidenceFactor {
+  /** Name of the factor */
+  name: string;
+  /** Weight of this factor (0-1) */
+  weight: number;
+  /** Calculated value for this factor (0-100) */
+  value: number;
+  /** Human-readable description */
+  description: string;
+}
+
+/**
+ * Confidence information for a detected change.
+ */
+export interface ChangeConfidence {
+  /** Confidence score (0-100) */
+  score: number;
+  /** Method used to detect this change */
+  method: ComparisonMethod;
+  /** Factors contributing to the confidence score */
+  factors: ConfidenceFactor[];
+}
+
+/**
  * A single behavioral assertion about a tool.
  */
 export interface BehavioralAssertion {
@@ -57,6 +90,8 @@ export interface BehaviorChange {
   significance: ChangeSignificance;
   /** Human-readable description of the change */
   description: string;
+  /** Confidence information for this change */
+  confidence?: ChangeConfidence;
 }
 
 /**
@@ -75,6 +110,8 @@ export interface ToolDiff {
   previous?: ToolProfile;
   /** Current tool profile */
   current?: ToolProfile;
+  /** Aggregated confidence for this tool's changes */
+  confidence?: ChangeConfidence;
 }
 
 /**
@@ -99,6 +136,30 @@ export interface BehavioralDiff {
   infoCount: number;
   /** Summary of changes */
   summary: string;
+  /** Aggregated confidence for all changes */
+  confidence?: DiffConfidence;
+  /** Whether strict mode was used (structural-only) */
+  strictMode?: boolean;
+}
+
+/**
+ * Aggregated confidence information for a diff.
+ */
+export interface DiffConfidence {
+  /** Overall confidence score (0-100) */
+  overallScore: number;
+  /** Minimum confidence among all changes */
+  minScore: number;
+  /** Maximum confidence among all changes */
+  maxScore: number;
+  /** Number of structural (deterministic) changes */
+  structuralCount: number;
+  /** Number of semantic (LLM-based) changes */
+  semanticCount: number;
+  /** Average confidence for structural changes */
+  structuralAverage: number;
+  /** Average confidence for semantic changes */
+  semanticAverage: number;
 }
 
 /**
@@ -185,5 +246,11 @@ export interface CompareOptions {
   minimumSeverity?: ChangeSeverity;
   /** Specific tools to compare (empty = all) */
   tools?: string[];
+  /** Strict mode: only report structural (deterministic) changes */
+  strict?: boolean;
+  /** Minimum confidence score to report a change (0-100) */
+  minConfidence?: number;
+  /** Confidence threshold for breaking changes in CI (0-100) */
+  confidenceThreshold?: number;
 }
 

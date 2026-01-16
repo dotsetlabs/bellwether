@@ -4,17 +4,17 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { resetLogger, configureLogger } from '../../src/logging/logger.js';
 
-// Mock modules before importing the command
+// Mock modules before importing the command - vitest 4.x requires class syntax for constructor mocks
 vi.mock('../../src/transport/mcp-client.js', () => {
   return {
-    MCPClient: vi.fn().mockImplementation(() => ({
-      connect: vi.fn().mockResolvedValue(undefined),
-      disconnect: vi.fn().mockResolvedValue(undefined),
-      callTool: vi.fn().mockResolvedValue({
+    MCPClient: class MockMCPClient {
+      connect = vi.fn().mockResolvedValue(undefined);
+      disconnect = vi.fn().mockResolvedValue(undefined);
+      callTool = vi.fn().mockResolvedValue({
         content: [{ type: 'text', text: 'result' }],
         isError: false,
-      }),
-    })),
+      });
+    },
   };
 });
 

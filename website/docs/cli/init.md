@@ -51,7 +51,7 @@ interview:
 
 # Output Settings
 output:
-  format: markdown          # markdown, json, or both
+  format: agents.md         # agents.md, json, or both
   directory: .              # Output directory
 ```
 
@@ -91,7 +91,7 @@ interview:
 
 ```yaml
 output:
-  format: markdown      # markdown, json, or both
+  format: agents.md     # agents.md, json, or both
   directory: ./docs     # Where to write output files
   agentsFileName: AGENTS.md
 ```
