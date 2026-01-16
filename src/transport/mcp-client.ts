@@ -20,7 +20,7 @@ import type {
   MCPServerCapabilities,
 } from './types.js';
 import { getLogger, startTiming } from '../logging/logger.js';
-import { TIMEOUTS } from '../constants.js';
+import { TIMEOUTS, MCP } from '../constants.js';
 
 /**
  * Environment variables to filter out when spawning MCP server processes.
@@ -359,7 +359,7 @@ export class MCPClient {
     }
 
     const result = await this.sendRequest<MCPInitializeResult>('initialize', {
-      protocolVersion: '2024-11-05',
+      protocolVersion: MCP.PROTOCOL_VERSION,
       capabilities: {},
       clientInfo: {
         name: 'bellwether',
@@ -492,7 +492,7 @@ export class MCPClient {
 
       const id = ++this.requestId;
       const request: JSONRPCRequest = {
-        jsonrpc: '2.0',
+        jsonrpc: MCP.JSONRPC_VERSION,
         id,
         method,
         params,
@@ -518,7 +518,7 @@ export class MCPClient {
     if (!this.transport) return;
 
     this.transport.send({
-      jsonrpc: '2.0',
+      jsonrpc: MCP.JSONRPC_VERSION,
       method,
       params,
     });

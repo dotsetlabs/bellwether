@@ -79,7 +79,9 @@ export class SSETransport extends BaseTransport {
       return;
     }
 
-    // Check if EventSource is available (browser or Node.js 18+)
+    // EventSource is available in browsers natively and in Node.js 18+.
+    // We use globalThis to check availability at runtime, requiring `any` cast
+    // because TypeScript's lib.dom.d.ts doesn't type globalThis.EventSource.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const EventSourceImpl = (globalThis as any).EventSource as (new (url: string) => EventSourceLike) | undefined;
     if (!EventSourceImpl) {

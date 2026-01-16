@@ -99,3 +99,15 @@ export const RETRYABLE_STATUS_CODES = [
   HTTP_STATUS.BAD_GATEWAY,
   HTTP_STATUS.SERVICE_UNAVAILABLE,
 ] as const;
+
+// ==================== MCP Protocol ====================
+
+/**
+ * MCP (Model Context Protocol) configuration.
+ */
+export const MCP = {
+  /** Current MCP protocol version */
+  PROTOCOL_VERSION: '2024-11-05',
+  /** JSON-RPC version used by MCP */
+  JSONRPC_VERSION: '2.0',
+} as const;
