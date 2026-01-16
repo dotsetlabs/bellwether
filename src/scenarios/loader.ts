@@ -239,7 +239,7 @@ function validateAssertion(data: ScenarioAssertionYAML, index: number): Scenario
 export function generateSampleScenariosYaml(): string {
   return `# Bellwether Test Scenarios
 # Save as: bellwether-tests.yaml in your project root
-# Docs: https://bellwether.sh/docs/custom-scenarios
+# Docs: https://docs.bellwether.sh/guides/custom-scenarios
 
 version: "1"
 description: Custom test scenarios for my MCP server

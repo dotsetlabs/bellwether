@@ -13,6 +13,10 @@ Search and discover MCP servers from the official MCP Registry.
 bellwether registry [options] [query]
 ```
 
+## Aliases
+
+- `bellwether lookup` - Alias for `bellwether registry`
+
 ## Description
 
 The `registry` command searches the [MCP Registry](https://registry.modelcontextprotocol.io/) - the official directory of MCP servers. Use it to discover servers, find installation commands, and explore the MCP ecosystem.

@@ -47,6 +47,7 @@ async function loadKeychainCredentials(): Promise<void> {
 import { Command } from 'commander';
 import { interviewCommand } from './commands/interview.js';
 import { discoverCommand, summaryCommand } from './commands/discover.js';
+import { watchCommand } from './commands/watch.js';
 import { initCommand } from './commands/init.js';
 import { loginCommand } from './commands/login.js';
 import { linkCommand, projectsCommand } from './commands/link.js';
@@ -101,7 +102,7 @@ Examples:
     $ bellwether history                  # View version history
     $ bellwether diff 1 2                 # Compare versions
 
-Documentation: https://bellwether.sh/docs
+Documentation: https://docs.bellwether.sh
 `;
 
 program
@@ -130,6 +131,11 @@ program.addHelpText('beforeAll', '\nCore Commands:');
 program.addCommand(
   interviewCommand.description(
     'Interview an MCP server and generate behavioral documentation'
+  )
+);
+program.addCommand(
+  watchCommand.description(
+    'Watch for MCP server changes and auto-interview'
   )
 );
 program.addCommand(
