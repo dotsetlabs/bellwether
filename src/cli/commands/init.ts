@@ -35,5 +35,5 @@ export const initCommand = new Command('init')
     output.newline();
     output.info('  2. Run an interview: bellwether interview npx @your/mcp-server');
     output.newline();
-    output.info('For more information, see: https://bellwether.sh/docs');
+    output.info('For more information, see: https://docs.bellwether.sh');
   });

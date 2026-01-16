@@ -2,7 +2,7 @@
 
 [![Build Status](https://github.com/dotsetlabs/bellwether/actions/workflows/ci.yml/badge.svg)](https://github.com/dotsetlabs/bellwether/actions)
 [![npm version](https://img.shields.io/npm/v/@dotsetlabs/bellwether)](https://www.npmjs.com/package/@dotsetlabs/bellwether)
-[![Documentation](https://img.shields.io/badge/docs-bellwether.sh-blue)](https://bellwether.sh/docs)
+[![Documentation](https://img.shields.io/badge/docs-docs.bellwether.sh-blue)](https://docs.bellwether.sh)
 
 > Automated behavioral documentation and testing for MCP servers
 
@@ -26,13 +26,17 @@ Bellwether is a CLI tool that generates comprehensive behavioral documentation f
 
 ## Documentation
 
-**[bellwether.sh/docs](https://bellwether.sh/docs)** - Full documentation including:
+**[docs.bellwether.sh](https://docs.bellwether.sh)** - Full documentation including:
 
-- [Quick Start](https://bellwether.sh/docs/quickstart) - Get started in 5 minutes
-- [CLI Reference](https://bellwether.sh/docs/cli/interview) - Complete command documentation
-- [CI/CD Integration](https://bellwether.sh/docs/guides/ci-cd) - GitHub Actions, GitLab CI
-- [Custom Scenarios](https://bellwether.sh/docs/guides/custom-scenarios) - YAML test definitions
-- [Remote Servers](https://bellwether.sh/docs/guides/remote-servers) - SSE and HTTP transports
+- [Quick Start](https://docs.bellwether.sh/quickstart) - Get started in 5 minutes
+- [Installation](https://docs.bellwether.sh/installation) - System requirements and setup
+- [CLI Reference](https://docs.bellwether.sh/cli/interview) - Complete command documentation
+- [CI/CD Integration](https://docs.bellwether.sh/guides/ci-cd) - GitHub Actions, GitLab CI
+- [Custom Scenarios](https://docs.bellwether.sh/guides/custom-scenarios) - YAML test definitions
+- [Remote Servers](https://docs.bellwether.sh/guides/remote-servers) - SSE and HTTP transports
+- [Personas](https://docs.bellwether.sh/concepts/personas) - Understanding testing personas
+- [Drift Detection](https://docs.bellwether.sh/concepts/drift-detection) - Catching behavioral changes
+- [Cloud Integration](https://docs.bellwether.sh/guides/cloud-integration) - Team features and baseline history
 
 ## Quick Start
 
@@ -78,6 +82,8 @@ Bellwether complements your existing tests—it doesn't replace them.
 - **Multi-Provider LLM** - OpenAI, Anthropic Claude, or Ollama (local/free)
 - **Drift Detection** - Compare baselines to detect behavioral changes
 - **Multiple Output Formats** - Markdown and JSON reports
+- **Structured Logging** - Configurable log levels and file output (`--log-level`, `--log-file`)
+- **Secure Credential Storage** - System keychain integration for API keys
 
 ### Server Support
 - **Local Servers** - Stdio transport for local MCP servers
@@ -97,24 +103,65 @@ Bellwether complements your existing tests—it doesn't replace them.
 
 ## Commands
 
+### Core Commands
+
 ```bash
-# Interview a server
+# Interview a server and generate documentation
 bellwether interview npx @mcp/server-filesystem /tmp
 
 # Quick interview (fast, cheap - good for CI)
 bellwether interview --quick npx @mcp/server
 
-# Discover without full interview
+# Watch for changes and auto-interview
+bellwether watch npx @mcp/server
+
+# Discover tools/prompts/resources without full interview
 bellwether discover npx @mcp/server
 
-# Search the MCP Registry
-bellwether registry filesystem
+# Initialize configuration file (bellwether.yaml)
+bellwether init
 
-# Generate verification report
+# Manage API keys (stores in system keychain)
+bellwether auth
+
+# Manage interview profiles
+bellwether profile list
+bellwether profile create my-profile
+```
+
+### Verification & Registry
+
+```bash
+# Generate verification report for certification
 bellwether verify npx @mcp/server
 
-# Initialize configuration
-bellwether init
+# Get embeddable verification badge
+bellwether badge my-project
+
+# Search the MCP Registry for servers
+bellwether registry filesystem
+```
+
+### Cloud Commands
+
+```bash
+# Authenticate with Bellwether Cloud
+bellwether login
+
+# Link local project to cloud project
+bellwether link
+
+# List your cloud projects
+bellwether projects
+
+# Upload baseline to cloud
+bellwether upload
+
+# View baseline version history
+bellwether history
+
+# Compare two baseline versions
+bellwether diff v1 v2
 ```
 
 ## Cost
@@ -217,8 +264,14 @@ npm install
 npm run build
 npm test
 
-# Run CLI locally
-npm run dev -- interview npx @mcp/server
+# Run CLI locally (after build)
+./dist/cli/index.js interview npx @mcp/server
+# Or link globally for development
+npm link
+bellwether interview npx @mcp/server
+
+# Watch mode for development
+npm run dev  # Runs tsc --watch
 
 # Documentation site
 cd website
