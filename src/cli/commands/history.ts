@@ -5,6 +5,7 @@
 import { Command } from 'commander';
 import { getSessionToken, getLinkedProject } from '../../cloud/auth.js';
 import { createCloudClient } from '../../cloud/client.js';
+import { formatDateLocale } from '../../utils/index.js';
 import * as output from '../output.js';
 
 export const historyCommand = new Command('history')
@@ -74,7 +75,7 @@ export const historyCommand = new Command('history')
       output.info('───  ───────────────────────  ───────────  ────────────────');
 
       for (const baseline of history) {
-        const date = formatDate(baseline.uploadedAt);
+        const date = formatDateLocale(baseline.uploadedAt);
         const cliVersion = baseline.cliVersion.padEnd(11);
         const hash = baseline.hash.slice(0, 16);
 
@@ -105,19 +106,6 @@ export const historyCommand = new Command('history')
     }
   });
 
-/**
- * Format a date string for display.
- */
-function formatDate(isoString: string): string {
-  const date = new Date(isoString);
-  return date.toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 /**
  * Print a diff summary.

@@ -37,11 +37,20 @@ export interface KeychainBackend {
 }
 
 /**
+ * Type definition for the optional keytar module.
+ * Keytar provides secure credential storage using the system keychain.
+ */
+interface KeytarModule {
+  getPassword(service: string, account: string): Promise<string | null>;
+  setPassword(service: string, account: string, password: string): Promise<void>;
+  deletePassword(service: string, account: string): Promise<boolean>;
+}
+
+/**
  * Keytar-based keychain backend (requires keytar package).
  */
 class KeytarBackend implements KeychainBackend {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private keytar: any = null;
+  private keytar: KeytarModule | null = null;
   private initPromise: Promise<void> | null = null;
 
   private async init(): Promise<void> {

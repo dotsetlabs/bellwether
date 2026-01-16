@@ -306,6 +306,8 @@ export class MockCloudClient implements BellwetherCloudClient {
       uploadedAt: new Date().toISOString(),
       cliVersion: baseline.metadata.cliVersion,
       hash: baseline.hash,
+      // BaselineMetadata has specific typed fields, but BaselineVersion.metadata
+      // is a generic Record<string, unknown> for flexibility. Double cast required.
       metadata: baseline.metadata as unknown as Record<string, unknown>,
     };
 
