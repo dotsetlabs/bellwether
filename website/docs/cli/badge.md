@@ -5,7 +5,7 @@ sidebar_position: 8
 
 # bellwether badge
 
-Get an embeddable documentation badge for your project.
+Get an embeddable verification badge for your project.
 
 ## Synopsis
 
@@ -15,10 +15,10 @@ bellwether badge [options]
 
 ## Description
 
-The `badge` command retrieves a documentation badge for your project from Bellwether Cloud. Badges display your MCP server's documentation status and can be embedded in READMEs, documentation, or websites to show users that your server has been documented with Bellwether.
+The `badge` command retrieves a verification badge for your project from Bellwether Cloud. Badges display your MCP server's verification status and can be embedded in READMEs, documentation, or websites to show users that your server has been verified with Bellwether.
 
 Badge status reflects:
-- **Documented**: Server has been documented with at least one baseline
+- **Verified**: Server has been verified with at least one baseline
 - **Stable**: Multiple baselines with no behavioral drift
 - **Drift detected**: Behavioral changes detected between baselines
 - **Breaking changes**: Significant breaking changes detected (tools removed, etc.)
@@ -101,7 +101,7 @@ Output:
 
 | Status | Color | Meaning |
 |:-------|:------|:--------|
-| `passing` | Green | Server documented, no issues |
+| `passing` | Green | Server verified, no issues |
 | `drift` | Yellow | Behavioral drift detected |
 | `failing` | Red | Breaking changes detected |
 | `unknown` | Gray | No baseline uploaded yet |
@@ -110,7 +110,7 @@ Output:
 
 ### Add Badge to README
 
-Include documentation status in your project's README:
+Include verification status in your project's README:
 
 ```bash
 # Get the markdown and add to README
@@ -121,9 +121,9 @@ Then add to your README.md:
 ```markdown
 # My MCP Server
 
-[![Documented by Bellwether](https://img.shields.io/badge/bellwether-documented-brightgreen)](https://bellwether.sh/projects/proj_abc123)
+[![Verified by Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.sh/projects/proj_abc123)
 
-A documented MCP server for...
+A verified MCP server for...
 ```
 
 ### CI Badge Updates

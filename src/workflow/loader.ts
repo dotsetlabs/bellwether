@@ -3,9 +3,13 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 import { parseAllDocuments } from 'yaml';
 import type { Workflow, WorkflowStep, WorkflowYAML, Assertion } from './types.js';
 import { parseYamlSecure, YAML_SECURITY_LIMITS } from '../utils/yaml-parser.js';
+
+/** Default file name for workflow definitions */
+export const DEFAULT_WORKFLOWS_FILE = 'bellwether-workflows.yaml';
 
 /**
  * Load workflows from a YAML file.
@@ -46,6 +50,27 @@ export function loadWorkflowsFromFile(path: string): Workflow[] {
   const rawWorkflows: WorkflowYAML[] = Array.isArray(parsed) ? parsed : [parsed];
 
   return rawWorkflows.map((raw, index) => validateAndNormalizeWorkflow(raw, path, index));
+}
+
+/**
+ * Try to load workflows from the default file in a directory.
+ * Returns null if file doesn't exist.
+ *
+ * This enables auto-discovery of workflow files similar to how
+ * scenarios are auto-loaded from bellwether-tests.yaml.
+ */
+export function tryLoadDefaultWorkflows(directory: string): Workflow[] | null {
+  const path = join(directory, DEFAULT_WORKFLOWS_FILE);
+  if (!existsSync(path)) {
+    return null;
+  }
+  try {
+    return loadWorkflowsFromFile(path);
+  } catch {
+    // If the file exists but is invalid, return null rather than throwing
+    // This allows the interview to proceed without workflows
+    return null;
+  }
 }
 
 /**

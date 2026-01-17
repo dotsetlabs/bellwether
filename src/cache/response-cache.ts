@@ -290,27 +290,6 @@ export class ResponseCache {
       return 1000; // Default estimate for non-serializable values
     }
   }
-
-  /**
-   * Prune expired entries.
-   */
-  prune(): number {
-    let pruned = 0;
-    const now = new Date();
-
-    for (const [key, entry] of this.cache) {
-      if (now > entry.expiresAt) {
-        this.delete(key);
-        pruned++;
-      }
-    }
-
-    if (pruned > 0) {
-      logger.debug({ prunedCount: pruned }, 'Pruned expired entries');
-    }
-
-    return pruned;
-  }
 }
 
 /**

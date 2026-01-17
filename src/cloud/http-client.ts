@@ -166,8 +166,7 @@ export class HttpCloudClient implements BellwetherCloudClient {
 
   async uploadBaseline(
     projectId: string,
-    baseline: BellwetherBaseline,
-    _options?: { public?: boolean }
+    baseline: BellwetherBaseline
   ): Promise<UploadResult> {
     const response = await this.request<{
       baseline: BaselineVersion;

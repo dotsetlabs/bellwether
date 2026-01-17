@@ -511,16 +511,3 @@ export class StateTracker {
     return parts.join('. ') + '.';
   }
 }
-
-/**
- * Create a state tracker for workflow execution.
- */
-export function createStateTracker(
-  client: MCPClient,
-  tools: MCPTool[],
-  llm?: LLMClient,
-  options?: StateTrackingOptions,
-  timeoutConfig?: StateTrackerTimeoutConfig
-): StateTracker {
-  return new StateTracker(client, tools, llm, options, timeoutConfig);
-}

@@ -222,8 +222,7 @@ describe('upload command', () => {
       // Should pass through cloud format without conversion
       expect(mockUploadBaseline).toHaveBeenCalledWith(
         'proj_123',
-        expect.objectContaining({ version: '1.0' }),
-        expect.any(Object)
+        expect.objectContaining({ version: '1.0' })
       );
     });
 
@@ -259,7 +258,6 @@ describe('upload command', () => {
 
       expect(mockUploadBaseline).toHaveBeenCalledWith(
         'proj_linked',
-        expect.any(Object),
         expect.any(Object)
       );
       expect(consoleOutput.some(line => line.includes('Linked Project'))).toBe(true);
@@ -279,7 +277,6 @@ describe('upload command', () => {
 
       expect(mockUploadBaseline).toHaveBeenCalledWith(
         'proj_explicit',
-        expect.any(Object),
         expect.any(Object)
       );
     });
@@ -450,28 +447,6 @@ describe('upload command', () => {
       ).rejects.toThrow('Process exit: 1');
 
       expect(consoleErrors[0]).toBe('BELLWETHER_SESSION not set');
-    });
-  });
-
-  describe('--public flag', () => {
-    it('should pass public option to upload', async () => {
-      saveSession(createTestSession());
-      mockIsAuthenticated.mockReturnValue(true);
-      mockUploadBaseline.mockResolvedValue({
-        version: 1,
-        viewUrl: 'https://bellwether.sh/view/1',
-      });
-      saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
-      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
-
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
-      await uploadCommand.parseAsync(['node', 'test', '--public']);
-
-      expect(mockUploadBaseline).toHaveBeenCalledWith(
-        'proj_123',
-        expect.any(Object),
-        { public: true }
-      );
     });
   });
 

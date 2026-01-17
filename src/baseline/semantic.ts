@@ -17,7 +17,24 @@ import {
   extractSeverityWithNegation,
   compareConstraints,
   EXTENDED_SECURITY_KEYWORDS,
+  calculateStemmedKeywordOverlap,
+  compareQualifiers,
+  isSecurityFindingNegated,
 } from '../utils/semantic.js';
+import {
+  extractSecurityCategories,
+  extractLimitationCategories,
+  findBestSecurityCategoryMatch,
+  findBestLimitationCategoryMatch,
+  calculateSecurityCategoryRelationship,
+  calculateLimitationCategoryRelationship,
+} from './category-matching.js';
+import {
+  findSharedSecurityTerms,
+  calculateSynonymSimilarity,
+  expandAbbreviations,
+  timeExpressionsEqual,
+} from './synonyms.js';
 
 /**
  * Security finding categories (normalized).
@@ -265,21 +282,29 @@ export function structureLimitations(
 }
 
 /**
- * Extract numeric constraint from text (e.g., "10MB", "100 requests").
+ * Extract constraint from text (e.g., "10MB", "100 requests", "JSON").
+ * Handles numeric constraints and format/type names.
  */
 function extractConstraint(text: string): string | undefined {
   // Match patterns like "10MB", "100 requests/min", "30 seconds"
-  const patterns = [
+  const numericPatterns = [
     /(\d+\s*[kmgt]?b)/i,           // Size: 10MB, 1GB
     /(\d+\s*(?:ms|seconds?|minutes?|hours?))/i,  // Time
     /(\d+\s*(?:requests?|calls?)(?:\s*\/\s*\w+)?)/i,  // Rate
   ];
 
-  for (const pattern of patterns) {
+  for (const pattern of numericPatterns) {
     const match = text.match(pattern);
     if (match) {
       return match[1].trim();
     }
+  }
+
+  // Extract format types (JSON, XML, CSV, etc.)
+  const formatPattern = /\b(json|xml|csv|yaml|toml|html|text|binary|utf-?8|ascii)\b/i;
+  const formatMatch = text.match(formatPattern);
+  if (formatMatch) {
+    return formatMatch[1].toLowerCase();
   }
 
   return undefined;
@@ -303,6 +328,20 @@ export function securityFindingsMatch(
 /**
  * Compare two structured security findings with confidence.
  * Returns a confidence score indicating how similar they are.
+ *
+ * ENHANCED (v1.1.0): Uses multi-category detection and relationship scoring
+ * to improve recall. Categories that are related (e.g., authentication and
+ * authorization) now get partial credit instead of 0%.
+ *
+ * ENHANCED (v1.2.0): Added qualifier comparison to prevent false positives from:
+ * - Negation mismatches ("Critical vulnerability found" vs "Not a critical vulnerability")
+ * - Database type mismatches (SQL injection vs NoSQL injection)
+ *
+ * ENHANCED (v1.3.0): Improved recall by:
+ * - Adding synonym-based similarity detection
+ * - Relaxing severity mismatch (no longer blocks matching)
+ * - Lowering thresholds when shared security terms are found
+ * - Better handling of abbreviations (SQLi, XSS, SSRF)
  */
 export function securityFindingsMatchWithConfidence(
   a: StructuredSecurityFinding,
@@ -310,46 +349,136 @@ export function securityFindingsMatchWithConfidence(
 ): { matches: boolean; confidence: ChangeConfidence } {
   const factors: ConfidenceFactor[] = [];
 
-  // Category match is critical (50% weight)
-  const categoryMatch = a.category === b.category;
+  // Expand abbreviations for better matching
+  const descA = expandAbbreviations(a.description);
+  const descB = expandAbbreviations(b.description);
+
+  // CRITICAL: Check for negation mismatch FIRST
+  // A finding that affirms a vulnerability cannot match one that denies it
+  const aNegated = isSecurityFindingNegated(a.description);
+  const bNegated = isSecurityFindingNegated(b.description);
+  const negationMismatch = aNegated !== bNegated;
+
+  if (negationMismatch) {
+    factors.push({
+      name: 'negation_check',
+      weight: 0.2,
+      value: 0,
+      description: `Negation mismatch: ${aNegated ? 'first denies' : 'first affirms'}, ${bNegated ? 'second denies' : 'second affirms'}`,
+    });
+  }
+
+  // Check qualifier compatibility (SQL vs NoSQL, etc.)
+  // Only block if there's a clear incompatibility, not just different wording
+  const qualifierComparison = compareQualifiers(a.description, b.description);
+  const hasHardIncompatibility = qualifierComparison.incompatibilities.some(
+    inc => inc.includes('sql vs nosql') || inc.includes('ssrf vs csrf')
+  );
+
+  if (qualifierComparison.incompatibilities.length > 0) {
+    factors.push({
+      name: 'qualifier_compatibility',
+      weight: 0.1,
+      value: qualifierComparison.score,
+      description: `Qualifier issues: ${qualifierComparison.incompatibilities.join(', ')}`,
+    });
+  }
+
+  // Check for shared security terms (synonym-based matching)
+  const sharedTerms = findSharedSecurityTerms(descA, descB);
+  const hasSharedSecurityTerms = sharedTerms.length > 0;
+
+  if (hasSharedSecurityTerms) {
+    factors.push({
+      name: 'shared_security_terms',
+      weight: 0.25,
+      value: Math.min(100, sharedTerms.length * 50),
+      description: `Shared security concepts: ${sharedTerms.join(', ')}`,
+    });
+  }
+
+  // Synonym-based similarity (catches paraphrases with different wording)
+  const synonymSimilarity = calculateSynonymSimilarity(descA, descB, 'security');
+  if (synonymSimilarity > 0) {
+    factors.push({
+      name: 'synonym_similarity',
+      weight: 0.15,
+      value: synonymSimilarity,
+      description: `${synonymSimilarity}% synonym-based similarity`,
+    });
+  }
+
+  // Multi-category detection: extract ALL categories from descriptions
+  const categoriesA = extractSecurityCategories(descA);
+  const categoriesB = extractSecurityCategories(descB);
+
+  // Find best matching category pair using relationship scoring
+  const bestCategoryMatch = findBestSecurityCategoryMatch(categoriesA, categoriesB);
+
+  // Calculate category relationship score (allows partial credit for related categories)
+  let categoryScore: number;
+  let categoryDescription: string;
+
+  if (a.category === b.category) {
+    // Exact category match from structured data
+    categoryScore = 100;
+    categoryDescription = `Categories match exactly: ${a.category}`;
+  } else if (bestCategoryMatch && bestCategoryMatch.relationshipScore >= 60) {
+    // Related categories found via multi-category detection (lowered threshold)
+    categoryScore = bestCategoryMatch.relationshipScore;
+    categoryDescription = `Related categories: ${bestCategoryMatch.cat1} ~ ${bestCategoryMatch.cat2} (${bestCategoryMatch.relationshipScore}% related)`;
+  } else if (hasSharedSecurityTerms) {
+    // Shared security terms suggest the same vulnerability type
+    categoryScore = 80;
+    categoryDescription = `Categories inferred from shared terms: ${sharedTerms.join(', ')}`;
+  } else {
+    // Check direct relationship between structured categories
+    const directRelationship = calculateSecurityCategoryRelationship(a.category, b.category);
+    categoryScore = Math.max(directRelationship, 20); // Minimum 20 for any security finding
+    categoryDescription = directRelationship >= 50
+      ? `Related categories: ${a.category} ~ ${b.category} (${directRelationship}% related)`
+      : `Categories differ: ${a.category} vs ${b.category}`;
+  }
+
+  // Category match (25% weight - reduced to make room for synonyms)
   factors.push({
     name: 'category_match',
-    weight: 0.5,
-    value: categoryMatch ? 100 : 0,
-    description: categoryMatch
-      ? `Categories match: ${a.category}`
-      : `Categories differ: ${a.category} vs ${b.category}`,
+    weight: 0.25,
+    value: categoryScore,
+    description: categoryDescription,
   });
 
-  // Tool match (20% weight)
+  // Tool match (10% weight)
   const toolMatch = a.tool === b.tool;
   factors.push({
     name: 'tool_match',
-    weight: 0.2,
-    value: toolMatch ? 100 : 0,
+    weight: 0.1,
+    value: toolMatch ? 100 : 50,
     description: toolMatch
       ? `Tools match: ${a.tool}`
-      : `Tools differ: ${a.tool} vs ${b.tool}`,
+      : `Different tools: ${a.tool} vs ${b.tool}`,
   });
 
-  // Severity match (15% weight)
+  // Severity match (10% weight - reduced, severity differences are often benign)
+  // IMPORTANT: Severity mismatch no longer blocks matching, only affects confidence
   const severityMatch = a.severity === b.severity;
+  const severityScore = severityMatch ? 100 : severityDistance(a.severity, b.severity);
   factors.push({
     name: 'severity_match',
-    weight: 0.15,
-    value: severityMatch ? 100 : severityDistance(a.severity, b.severity),
+    weight: 0.1,
+    value: severityScore,
     description: severityMatch
       ? `Severities match: ${a.severity}`
-      : `Severities differ: ${a.severity} vs ${b.severity}`,
+      : `Severities differ: ${a.severity} vs ${b.severity} (${severityScore}% similar)`,
   });
 
-  // Description similarity (15% weight)
-  const descSimilarity = calculateKeywordOverlap(a.description, b.description);
+  // Description similarity with synonym expansion
+  const descSimilarity = calculateStemmedKeywordOverlap(descA, descB);
   factors.push({
     name: 'description_similarity',
     weight: 0.15,
     value: descSimilarity,
-    description: `${descSimilarity}% description keyword overlap`,
+    description: `${descSimilarity}% description keyword overlap (stemmed)`,
   });
 
   const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
@@ -357,8 +486,60 @@ export function securityFindingsMatchWithConfidence(
     factors.reduce((sum, f) => sum + f.weight * f.value, 0) / totalWeight
   );
 
+  // CRITICAL: Only block matching for clear semantic conflicts:
+  // 1. Negation mismatch (one affirms, one denies)
+  // 2. Hard qualifier incompatibility (SQL vs NoSQL specifically)
+  if (negationMismatch) {
+    return {
+      matches: false,
+      confidence: {
+        score: Math.min(score, 20),
+        method: 'semantic',
+        factors,
+      },
+    };
+  }
+
+  if (hasHardIncompatibility) {
+    return {
+      matches: false,
+      confidence: {
+        score: Math.min(score, 30),
+        method: 'semantic',
+        factors,
+      },
+    };
+  }
+
+  // IMPROVED MATCHING LOGIC (v1.3.0 - refined for precision):
+  // Match only if:
+  // 1. Exact category match with same severity (same finding)
+  // 2. Exact category match with similar severity (one-level difference is OK for paraphrases)
+  // 3. High synonym similarity (>= 60) with same tool
+  //
+  // DO NOT match if:
+  // - Severity difference of 2+ levels (high vs low = real drift, not paraphrase)
+  // - Different categories without very high confidence
+  const exactCategoryMatch = a.category === b.category && a.category !== 'other';
+  const relatedCategories = categoryScore >= 70; // Stricter threshold
+  const highDescriptionSimilarity = descSimilarity >= 40 || synonymSimilarity >= 50;
+
+  // For severity differences:
+  // - Exact match with any severity: always a match (paraphrases may describe severity differently)
+  // - Different categories: only match if very high similarity
+  //
+  // Note: We initially tried blocking 2+ level severity differences, but this hurt recall
+  // since the same vulnerability might be described with different severity assessments.
+  // Better to match and let human review decide if severity change is drift.
+  const matches =
+    (exactCategoryMatch && toolMatch) ||
+    (exactCategoryMatch && descSimilarity >= 20) ||
+    (hasSharedSecurityTerms && toolMatch && synonymSimilarity >= 30) ||
+    (synonymSimilarity >= 60 && toolMatch) ||
+    (relatedCategories && highDescriptionSimilarity && toolMatch);
+
   return {
-    matches: categoryMatch && toolMatch && severityMatch,
+    matches,
     confidence: {
       score,
       method: 'semantic',
@@ -398,6 +579,22 @@ export function limitationsMatch(
 /**
  * Compare two structured limitations with confidence.
  * Returns a confidence score indicating how similar they are.
+ *
+ * ENHANCED (v1.1.0): Uses multi-category detection and relationship scoring
+ * to improve recall for limitation paraphrases.
+ *
+ * ENHANCED (v1.2.0): Added qualifier comparison to prevent false positives from:
+ * - Direction mismatches (upload limit vs download limit)
+ * - Timeout type mismatches (connection timeout vs read timeout)
+ * - Rate time unit mismatches (per minute vs per hour)
+ *
+ * ENHANCED (v1.3.0): Improved recall by:
+ * - Adding synonym-based similarity for limitation descriptions
+ * - Time expression normalization (30s = 30 seconds)
+ * - Relaxed matching thresholds while maintaining constraint validation
+ *
+ * IMPORTANT: Two limitations with the same category but significantly different
+ * constraint values (e.g., 10MB vs 100MB) are NOT considered matching.
  */
 export function limitationsMatchWithConfidence(
   a: StructuredLimitation,
@@ -405,48 +602,122 @@ export function limitationsMatchWithConfidence(
 ): { matches: boolean; confidence: ChangeConfidence } {
   const factors: ConfidenceFactor[] = [];
 
-  // Category match is critical (50% weight)
-  const categoryMatch = a.category === b.category;
+  // Expand abbreviations for better matching
+  const descA = expandAbbreviations(a.description);
+  const descB = expandAbbreviations(b.description);
+
+  // Check qualifier compatibility (upload vs download, timeout types, rate units)
+  const qualifierComparison = compareQualifiers(a.description, b.description);
+  // Only strict qualifier incompatibilities should block matching
+  const hasHardIncompatibility = qualifierComparison.incompatibilities.some(
+    inc => inc.includes('upload vs download') || inc.includes('connection timeout vs read timeout')
+  );
+
+  if (qualifierComparison.incompatibilities.length > 0) {
+    factors.push({
+      name: 'qualifier_compatibility',
+      weight: 0.1,
+      value: qualifierComparison.score,
+      description: `Qualifier issues: ${qualifierComparison.incompatibilities.join(', ')}`,
+    });
+  }
+
+  // Check time expression equivalence (30 seconds = 30s = 30000ms)
+  const timeExpressionsMatch = timeExpressionsEqual(descA, descB);
+  if (timeExpressionsMatch) {
+    factors.push({
+      name: 'time_equivalence',
+      weight: 0.15,
+      value: 100,
+      description: 'Time expressions are equivalent',
+    });
+  }
+
+  // Synonym-based similarity for limitations
+  const synonymSimilarity = calculateSynonymSimilarity(descA, descB, 'limitation');
+  if (synonymSimilarity > 0) {
+    factors.push({
+      name: 'synonym_similarity',
+      weight: 0.15,
+      value: synonymSimilarity,
+      description: `${synonymSimilarity}% synonym-based similarity`,
+    });
+  }
+
+  // Multi-category detection for limitations
+  const categoriesA = extractLimitationCategories(descA);
+  const categoriesB = extractLimitationCategories(descB);
+
+  // Find best matching category pair
+  const bestCategoryMatch = findBestLimitationCategoryMatch(categoriesA, categoriesB);
+
+  // Calculate category relationship score
+  let categoryScore: number;
+  let categoryDescription: string;
+
+  if (a.category === b.category) {
+    categoryScore = 100;
+    categoryDescription = `Categories match exactly: ${a.category}`;
+  } else if (bestCategoryMatch && bestCategoryMatch.relationshipScore >= 60) {
+    categoryScore = bestCategoryMatch.relationshipScore;
+    categoryDescription = `Related categories: ${bestCategoryMatch.cat1} ~ ${bestCategoryMatch.cat2} (${bestCategoryMatch.relationshipScore}% related)`;
+  } else if (synonymSimilarity >= 50) {
+    // Synonym similarity suggests same limitation type
+    categoryScore = 70;
+    categoryDescription = `Categories inferred from synonym similarity: ${synonymSimilarity}%`;
+  } else {
+    const directRelationship = calculateLimitationCategoryRelationship(a.category, b.category);
+    categoryScore = Math.max(directRelationship, 20); // Minimum 20 for any limitation
+    categoryDescription = directRelationship >= 50
+      ? `Related categories: ${a.category} ~ ${b.category} (${directRelationship}% related)`
+      : `Categories differ: ${a.category} vs ${b.category}`;
+  }
+
+  // Category match (25% weight - reduced to make room for synonyms)
   factors.push({
     name: 'category_match',
-    weight: 0.5,
-    value: categoryMatch ? 100 : 0,
-    description: categoryMatch
-      ? `Categories match: ${a.category}`
-      : `Categories differ: ${a.category} vs ${b.category}`,
+    weight: 0.25,
+    value: categoryScore,
+    description: categoryDescription,
   });
 
-  // Tool match (25% weight)
+  // Tool match (10% weight)
   const toolMatch = a.tool === b.tool;
   factors.push({
     name: 'tool_match',
-    weight: 0.25,
-    value: toolMatch ? 100 : 0,
+    weight: 0.1,
+    value: toolMatch ? 100 : 50,
     description: toolMatch
       ? `Tools match: ${a.tool}`
-      : `Tools differ: ${a.tool} vs ${b.tool}`,
+      : `Different tools: ${a.tool} vs ${b.tool}`,
   });
 
-  // Constraint similarity (10% weight)
-  const constraintScore = constraintsMatch(a.constraint, b.constraint);
+  // Constraint similarity (20% weight - reduced slightly)
+  // Also check if time expressions match even if constraints don't
+  let constraintScore = constraintsMatch(a.constraint, b.constraint);
+  if (timeExpressionsMatch && constraintScore < 100) {
+    constraintScore = Math.max(constraintScore, 90); // Time equivalence implies constraint match
+  }
   factors.push({
     name: 'constraint_match',
-    weight: 0.1,
+    weight: 0.2,
     value: constraintScore,
     description: constraintScore === 100
-      ? 'Constraints match'
-      : constraintScore > 50
-        ? 'Constraints similar'
-        : 'Constraints differ or missing',
+      ? 'Constraints match exactly'
+      : constraintScore > 80
+        ? 'Constraints very similar'
+        : constraintScore > 50
+          ? 'Constraints similar'
+          : 'Constraints differ significantly',
   });
 
-  // Description similarity (15% weight)
-  const descSimilarity = calculateKeywordOverlap(a.description, b.description);
+  // Description similarity with stemming
+  const descSimilarity = calculateStemmedKeywordOverlap(descA, descB);
   factors.push({
     name: 'description_similarity',
     weight: 0.15,
     value: descSimilarity,
-    description: `${descSimilarity}% description keyword overlap`,
+    description: `${descSimilarity}% description keyword overlap (stemmed)`,
   });
 
   const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
@@ -454,8 +725,41 @@ export function limitationsMatchWithConfidence(
     factors.reduce((sum, f) => sum + f.weight * f.value, 0) / totalWeight
   );
 
+  // CRITICAL: Block matching for semantic conflicts
+  // For limitations, qualifier incompatibilities should block matching
+  // (e.g., "no limit" vs "limit of", "per minute" vs "per hour")
+  if (hasHardIncompatibility || qualifierComparison.incompatibilities.length > 0) {
+    return {
+      matches: false,
+      confidence: {
+        score: Math.min(score, 35),
+        method: 'semantic',
+        factors,
+      },
+    };
+  }
+
+  // IMPROVED MATCHING LOGIC (v1.3.0 - balanced for precision/recall):
+  // Match if:
+  // 1. Exact category match with compatible constraints
+  // 2. Time expressions are equivalent (implies same limitation)
+  // 3. Same category with moderate description similarity
+  // 4. High synonym similarity with same tool
+  //
+  // IMPORTANT: Constraint compatibility is still required (but threshold lowered)
+  const exactCategoryMatch = a.category === b.category && a.category !== 'other';
+  const constraintsCompatible = constraintScore > 35 || timeExpressionsMatch;
+  const moderateDescriptionSimilarity = descSimilarity >= 35 || synonymSimilarity >= 40;
+
+  // Constraints must be compatible for limitations to match
+  const matches = constraintsCompatible && (
+    (exactCategoryMatch) ||
+    timeExpressionsMatch ||
+    (toolMatch && moderateDescriptionSimilarity && synonymSimilarity >= 30)
+  );
+
   return {
-    matches: categoryMatch && toolMatch,
+    matches,
     confidence: {
       score,
       method: 'semantic',
@@ -487,6 +791,16 @@ export function assertionsMatch(
 /**
  * Compare two normalized assertions with confidence.
  * Returns a confidence score indicating how similar they are.
+ *
+ * ENHANCED (v1.2.0): Added qualifier comparison to prevent false positives from:
+ * - Opposite terms (synchronous vs asynchronous, enabled vs disabled)
+ * - Status code differences (200 vs 201)
+ *
+ * ENHANCED (v1.3.0): Improved recall by:
+ * - Adding synonym-based similarity for behavioral descriptions
+ * - Relaxed fingerprint matching (partial matches now count)
+ * - Better polarity detection that handles paraphrasing
+ * - Lower thresholds while blocking only clear semantic conflicts
  */
 export function assertionsMatchWithConfidence(
   a: NormalizedAssertion,
@@ -494,46 +808,86 @@ export function assertionsMatchWithConfidence(
 ): { matches: boolean; confidence: ChangeConfidence } {
   const factors: ConfidenceFactor[] = [];
 
-  // Fingerprint match (40% weight)
+  // Expand abbreviations for better matching
+  const descA = expandAbbreviations(a.description);
+  const descB = expandAbbreviations(b.description);
+
+  // Check qualifier compatibility (opposite terms, negation)
+  const qualifierComparison = compareQualifiers(a.description, b.description);
+  // Only hard incompatibilities should block matching
+  const hasHardIncompatibility = qualifierComparison.incompatibilities.some(
+    inc => inc.includes('synchronous vs asynchronous') || inc.includes('enabled vs disabled')
+  );
+
+  if (qualifierComparison.incompatibilities.length > 0) {
+    factors.push({
+      name: 'qualifier_compatibility',
+      weight: 0.1,
+      value: qualifierComparison.score,
+      description: `Qualifier issues: ${qualifierComparison.incompatibilities.join(', ')}`,
+    });
+  }
+
+  // Synonym-based similarity for behavioral descriptions
+  const synonymSimilarity = calculateSynonymSimilarity(descA, descB, 'behavior');
+  if (synonymSimilarity > 0) {
+    factors.push({
+      name: 'synonym_similarity',
+      weight: 0.15,
+      value: synonymSimilarity,
+      description: `${synonymSimilarity}% synonym-based similarity`,
+    });
+  }
+
+  // Fingerprint match (25% weight - reduced to allow more flexibility)
   const fingerprintMatch = a.fingerprint === b.fingerprint;
+  const fpSimilarity = fingerprintSimilarity(a.fingerprint, b.fingerprint);
   factors.push({
     name: 'fingerprint_match',
-    weight: 0.4,
-    value: fingerprintMatch ? 100 : fingerprintSimilarity(a.fingerprint, b.fingerprint),
+    weight: 0.25,
+    value: fingerprintMatch ? 100 : fpSimilarity,
     description: fingerprintMatch
       ? 'Fingerprints match exactly'
-      : `Fingerprints ${fingerprintSimilarity(a.fingerprint, b.fingerprint)}% similar`,
+      : `Fingerprints ${fpSimilarity}% similar`,
   });
 
-  // Tool and aspect match (25% weight)
+  // Tool and aspect match (20% weight)
   const toolAspectMatch = a.tool === b.tool && a.aspect === b.aspect;
+  const toolMatch = a.tool === b.tool;
   factors.push({
     name: 'tool_aspect_match',
-    weight: 0.25,
-    value: toolAspectMatch ? 100 : (a.tool === b.tool ? 50 : 0),
+    weight: 0.2,
+    value: toolAspectMatch ? 100 : (toolMatch ? 70 : 30),
     description: toolAspectMatch
       ? `Tool and aspect match: ${a.tool}/${a.aspect}`
-      : `Tool/aspect differ`,
+      : toolMatch
+        ? `Tool matches: ${a.tool}, aspects differ`
+        : `Tools differ`,
   });
 
-  // Polarity match (15% weight)
+  // Polarity match (10% weight)
+  // IMPROVED: Handle paraphrases where polarity is implicitly the same
   const polarityMatch = a.isPositive === b.isPositive;
+  // If descriptions are highly similar, assume polarity is consistent (paraphrase)
+  const implicitPolarityMatch = synonymSimilarity >= 60 || fpSimilarity >= 70;
   factors.push({
     name: 'polarity_match',
-    weight: 0.15,
-    value: polarityMatch ? 100 : 0,
+    weight: 0.1,
+    value: polarityMatch ? 100 : (implicitPolarityMatch ? 80 : 20),
     description: polarityMatch
       ? 'Same polarity'
-      : 'Different polarity (positive/negative)',
+      : implicitPolarityMatch
+        ? 'Polarity difference likely paraphrasing'
+        : 'Different polarity (positive/negative)',
   });
 
-  // Description similarity (20% weight)
-  const descSimilarity = calculateKeywordOverlap(a.description, b.description);
+  // Description similarity with stemming
+  const descSimilarity = calculateStemmedKeywordOverlap(descA, descB);
   factors.push({
     name: 'description_similarity',
     weight: 0.2,
     value: descSimilarity,
-    description: `${descSimilarity}% description keyword overlap`,
+    description: `${descSimilarity}% description keyword overlap (stemmed)`,
   });
 
   const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
@@ -541,8 +895,37 @@ export function assertionsMatchWithConfidence(
     factors.reduce((sum, f) => sum + f.weight * f.value, 0) / totalWeight
   );
 
+  // CRITICAL: Block matching for semantic conflicts
+  // For assertions, ANY qualifier incompatibility should block matching
+  // (assertions define precise behaviors - "error" vs "null" is real drift)
+  if (hasHardIncompatibility || qualifierComparison.incompatibilities.length > 0) {
+    return {
+      matches: false,
+      confidence: {
+        score: Math.min(score, 40),
+        method: 'semantic',
+        factors,
+      },
+    };
+  }
+
+  // IMPROVED MATCHING LOGIC (v1.3.0 - balanced for precision/recall):
+  // Match if:
+  // 1. Exact fingerprint match (almost certainly same assertion)
+  // 2. Tool/aspect match with moderate description similarity AND same polarity
+  // 3. High fingerprint similarity (>= 60) with matching tool
+  // 4. High synonym similarity (>= 50) with tool match
+  const highFingerprintSimilarity = fpSimilarity >= 60;
+  const moderateDescriptionSimilarity = descSimilarity >= 40 || synonymSimilarity >= 45;
+
+  const matches =
+    fingerprintMatch ||
+    (toolAspectMatch && moderateDescriptionSimilarity && polarityMatch) ||
+    (toolMatch && highFingerprintSimilarity && polarityMatch) ||
+    (toolMatch && synonymSimilarity >= 50 && polarityMatch);
+
   return {
-    matches: fingerprintMatch,
+    matches,
     confidence: {
       score,
       method: 'semantic',

@@ -4,7 +4,7 @@
 [![npm version](https://img.shields.io/npm/v/@dotsetlabs/bellwether)](https://www.npmjs.com/package/@dotsetlabs/bellwether)
 [![Documentation](https://img.shields.io/badge/docs-docs.bellwether.sh-blue)](https://docs.bellwether.sh)
 
-> Automated behavioral documentation and testing for MCP servers
+> **Test your MCP servers. Catch drift. Get documentation for free.**
 
 <details>
 <summary><strong>New to MCP?</strong> Click to learn what Model Context Protocol is.</summary>
@@ -13,16 +13,16 @@
 
 If you're building capabilities for AI agents—file access, database queries, API integrations—you're likely building an MCP server.
 
-Bellwether interviews your MCP server to document what it *actually does*, catching behaviors that manual testing and static documentation miss.
+Bellwether detects behavioral drift in your MCP server before it breaks your users' workflows.
 
 </details>
 
-Bellwether is a CLI tool that generates comprehensive behavioral documentation for [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers. Instead of relying on manually written docs, Bellwether **interviews** your MCP server by:
+Bellwether is a CLI tool for **behavioral drift detection** in [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers. It **interviews** your server from 4 different personas, catches regressions before deployment, and generates AGENTS.md documentation as a byproduct:
 
 1. **Discovering** available tools, prompts, and resources
-2. **Generating** realistic test scenarios using an LLM
-3. **Executing** tests and analyzing actual responses
-4. **Synthesizing** findings into actionable documentation
+2. **Testing from 4 personas** - Technical writer, security tester, QA engineer, novice user
+3. **Detecting behavioral drift** between baseline and current behavior
+4. **Generating documentation** - AGENTS.md reflects what your server actually does
 
 ## Documentation
 
@@ -58,31 +58,31 @@ bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 
 | Problem | Solution |
 |:--------|:---------|
-| Documentation says one thing, but what does the server actually do? | **Trust but verify** - Interview the server to document real behavior |
-| Breaking changes slip into production unnoticed | **Drift detection** - Catch behavioral changes before they hit production |
-| Security vulnerabilities are hard to discover manually | **Security hygiene checks** - Persona-based testing for common issues |
-| Manual testing is slow and expensive | **CI/CD integration** - Automated regression testing |
+| Breaking changes slip into production unnoticed | **Behavioral drift detection** - Compare baselines to catch regressions before deployment |
+| Manual testing misses edge cases | **4-persona testing** - The only tool that tests from technical writer, security tester, QA engineer, and novice user perspectives |
+| Security vulnerabilities are hard to discover | **Security persona** - Dedicated adversarial testing catches path traversal, injection, and info disclosure |
+| Documentation gets stale | **Free documentation** - AGENTS.md is generated automatically from test results |
 
-### Bellwether vs. Traditional Testing
+### What Makes Bellwether Different
 
-| Approach | What it catches | What it misses |
-|:---------|:----------------|:---------------|
-| **Unit tests** | Regressions in expected behavior | Behaviors you didn't think to test |
-| **Integration tests** | System-level failures | Edge cases in tool interactions |
-| **Manual testing** | Issues you look for | Issues you don't know to look for |
-| **Bellwether** | Unexpected behaviors across 4 personas | (Use with above for complete coverage) |
+| Feature | Bellwether | Other MCP Tools |
+|:--------|:-----------|:----------------|
+| **Behavioral drift detection** | ✅ Semantic comparison | ❌ Schema-only or none |
+| **Multi-persona testing** | ✅ 4 unique perspectives | ❌ Single perspective |
+| **Documentation generation** | ✅ AGENTS.md included | ❌ Not available |
+| **CI/CD integration** | ✅ GitHub Action | ⚠️ Limited |
 
 Bellwether complements your existing tests—it doesn't replace them.
 
 ## Features
 
 ### Core Features
-- **AGENTS.md Generation** - Human-readable behavioral documentation
-- **Performance Metrics** - Response times (avg/p50/p95/max) and error rates
+- **Behavioral Drift Detection** - Compare baselines to catch regressions before deployment (not just schema changes)
+- **4-Persona Testing** - Technical writer, security tester, QA engineer, novice user—the only MCP tool with multi-perspective testing
+- **Free Documentation** - AGENTS.md generated automatically from test results
+- **Security Hygiene** - Dedicated security persona catches common vulnerabilities without replacing professional audits
 - **Multi-Provider LLM** - OpenAI, Anthropic Claude, or Ollama (local/free)
-- **Drift Detection** - Compare baselines to detect behavioral changes
-- **Multiple Output Formats** - Markdown and JSON reports
-- **Structured Logging** - Configurable log levels and file output (`--log-level`, `--log-file`)
+- **Performance Metrics** - Response times (avg/p50/p95/max) and error rates
 - **Secure Credential Storage** - System keychain integration for API keys
 
 ### Server Support
@@ -93,7 +93,6 @@ Bellwether complements your existing tests—it doesn't replace them.
 ### Testing
 - **Custom Test Scenarios** - Define YAML test cases with assertions
 - **Scenarios-Only Mode** - Run tests without LLM (free, deterministic)
-- **Multiple Personas** - Technical writer, security tester, QA engineer, novice user
 - **Workflow Testing** - Multi-step tool sequences with state tracking
 - **Parallel Execution** - Run persona interviews concurrently (`--parallel-personas`)
 
@@ -104,23 +103,29 @@ Bellwether complements your existing tests—it doesn't replace them.
 - **Automatic Fallback** - Falls back to Ollama if primary LLM fails (`--fallback`)
 
 ### Ecosystem
+- **GitHub Action** - One-line CI/CD integration for automated regression testing
+- **Cloud Sync** - Optional baseline history and team collaboration
 - **MCP Registry Search** - Discover servers from the official registry
-- **Verification Program** - Get your server certified with badges
-- **GitHub Action** - One-line CI/CD integration
-- **Cloud Sync** - Optional baseline history and team features
+- **Verification Badges** - Earn Bronze to Platinum coverage badges
 
 ## Commands
 
 ### Core Commands
 
 ```bash
-# Interview a server and generate documentation
+# Test server and generate documentation
 bellwether interview npx @mcp/server-filesystem /tmp
 
-# Quick interview (fast, cheap - good for CI)
+# Save baseline for future drift detection
+bellwether interview --save-baseline npx @mcp/server
+
+# Detect behavioral drift (CI mode)
+bellwether interview --compare-baseline ./baseline.json --fail-on-drift npx @mcp/server
+
+# Quick test (fast, cheap - good for PRs)
 bellwether interview --quick npx @mcp/server
 
-# Watch for changes and auto-interview
+# Watch for changes and auto-test
 bellwether watch npx @mcp/server
 
 # Discover tools/prompts/resources without full interview
@@ -187,7 +192,7 @@ Bellwether uses LLMs for intelligent testing. Typical costs per interview:
 
 ```yaml
 # .github/workflows/bellwether.yml
-name: MCP Behavioral Testing
+name: MCP Drift Detection
 on: [push, pull_request]
 
 jobs:
@@ -196,7 +201,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Bellwether
+      - name: Detect Behavioral Drift
         uses: dotsetlabs/bellwether/action@v1
         with:
           server-command: 'npx @modelcontextprotocol/server-filesystem'
@@ -291,9 +296,9 @@ bellwether interview --workflows ./workflows.yaml --workflow-state-tracking npx 
 bellwether interview --init-workflows
 ```
 
-## Documented by Bellwether
+## Verified by Bellwether
 
-Get your MCP server documented and earn coverage badges:
+Get your MCP server verified and earn coverage badges:
 
 ```bash
 bellwether verify --tier gold npx @mcp/your-server
@@ -303,12 +308,12 @@ bellwether verify --tier gold npx @mcp/your-server
 
 | Tier | Requirements | What it signals |
 |:-----|:-------------|:----------------|
-| 🥉 Bronze | Basic documentation (happy path) | "This server has been tested" |
+| 🥉 Bronze | Basic testing (happy path) | "This server has been behaviorally tested" |
 | 🥈 Silver | + Error handling coverage | "This server handles errors gracefully" |
-| 🥇 Gold | + All personas, good coverage | "This server is thoroughly documented" |
-| 💎 Platinum | + Comprehensive testing, all personas | "This server has thorough documentation" |
+| 🥇 Gold | + All personas, good coverage | "This server is thoroughly tested" |
+| 💎 Platinum | + Comprehensive testing, all personas | "This server has comprehensive behavioral coverage" |
 
-**Note:** Documentation badges indicate testing coverage, not security certification. Badges show that a server has been systematically documented with Bellwether—a first line of defense, not a replacement for professional security audits.
+**Note:** Verification badges indicate behavioral test coverage, not security certification. Badges show that a server has been systematically tested with Bellwether—a first line of defense, not a replacement for professional security audits.
 
 ## Development
 

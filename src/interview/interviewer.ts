@@ -864,6 +864,8 @@ export class Interviewer {
     let error: string | null = null;
     let hadError = false;
     let fromCache = false;
+    let toolExecutionMs = 0;
+    let llmAnalysisMs = 0;
 
     // Check cache for tool response (same tool + same args = same response)
     if (this.cache) {
@@ -890,8 +892,10 @@ export class Interviewer {
 
     // Make actual tool call if not cached
     if (!fromCache) {
+      const toolCallStart = Date.now();
       try {
         response = await client.callTool(toolName, question.args);
+        toolExecutionMs = Date.now() - toolCallStart;
         stats.toolCallCount++;
 
         if (response.isError) {
@@ -915,6 +919,7 @@ export class Interviewer {
           }
         }
       } catch (e) {
+        toolExecutionMs = Date.now() - toolCallStart;
         error = e instanceof Error ? e.message : String(e);
         stats.errorCount++;
         stats.toolCallCount++;
@@ -928,6 +933,7 @@ export class Interviewer {
     // Analyze the response with this persona's perspective
     // Skip LLM analysis in scenarios-only mode - just use assertion results
     let analysis: string;
+    const llmAnalysisStart = Date.now();
     if (this.config.customScenariosOnly) {
       // In scenarios-only mode, generate analysis from assertion results
       if (error) {
@@ -937,6 +943,7 @@ export class Interviewer {
       } else {
         analysis = 'No response received.';
       }
+      llmAnalysisMs = 0; // No LLM call in scenarios-only mode
     } else {
       const tool: MCPTool = { name: toolName, description: '' };
       analysis = await orchestrator.analyzeResponse(
@@ -945,6 +952,7 @@ export class Interviewer {
         response,
         error
       );
+      llmAnalysisMs = Date.now() - llmAnalysisStart;
     }
 
     const interaction: ToolInteraction = {
@@ -954,6 +962,8 @@ export class Interviewer {
       error,
       analysis,
       durationMs: Date.now() - interactionStart,
+      toolExecutionMs: fromCache ? 0 : toolExecutionMs,
+      llmAnalysisMs,
       personaId,
     };
 
@@ -1340,7 +1350,12 @@ export class Interviewer {
         : [];
 
       const allAssertionsPassed = assertionResults.every(r => r.passed);
-      const passed = allAssertionsPassed && !error;
+      // Check if this scenario expects an error (has an assertion checking for 'error' to exist)
+      const expectsError = scenario.assertions?.some(
+        a => a.path === 'error' && a.condition === 'exists'
+      ) ?? false;
+      // Scenario passes if assertions pass AND (no error OR scenario expects error)
+      const passed = allAssertionsPassed && (!error || expectsError);
 
       const result: ScenarioResult = {
         scenario,

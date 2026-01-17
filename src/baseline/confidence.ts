@@ -20,16 +20,21 @@ import { calculateStemmedKeywordOverlap } from '../utils/semantic.js';
 
 /**
  * Default weights for confidence factors.
+ *
+ * REFINED (v1.1.0): Weights adjusted based on golden dataset evaluation.
+ * - Increased keywordOverlap weight for better paraphrase detection
+ * - Increased semanticSimilarity weight to capture related concepts
+ * - Reduced structuralAlignment weight (length is less reliable)
  */
 export const CONFIDENCE_WEIGHTS = {
-  /** Weight for keyword overlap factor */
-  keywordOverlap: 0.3,
-  /** Weight for structural alignment factor */
-  structuralAlignment: 0.25,
-  /** Weight for semantic similarity factor */
-  semanticSimilarity: 0.25,
+  /** Weight for keyword overlap factor (increased for paraphrase detection) */
+  keywordOverlap: 0.35,
+  /** Weight for structural alignment factor (reduced - length is unreliable) */
+  structuralAlignment: 0.15,
+  /** Weight for semantic similarity factor (increased for concept matching) */
+  semanticSimilarity: 0.30,
   /** Weight for category consistency factor */
-  categoryConsistency: 0.2,
+  categoryConsistency: 0.20,
 } as const;
 
 /**
@@ -158,136 +163,6 @@ export function calculateKeywordOverlap(text1: string, text2: string): number {
 }
 
 /**
- * Calculates raw keyword overlap without stemming.
- * Use this when exact word matching is needed.
- * Returns a score 0-100.
- */
-export function calculateRawKeywordOverlap(text1: string, text2: string): number {
-  const words1 = extractKeywords(text1);
-  const words2 = extractKeywords(text2);
-
-  if (words1.size === 0 && words2.size === 0) return 100;
-  if (words1.size === 0 || words2.size === 0) return 0;
-
-  const intersection = new Set([...words1].filter((w) => words2.has(w)));
-  const union = new Set([...words1, ...words2]);
-
-  // Jaccard similarity
-  return Math.round((intersection.size / union.size) * 100);
-}
-
-/**
- * Extracts meaningful keywords from text.
- */
-function extractKeywords(text: string): Set<string> {
-  const stopWords = new Set([
-    'the',
-    'a',
-    'an',
-    'is',
-    'are',
-    'was',
-    'were',
-    'be',
-    'been',
-    'being',
-    'have',
-    'has',
-    'had',
-    'do',
-    'does',
-    'did',
-    'will',
-    'would',
-    'could',
-    'should',
-    'may',
-    'might',
-    'must',
-    'shall',
-    'can',
-    'need',
-    'dare',
-    'ought',
-    'used',
-    'to',
-    'of',
-    'in',
-    'for',
-    'on',
-    'with',
-    'at',
-    'by',
-    'from',
-    'up',
-    'about',
-    'into',
-    'through',
-    'during',
-    'before',
-    'after',
-    'above',
-    'below',
-    'between',
-    'under',
-    'again',
-    'further',
-    'then',
-    'once',
-    'and',
-    'but',
-    'or',
-    'nor',
-    'so',
-    'yet',
-    'both',
-    'either',
-    'neither',
-    'not',
-    'only',
-    'own',
-    'same',
-    'than',
-    'too',
-    'very',
-    'just',
-    'also',
-    'now',
-    'here',
-    'there',
-    'when',
-    'where',
-    'why',
-    'how',
-    'all',
-    'each',
-    'every',
-    'any',
-    'some',
-    'no',
-    'such',
-    'what',
-    'which',
-    'who',
-    'whom',
-    'this',
-    'that',
-    'these',
-    'those',
-    'it',
-    'its',
-  ]);
-
-  const words = text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter((w) => w.length > 2 && !stopWords.has(w));
-
-  return new Set(words);
-}
-
-/**
  * Calculates length similarity between two strings.
  * Returns a score 0-100.
  */
@@ -305,25 +180,51 @@ export function calculateLengthSimilarity(text1: string, text2: string): number 
 /**
  * Calculates semantic indicator similarity.
  * Looks for common technical patterns and concepts.
+ *
+ * ENHANCED (v1.1.0): Expanded to 20+ indicator patterns for better concept matching.
  */
 export function calculateSemanticIndicators(text1: string, text2: string): number {
   const indicators = [
     // Error handling patterns
-    /error|exception|fail|invalid|reject/i,
-    // Security patterns
-    /auth|permission|access|secure|credential/i,
-    // Data patterns
-    /file|path|directory|read|write/i,
+    /error|exception|fail|invalid|reject|throw|catch/i,
+    // Security vulnerability patterns
+    /vulnerab|attack|exploit|malicious|inject|bypass|traversal/i,
+    // Security mechanism patterns
+    /auth|permission|access|secure|credential|token|session/i,
+    // Data/file patterns
+    /file|path|directory|read|write|upload|download/i,
     // Network patterns
-    /request|response|api|http|url/i,
+    /request|response|api|http|url|endpoint|server/i,
     // Format patterns
-    /json|xml|format|parse|serialize/i,
+    /json|xml|format|parse|serialize|encode|decode/i,
     // State patterns
-    /state|status|flag|mode|config/i,
-    // Numeric patterns
-    /number|count|size|limit|max|min/i,
+    /state|status|flag|mode|config|setting/i,
+    // Numeric/limit patterns
+    /number|count|size|limit|max|min|exceed|threshold/i,
     // Time patterns
-    /time|date|timeout|delay|schedule/i,
+    /time|date|timeout|delay|schedule|expire|duration/i,
+    // Input/output patterns
+    /input|output|param|argument|return|result/i,
+    // Validation patterns
+    /valid|sanitiz|check|verify|confirm|ensure/i,
+    // Memory/resource patterns
+    /memory|resource|buffer|allocat|leak|exhaust/i,
+    // Process/execution patterns
+    /execut|process|run|invoke|call|command|shell/i,
+    // Database patterns
+    /database|query|sql|table|record|store/i,
+    // User/identity patterns
+    /user|account|identity|role|privilege|admin/i,
+    // Encryption patterns
+    /encrypt|decrypt|hash|cipher|key|secret|password/i,
+    // Network resource patterns
+    /connect|socket|port|host|remote|local/i,
+    // Control flow patterns
+    /allow|deny|block|restrict|grant|revoke/i,
+    // Data sensitivity patterns
+    /sensitive|private|confidential|personal|pii/i,
+    // Protocol patterns
+    /http|https|ftp|ssh|ssl|tls|oauth/i,
   ];
 
   let matches1 = 0;

@@ -1,31 +1,33 @@
-# Bellwether MCP Interview Action
+# Bellwether GitHub Action
 
-Behavioral testing, documentation generation, and drift detection for MCP servers in your CI/CD pipeline.
+> **Test your MCP servers. Catch drift. Get documentation for free.**
+
+Behavioral drift detection for MCP servers in CI/CD. The only tool that tests from 4 unique personas.
 
 ## Features
 
-- Interview MCP servers with LLM-guided behavioral testing
-- Generate AGENTS.md documentation automatically
-- Detect behavioral drift with baseline comparison
-- Run custom test scenarios (with or without LLM)
-- JSON report output for programmatic analysis
-- Multiple LLM providers: OpenAI, Anthropic, Ollama
+- **Behavioral Drift Detection** - Compare baselines to catch regressions before deployment (not just schema changes)
+- **4-Persona Testing** - Technical writer, security tester, QA engineer, novice user—unique to Bellwether
+- **CI/CD Gating** - Block deployments when behavior drifts unexpectedly
+- **Free Documentation** - AGENTS.md generated automatically from test results
+- **Custom Test Scenarios** - Define deterministic tests (with or without LLM)
+- **Multiple LLM Providers** - OpenAI, Anthropic, or Ollama
 
 ## Usage
 
 ### Basic Usage
 
 ```yaml
-name: MCP Interview
+name: MCP Drift Detection
 on: [push, pull_request]
 
 jobs:
-  interview:
+  bellwether:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Interview MCP Server
+      - name: Test MCP Server
         uses: dotsetlabs/bellwether/action@v1
         with:
           server-command: 'npx @modelcontextprotocol/server-filesystem'

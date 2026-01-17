@@ -5,7 +5,7 @@ sidebar_position: 12
 
 # bellwether verify
 
-Generate a documentation report for the Documented by Bellwether program.
+Generate a verification report for the Verified by Bellwether program.
 
 ## Synopsis
 
@@ -15,7 +15,7 @@ bellwether verify [options] <command> [args...]
 
 ## Description
 
-The `verify` command runs a comprehensive interview and generates a documentation report that earns your MCP server a coverage badge. Documented servers receive a badge indicating their tier level and documentation coverage.
+The `verify` command runs a comprehensive interview and generates a verification report that earns your MCP server a coverage badge. Verified servers receive a badge indicating their tier level and test coverage.
 
 ## Arguments
 
@@ -33,7 +33,7 @@ The `verify` command runs a comprehensive interview and generates a documentatio
 | `--tier <tier>` | Target tier: `bronze`, `silver`, `gold`, `platinum` | `silver` |
 | `--server-id <id>` | Server identifier (namespace/name) | Auto-detect |
 | `--version <version>` | Server version to verify | Auto-detect |
-| `--security` | Include security hygiene checks | `false` |
+| `--security` | Include security hygiene checks (required for gold+ tiers) | `false` |
 
 ### Output Options
 
@@ -50,33 +50,33 @@ The `verify` command runs a comprehensive interview and generates a documentatio
 | `--provider <provider>` | LLM provider: `openai`, `anthropic`, `ollama` | `openai` |
 | `--model <model>` | Specific model to use | Provider default |
 
-## Documentation Tiers
+## Verification Tiers
 
 | Tier | Icon | Requirements |
 |:-----|:-----|:-------------|
-| **Bronze** | 🥉 | Basic documentation testing |
+| **Bronze** | 🥉 | Basic testing (happy path) |
 | **Silver** | 🥈 | Error handling tested (2+ personas) |
 | **Gold** | 🥇 | Multiple personas + good coverage (85%+) |
 | **Platinum** | 💎 | Comprehensive testing + all personas (90%+) |
 
 ### Tier Details
 
-**Bronze** - Entry level documentation
+**Bronze** - Entry level verification
 - Uses Technical Writer persona
 - Basic happy path testing
 - Pass rate: 50%+
 
-**Silver** - Standard documentation
+**Silver** - Standard verification
 - Uses Technical Writer + QA Engineer
 - Error handling scenarios tested
 - Pass rate: 75%+
 
-**Gold** - Thorough documentation
+**Gold** - Thorough verification
 - Uses 3+ personas
 - Tests prompts and resources if available
 - Pass rate: 85%+
 
-**Platinum** - Comprehensive documentation
+**Platinum** - Comprehensive verification
 - All 4 personas used (including security hygiene checks)
 - Complete behavioral coverage
 - Pass rate: 90%+
@@ -198,23 +198,23 @@ The generated `bellwether-verification.json` contains:
 
 ## Adding the Badge
 
-Add the documentation badge to your README:
+Add the verification badge to your README:
 
 ```markdown
-![Documented by Bellwether](https://img.shields.io/badge/bellwether-gold-FFD700)
+![Verified by Bellwether](https://img.shields.io/badge/bellwether-gold-FFD700)
 ```
 
 Or with a link to your report:
 
 ```markdown
-[![Documented by Bellwether](https://img.shields.io/badge/bellwether-gold-FFD700)](./bellwether-verification.json)
+[![Verified by Bellwether](https://img.shields.io/badge/bellwether-gold-FFD700)](./bellwether-verification.json)
 ```
 
-## Documentation Validity
+## Verification Validity
 
-- Documentation badges are valid for **90 days**
-- Re-run documentation after significant changes
-- The `expiresAt` field indicates when re-documentation is needed
+- Verification badges are valid for **90 days**
+- Re-run verification after significant changes
+- The `expiresAt` field indicates when re-verification is needed
 
 ## Exit Codes
 

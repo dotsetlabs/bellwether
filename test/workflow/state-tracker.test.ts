@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { StateTracker, createStateTracker } from '../../src/workflow/state-tracker.js';
+import { StateTracker } from '../../src/workflow/state-tracker.js';
 import type { MCPClient } from '../../src/transport/mcp-client.js';
 import type { MCPTool, MCPToolCallResult } from '../../src/transport/types.js';
 import type { WorkflowStepResult, StateSnapshot } from '../../src/workflow/types.js';
@@ -542,13 +542,4 @@ describe('StateTracker', () => {
     });
   });
 
-  describe('createStateTracker factory', () => {
-    it('should create a StateTracker instance', () => {
-      const mockClient = createMockClient(new Map());
-      const tracker = createStateTracker(mockClient, mixedTools);
-
-      expect(tracker).toBeInstanceOf(StateTracker);
-      expect(tracker.getAllToolInfo().length).toBe(mixedTools.length);
-    });
-  });
 });

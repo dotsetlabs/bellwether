@@ -7,7 +7,6 @@ export {
   estimateInterviewCost,
   formatCostEstimate,
   getModelPricing,
-  isKnownModel,
 } from './tracker.js';
 
 export type {

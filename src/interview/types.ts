@@ -118,8 +118,12 @@ export interface ToolInteraction {
   error: string | null;
   /** LLM analysis of the response */
   analysis: string;
-  /** Time taken in ms */
+  /** Total time taken in ms (includes tool call + LLM analysis) */
   durationMs: number;
+  /** Time taken for tool execution only (MCP transport) in ms */
+  toolExecutionMs?: number;
+  /** Time taken for LLM analysis only in ms */
+  llmAnalysisMs?: number;
   /** Persona that generated this interaction */
   personaId?: string;
 }

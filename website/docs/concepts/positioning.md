@@ -49,24 +49,24 @@ They're complementary. Use both.
 | Security compliance audits | ⚠️ Partial | Good first step, not sufficient alone |
 | Enterprise-wide rollout | ❌ Not ideal | No SSO, limited team features |
 
-## Understanding Documentation Badges
+## Understanding Verification Badges
 
-"Documented by Bellwether" means **systematically documented with Bellwether**, not independently certified. Badges indicate:
+"Verified by Bellwether" means **systematically tested with Bellwether**, not independently certified. Badges indicate:
 
 - The server was interviewed with Bellwether
-- It achieved the specified documentation coverage tier
+- It achieved the specified test coverage tier
 - Results are self-reported by the server maintainer
 
 ### What Each Tier Means
 
 | Tier | Requirements | What it signals |
 |:-----|:-------------|:----------------|
-| 🥉 Bronze | Basic documentation (happy path) | "This server has been documented" |
+| 🥉 Bronze | Basic testing (happy path) | "This server has been tested" |
 | 🥈 Silver | + Error handling coverage | "This server handles errors gracefully" |
-| 🥇 Gold | + All personas, good coverage | "This server is thoroughly documented" |
-| 💎 Platinum | + Comprehensive testing, all personas | "This server has thorough documentation coverage" |
+| 🥇 Gold | + All personas, good coverage | "This server is thoroughly tested" |
+| 💎 Platinum | + Comprehensive testing, all personas | "This server has thorough test coverage" |
 
-**Important**: Platinum documentation indicates comprehensive coverage across all testing personas. Security hygiene checks are included but this is a first line of defense—not a replacement for professional security audits.
+**Important**: Platinum verification indicates comprehensive coverage across all testing personas. Security hygiene checks are included but this is a first line of defense—not a replacement for professional security audits.
 
 Verification is valid for 90 days and should be re-run after significant changes.
 

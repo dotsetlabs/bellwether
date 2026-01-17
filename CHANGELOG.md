@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Drift Detection Evaluation** - Evaluate and improve drift detection accuracy
+  - New `bellwether eval` command to test drift detection against calibration datasets
+  - Filter by category (`--category`) or tags (`--tags`)
+  - Export and update calibration models (`--export-calibration`, `--update-calibration`)
+  - Check embedding support (`--check-embeddings`)
+
+- **Drift Detection Feedback** - Submit feedback to improve accuracy
+  - New `bellwether feedback` command to report false positives/negatives
+  - List recent decisions (`--list`) for review
+  - View feedback statistics (`--stats`) and patterns (`--analyze`)
+  - Export decisions for analysis (`--export`)
+
+- **Interview Profiles** - Save and reuse interview configurations
+  - New `bellwether profile` command with subcommands:
+    - `profile create <name>` - Create a new profile
+    - `profile list` - List all profiles
+    - `profile use <name>` - Set active profile
+    - `profile show [name]` - Show profile details
+    - `profile update <name>` - Update existing profile
+    - `profile delete <name>` - Delete a profile
+    - `profile export [name]` - Export profile as YAML
+    - `profile import <file>` - Import profile from YAML
+
+- **Resource Timeout** - Configurable timeout for resource reads
+  - New `--resource-timeout <ms>` flag for interview command (default: 10000ms)
+
 ## [0.4.0] - 2026-01-17
 
 ### Added
@@ -90,10 +118,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Secure API Key Storage** - System keychain integration
   - New `bellwether auth` command for managing API keys
-  - `bellwether auth set <provider>` - Store keys in system keychain
-  - `bellwether auth get <provider>` - Retrieve stored keys
-  - `bellwether auth delete <provider>` - Remove keys from keychain
-  - `bellwether auth list` - List configured providers
+  - `bellwether auth` (no subcommand) - Interactive setup wizard
+  - `bellwether auth status` - Show authentication status for all providers
+  - `bellwether auth add [provider]` - Add or update an API key
+  - `bellwether auth remove [provider]` - Remove key from keychain
+  - `bellwether auth clear` - Remove all stored API keys
   - Supports `openai` and `anthropic` providers
   - Keys stored securely using OS keychain (macOS Keychain, Windows Credential Vault, Linux libsecret)
 
@@ -102,6 +131,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - API keys in global config apply to all projects
   - Project-level `.env` overrides global settings
   - Keychain credentials loaded if env vars not set
+
+- **Configuration Initialization** - Easy project setup
+  - New `bellwether init` command to create `bellwether.yaml` configuration file
+  - `--force` flag to overwrite existing config
+  - Generates documented config with sensible defaults
 
 - **Resource Testing** - MCP resources are now discovered and tested
   - Resources discovered via `resources/list` are automatically interviewed

@@ -47,3 +47,8 @@ export const VERSION = getPackageVersion();
  * Package name.
  */
 export const PACKAGE_NAME = '@dotsetlabs/bellwether';
+
+/**
+ * User-Agent string for HTTP requests.
+ */
+export const USER_AGENT = `bellwether/${VERSION}`;

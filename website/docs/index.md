@@ -6,7 +6,7 @@ sidebar_position: 1
 
 # Bellwether
 
-**Automated behavioral documentation for MCP servers through LLM-guided testing.**
+> **Test your MCP servers. Catch drift. Get documentation for free.**
 
 ## What is MCP?
 
@@ -24,32 +24,41 @@ Your MCP Server (tools, data, capabilities)
 
 ---
 
-Bellwether is a CLI tool that generates comprehensive behavioral documentation for MCP servers. Instead of relying on manually written docs, Bellwether **interviews** your MCP server by:
+Bellwether is a CLI tool for **behavioral drift detection** in MCP servers. It **interviews** your server from 4 different personas, catches regressions before deployment, and generates AGENTS.md documentation as a byproduct:
 
 1. **Discovering** available tools, prompts, and resources
-2. **Generating** realistic test scenarios using an LLM
-3. **Executing** tests and analyzing actual responses
-4. **Synthesizing** findings into actionable documentation
+2. **Testing from 4 personas** - Technical writer, security tester, QA engineer, novice user
+3. **Detecting behavioral drift** between baseline and current behavior
+4. **Generating documentation** - AGENTS.md reflects what your server actually does
 
 ## Why Bellwether?
 
 | Problem | Solution |
 |:--------|:---------|
-| Documentation says one thing, but what does the server actually do? | **Trust but verify** - Interview the server to document real behavior |
-| Breaking changes slip into production unnoticed | **Drift detection** - Catch behavioral changes before they hit production |
-| Security vulnerabilities are hard to discover manually | **Security hygiene** - Persona-based testing catches common issues |
-| Manual testing is slow and expensive | **CI/CD integration** - Automated regression testing for MCP servers |
+| Breaking changes slip into production unnoticed | **Behavioral drift detection** - Compare baselines to catch regressions before deployment |
+| Manual testing misses edge cases | **4-persona testing** - The only tool that tests from technical writer, security tester, QA engineer, and novice user perspectives |
+| Security vulnerabilities are hard to discover | **Security persona** - Dedicated adversarial testing catches path traversal, injection, and info disclosure |
+| Documentation gets stale | **Free documentation** - AGENTS.md is generated automatically from test results |
+
+## What Makes Bellwether Different
+
+| Feature | Bellwether | Other MCP Tools |
+|:--------|:-----------|:----------------|
+| **Behavioral drift detection** | ✅ Semantic comparison | ❌ Schema-only or none |
+| **Multi-persona testing** | ✅ 4 unique perspectives | ❌ Single perspective |
+| **Documentation generation** | ✅ AGENTS.md included | ❌ Not available |
+| **CI/CD integration** | ✅ GitHub Action | ⚠️ Limited |
 
 ## Key Features
 
-- **AGENTS.md Generation** - Human-readable behavioral documentation generated automatically from actual server responses
+- **Behavioral Drift Detection** - Compare baselines to catch regressions before deployment (not just schema changes)
+- **4-Persona Testing** - Technical writer, security tester, QA engineer, novice user—the only MCP tool with multi-perspective testing
+- **Free Documentation** - AGENTS.md generated automatically from test results
+- **CI/CD Integration** - GitHub Action for automated regression testing in your pipeline
+- **Security Hygiene** - Dedicated security persona catches common vulnerabilities
 - **Complete MCP Coverage** - Test tools, prompts, and resources with content previews and access patterns
-- **Drift Detection** - Compare baselines to detect behavioral changes between versions with semantic diff analysis
-- **Multi-Persona Testing** - Security tester, QA engineer, technical writer, and novice user personas for comprehensive coverage
 - **MCP Registry Integration** - Search and discover servers from the official MCP Registry
-- **Documentation Program** - Earn Bronze, Silver, Gold, or Platinum coverage badges for your server
-- **GitHub Action** - Official action for automated CI/CD integration
-- **Multiple Output Formats** - Markdown (AGENTS.md) and JSON for programmatic analysis
+- **Verification Badges** - Earn Bronze, Silver, Gold, or Platinum coverage badges for your server
 
 ## How It Works
 
@@ -164,5 +173,5 @@ Use Ollama for completely free testing during development.
 - [Local Development](/guides/local-development) - Test your server during development
 - [CLI Reference](/cli/interview) - Full command documentation
 - [MCP Registry](/cli/registry) - Discover servers to test
-- [Documentation Badges](/cli/verify) - Earn coverage badges for your server
+- [Verification Badges](/cli/verify) - Earn coverage badges for your server
 - [CI/CD Integration](/guides/ci-cd) - Automate with the GitHub Action

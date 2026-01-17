@@ -11,6 +11,76 @@ import { getValueAtPath } from '../utils/jsonpath.js';
 export { getValueAtPath };
 
 /**
+ * MCP tool call result structure.
+ * Mirrors the MCPToolCallResult type from transport/types.ts.
+ */
+interface MCPToolCallResult {
+  content?: Array<{ type: string; text?: string }>;
+  isError?: boolean;
+}
+
+/**
+ * Extract and parse the actual response content from an MCP tool call result.
+ *
+ * MCP returns responses in this format:
+ * {
+ *   content: [{ type: 'text', text: '{"success": true, ...}' }],
+ *   isError: false
+ * }
+ *
+ * This function extracts the JSON from content[0].text and parses it,
+ * allowing assertions to check paths like 'success' and 'note.id' directly.
+ *
+ * For error responses (isError: true), returns an object with:
+ * { error: true, message: "...", isError: true }
+ *
+ * Falls back to returning the original response if:
+ * - Response is not an MCP tool call result
+ * - No text content found
+ * - Text is not valid JSON (for success responses)
+ */
+export function extractResponseContent(response: unknown): unknown {
+  // Handle null/undefined
+  if (response === null || response === undefined) {
+    return response;
+  }
+
+  // Check if this looks like an MCP tool call result
+  if (typeof response === 'object' && 'content' in (response as object)) {
+    const mcpResult = response as MCPToolCallResult;
+
+    // Find text content
+    const textContent = mcpResult.content?.find((c) => c.type === 'text' && c.text);
+
+    // If this is an error response, wrap the message in an error object
+    // This allows assertions like { path: 'error', condition: 'exists' } to work
+    if (mcpResult.isError) {
+      const errorMessage = textContent?.text ?? 'Unknown error';
+      return {
+        error: true,
+        message: errorMessage,
+        isError: true,
+      };
+    }
+
+    // For success responses, try to parse JSON
+    if (textContent?.text) {
+      try {
+        // Try to parse as JSON
+        const parsed = JSON.parse(textContent.text);
+        return parsed;
+      } catch {
+        // Not valid JSON, return the raw text
+        return textContent.text;
+      }
+    }
+  }
+
+  // Not an MCP response, return as-is
+  return response;
+}
+
+/**
  * Evaluate a single assertion against a response.
  */
 export function evaluateAssertion(
@@ -129,13 +199,34 @@ export function evaluateAssertion(
 
 /**
  * Evaluate all assertions for a response.
+ *
+ * Automatically extracts and parses JSON content from MCP tool call results.
+ * This allows assertions to check paths like 'success', 'note.id' directly
+ * rather than needing to navigate through 'content[0].text'.
+ *
+ * When isError is true and response is null/undefined (MCP threw an exception),
+ * creates an error object to allow assertions like { path: 'error', condition: 'exists' }
+ * to pass for error handling test cases.
  */
 export function evaluateAssertions(
   assertions: ScenarioAssertion[],
   response: unknown,
   isError: boolean
 ): AssertionResult[] {
-  return assertions.map((assertion) => evaluateAssertion(assertion, response, isError));
+  // Handle the case where MCP threw an exception (response is null but isError is true)
+  // This allows error handling test cases to verify that errors occur
+  if (isError && (response === null || response === undefined)) {
+    const errorResponse = {
+      error: true,
+      isError: true,
+      message: 'MCP protocol error occurred',
+    };
+    return assertions.map((assertion) => evaluateAssertion(assertion, errorResponse, isError));
+  }
+
+  // Extract actual content from MCP response wrapper
+  const extractedResponse = extractResponseContent(response);
+  return assertions.map((assertion) => evaluateAssertion(assertion, extractedResponse, isError));
 }
 
 /**
