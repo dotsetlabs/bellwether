@@ -102,8 +102,8 @@ describe('Persona System', () => {
       });
 
       it('should have additional context with attack patterns', () => {
-        expect(securityTesterPersona.additionalContext).toContain('Path inputs');
-        expect(securityTesterPersona.additionalContext).toContain('../');
+        expect(securityTesterPersona.additionalContext).toContain('Path validation tests');
+        expect(securityTesterPersona.additionalContext).toContain('path traversal');
       });
     });
 
