@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-01-17
+
+### Added
+
+#### Workflow Testing
+- **Multi-step workflow testing** - Define sequences of tool calls that represent realistic usage patterns
+  - New `--workflows <path>` flag to load workflow definitions from YAML
+  - New `--discover-workflows` flag for LLM-based workflow discovery
+  - New `--max-workflows <n>` flag to limit discovered workflows (default: 3)
+  - New `--workflow-state-tracking` flag to monitor state changes during execution
+  - New `--init-workflows` flag to generate sample `bellwether-workflows.yaml`
+  - Workflow results included in AGENTS.md and JSON reports
+
+#### Performance & Cost Control
+- **Response caching** - Avoid redundant tool calls and LLM analysis
+  - Caching enabled by default (`--cache`)
+  - New `--no-cache` flag to disable caching for fresh results
+- **Parallel persona execution** - Run persona interviews concurrently for faster execution
+  - New `--parallel-personas` flag to enable parallel execution
+  - New `--persona-concurrency <n>` flag to limit concurrency (default: 3)
+- **Token budget management** - Prevent runaway costs
+  - New `--max-tokens <n>` flag to set maximum total tokens
+  - Token tracking per model with context window limits
+- **Automatic fallback** - Graceful degradation when LLM providers fail
+  - New `--fallback` flag to enable automatic Ollama fallback
+- **Streaming output** - Real-time LLM response display
+  - New `--stream` flag to enable streaming output
+  - New `--quiet` flag to suppress streaming (log final results only)
+- **Metrics display** - Detailed performance and cost information
+  - New `--show-metrics` flag to display timing, tokens, and costs after interview
+
+#### LLM Improvements
+- **Fallback client** - Automatic provider switching on failures
+  - Tries primary provider, falls back to Ollama on error
+  - Configurable fallback model
+- **Improved refusal handling** - Better handling of Anthropic Claude refusals
+  - Detects content policy refusals
+  - Provides clearer error messages
+- **Better streaming** - Improved streaming support across all providers
+  - Consistent callback signatures
+  - Operation context in callbacks
+
+#### Metrics Collection
+- **Performance metrics** - Detailed timing information
+  - Per-operation timing (question generation, analysis, synthesis)
+  - Aggregated statistics (avg, p50, p95, max)
+- **Token tracking** - Input/output token counts
+  - Per-operation token usage
+  - Total token consumption
+  - Cost estimation
+
+### Changed
+
+- **Centralized version management** - All version references now use `src/version.ts`
+- **Streaming callback interface** - Added operation context to all callbacks
+  - `onStart(operation, context?)` - Operation name and optional context
+  - `onChunk(chunk, operation)` - Chunk text and operation name
+  - `onComplete(text, operation)` - Full text and operation name
+  - `onError(error, operation)` - Error and operation name
+- **Interactive mode personas** - Now uses actual built-in persona names
+  - Changed from non-existent 'friendly', 'adversarial' to 'technical_writer', 'security_tester', etc.
+
+### Fixed
+
+- Replaced placeholder "in a real implementation" comment with actual logging in persona loader
+- Fixed hard-coded version '0.1.0' in MCP client to use centralized VERSION constant
+- Fixed streaming callback signature mismatches between `InterviewStreamingCallbacks` and `OrchestratorStreamingCallbacks`
+- Fixed missing `--quiet` CLI option declaration in interview command
+- Fixed interactive mode referencing non-existent personas ('friendly', 'adversarial', etc.)
+- Fixed flaky timing test in metrics collector
+
 ## [0.3.0] - 2026-01-15
 
 ### Added
