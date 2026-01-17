@@ -25,11 +25,14 @@ import {
   estimateInterviewCost,
   formatCostEstimate,
 } from '../../cost/index.js';
+import { getMetricsCollector, resetMetricsCollector } from '../../metrics/collector.js';
+import { FallbackLLMClient } from '../../llm/fallback.js';
+import { withTokenBudget } from '../../llm/token-budget.js';
+import { getGlobalCache, resetGlobalCache } from '../../cache/response-cache.js';
+import { INTERVIEW } from '../../constants.js';
 import {
   promptForConfig,
   displayConfigSummary,
-  createPauseController,
-  setupInteractiveKeyboard,
   type InteractiveConfig,
 } from '../interactive.js';
 import {
@@ -49,7 +52,16 @@ import {
   generateSampleScenariosYaml,
   DEFAULT_SCENARIOS_FILE,
 } from '../../scenarios/index.js';
+import {
+  loadWorkflowsFromFile,
+  generateSampleWorkflowYaml,
+} from '../../workflow/loader.js';
+import { WORKFLOW } from '../../constants.js';
+import type { WorkflowConfig } from '../../interview/types.js';
 import * as output from '../output.js';
+import { StreamingDisplay } from '../output.js';
+import type { InterviewStreamingCallbacks } from '../../interview/types.js';
+import { suppressLogs, restoreLogLevel } from '../../logging/logger.js';
 
 /**
  * Map of persona names to persona objects.
@@ -167,7 +179,7 @@ export const interviewCommand = new Command('interview')
   .option('-c, --config <path>', 'Path to config file')
   .option('--model <model>', 'LLM model to use')
   .option('--max-questions <n>', 'Max questions per tool')
-  .option('--timeout <ms>', 'Timeout for tool calls in milliseconds', '60000')
+  .option('--timeout <ms>', 'Timeout for tool calls in milliseconds', String(INTERVIEW.CLI_TIMEOUT))
   .option('--json', 'Also output JSON report')
   .option('--verbose', 'Verbose output')
   .option('--debug', 'Debug MCP protocol')
@@ -192,6 +204,21 @@ export const interviewCommand = new Command('interview')
   .option('--strict', 'Strict mode: only report structural (deterministic) changes for CI')
   .option('--min-confidence <n>', 'Minimum confidence score (0-100) to report a change', '0')
   .option('--confidence-threshold <n>', 'Confidence threshold (0-100) for CI to fail on breaking changes')
+  .option('--stream', 'Enable streaming output to show LLM responses in real-time')
+  .option('--quiet', 'Suppress streaming output (use with --stream to only log final results)')
+  .option('--parallel-personas', 'Run persona interviews in parallel for faster execution')
+  .option('--persona-concurrency <n>', `Max concurrent persona interviews (default: ${INTERVIEW.DEFAULT_PERSONA_CONCURRENCY}, requires --parallel-personas)`, String(INTERVIEW.DEFAULT_PERSONA_CONCURRENCY))
+  .option('--show-metrics', 'Show detailed metrics after interview (token usage, timing, costs)')
+  .option('--fallback', 'Enable automatic Ollama fallback if primary LLM provider fails')
+  .option('--max-tokens <n>', 'Maximum total tokens to use (prevents runaway costs)')
+  .option('--cache', 'Enable response caching to avoid redundant tool calls and LLM analysis (default: enabled)')
+  .option('--no-cache', 'Disable response caching')
+  .option('--resource-timeout <ms>', `Timeout for resource reads in milliseconds (default: ${INTERVIEW.RESOURCE_TIMEOUT})`, String(INTERVIEW.RESOURCE_TIMEOUT))
+  .option('--workflows <path>', 'Path to workflow definitions YAML file')
+  .option('--discover-workflows', 'Enable LLM-based workflow discovery')
+  .option('--max-workflows <n>', `Maximum workflows to discover (default: ${WORKFLOW.MAX_DISCOVERED_WORKFLOWS})`, String(WORKFLOW.MAX_DISCOVERED_WORKFLOWS))
+  .option('--init-workflows', 'Generate a sample bellwether-workflows.yaml file and exit')
+  .option('--workflow-state-tracking', 'Enable state tracking during workflow execution')
   .action(async (command: string | undefined, args: string[], options) => {
     // Handle --init-scenarios: generate sample file and exit
     if (options.initScenarios) {
@@ -203,12 +230,22 @@ export const interviewCommand = new Command('interview')
       output.info('Then run: bellwether interview <command> --scenarios ' + outputPath);
       return;
     }
+
+    // Handle --init-workflows: generate sample file and exit
+    if (options.initWorkflows) {
+      const outputPath = options.workflows ?? 'bellwether-workflows.yaml';
+      const content = generateSampleWorkflowYaml();
+      writeFileSync(outputPath, content);
+      output.info(`Generated sample workflows file: ${outputPath}`);
+      output.info('\nEdit this file to define custom workflow tests for your MCP server.');
+      output.info('Then run: bellwether interview <command> --workflows ' + outputPath);
+      return;
+    }
     // Load configuration
     const config = loadConfig(options.config);
 
     // Handle interactive mode
     let interactiveConfig: InteractiveConfig | undefined;
-    let cleanupKeyboard: (() => void) | undefined;
 
     if (options.interactive || !command) {
       // If no command provided, enter interactive mode
@@ -222,13 +259,6 @@ export const interviewCommand = new Command('interview')
       // Update command and args from interactive config
       command = interactiveConfig.serverCommand;
       args = interactiveConfig.serverArgs;
-
-      // Set up keyboard listener for pause/resume
-      const pauseController = createPauseController();
-      cleanupKeyboard = setupInteractiveKeyboard(pauseController);
-
-      // Store pause controller in options for later use
-      (options as Record<string, unknown>)._pauseController = pauseController;
     }
 
     // Ensure we have a command at this point
@@ -323,6 +353,20 @@ export const interviewCommand = new Command('interview')
     // Initialize cost tracker for real usage tracking
     const costTracker = new CostTracker(model);
 
+    // Initialize metrics collector for comprehensive observability
+    resetMetricsCollector();
+    const metricsCollector = getMetricsCollector();
+    metricsCollector.startInterview();
+
+    // Initialize cache for tool responses and LLM analysis
+    // Cache is enabled by default unless --no-cache is specified
+    const cacheEnabled = options.cache !== false;
+    resetGlobalCache();
+    const cache = getGlobalCache({ enabled: cacheEnabled });
+    if (cacheEnabled) {
+      output.info('Response caching enabled');
+    }
+
     // Initialize clients
     const mcpClient = new MCPClient({
       timeout,
@@ -331,19 +375,68 @@ export const interviewCommand = new Command('interview')
     });
     let llmClient: LLMClient;
 
+    // Create usage callback for cost and metrics tracking
+    const onUsageCallback = (inputTokens: number, outputTokens: number) => {
+      costTracker.addUsage(inputTokens, outputTokens);
+      // Also record in metrics collector for comprehensive tracking
+      metricsCollector.recordTokenUsage(
+        config.llm.provider,
+        model,
+        inputTokens,
+        outputTokens,
+        'llm_call'
+      );
+    };
+
     try {
       // Use the LLM factory to create the appropriate provider client
-      // Pass usage callback to track actual token consumption
-      llmClient = createLLMClient({
+      const baseLLMClient = createLLMClient({
         provider: config.llm.provider,
         model,
         apiKey: config.llm.apiKey,
         apiKeyEnvVar: config.llm.apiKeyEnvVar,
         baseUrl: config.llm.baseUrl,
-        onUsage: (inputTokens, outputTokens) => {
-          costTracker.addUsage(inputTokens, outputTokens);
-        },
+        onUsage: onUsageCallback,
       });
+
+      // Wrap with fallback client if enabled
+      if (options.fallback) {
+        output.info('Fallback mode enabled - will use Ollama if primary provider fails');
+        llmClient = new FallbackLLMClient({
+          providers: [
+            {
+              provider: config.llm.provider,
+              model,
+              apiKey: config.llm.apiKey,
+              apiKeyEnvVar: config.llm.apiKeyEnvVar,
+              baseUrl: config.llm.baseUrl,
+            },
+          ],
+          useOllamaFallback: true,
+          onUsage: onUsageCallback,
+        });
+      } else {
+        llmClient = baseLLMClient;
+      }
+
+      // Wrap with token budget enforcement if max-tokens specified
+      if (options.maxTokens) {
+        const maxTokens = parseInt(options.maxTokens, 10);
+        if (isNaN(maxTokens) || maxTokens < 1000) {
+          output.error('Invalid --max-tokens value: must be a positive integer >= 1000');
+          process.exit(1);
+        }
+        output.info(`Token budget enabled: ${maxTokens.toLocaleString()} tokens max`);
+        llmClient = withTokenBudget(llmClient, {
+          maxTotalTokens: maxTokens,
+          onBudgetWarning: (used, total, pct) => {
+            output.warn(`Token budget warning: ${pct.toFixed(0)}% used (${used.toLocaleString()}/${total.toLocaleString()})`);
+          },
+          onBudgetExceeded: (used, total) => {
+            output.error(`Token budget exceeded: ${used.toLocaleString()}/${total.toLocaleString()} tokens`);
+          },
+        });
+      }
     } catch (error) {
       output.error('Failed to initialize LLM client: ' + (error instanceof Error ? error.message : String(error)));
       output.error(`\nProvider: ${config.llm.provider}`);
@@ -352,6 +445,13 @@ export const interviewCommand = new Command('interview')
       output.error('  - Anthropic: ANTHROPIC_API_KEY');
       output.error('  - Ollama: No API key needed (ensure Ollama is running)');
       process.exit(1);
+    }
+
+    // Determine streaming early so we can suppress logs before MCP connection
+    const enableStreaming = options.stream && !options.quiet;
+    if (enableStreaming) {
+      // Suppress JSON logs during streaming to keep output clean
+      suppressLogs();
     }
 
     try {
@@ -372,8 +472,15 @@ export const interviewCommand = new Command('interview')
       const discovery = await discover(mcpClient, command, args);
       output.info(`Found ${discovery.tools.length} tools, ${discovery.prompts.length} prompts\n`);
 
+      // Update metrics with discovery counts
+      metricsCollector.updateInterviewCounters({
+        toolsDiscovered: discovery.tools.length,
+        personasUsed: selectedPersonas.length,
+      });
+
       if (discovery.tools.length === 0) {
         output.info('No tools found. Nothing to interview.');
+        metricsCollector.endInterview();
         await mcpClient.disconnect();
         return;
       }
@@ -409,6 +516,113 @@ export const interviewCommand = new Command('interview')
         }
       }
 
+      // Build workflow configuration
+      let workflowConfig: WorkflowConfig | undefined;
+      if (options.workflows || options.discoverWorkflows) {
+        workflowConfig = {
+          discoverWorkflows: options.discoverWorkflows,
+          maxDiscoveredWorkflows: options.maxWorkflows
+            ? parseInt(options.maxWorkflows, 10)
+            : WORKFLOW.MAX_DISCOVERED_WORKFLOWS,
+          enableStateTracking: options.workflowStateTracking,
+        };
+
+        // Load workflows from file if provided
+        if (options.workflows) {
+          try {
+            const workflows = loadWorkflowsFromFile(options.workflows);
+            workflowConfig.workflows = workflows;
+            workflowConfig.workflowsFile = options.workflows;
+            output.info(`Loaded ${workflows.length} workflow(s) from ${options.workflows}`);
+          } catch (error) {
+            output.error(`Failed to load workflows: ${error instanceof Error ? error.message : error}`);
+            process.exit(1);
+          }
+        }
+
+        if (options.discoverWorkflows) {
+          output.info('Workflow discovery enabled - will analyze tools for workflow patterns');
+        }
+      }
+
+      // Set up streaming display if enabled
+      let streamingDisplay: StreamingDisplay | null = null;
+      let streamingCallbacks: InterviewStreamingCallbacks | undefined;
+
+      if (enableStreaming) {
+        streamingDisplay = new StreamingDisplay({
+          style: 'dim',
+          maxWidth: 100,
+        });
+
+        streamingCallbacks = {
+          onStart: (operation: string, _context?: string) => {
+            // Parse operation to get a human-readable description
+            const parts = operation.split(':');
+            const opType = parts[0];
+            const context = parts[1];
+
+            let prefix = '';
+            switch (opType) {
+              case 'generate-questions':
+                prefix = context ? `\n  Generating questions for ${context}... ` : '\n  Generating questions... ';
+                break;
+              case 'analyze':
+                prefix = context ? `\n  Analyzing ${context}... ` : '\n  Analyzing... ';
+                break;
+              case 'synthesize-tool':
+                prefix = context ? `\n  Synthesizing profile for ${context}... ` : '\n  Synthesizing profile... ';
+                break;
+              case 'synthesize-overall':
+                prefix = '\n  Synthesizing overall findings... ';
+                break;
+              case 'generate-prompt-questions':
+              case 'analyze-prompt':
+              case 'synthesize-prompt':
+                prefix = context ? `\n  Processing prompt ${context}... ` : '\n  Processing prompt... ';
+                break;
+              case 'generate-resource-questions':
+              case 'analyze-resource':
+              case 'synthesize-resource':
+                prefix = context ? `\n  Processing resource ${context}... ` : '\n  Processing resource... ';
+                break;
+              default:
+                prefix = '\n  Processing... ';
+            }
+            streamingDisplay?.start(prefix);
+          },
+          onChunk: (chunk: string, _operation: string) => {
+            streamingDisplay?.write(chunk);
+          },
+          onComplete: (_text: string, _operation: string) => {
+            streamingDisplay?.finish(' [done]');
+          },
+          onError: (error: Error, _operation: string) => {
+            streamingDisplay?.abort(`[error: ${error.message}]`);
+          },
+        };
+
+        output.info('Streaming mode enabled - showing LLM output in real-time\n');
+      }
+
+      // Parse and validate persona concurrency
+      let personaConcurrency: number | undefined;
+      if (options.personaConcurrency) {
+        personaConcurrency = parseInt(options.personaConcurrency, 10);
+        if (isNaN(personaConcurrency) || personaConcurrency < 1) {
+          output.error('Invalid --persona-concurrency value: must be a positive integer');
+          process.exit(1);
+        }
+        if (personaConcurrency > INTERVIEW.MAX_PERSONA_CONCURRENCY) {
+          output.warn(`High persona concurrency (${personaConcurrency}) may cause rate limiting or memory issues`);
+        }
+      }
+
+      // Parse resource timeout option
+      const resourceTimeout = options.resourceTimeout
+        ? parseInt(options.resourceTimeout, 10)
+        : undefined;
+
       // Interview phase
       const interviewer = new Interviewer(llmClient, {
         maxQuestionsPerTool: maxQuestions,
@@ -418,6 +632,13 @@ export const interviewCommand = new Command('interview')
         personas: selectedPersonas,
         customScenarios,
         customScenariosOnly: options.scenariosOnly,
+        enableStreaming,
+        streamingCallbacks,
+        parallelPersonas: options.parallelPersonas,
+        personaConcurrency,
+        cache,
+        resourceTimeout,
+        workflowConfig,
       });
 
       // Extract server context from command line arguments
@@ -427,8 +648,8 @@ export const interviewCommand = new Command('interview')
       }
       interviewer.setServerContext(serverContext);
 
-      // Set up progress display
-      const progressBar = new InterviewProgressBar({ enabled: !options.verbose });
+      // Set up progress display - disable progress bar when streaming to avoid display conflicts
+      const progressBar = new InterviewProgressBar({ enabled: !options.verbose && !enableStreaming });
 
       const progressCallback = (progress: InterviewProgress) => {
         if (options.verbose) {
@@ -439,6 +660,13 @@ export const interviewCommand = new Command('interview')
               break;
             case 'interviewing':
               output.info(`[${progress.currentPersona}] Interviewing: ${progress.currentTool} (${progress.toolsCompleted + 1}/${progress.totalTools})`);
+              break;
+            case 'workflows':
+              if (progress.currentWorkflow) {
+                output.info(`Executing workflow: ${progress.currentWorkflow} (${(progress.workflowsCompleted ?? 0) + 1}/${progress.totalWorkflows})`);
+              } else {
+                output.info('Executing workflows...');
+              }
               break;
             case 'synthesizing':
               output.info('Synthesizing findings...');
@@ -451,7 +679,7 @@ export const interviewCommand = new Command('interview')
           // Use progress bar for non-verbose mode
           if (progress.phase === 'starting') {
             progressBar.start(progress.totalTools, progress.totalPersonas);
-          } else if (progress.phase === 'interviewing') {
+          } else if (progress.phase === 'interviewing' || progress.phase === 'workflows') {
             progressBar.update(progress);
           } else if (progress.phase === 'complete' || progress.phase === 'synthesizing') {
             progressBar.stop();
@@ -486,6 +714,9 @@ export const interviewCommand = new Command('interview')
         output.info(`Written: ${jsonPath}`);
       }
 
+      // End metrics tracking
+      const interviewMetrics = metricsCollector.endInterview();
+
       output.info('\nInterview complete!');
       output.info(`Duration: ${(result.metadata.durationMs / 1000).toFixed(1)}s`);
       output.info(`Tool calls: ${result.metadata.toolCallCount} (${result.metadata.errorCount} errors)`);
@@ -514,9 +745,72 @@ export const interviewCommand = new Command('interview')
         }
       }
 
+      // Display workflow results summary if workflows were executed
+      if (result.workflowResults && result.workflowResults.length > 0) {
+        const successful = result.workflowResults.filter(wr => wr.success).length;
+        const failed = result.workflowResults.length - successful;
+        const statusIcon = failed === 0 ? '\u2713' : '\u2717';
+        output.info(`\nWorkflows: ${successful}/${result.workflowResults.length} passed ${statusIcon}`);
+
+        // Show failed workflows
+        if (failed > 0) {
+          output.info('\nFailed workflows:');
+          for (const wr of result.workflowResults.filter(w => !w.success)) {
+            output.info(`  - ${wr.workflow.name}: ${wr.failureReason ?? 'Unknown error'}`);
+            if (wr.failedStepIndex !== undefined) {
+              const failedStep = wr.workflow.steps[wr.failedStepIndex];
+              output.info(`    Failed at step ${wr.failedStepIndex + 1}: ${failedStep?.tool ?? 'unknown'}`);
+            }
+          }
+        }
+
+        // Show workflow metadata summary
+        if (result.metadata.workflows) {
+          const wfMeta = result.metadata.workflows;
+          if (wfMeta.discoveredCount > 0) {
+            output.info(`  Discovered: ${wfMeta.discoveredCount} workflow(s)`);
+          }
+          if (wfMeta.loadedCount > 0) {
+            output.info(`  Loaded from file: ${wfMeta.loadedCount} workflow(s)`);
+          }
+        }
+      }
+
       // Show cost summary if requested (uses real token counts from API responses)
       if (options.showCost || options.estimateCost) {
         output.info('\n' + costTracker.formatSummary());
+      }
+
+      // Show detailed metrics if requested
+      if (options.showMetrics && interviewMetrics) {
+        output.info('\n--- Interview Metrics ---');
+        output.info(`Tools discovered: ${interviewMetrics.toolsDiscovered}`);
+        output.info(`Personas used: ${interviewMetrics.personasUsed}`);
+        output.info(`LLM calls made: ${interviewMetrics.llmCallsMade}`);
+        output.info(`Total input tokens: ${interviewMetrics.totalInputTokens.toLocaleString()}`);
+        output.info(`Total output tokens: ${interviewMetrics.totalOutputTokens.toLocaleString()}`);
+        if (interviewMetrics.totalDurationMs) {
+          output.info(`Total duration: ${(interviewMetrics.totalDurationMs / 1000).toFixed(1)}s`);
+        }
+        if (interviewMetrics.totalCostUSD > 0) {
+          output.info(`Estimated cost: $${interviewMetrics.totalCostUSD.toFixed(4)}`);
+        }
+      }
+
+      // Show cache statistics if caching is enabled
+      if (cacheEnabled) {
+        const cacheStats = cache.getStats();
+        const totalCacheOps = cacheStats.hits + cacheStats.misses;
+        if (totalCacheOps > 0) {
+          output.info('\n--- Cache Statistics ---');
+          output.info(`Cache hits: ${cacheStats.hits}`);
+          output.info(`Cache misses: ${cacheStats.misses}`);
+          output.info(`Hit rate: ${cacheStats.hitRate.toFixed(1)}%`);
+          output.info(`Entries stored: ${cacheStats.entries}`);
+          if (cacheStats.hits > 0) {
+            output.info(`Estimated savings: ${cacheStats.hits} LLM/tool calls avoided`);
+          }
+        }
       }
 
       // Save baseline if requested
@@ -628,10 +922,9 @@ export const interviewCommand = new Command('interview')
 
       process.exit(1);
     } finally {
+      // Restore log level if it was suppressed for streaming
+      // (restoreLogLevel is safe to call even if logs weren't suppressed)
+      restoreLogLevel();
       await mcpClient.disconnect();
-      // Clean up interactive keyboard listener
-      if (cleanupKeyboard) {
-        cleanupKeyboard();
-      }
     }
   });

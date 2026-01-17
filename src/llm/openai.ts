@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import type { LLMClient, Message, CompletionOptions, ProviderInfo } from './client.js';
+import type { LLMClient, Message, CompletionOptions, ProviderInfo, StreamingOptions, StreamingResult } from './client.js';
 import { DEFAULT_MODELS, parseJSONResponse } from './client.js';
 import { withRetry, LLM_RETRY_OPTIONS } from '../errors/retry.js';
 import {
@@ -163,7 +163,34 @@ export class OpenAIClient implements LLMClient {
               throw new LLMAuthError('openai', model);
             }
             if (message.includes('429')) {
-              throw new LLMRateLimitError('openai', undefined, model);
+              // Extract Retry-After header if available from OpenAI API error
+              let retryAfterMs: number | undefined;
+              const apiError = error as { headers?: { get?: (name: string) => string | null } };
+              if (apiError.headers?.get) {
+                const retryAfter = apiError.headers.get('retry-after');
+                if (retryAfter) {
+                  // retry-after can be seconds or HTTP date
+                  const seconds = parseInt(retryAfter, 10);
+                  if (!isNaN(seconds)) {
+                    retryAfterMs = seconds * 1000;
+                    this.logger.debug({ retryAfterMs }, 'Extracted Retry-After header');
+                  }
+                }
+                // Also check x-ratelimit-reset-requests header (OpenAI specific)
+                const resetRequests = apiError.headers.get('x-ratelimit-reset-requests');
+                if (resetRequests && !retryAfterMs) {
+                  // Format: "1s", "1m", etc.
+                  const match = resetRequests.match(/(\d+)([smh])/);
+                  if (match) {
+                    const value = parseInt(match[1], 10);
+                    const unit = match[2];
+                    const multipliers: Record<string, number> = { s: 1000, m: 60000, h: 3600000 };
+                    retryAfterMs = value * (multipliers[unit] || 1000);
+                    this.logger.debug({ retryAfterMs, resetRequests }, 'Extracted x-ratelimit-reset-requests');
+                  }
+                }
+              }
+              throw new LLMRateLimitError('openai', retryAfterMs, model);
             }
             if (message.includes('insufficient_quota')) {
               throw new LLMQuotaError('openai', model);
@@ -197,5 +224,134 @@ export class OpenAIClient implements LLMClient {
 
   parseJSON<T>(response: string): T {
     return parseJSONResponse<T>(response);
+  }
+
+  async stream(prompt: string, options?: StreamingOptions): Promise<StreamingResult> {
+    return this.streamChat([{ role: 'user', content: prompt }], options);
+  }
+
+  async streamChat(messages: Message[], options?: StreamingOptions): Promise<StreamingResult> {
+    const model = options?.model ?? this.defaultModel;
+
+    return withRetry(
+      async () => {
+        // Prepend system message if provided
+        const allMessages = options?.systemPrompt
+          ? [{ role: 'system' as const, content: options.systemPrompt }, ...messages]
+          : messages;
+
+        try {
+          // Build request parameters - newer models have restricted params
+          const maxTokensValue = options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS;
+          const restrictedParams = hasRestrictedParams(model);
+
+          const stream = await this.client.chat.completions.create({
+            model,
+            messages: allMessages.map(m => ({
+              role: m.role,
+              content: m.content,
+            })),
+            // Use max_completion_tokens for newer models (o1, o3, gpt-5+)
+            // Use max_tokens for older models (gpt-4, gpt-3.5, etc.)
+            ...(restrictedParams
+              ? { max_completion_tokens: maxTokensValue }
+              : { max_tokens: maxTokensValue }),
+            // Newer models (o1, o3, gpt-5+) don't support custom temperature
+            // Only include temperature for models that support it
+            ...(restrictedParams
+              ? {}
+              : { temperature: options?.temperature ?? LLM_DEFAULTS.TEMPERATURE }),
+            response_format: options?.responseFormat === 'json'
+              ? { type: 'json_object' }
+              : undefined,
+            stream: true,
+          });
+
+          let fullText = '';
+          let inputTokens = 0;
+          let outputTokens = 0;
+          let finishReason: string | null = null;
+
+          for await (const chunk of stream) {
+            const choice = chunk.choices[0];
+            const content = choice?.delta?.content;
+            if (content) {
+              fullText += content;
+              options?.onChunk?.(content);
+            }
+
+            // Track finish reason from final chunk
+            if (choice?.finish_reason) {
+              finishReason = choice.finish_reason;
+            }
+
+            // Track usage from final chunk if available
+            if (chunk.usage) {
+              inputTokens = chunk.usage.prompt_tokens;
+              outputTokens = chunk.usage.completion_tokens;
+            }
+          }
+
+          // Report token usage if callback provided
+          if (this.onUsage && (inputTokens > 0 || outputTokens > 0)) {
+            this.onUsage(inputTokens, outputTokens);
+          }
+
+          // Handle empty responses gracefully - don't throw, let caller handle
+          // This can happen with content filters, refusals, or empty model responses
+          if (!fullText && finishReason) {
+            this.logger.debug({ finishReason }, 'Streaming completed with no content');
+          }
+
+          options?.onComplete?.(fullText);
+          return { text: fullText, completed: fullText.length > 0 };
+        } catch (error) {
+          options?.onError?.(error instanceof Error ? error : new Error(String(error)));
+
+          // Convert to typed errors for retry logic (same as chat method)
+          if (error instanceof Error) {
+            const message = error.message.toLowerCase();
+
+            if (message.includes('401')) {
+              throw new LLMAuthError('openai', model);
+            }
+            if (message.includes('429')) {
+              let retryAfterMs: number | undefined;
+              const apiError = error as { headers?: { get?: (name: string) => string | null } };
+              if (apiError.headers?.get) {
+                const retryAfter = apiError.headers.get('retry-after');
+                if (retryAfter) {
+                  const seconds = parseInt(retryAfter, 10);
+                  if (!isNaN(seconds)) {
+                    retryAfterMs = seconds * 1000;
+                  }
+                }
+              }
+              throw new LLMRateLimitError('openai', retryAfterMs, model);
+            }
+            if (message.includes('insufficient_quota')) {
+              throw new LLMQuotaError('openai', model);
+            }
+            if (message.includes('econnrefused') || message.includes('fetch failed')) {
+              throw new LLMConnectionError('openai', model);
+            }
+          }
+          throw error;
+        }
+      },
+      {
+        ...LLM_RETRY_OPTIONS,
+        operation: 'OpenAI streaming chat completion',
+        context: { component: 'openai', metadata: { model } },
+        onRetry: (error, attempt, delayMs) => {
+          this.logger.debug({
+            attempt,
+            delayMs: Math.round(delayMs),
+            error: error instanceof Error ? error.message : String(error),
+            msg: `Retrying OpenAI streaming API call`,
+          });
+        },
+      }
+    );
   }
 }

@@ -83,13 +83,13 @@ export interface InteractiveConfig {
 
 /**
  * Available personas for selection.
+ * These match the built-in personas in src/persona/builtins.ts
  */
 const AVAILABLE_PERSONAS = [
-  { name: 'friendly', description: 'Casual, exploratory testing' },
-  { name: 'adversarial', description: 'Security-focused boundary testing' },
-  { name: 'compliance', description: 'Policy and compliance verification' },
-  { name: 'thorough', description: 'Comprehensive feature coverage' },
-  { name: 'minimal', description: 'Quick smoke testing' },
+  { name: 'technical_writer', description: 'Clear, accurate documentation focused' },
+  { name: 'security_tester', description: 'Security-focused boundary and injection testing' },
+  { name: 'qa_engineer', description: 'Thorough test coverage and edge cases' },
+  { name: 'novice_user', description: 'Beginner-friendly, accessibility focused' },
 ];
 
 /**
@@ -141,15 +141,15 @@ export async function promptForConfig(
 
     for (const persona of AVAILABLE_PERSONAS) {
       const selected = await confirm(rl, `  Use ${persona.name}? (${persona.description})`,
-        existingConfig.interview.personas?.includes(persona.name) ?? persona.name === 'friendly');
+        existingConfig.interview.personas?.includes(persona.name) ?? persona.name === 'technical_writer');
       if (selected) {
         selectedPersonas.push(persona.name);
       }
     }
 
     if (selectedPersonas.length === 0) {
-      output.info('No personas selected. Using default "friendly" persona.');
-      selectedPersonas.push('friendly');
+      output.info('No personas selected. Using default "technical_writer" persona.');
+      selectedPersonas.push('technical_writer');
     }
 
     // Output format

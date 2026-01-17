@@ -1,6 +1,12 @@
 import type { InterviewResult, ToolProfile, InterviewMetadata } from '../interview/types.js';
 import type { MCPTool } from '../transport/types.js';
-import { formatDateISO, formatDuration } from '../utils/index.js';
+import {
+  formatDateISO,
+  formatDuration,
+  escapeTableCell,
+  mermaidLabel,
+  validateJsonForCodeBlock,
+} from '../utils/index.js';
 
 /**
  * Detect configuration issues based on error patterns.
@@ -156,8 +162,10 @@ export function generateAgentsMd(result: InterviewResult): string {
       const tool = discovery.tools.find(t => t.name === profile.name);
       if (tool?.inputSchema) {
         lines.push('**Input Schema:**');
+        // Validate JSON and escape for code block
+        const schemaJson = validateJsonForCodeBlock(tool.inputSchema);
         lines.push('```json');
-        lines.push(JSON.stringify(tool.inputSchema, null, 2));
+        lines.push(schemaJson.content);
         lines.push('```');
         lines.push('');
       }
@@ -259,12 +267,13 @@ export function generateAgentsMd(result: InterviewResult): string {
           const step = wr.workflow.steps[i];
           const nodeId = `S${i}`;
           const nextNodeId = `S${i + 1}`;
+          // Use mermaidLabel to safely escape tool names
           if (i === 0) {
-            lines.push(`    ${nodeId}["${step.tool}"]`);
+            lines.push(`    ${nodeId}[${mermaidLabel(step.tool)}]`);
           }
           if (i < wr.workflow.steps.length - 1) {
             const nextStep = wr.workflow.steps[i + 1];
-            lines.push(`    ${nodeId} --> ${nextNodeId}["${nextStep.tool}"]`);
+            lines.push(`    ${nodeId} --> ${nextNodeId}[${mermaidLabel(nextStep.tool)}]`);
           }
         }
         lines.push('```');
@@ -314,15 +323,16 @@ export function generateAgentsMd(result: InterviewResult): string {
         lines.push('');
         lines.push('```mermaid');
         lines.push('flowchart LR');
-        // Add nodes first
+        // Add nodes first - escape tool names for Mermaid
         for (let i = 0; i < workflowResult.steps.length; i++) {
           const stepResult = workflowResult.steps[i];
           const status = stepResult.success ? ':::success' : ':::failure';
-          lines.push(`    Step${i}["${stepResult.step.tool}"]${status}`);
+          lines.push(`    Step${i}[${mermaidLabel(stepResult.step.tool)}]${status}`);
         }
-        // Add edges
+        // Add edges - escape parameter names
         for (const edge of workflowResult.dataFlow) {
-          lines.push(`    Step${edge.fromStep} -->|${edge.targetParam}| Step${edge.toStep}`);
+          const param = mermaidLabel(edge.targetParam).replace(/"/g, '');
+          lines.push(`    Step${edge.fromStep} -->|${param}| Step${edge.toStep}`);
         }
         // Add styling
         lines.push('    classDef success fill:#90EE90');
@@ -541,7 +551,8 @@ function generateQuickReference(tools: MCPTool[], profiles: ToolProfile[]): stri
     const params = extractParameters(tool.inputSchema);
     const profile = profiles.find(p => p.name === tool.name);
     const returnType = inferReturnTypeDetailed(profile);
-    lines.push(`| \`${tool.name}\` | ${params} | ${returnType} |`);
+    // Escape table cell content to prevent broken tables
+    lines.push(`| \`${escapeTableCell(tool.name)}\` | ${escapeTableCell(params)} | ${escapeTableCell(returnType)} |`);
   }
 
   lines.push('');
@@ -565,8 +576,10 @@ function generateQuickReference(tools: MCPTool[], profiles: ToolProfile[]): stri
     for (const { tool, example } of successfulExamples) {
       lines.push(`#### ${tool.name}`);
       lines.push('');
+      // Validate and escape JSON for code block
+      const jsonResult = validateJsonForCodeBlock(example);
       lines.push('```json');
-      lines.push(example);
+      lines.push(jsonResult.content);
       lines.push('```');
       lines.push('');
     }
@@ -804,23 +817,15 @@ function generateSampleResponse(profile: ToolProfile): string[] {
     truncated = true;
   }
 
-  // Try to pretty-print JSON
-  try {
-    const parsed = JSON.parse(displayText);
-    displayText = JSON.stringify(parsed, null, 2);
-    if (truncated) {
-      displayText = displayText.substring(0, maxLength) + '\n  ...';
-    }
-  } catch {
-    // Not JSON, use as-is
-    if (truncated) {
-      displayText += '\n...';
-    }
-  }
+  // Try to pretty-print JSON and validate/escape
+  const jsonResult = validateJsonForCodeBlock(displayText, {
+    maxLength: truncated ? maxLength : undefined,
+    truncationIndicator: '  ...',
+  });
 
   lines.push('**Sample Response:**');
   lines.push('```');
-  lines.push(displayText);
+  lines.push(jsonResult.content);
   lines.push('```');
   lines.push('');
 
@@ -1089,7 +1094,8 @@ function generatePerformanceSection(profiles: ToolProfile[]): string[] {
   for (const m of metrics) {
     const errorPct = (m.errorRate * 100).toFixed(0);
     const errorDisplay = m.errorRate > 0.5 ? `**${errorPct}%**` : `${errorPct}%`;
-    lines.push(`| \`${m.toolName}\` | ${m.callCount} | ${m.avgMs}ms | ${m.p50Ms}ms | ${m.p95Ms}ms | ${m.maxMs}ms | ${errorDisplay} |`);
+    // Escape table cell content
+    lines.push(`| \`${escapeTableCell(m.toolName)}\` | ${m.callCount} | ${m.avgMs}ms | ${m.p50Ms}ms | ${m.p95Ms}ms | ${m.maxMs}ms | ${errorDisplay} |`);
   }
 
   lines.push('');
@@ -1143,14 +1149,14 @@ function generateBehavioralMatrix(
   lines.push('Summary of findings by tool and persona:');
   lines.push('');
 
-  // Build header
-  const header = ['Tool', ...personas.map(p => p.name)];
+  // Build header - escape persona names in case they contain special characters
+  const header = ['Tool', ...personas.map(p => escapeTableCell(p.name))];
   lines.push(`| ${header.join(' | ')} |`);
   lines.push(`| ${header.map(() => '---').join(' | ')} |`);
 
   // Build rows
   for (const profile of profiles) {
-    const row = [profile.name];
+    const row = [escapeTableCell(profile.name)];
 
     for (const persona of personas) {
       const findings = profile.findingsByPersona?.find(f => f.personaId === persona.id);

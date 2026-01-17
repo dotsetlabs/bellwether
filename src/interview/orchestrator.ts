@@ -1,4 +1,4 @@
-import type { LLMClient } from '../llm/client.js';
+import type { LLMClient, StreamingOptions } from '../llm/client.js';
 import type {
   MCPTool,
   MCPToolCallResult,
@@ -19,6 +19,7 @@ import type {
 import type { DiscoveryResult } from '../discovery/types.js';
 import type { Persona, QuestionCategory } from '../persona/types.js';
 import { DEFAULT_PERSONA } from '../persona/builtins.js';
+import type { ToolResponseCache } from '../cache/response-cache.js';
 import {
   DEFAULT_SYSTEM_PROMPT,
   buildQuestionGenerationPrompt,
@@ -31,23 +32,185 @@ import {
   COMPLETION_OPTIONS,
 } from '../prompts/templates.js';
 import { getLogger } from '../logging/logger.js';
+import { withTimeout, DEFAULT_TIMEOUTS, TimeoutError } from '../utils/timeout.js';
+
+/**
+ * Error categories for LLM operations.
+ */
+type LLMErrorCategory = 'refusal' | 'rate_limit' | 'timeout' | 'auth' | 'network' | 'format_error' | 'unknown';
+
+/**
+ * Categorize an error from LLM operations.
+ */
+function categorizeLLMError(error: unknown): { category: LLMErrorCategory; isRetryable: boolean; message: string } {
+  if (error instanceof TimeoutError) {
+    return { category: 'timeout', isRetryable: true, message: error.message };
+  }
+
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+
+  // Check for refusals
+  if (
+    message.includes('refused') ||
+    message.includes('cannot generate') ||
+    message.includes('unable to create') ||
+    message.includes('content policy')
+  ) {
+    return { category: 'refusal', isRetryable: false, message: 'LLM declined to generate content' };
+  }
+
+  // Check for rate limits
+  if (
+    message.includes('rate limit') ||
+    message.includes('429') ||
+    message.includes('too many requests')
+  ) {
+    return { category: 'rate_limit', isRetryable: true, message: 'Rate limit exceeded' };
+  }
+
+  // Check for auth errors
+  if (
+    message.includes('401') ||
+    message.includes('403') ||
+    message.includes('unauthorized') ||
+    message.includes('authentication') ||
+    message.includes('api key')
+  ) {
+    return { category: 'auth', isRetryable: false, message: 'Authentication error' };
+  }
+
+  // Check for network errors
+  if (
+    message.includes('econnrefused') ||
+    message.includes('econnreset') ||
+    message.includes('network') ||
+    message.includes('fetch failed') ||
+    message.includes('socket')
+  ) {
+    return { category: 'network', isRetryable: true, message: 'Network error' };
+  }
+
+  // Check for format errors (LLM returned wrong format) - retryable once
+  if (
+    message.includes('invalid question format') ||
+    message.includes('response was not an array') ||
+    message.includes('unexpected token') ||
+    message.includes('not valid json')
+  ) {
+    return { category: 'format_error', isRetryable: true, message: 'LLM returned invalid format' };
+  }
+
+  return { category: 'unknown', isRetryable: false, message: error instanceof Error ? error.message : String(error) };
+}
+
+/**
+ * Streaming callback for orchestrator operations.
+ */
+export interface OrchestratorStreamingCallbacks {
+  /** Called when streaming starts for an operation */
+  onStart?: (operation: string, context?: string) => void;
+  /** Called with each chunk of streaming text */
+  onChunk?: (chunk: string, operation: string) => void;
+  /** Called when streaming completes for an operation */
+  onComplete?: (text: string, operation: string) => void;
+  /** Called if an error occurs during streaming */
+  onError?: (error: Error, operation: string) => void;
+}
 
 /**
  * Orchestrator uses an LLM to generate interview questions and synthesize findings.
  * Optionally accepts a Persona to customize the interview style.
+ * Supports streaming output for real-time feedback during LLM operations.
  */
 export class Orchestrator {
   private persona: Persona;
   private serverContext?: ServerContext;
   private logger = getLogger('orchestrator');
+  private streamingCallbacks?: OrchestratorStreamingCallbacks;
+  private useStreaming: boolean = false;
+  private cache?: ToolResponseCache;
 
   constructor(
     private llm: LLMClient,
     persona?: Persona,
-    serverContext?: ServerContext
+    serverContext?: ServerContext,
+    cache?: ToolResponseCache
   ) {
     this.persona = persona ?? DEFAULT_PERSONA;
     this.serverContext = serverContext;
+    this.cache = cache;
+  }
+
+  /**
+   * Enable streaming with callbacks.
+   */
+  enableStreaming(callbacks: OrchestratorStreamingCallbacks): void {
+    this.useStreaming = true;
+    this.streamingCallbacks = callbacks;
+  }
+
+  /**
+   * Disable streaming.
+   */
+  disableStreaming(): void {
+    this.useStreaming = false;
+    this.streamingCallbacks = undefined;
+  }
+
+  /**
+   * Check if streaming is enabled.
+   */
+  isStreamingEnabled(): boolean {
+    return this.useStreaming && this.llm.getProviderInfo().supportsStreaming;
+  }
+
+  /**
+   * Create streaming options for an LLM call.
+   */
+  private createStreamingOptions(operation: string): Partial<StreamingOptions> {
+    if (!this.useStreaming || !this.streamingCallbacks) {
+      return {};
+    }
+
+    return {
+      onChunk: (chunk: string) => this.streamingCallbacks?.onChunk?.(chunk, operation),
+      onComplete: (text: string) => this.streamingCallbacks?.onComplete?.(text, operation),
+      onError: (error: Error) => this.streamingCallbacks?.onError?.(error, operation),
+    };
+  }
+
+  /**
+   * Complete an LLM call, using streaming if enabled.
+   * Falls back to non-streaming if streaming returns empty content.
+   */
+  private async completeWithStreaming(
+    prompt: string,
+    options: Parameters<LLMClient['complete']>[1],
+    operation: string
+  ): Promise<string> {
+    if (this.isStreamingEnabled()) {
+      this.streamingCallbacks?.onStart?.(operation);
+      const streamingOpts = this.createStreamingOptions(operation);
+      try {
+        const result = await this.llm.stream(prompt, { ...options, ...streamingOpts });
+        // If streaming returned empty/incomplete, fall back to non-streaming
+        if (!result.completed || !result.text) {
+          this.logger.warn({ operation }, 'Streaming returned empty, falling back to non-streaming');
+          // Notify callbacks about the fallback
+          this.streamingCallbacks?.onError?.(new Error('Streaming returned empty content'), operation);
+          return this.llm.complete(prompt, options);
+        }
+        return result.text;
+      } catch (error) {
+        // On streaming error, fall back to non-streaming
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.warn({ operation, error: errorMessage }, 'Streaming failed, falling back to non-streaming');
+        // Notify callbacks about the error
+        this.streamingCallbacks?.onError?.(error instanceof Error ? error : new Error(errorMessage), operation);
+        return this.llm.complete(prompt, options);
+      }
+    }
+    return this.llm.complete(prompt, options);
   }
 
   /**
@@ -133,6 +296,14 @@ export class Orchestrator {
   /**
    * Generate interview questions for a tool.
    * Optionally accepts previous errors to learn from and avoid.
+   *
+   * Error handling strategy:
+   * - Refusals: Use fallback questions (no retry)
+   * - Rate limits: Retry with backoff
+   * - Timeouts: Retry once, then fallback
+   * - Auth errors: Log and use fallback (no retry)
+   * - Network errors: Retry with backoff
+   * - Unknown errors: Log and use fallback
    */
   async generateQuestions(
     tool: MCPTool,
@@ -167,26 +338,86 @@ export class Orchestrator {
       previousErrors,
     });
 
-    try {
-      const response = await this.llm.complete(prompt, {
-        ...COMPLETION_OPTIONS.questionGeneration,
-        systemPrompt: this.getSystemPrompt(),
-      });
+    // Retry logic for transient errors
+    const maxRetries = 2;
+    let lastError: { category: LLMErrorCategory; message: string } | undefined;
 
-      const questions = this.llm.parseJSON<InterviewQuestion[]>(response);
-      return questions.slice(0, maxQuestions);
-    } catch (error) {
-      // Fallback to basic questions if LLM fails or refuses
-      const reason = error instanceof Error ? error.message : 'unknown';
-      if (reason.includes('refused')) {
-        this.logger.info({ tool: tool.name }, 'Using fallback examples (LLM declined)');
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // Apply timeout to LLM call - use streaming if enabled
+        const response = await withTimeout(
+          this.completeWithStreaming(prompt, {
+            ...COMPLETION_OPTIONS.questionGeneration,
+            systemPrompt: this.getSystemPrompt(),
+          }, `generate-questions:${tool.name}`),
+          DEFAULT_TIMEOUTS.questionGeneration,
+          `Question generation for ${tool.name}`
+        );
+
+        const parsed = this.llm.parseJSON<InterviewQuestion[] | InterviewQuestion | { error?: string }>(response);
+
+        // Handle different response formats
+        if (Array.isArray(parsed)) {
+          // Ideal case: LLM returned an array
+          return parsed.slice(0, maxQuestions);
+        }
+
+        // Check if it's a single valid question object (LLM sometimes returns single objects)
+        const obj = parsed as Record<string, unknown>;
+        if (obj.description && obj.category && obj.args !== undefined) {
+          // It's a valid question object, wrap it in an array
+          this.logger.debug({ tool: tool.name }, 'LLM returned single question object, wrapping in array');
+          return [parsed as InterviewQuestion];
+        }
+
+        // It's an error object or invalid format
+        const errorMsg = (parsed as { error?: string })?.error ?? 'Response was not a valid question format';
+        throw new Error(`Invalid question format: ${errorMsg}`);
+      } catch (error) {
+        const categorized = categorizeLLMError(error);
+        lastError = { category: categorized.category, message: categorized.message };
+
+        this.logger.warn(
+          {
+            tool: tool.name,
+            attempt: attempt + 1,
+            maxRetries: maxRetries + 1,
+            errorCategory: categorized.category,
+            errorMessage: categorized.message,
+            isRetryable: categorized.isRetryable,
+          },
+          'Question generation failed'
+        );
+
+        // Don't retry non-retryable errors
+        if (!categorized.isRetryable) {
+          break;
+        }
+
+        // Wait before retry with exponential backoff
+        if (attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
-      return this.generateFallbackQuestions(tool, skipErrorTests);
     }
+
+    // Log the final failure reason clearly
+    this.logger.info(
+      {
+        tool: tool.name,
+        reason: lastError?.category ?? 'unknown',
+        message: lastError?.message ?? 'No error details',
+      },
+      'Using fallback questions after LLM failure'
+    );
+
+    return this.generateFallbackQuestions(tool, skipErrorTests);
   }
 
   /**
    * Analyze a tool response and generate behavioral notes.
+   * Uses cache to avoid redundant LLM calls for identical tool responses.
    */
   async analyzeResponse(
     tool: MCPTool,
@@ -194,6 +425,16 @@ export class Orchestrator {
     response: MCPToolCallResult | null,
     error: string | null
   ): Promise<string> {
+    // Check cache first
+    if (this.cache && response) {
+      const responseHash = this.cache.hashResponse(response);
+      const cachedAnalysis = this.cache.getAnalysis(tool.name, question.args, responseHash);
+      if (cachedAnalysis) {
+        this.logger.debug({ tool: tool.name, args: question.args }, 'LLM analysis served from cache');
+        return cachedAnalysis;
+      }
+    }
+
     const prompt = buildResponseAnalysisPrompt({
       tool,
       question,
@@ -203,10 +444,19 @@ export class Orchestrator {
     });
 
     try {
-      return await this.llm.complete(prompt, {
+      const analysis = await this.completeWithStreaming(prompt, {
         ...COMPLETION_OPTIONS.responseAnalysis,
         systemPrompt: this.getSystemPrompt(),
-      });
+      }, `analyze:${tool.name}`);
+
+      // Cache successful analysis
+      if (this.cache && response && analysis) {
+        const responseHash = this.cache.hashResponse(response);
+        this.cache.setAnalysis(tool.name, question.args, responseHash, analysis);
+        this.logger.debug({ tool: tool.name, args: question.args }, 'LLM analysis cached');
+      }
+
+      return analysis;
     } catch {
       // Graceful fallback if LLM refuses or fails
       if (error) {
@@ -232,10 +482,10 @@ export class Orchestrator {
     const prompt = buildToolProfileSynthesisPrompt({ tool, interactions });
 
     try {
-      const response = await this.llm.complete(prompt, {
+      const response = await this.completeWithStreaming(prompt, {
         ...COMPLETION_OPTIONS.profileSynthesis,
         systemPrompt: this.getSystemPrompt(),
-      });
+      }, `synthesize-tool:${tool.name}`);
 
       const result = this.llm.parseJSON<{
         behavioralNotes: string[];
@@ -276,10 +526,10 @@ export class Orchestrator {
     const prompt = buildOverallSynthesisPrompt({ discovery, toolProfiles });
 
     try {
-      const response = await this.llm.complete(prompt, {
+      const response = await this.completeWithStreaming(prompt, {
         ...COMPLETION_OPTIONS.overallSynthesis,
         systemPrompt: this.getSystemPrompt(),
-      });
+      }, 'synthesize-overall');
 
       return this.llm.parseJSON<{
         summary: string;
@@ -368,15 +618,51 @@ export class Orchestrator {
         return 1;
       case 'boolean':
         return true;
-      case 'array':
+      case 'array': {
         // For paths array, include an example path
         if (lowerName.includes('path')) {
           const baseDir = this.serverContext?.allowedDirectories?.[0] ?? '/tmp';
           return [`${baseDir}/file1.txt`];
         }
+        // Try to generate a sample item if the array has an items schema
+        const arraySchema = schema as { items?: { type?: string; properties?: Record<string, unknown>; required?: string[] } };
+        if (arraySchema?.items?.type === 'object' && arraySchema.items.properties) {
+          const sampleItem: Record<string, unknown> = {};
+          const itemProps = arraySchema.items.properties;
+          const itemRequired = arraySchema.items.required ?? Object.keys(itemProps);
+          for (const prop of itemRequired) {
+            if (itemProps[prop]) {
+              sampleItem[prop] = this.generateDefaultValue(prop, itemProps[prop]);
+            }
+          }
+          // Only return non-empty sample if we generated something
+          if (Object.keys(sampleItem).length > 0) {
+            return [sampleItem];
+          }
+        }
+        // For string arrays, include a sample string
+        if (arraySchema?.items?.type === 'string') {
+          return ['sample-item'];
+        }
         return [];
-      case 'object':
+      }
+      case 'object': {
+        // Try to generate sample properties if schema has properties defined
+        const objSchema = schema as { properties?: Record<string, unknown>; required?: string[] };
+        if (objSchema?.properties) {
+          const sampleObj: Record<string, unknown> = {};
+          const required = objSchema.required ?? [];
+          for (const prop of required) {
+            if (objSchema.properties[prop]) {
+              sampleObj[prop] = this.generateDefaultValue(prop, objSchema.properties[prop]);
+            }
+          }
+          if (Object.keys(sampleObj).length > 0) {
+            return sampleObj;
+          }
+        }
         return {};
+      }
       default:
         return 'test';
     }
@@ -399,10 +685,10 @@ export class Orchestrator {
     });
 
     try {
-      const response = await this.llm.complete(promptText, {
+      const response = await this.completeWithStreaming(promptText, {
         ...COMPLETION_OPTIONS.promptQuestionGeneration,
         systemPrompt: this.getSystemPrompt(),
-      });
+      }, `generate-prompt-questions:${prompt.name}`);
 
       const questions = this.llm.parseJSON<PromptQuestion[]>(response);
       return questions.slice(0, maxQuestions);
@@ -429,10 +715,10 @@ export class Orchestrator {
     });
 
     try {
-      return await this.llm.complete(promptText, {
+      return await this.completeWithStreaming(promptText, {
         ...COMPLETION_OPTIONS.promptResponseAnalysis,
         systemPrompt: this.getSystemPrompt(),
-      });
+      }, `analyze-prompt:${prompt.name}`);
     } catch {
       // Graceful fallback
       if (error) {
@@ -460,10 +746,10 @@ export class Orchestrator {
     const promptText = buildPromptProfileSynthesisPrompt({ prompt, interactions });
 
     try {
-      const response = await this.llm.complete(promptText, {
+      const response = await this.completeWithStreaming(promptText, {
         ...COMPLETION_OPTIONS.promptProfileSynthesis,
         systemPrompt: this.getSystemPrompt(),
-      });
+      }, `synthesize-prompt:${prompt.name}`);
 
       const result = this.llm.parseJSON<{
         behavioralNotes: string[];
@@ -621,10 +907,10 @@ Return JSON array:
 Return ONLY valid JSON, no explanation.`;
 
     try {
-      const response = await this.llm.complete(prompt, {
+      const response = await this.completeWithStreaming(prompt, {
         ...COMPLETION_OPTIONS.questionGeneration,
         systemPrompt: this.getSystemPrompt(),
-      });
+      }, `generate-resource-questions:${resource.name}`);
 
       const questions = this.llm.parseJSON<ResourceQuestion[]>(response);
       return questions.slice(0, maxQuestions);
@@ -661,10 +947,10 @@ Provide a brief analysis (1-2 sentences) of:
 - Relevance of content to the resource description`;
 
     try {
-      return await this.llm.complete(prompt, {
+      return await this.completeWithStreaming(prompt, {
         ...COMPLETION_OPTIONS.responseAnalysis,
         systemPrompt: this.getSystemPrompt(),
-      });
+      }, `analyze-resource:${resource.name}`);
     } catch {
       // Graceful fallback
       if (error) {
@@ -711,10 +997,10 @@ Generate a JSON object with:
 Return ONLY valid JSON, no explanation.`;
 
     try {
-      const response = await this.llm.complete(prompt, {
+      const response = await this.completeWithStreaming(prompt, {
         ...COMPLETION_OPTIONS.profileSynthesis,
         systemPrompt: this.getSystemPrompt(),
-      });
+      }, `synthesize-resource:${resource.name}`);
 
       const result = this.llm.parseJSON<{
         behavioralNotes: string[];

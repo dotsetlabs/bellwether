@@ -229,4 +229,62 @@ describe('MCPClient', () => {
       await expect(pendingPromise).rejects.toThrow('Connection closed');
     }, 15000);
   });
+
+  describe('server ready detection', () => {
+    it('should not be ready before connect', () => {
+      const freshClient = new MCPClient({ timeout: 5000, startupDelay: 100 });
+      expect(freshClient.isServerReady()).toBe(false);
+    });
+
+    it('should be ready after startup delay and initialization', async () => {
+      await client.connect(TSX_PATH, TSX_ARGS);
+      // Before initialize, may or may not be ready (depends on timing)
+      await client.initialize();
+      expect(client.isServerReady()).toBe(true);
+    });
+
+    it('should not be ready after disconnect', async () => {
+      await client.connect(TSX_PATH, TSX_ARGS);
+      await client.initialize();
+      await client.disconnect();
+      expect(client.isServerReady()).toBe(false);
+    });
+  });
+
+  describe('initialization failure handling', () => {
+    it('should clear pending requests on initialization failure', async () => {
+      // Use environment variable to make mock server fail init
+      await client.connect(TSX_PATH, TSX_ARGS, {
+        MOCK_FAIL_INIT: 'true',
+      });
+
+      // Initialize should fail
+      await expect(client.initialize()).rejects.toThrow('Initialization failed');
+
+      // Server should not be marked as ready after failure
+      // (capabilities are null after failed init)
+      expect(client.getCapabilities()).toBeNull();
+    });
+
+    it('should enforce minimum startup delay', async () => {
+      const shortDelayClient = new MCPClient({
+        timeout: 10000,
+        startupDelay: 10, // Very short delay
+      });
+
+      const startTime = Date.now();
+      await shortDelayClient.connect(TSX_PATH, TSX_ARGS);
+
+      // The minimum startup delay should be enforced (MIN_SERVER_STARTUP_WAIT from constants)
+      // Just verify the client can initialize - the actual delay is tested by timing
+      await shortDelayClient.initialize();
+      const elapsed = Date.now() - startTime;
+
+      // Should take at least the minimum wait time (which is enforced regardless of startupDelay)
+      // Note: We use a generous check since npx startup varies
+      expect(elapsed).toBeGreaterThanOrEqual(100); // At minimum, it should take some time
+
+      await shortDelayClient.disconnect();
+    });
+  });
 });

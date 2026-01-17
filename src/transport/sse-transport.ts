@@ -55,6 +55,12 @@ export class SSETransport extends BaseTransport {
   private readonly maxReconnectAttempts: number;
   private readonly timeout: number;
   private messageEndpoint: string | null = null;
+  /** Timer ID for reconnection delay - allows cancellation */
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  /** Flag to prevent reconnection after close() is called */
+  private isClosing = false;
+  /** Maximum backoff delay in milliseconds */
+  private readonly maxBackoffDelay = 30000;
 
   constructor(config: SSETransportConfig) {
     super(config);
@@ -78,6 +84,9 @@ export class SSETransport extends BaseTransport {
     if (this.connected) {
       return;
     }
+
+    // Reset closing flag on fresh connection
+    this.isClosing = false;
 
     // EventSource is available in browsers natively and in Node.js 18+.
     // We use globalThis to check availability at runtime, requiring `any` cast
@@ -172,26 +181,73 @@ export class SSETransport extends BaseTransport {
 
   /**
    * Handle reconnection after a connection error.
+   *
+   * RELIABILITY IMPROVEMENTS:
+   * - Prevents unbounded recursion with max attempts check
+   * - Uses capped exponential backoff
+   * - Clears reconnect timer on close
+   * - Checks isClosing flag to prevent reconnection after close()
+   * - Explicitly closes EventSource on max attempts
    */
   private handleReconnect(): void {
+    // Don't reconnect if we're closing
+    if (this.isClosing) {
+      this.log('Reconnection skipped - transport is closing');
+      return;
+    }
+
+    // Check max attempts BEFORE incrementing
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.log('Max reconnect attempts reached');
+      this.log('Max reconnect attempts reached', { attempts: this.reconnectAttempts });
       this.connected = false;
-      this.emit('error', new Error('Max reconnection attempts exceeded'));
+
+      // Explicitly close the EventSource to clean up resources
+      if (this.eventSource) {
+        try {
+          this.eventSource.close();
+        } catch {
+          // Ignore close errors
+        }
+        this.eventSource = null;
+      }
+
+      this.emit('error', new Error(`Max reconnection attempts (${this.maxReconnectAttempts}) exceeded`));
       this.emit('close');
       return;
     }
 
     this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-    this.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
-    setTimeout(async () => {
-      try {
-        await this.connect();
-      } catch (error) {
-        this.handleReconnect();
+    // Exponential backoff with cap
+    const exponentialDelay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+    const delay = Math.min(exponentialDelay, this.maxBackoffDelay);
+
+    this.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+
+    // Clear any existing reconnect timer
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+    }
+
+    // Store the timer so it can be cancelled by close()
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+
+      // Double-check we're not closing before attempting reconnect
+      if (this.isClosing) {
+        return;
       }
+
+      // Non-recursive approach: use .then/.catch instead of async/await in setTimeout
+      this.connect()
+        .then(() => {
+          this.log('Reconnection successful');
+        })
+        .catch((error: Error) => {
+          this.log('Reconnection failed', { error: error.message });
+          // Schedule next attempt (not recursive - just schedules another timer)
+          this.handleReconnect();
+        });
     }, delay);
   }
 
@@ -254,22 +310,48 @@ export class SSETransport extends BaseTransport {
 
   /**
    * Close the SSE connection.
+   *
+   * RELIABILITY: Properly cleans up all resources including:
+   * - EventSource connection
+   * - Pending HTTP requests (via abort controller)
+   * - Reconnection timer
+   * - Sets isClosing flag to prevent reconnection attempts
    */
   close(): void {
     this.log('Closing SSE transport');
+
+    // Set closing flag FIRST to prevent any reconnection attempts
+    this.isClosing = true;
     this.connected = false;
 
+    // Cancel any pending reconnection timer
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    // Close the EventSource connection
     if (this.eventSource) {
-      this.eventSource.close();
+      try {
+        this.eventSource.close();
+      } catch {
+        // Ignore close errors
+      }
       this.eventSource = null;
     }
 
+    // Abort any in-flight HTTP requests
     if (this.abortController) {
-      this.abortController.abort();
+      try {
+        this.abortController.abort();
+      } catch {
+        // Ignore abort errors
+      }
       this.abortController = null;
     }
 
     this.messageEndpoint = null;
+    this.reconnectAttempts = 0;
     this.emit('close');
   }
 

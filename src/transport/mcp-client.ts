@@ -21,6 +21,7 @@ import type {
 } from './types.js';
 import { getLogger, startTiming } from '../logging/logger.js';
 import { TIMEOUTS, MCP } from '../constants.js';
+import { VERSION } from '../version.js';
 
 /**
  * Environment variables to filter out when spawning MCP server processes.
@@ -129,6 +130,8 @@ export class MCPClient {
   private sseConfig?: Omit<SSETransportConfig, 'debug'>;
   private httpConfig?: Omit<HTTPTransportConfig, 'debug'>;
   private logger = getLogger('mcp-client');
+  /** Flag to prevent race condition during cleanup - ignore messages when true */
+  private cleaningUp = false;
 
   constructor(options?: MCPClientOptions) {
     this.timeout = options?.timeout ?? DEFAULT_TIMEOUT;
@@ -197,6 +200,9 @@ export class MCPClient {
   ): Promise<void> {
     this.logger.info({ command, args: args.length }, 'Connecting to MCP server');
 
+    // Reset cleanup flag for new connection
+    this.cleaningUp = false;
+
     // Filter out sensitive environment variables before spawning subprocess
     const filteredEnv = this.filterEnv(process.env, env);
 
@@ -241,21 +247,22 @@ export class MCPClient {
       this.cleanup();
     });
 
-    // Capture stderr for debugging and detect server ready
+    // Capture stderr for debugging (but don't use it for ready detection)
+    // Relying on stderr for ready detection is unreliable since:
+    // 1. Some servers don't output to stderr at all
+    // 2. stderr output timing varies significantly
+    // 3. The actual "ready" state is when initialization succeeds
     this.process.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString().trim();
       if (msg) {
         this.logger.debug({ stderr: msg }, 'Server stderr');
       }
-      // Mark server as ready when we see any stderr output (server is running)
-      if (!this.serverReady) {
-        this.serverReady = true;
-      }
     });
 
-    // Wait for server to be ready (either stderr output or startup delay)
-    this.readyPromise = this.waitForReady();
-    this.logger.debug('Server ready, connection established');
+    // Wait for minimum startup delay to allow server to fully start
+    // The actual "ready" state is confirmed by successful initialization
+    this.readyPromise = this.waitForStartup();
+    this.logger.debug('Startup delay complete, connection established');
   }
 
   /**
@@ -274,6 +281,9 @@ export class MCPClient {
   ): Promise<void> {
     const transport = options?.transport ?? (this.transportType === 'stdio' ? 'sse' : this.transportType as 'sse' | 'streamable-http');
     this.transportType = transport;
+
+    // Reset cleanup flag for new connection
+    this.cleaningUp = false;
 
     this.logger.info({ url, transport }, 'Connecting to remote MCP server');
 
@@ -333,46 +343,80 @@ export class MCPClient {
   }
 
   /**
-   * Wait for the server to be ready before sending requests.
+   * Wait for minimum startup delay before sending requests.
+   * The actual "ready" state is confirmed by successful initialization.
+   * This delay allows the server process to fully start before we attempt communication.
    */
-  private async waitForReady(): Promise<void> {
-    // Wait for either stderr output or the startup delay
-    const startTime = Date.now();
-    const maxWait = Math.max(this.startupDelay, TIMEOUTS.MIN_SERVER_STARTUP_WAIT); // At least 5s for npx
+  private async waitForStartup(): Promise<void> {
+    // Enforce minimum startup delay to allow server to fully start
+    // npx-based servers often need significant time to download and start
+    const delay = Math.max(this.startupDelay, TIMEOUTS.MIN_SERVER_STARTUP_WAIT);
 
-    while (!this.serverReady && Date.now() - startTime < maxWait) {
-      await new Promise(resolve => setTimeout(resolve, TIMEOUTS.SERVER_READY_POLL));
-    }
+    this.logger.debug({ delay }, 'Waiting for server startup');
+    await new Promise(resolve => setTimeout(resolve, delay));
 
-    // Additional small delay to ensure server is fully ready
-    await new Promise(resolve => setTimeout(resolve, this.startupDelay));
+    // Mark server as ready (startup delay complete)
+    // Note: This only means we can *try* to initialize - actual readiness
+    // is confirmed by successful initialization response
+    this.serverReady = true;
   }
 
   /**
    * Initialize the MCP connection with the server.
+   * This is the explicit confirmation that the server is ready.
+   * On failure, all pending requests are cleared.
    */
   async initialize(): Promise<MCPInitializeResult> {
-    // Wait for server to be ready
+    // Wait for startup delay to complete
     if (this.readyPromise) {
       await this.readyPromise;
       this.readyPromise = null;
     }
 
-    const result = await this.sendRequest<MCPInitializeResult>('initialize', {
-      protocolVersion: MCP.PROTOCOL_VERSION,
-      capabilities: {},
-      clientInfo: {
-        name: 'bellwether',
-        version: '0.1.0',
-      },
-    });
+    try {
+      const result = await this.sendRequest<MCPInitializeResult>('initialize', {
+        protocolVersion: MCP.PROTOCOL_VERSION,
+        capabilities: {},
+        clientInfo: {
+          name: 'bellwether',
+          version: VERSION,
+        },
+      });
 
-    this.serverCapabilities = result.capabilities;
+      this.serverCapabilities = result.capabilities;
 
-    // Send initialized notification
-    this.sendNotification('notifications/initialized', {});
+      // Send initialized notification
+      this.sendNotification('notifications/initialized', {});
 
-    return result;
+      this.logger.info({ capabilities: result.capabilities }, 'MCP server initialized successfully');
+      return result;
+    } catch (error) {
+      // Clear all pending requests on initialization failure
+      // This prevents stale requests from hanging around
+      this.clearPendingRequests(
+        error instanceof Error ? error.message : 'Initialization failed'
+      );
+
+      // Re-throw the error for the caller to handle
+      throw error;
+    }
+  }
+
+  /**
+   * Clear all pending requests with an error.
+   * Used when initialization fails or connection is lost.
+   */
+  private clearPendingRequests(reason: string): void {
+    const pendingCount = this.pendingRequests.size;
+    if (pendingCount > 0) {
+      this.logger.debug({ count: pendingCount, reason }, 'Clearing pending requests');
+    }
+
+    for (const [id, pending] of this.pendingRequests) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error(`Request ${id} cancelled: ${reason}`));
+    }
+    this.pendingRequests.clear();
   }
 
   /**
@@ -460,6 +504,15 @@ export class MCPClient {
   }
 
   /**
+   * Check if the server is ready (startup delay complete and initialized).
+   * Note: This only indicates if startup delay has passed - true readiness
+   * is confirmed by successful initialization.
+   */
+  isServerReady(): boolean {
+    return this.serverReady;
+  }
+
+  /**
    * Disconnect from the server.
    */
   async disconnect(): Promise<void> {
@@ -525,6 +578,13 @@ export class MCPClient {
   }
 
   private handleMessage(msg: JSONRPCMessage): void {
+    // Ignore messages during cleanup to prevent race conditions
+    // This avoids double-rejecting promises or accessing cleared timers
+    if (this.cleaningUp) {
+      this.log('Ignoring message during cleanup:', JSON.stringify(msg));
+      return;
+    }
+
     // Check if it's a response to a pending request
     if ('id' in msg && msg.id !== undefined) {
       const pending = this.pendingRequests.get(msg.id);
@@ -546,16 +606,17 @@ export class MCPClient {
   }
 
   private cleanup(): void {
-    // Clear all pending requests
-    for (const [, pending] of this.pendingRequests) {
-      clearTimeout(pending.timer);
-      pending.reject(new Error('Connection closed'));
-    }
-    this.pendingRequests.clear();
+    // Set cleanup flag to prevent race conditions with handleMessage
+    // Any messages arriving after this point will be ignored
+    this.cleaningUp = true;
+
+    // Clear all pending requests with appropriate error
+    this.clearPendingRequests('Connection closed');
 
     this.transport?.close();
     this.transport = null;
     this.process = null;
     this.serverCapabilities = null;
+    this.serverReady = false;
   }
 }

@@ -111,3 +111,47 @@ export const MCP = {
   /** JSON-RPC version used by MCP */
   JSONRPC_VERSION: '2.0',
 } as const;
+
+// ==================== Interview Configuration ====================
+
+/**
+ * Interview process configuration defaults.
+ */
+export const INTERVIEW = {
+  /** Default number of questions per tool */
+  MAX_QUESTIONS_PER_TOOL: 3,
+  /** Default tool call timeout in ms */
+  TOOL_TIMEOUT: 30000,
+  /** Default CLI timeout in ms (more generous than tool timeout) */
+  CLI_TIMEOUT: 60000,
+  /** Default persona concurrency for parallel execution */
+  DEFAULT_PERSONA_CONCURRENCY: 3,
+  /** Maximum allowed persona concurrency (to prevent rate limiting) */
+  MAX_PERSONA_CONCURRENCY: 10,
+  /** Default resource read timeout in ms */
+  RESOURCE_TIMEOUT: 15000,
+} as const;
+
+// ==================== Workflow Configuration ====================
+
+/**
+ * Workflow discovery and execution configuration defaults.
+ */
+export const WORKFLOW = {
+  /** Maximum workflows to discover via LLM */
+  MAX_DISCOVERED_WORKFLOWS: 3,
+  /** Minimum steps required for a valid workflow */
+  MIN_WORKFLOW_STEPS: 2,
+  /** Maximum steps allowed in a workflow */
+  MAX_WORKFLOW_STEPS: 5,
+  /** Default timeout for workflow step execution in ms */
+  STEP_TIMEOUT: 30000,
+  /** Default timeout for state snapshot operations in ms */
+  STATE_SNAPSHOT_TIMEOUT: 10000,
+  /** Default timeout for probe tool operations in ms */
+  PROBE_TOOL_TIMEOUT: 5000,
+  /** Default timeout for LLM analysis of workflow steps in ms */
+  LLM_ANALYSIS_TIMEOUT: 30000,
+  /** Default timeout for LLM summary generation in ms */
+  LLM_SUMMARY_TIMEOUT: 60000,
+} as const;

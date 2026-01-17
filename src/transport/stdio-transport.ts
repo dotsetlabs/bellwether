@@ -223,8 +223,59 @@ export class StdioTransport extends BaseTransport {
   }
 
   close(): void {
+    if (!this.connected) {
+      return; // Already closed
+    }
+
     this.connected = false;
+    this.buffer = '';
+    this.contentLength = null;
+
+    // Remove listeners first to prevent further event processing
     this.input.removeAllListeners();
+
+    // Destroy input stream to release file descriptor
+    // Use try-catch in case stream is already destroyed or in bad state
+    try {
+      if (!this.input.destroyed) {
+        this.input.destroy();
+        this.logger.debug('Input stream destroyed');
+      }
+    } catch (error) {
+      this.logger.warn(
+        { error: error instanceof Error ? error.message : String(error) },
+        'Error destroying input stream'
+      );
+    }
+
+    // End output stream gracefully, then destroy after timeout
+    try {
+      if (!this.output.destroyed && this.output.writable) {
+        // Give output stream time to flush
+        const destroyTimeout = setTimeout(() => {
+          try {
+            if (!this.output.destroyed) {
+              this.output.destroy();
+              this.logger.debug('Output stream destroyed after timeout');
+            }
+          } catch {
+            // Ignore errors during forced cleanup
+          }
+        }, 1000);
+
+        this.output.end(() => {
+          clearTimeout(destroyTimeout);
+          this.logger.debug('Output stream ended gracefully');
+        });
+      }
+    } catch (error) {
+      this.logger.warn(
+        { error: error instanceof Error ? error.message : String(error) },
+        'Error ending output stream'
+      );
+    }
+
     this.removeAllListeners();
+    this.emit('close');
   }
 }

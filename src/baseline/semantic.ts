@@ -13,17 +13,27 @@ import {
   calculateSemanticIndicators,
   CONFIDENCE_WEIGHTS,
 } from './confidence.js';
+import {
+  extractSeverityWithNegation,
+  compareConstraints,
+  EXTENDED_SECURITY_KEYWORDS,
+} from '../utils/semantic.js';
 
 /**
  * Security finding categories (normalized).
  * These map to common vulnerability patterns.
+ * Extended to include additional security categories like XXE, timing attacks, etc.
  */
 export const SECURITY_CATEGORIES = [
   'path_traversal',
   'command_injection',
   'sql_injection',
   'xss',
+  'xxe',
   'ssrf',
+  'deserialization',
+  'timing_attack',
+  'race_condition',
   'file_upload',
   'access_control',
   'authentication',
@@ -37,6 +47,11 @@ export const SECURITY_CATEGORIES = [
   'error_handling',
   'logging',
   'configuration',
+  'prototype_pollution',
+  'open_redirect',
+  'clickjacking',
+  'cors',
+  'csp_bypass',
   'other',
 ] as const;
 
@@ -95,28 +110,10 @@ export interface NormalizedAssertion {
 
 /**
  * Keywords that map to security categories.
+ * Now using EXTENDED_SECURITY_KEYWORDS from the semantic utilities module
+ * which includes additional categories like XXE, timing attacks, etc.
  */
-const SECURITY_KEYWORDS: Record<SecurityCategory, string[]> = {
-  path_traversal: ['path traversal', 'directory traversal', '../', '..\\', 'lfi', 'local file inclusion', 'arbitrary file'],
-  command_injection: ['command injection', 'shell injection', 'os command', 'exec', 'system(', 'subprocess', 'shell=true'],
-  sql_injection: ['sql injection', 'sqli', 'query injection', 'database injection'],
-  xss: ['xss', 'cross-site scripting', 'script injection', 'html injection'],
-  ssrf: ['ssrf', 'server-side request forgery', 'internal network', 'localhost access'],
-  file_upload: ['file upload', 'arbitrary upload', 'unrestricted upload', 'malicious file'],
-  access_control: ['access control', 'unauthorized access', 'privilege escalation', 'bypass'],
-  authentication: ['authentication', 'auth bypass', 'credential', 'password', 'login'],
-  authorization: ['authorization', 'permission', 'role', 'access denied', 'forbidden'],
-  information_disclosure: ['information disclosure', 'data leak', 'sensitive data', 'expose', 'reveals'],
-  denial_of_service: ['denial of service', 'dos', 'resource exhaustion', 'infinite loop', 'crash'],
-  input_validation: ['input validation', 'sanitization', 'validation', 'untrusted input', 'user input'],
-  output_encoding: ['output encoding', 'escape', 'encoding', 'sanitize output'],
-  cryptography: ['cryptography', 'encryption', 'hashing', 'random', 'weak cipher'],
-  session_management: ['session', 'cookie', 'token', 'jwt'],
-  error_handling: ['error handling', 'exception', 'stack trace', 'verbose error'],
-  logging: ['logging', 'audit', 'sensitive log'],
-  configuration: ['configuration', 'hardcoded', 'default', 'insecure default'],
-  other: [],
-};
+const SECURITY_KEYWORDS: Record<string, string[]> = EXTENDED_SECURITY_KEYWORDS;
 
 /**
  * Keywords that map to limitation categories.
@@ -168,23 +165,11 @@ export function extractLimitationCategory(text: string): LimitationCategory {
 
 /**
  * Extract severity from text.
+ * Now uses negation-aware extraction to handle phrases like "not critical".
  */
 export function extractSeverity(text: string): 'low' | 'medium' | 'high' | 'critical' {
-  const lowerText = text.toLowerCase();
-
-  if (lowerText.includes('critical') || lowerText.includes('severe') || lowerText.includes('rce') || lowerText.includes('remote code')) {
-    return 'critical';
-  }
-  // LFI, SSRF, arbitrary file access are high severity
-  if (lowerText.includes('high') || lowerText.includes('dangerous') || lowerText.includes('injection') ||
-      lowerText.includes('traversal') || lowerText.includes('lfi') || lowerText.includes('ssrf') ||
-      lowerText.includes('arbitrary file') || lowerText.includes('../')) {
-    return 'high';
-  }
-  if (lowerText.includes('medium') || lowerText.includes('moderate') || lowerText.includes('potential')) {
-    return 'medium';
-  }
-  return 'low';
+  // Use the enhanced negation-aware severity extraction
+  return extractSeverityWithNegation(text);
 }
 
 /**
@@ -481,30 +466,11 @@ export function limitationsMatchWithConfidence(
 
 /**
  * Compare constraint values, handling variations like "10MB" vs "10 MB".
+ * Now uses enhanced constraint comparison with unit normalization (e.g., 10MB = 10240KB).
  */
 function constraintsMatch(a?: string, b?: string): number {
-  if (!a && !b) return 100;
-  if (!a || !b) return 50; // One missing
-
-  // Normalize: remove spaces, lowercase
-  const normA = a.replace(/\s/g, '').toLowerCase();
-  const normB = b.replace(/\s/g, '').toLowerCase();
-
-  if (normA === normB) return 100;
-
-  // Try to extract numeric values
-  const numA = parseFloat(normA.replace(/[^0-9.]/g, ''));
-  const numB = parseFloat(normB.replace(/[^0-9.]/g, ''));
-
-  if (!isNaN(numA) && !isNaN(numB)) {
-    // Both have numbers - check if they're the same
-    if (numA === numB) return 90;
-    // Check if within 10%
-    const ratio = Math.min(numA, numB) / Math.max(numA, numB);
-    if (ratio > 0.9) return 75;
-  }
-
-  return 30;
+  // Use the enhanced constraint comparison that handles unit conversions
+  return compareConstraints(a, b);
 }
 
 /**

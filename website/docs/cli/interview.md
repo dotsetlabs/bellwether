@@ -114,6 +114,31 @@ Preset options can be overridden with explicit flags.
 If a `bellwether-tests.yaml` file exists in the output directory, it will be automatically loaded.
 :::
 
+### Workflow Options
+
+| Option | Description | Default |
+|:-------|:------------|:--------|
+| `--workflows <path>` | Path to workflow definitions YAML file | - |
+| `--discover-workflows` | Enable LLM-based workflow discovery | `false` |
+| `--max-workflows <n>` | Maximum workflows to discover | `3` |
+| `--init-workflows` | Generate a sample `bellwether-workflows.yaml` and exit | - |
+| `--workflow-state-tracking` | Enable state tracking during workflow execution | `false` |
+
+### Performance Options
+
+| Option | Description | Default |
+|:-------|:------------|:--------|
+| `--stream` | Enable streaming output to show LLM responses in real-time | `false` |
+| `--quiet` | Suppress streaming output (use with `--stream` to only log final results) | `false` |
+| `--parallel-personas` | Run persona interviews in parallel for faster execution | `false` |
+| `--persona-concurrency <n>` | Maximum concurrent persona interviews (requires `--parallel-personas`) | `3` |
+| `--cache` | Enable response caching to avoid redundant calls (default: enabled) | `true` |
+| `--no-cache` | Disable response caching | - |
+| `--resource-timeout <ms>` | Timeout for resource reads in milliseconds | `15000` |
+| `--fallback` | Enable automatic Ollama fallback if primary LLM provider fails | `false` |
+| `--max-tokens <n>` | Maximum total tokens to use (prevents runaway costs) | - |
+| `--show-metrics` | Show detailed metrics after interview (token usage, timing, costs) | `false` |
+
 ### Debug Options
 
 | Option | Description | Default |
@@ -265,6 +290,53 @@ bellwether interview \
   npx your-server
 ```
 
+### Workflow Testing
+
+```bash
+# Generate a sample workflow file
+bellwether interview --init-workflows
+
+# Run with user-defined workflows
+bellwether interview \
+  --workflows ./bellwether-workflows.yaml \
+  npx your-server
+
+# Auto-discover workflows using LLM
+bellwether interview \
+  --discover-workflows \
+  --max-workflows 5 \
+  npx your-server
+
+# Enable state tracking for debugging
+bellwether interview \
+  --workflows ./workflows.yaml \
+  --workflow-state-tracking \
+  npx your-server
+```
+
+### Performance Optimization
+
+```bash
+# Run with streaming output for real-time feedback
+bellwether interview --stream npx your-server
+
+# Parallel persona execution (faster for multiple personas)
+bellwether interview \
+  --personas all \
+  --parallel-personas \
+  --persona-concurrency 4 \
+  npx your-server
+
+# Set token budget to control costs
+bellwether interview --max-tokens 50000 npx your-server
+
+# Show detailed metrics after interview
+bellwether interview --show-metrics npx your-server
+
+# Enable automatic Ollama fallback
+bellwether interview --fallback npx your-server
+```
+
 ## Exit Codes
 
 | Code | Meaning |
@@ -366,7 +438,9 @@ bellwether upload
 - [verify](/cli/verify) - Server verification and badges
 - [registry](/cli/registry) - Search MCP Registry
 - [Personas](/concepts/personas) - Understanding testing personas
+- [Workflows](/concepts/workflows) - Multi-step tool sequences
 - [Drift Detection](/concepts/drift-detection) - Baseline comparison
 - [Custom Test Scenarios](/guides/custom-scenarios) - YAML-defined test cases
+- [Workflow Authoring](/guides/workflow-authoring) - Writing workflow YAML files
 - [Remote MCP Servers](/guides/remote-servers) - SSE and HTTP transport options
 - [CI/CD Integration](/guides/ci-cd) - Pipeline integration

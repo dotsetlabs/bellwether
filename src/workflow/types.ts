@@ -195,7 +195,7 @@ export type WorkflowProgressCallback = (progress: WorkflowProgress) => void;
 export interface WorkflowExecutorOptions {
   /** Whether to continue after a step fails */
   continueOnError?: boolean;
-  /** Timeout per step in ms */
+  /** Timeout per step in ms (default: 30000) */
   stepTimeout?: number;
   /** Whether to generate LLM analysis for each step */
   analyzeSteps?: boolean;
@@ -205,6 +205,26 @@ export interface WorkflowExecutorOptions {
   onProgress?: WorkflowProgressCallback;
   /** State tracking configuration */
   stateTracking?: StateTrackingOptions;
+  /** Timeout configuration for various operations */
+  timeouts?: WorkflowTimeoutConfig;
+  /** AbortSignal for cancelling workflow execution */
+  signal?: AbortSignal;
+}
+
+/**
+ * Timeout configuration for workflow operations.
+ */
+export interface WorkflowTimeoutConfig {
+  /** Timeout for individual tool calls in ms (default: 30000) */
+  toolCall?: number;
+  /** Timeout for state snapshot operations in ms (default: 30000) */
+  stateSnapshot?: number;
+  /** Timeout for individual probe tool calls in ms (default: 5000) */
+  probeTool?: number;
+  /** Timeout for LLM analysis calls in ms (default: 30000) */
+  llmAnalysis?: number;
+  /** Timeout for LLM summary generation in ms (default: 45000) */
+  llmSummary?: number;
 }
 
 /**

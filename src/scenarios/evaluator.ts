@@ -5,43 +5,10 @@
  */
 
 import type { ScenarioAssertion, AssertionResult } from './types.js';
+import { getValueAtPath } from '../utils/jsonpath.js';
 
-/**
- * Get a value from an object using a JSONPath-like expression.
- *
- * Supports:
- * - Simple paths: "content", "result.value"
- * - Array access: "items[0]", "messages[0].content"
- * - Nested: "result.items[0].name"
- */
-export function getValueAtPath(obj: unknown, path: string): unknown {
-  if (!path || typeof obj !== 'object' || obj === null) {
-    return undefined;
-  }
-
-  const parts = path.split(/\.|\[|\]/).filter(Boolean);
-  let current: unknown = obj;
-
-  for (const part of parts) {
-    if (current === null || current === undefined) {
-      return undefined;
-    }
-
-    if (typeof current !== 'object') {
-      return undefined;
-    }
-
-    // Handle array index
-    const index = parseInt(part, 10);
-    if (!isNaN(index) && Array.isArray(current)) {
-      current = current[index];
-    } else {
-      current = (current as Record<string, unknown>)[part];
-    }
-  }
-
-  return current;
-}
+// Re-export for backwards compatibility
+export { getValueAtPath };
 
 /**
  * Evaluate a single assertion against a response.

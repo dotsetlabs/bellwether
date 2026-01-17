@@ -1,5 +1,5 @@
 import type { MCPClient } from '../transport/mcp-client.js';
-import type { MCPTool } from '../transport/types.js';
+import type { MCPTool, MCPToolCallResult } from '../transport/types.js';
 import type { DiscoveryResult } from '../discovery/types.js';
 import type { LLMClient } from '../llm/client.js';
 import { Orchestrator } from './orchestrator.js';
@@ -17,6 +17,7 @@ import type {
   PromptInteraction,
   ResourceProfile,
   ResourceInteraction,
+  WorkflowSummary,
 } from './types.js';
 import type { Persona } from '../persona/types.js';
 import { DEFAULT_PERSONA } from '../persona/builtins.js';
@@ -24,13 +25,19 @@ import { getLogger, startTiming } from '../logging/logger.js';
 import type { TestScenario, PromptScenario, ScenarioResult } from '../scenarios/types.js';
 import type { PromptQuestion } from './types.js';
 import { evaluateAssertions } from '../scenarios/evaluator.js';
+import { withTimeout, DEFAULT_TIMEOUTS, parallelLimit, createMutex } from '../utils/index.js';
+import type { ToolResponseCache } from '../cache/response-cache.js';
+import { INTERVIEW, WORKFLOW } from '../constants.js';
+import { WorkflowDiscoverer } from '../workflow/discovery.js';
+import { WorkflowExecutor } from '../workflow/executor.js';
+import type { Workflow, WorkflowResult } from '../workflow/types.js';
 
 /**
  * Default interview configuration.
  */
 export const DEFAULT_CONFIG: InterviewConfig = {
-  maxQuestionsPerTool: 3,
-  timeout: 30000,
+  maxQuestionsPerTool: INTERVIEW.MAX_QUESTIONS_PER_TOOL,
+  timeout: INTERVIEW.TOOL_TIMEOUT,
   skipErrorTests: false,
 };
 
@@ -42,7 +49,7 @@ export const DEFAULT_CONFIG: InterviewConfig = {
 export const DEFAULT_PERSONAS: Persona[] = [DEFAULT_PERSONA];
 
 export interface InterviewProgress {
-  phase: 'starting' | 'interviewing' | 'synthesizing' | 'complete';
+  phase: 'starting' | 'interviewing' | 'workflows' | 'synthesizing' | 'complete';
   currentTool?: string;
   currentPersona?: string;
   personasCompleted: number;
@@ -50,12 +57,33 @@ export interface InterviewProgress {
   toolsCompleted: number;
   totalTools: number;
   questionsAsked: number;
+  /** Current workflow being executed */
+  currentWorkflow?: string;
+  /** Number of workflows completed */
+  workflowsCompleted?: number;
+  /** Total workflows to execute */
+  totalWorkflows?: number;
 }
 
 export type ProgressCallback = (progress: InterviewProgress) => void;
 
 /**
+ * Result of interviewing a single persona across all tools.
+ * Used for parallel persona execution.
+ */
+interface PersonaInterviewData {
+  persona: Persona;
+  stats: PersonaSummary;
+  toolInteractions: Map<string, ToolInteraction[]>;
+  toolFindings: Map<string, PersonaFindings>;
+  scenarioResults: ScenarioResult[];
+}
+
+/**
  * Interviewer conducts the interview process using the orchestrator.
+ * Supports streaming output for real-time feedback during LLM operations.
+ * Supports parallel persona execution for improved performance.
+ * Supports caching tool responses and LLM analysis for efficiency.
  */
 export class Interviewer {
   private llm: LLMClient;
@@ -63,12 +91,29 @@ export class Interviewer {
   private personas: Persona[];
   private logger = getLogger('interviewer');
   private serverContext?: ServerContext;
+  private cache?: ToolResponseCache;
 
   constructor(llm: LLMClient, config?: Partial<InterviewConfig>) {
     this.llm = llm;
     this.config = { ...DEFAULT_CONFIG, ...config };
     // Use multiple personas by default for better coverage
     this.personas = config?.personas ?? DEFAULT_PERSONAS;
+    // Store cache reference for tool response and analysis caching
+    this.cache = config?.cache;
+  }
+
+  /**
+   * Create an orchestrator with streaming and caching enabled if configured.
+   */
+  private createOrchestrator(persona: Persona): Orchestrator {
+    const orchestrator = new Orchestrator(this.llm, persona, this.serverContext, this.cache);
+
+    // Enable streaming if configured
+    if (this.config.enableStreaming && this.config.streamingCallbacks) {
+      orchestrator.enableStreaming(this.config.streamingCallbacks);
+    }
+
+    return orchestrator;
   }
 
   /**
@@ -247,151 +292,214 @@ export class Interviewer {
     }
 
     // Track all scenario results
-    const allScenarioResults: ScenarioResult[] = [];
+    let allScenarioResults: ScenarioResult[] = [];
 
     // Interview with each persona
     progress.phase = 'interviewing';
-    for (const persona of this.personas) {
-      progress.currentPersona = persona.name;
-      onProgress?.(progress);
 
-      // Create orchestrator with server context
-      const orchestrator = new Orchestrator(this.llm, persona, this.serverContext);
-      const stats = personaStats.get(persona.id)!;
+    // Check if parallel execution is enabled
+    const useParallel = this.config.parallelPersonas && this.personas.length > 1;
 
-      // Interview each tool with this persona
-      for (const tool of discovery.tools) {
-        progress.currentTool = tool.name;
+    if (useParallel) {
+      // Parallel persona execution
+      const concurrency = this.config.personaConcurrency ?? INTERVIEW.DEFAULT_PERSONA_CONCURRENCY;
+      const toolCallMutex = createMutex(); // Shared mutex for serializing MCP tool calls
+
+      this.logger.info({
+        personaCount: this.personas.length,
+        concurrency,
+      }, 'Running persona interviews in parallel');
+
+      // Create tasks for each persona
+      const personaTasks = this.personas.map(persona => async () => {
+        progress.currentPersona = persona.name;
         onProgress?.(progress);
 
-        const personaInteractions: ToolInteraction[] = [];
-        const previousErrors: Array<{ args: Record<string, unknown>; error: string }> = [];
+        const result = await this.interviewPersona(client, discovery, persona, toolCallMutex);
 
-        // Check for custom scenarios for this tool
-        const customScenarios = this.getScenariosForTool(tool.name);
+        progress.personasCompleted++;
+        progress.questionsAsked += result.stats.questionsAsked;
+        onProgress?.(progress);
 
-        // If customScenariosOnly and we have scenarios, skip LLM generation
-        let questions: InterviewQuestion[] = [];
+        return result;
+      });
 
-        if (customScenarios.length > 0) {
-          // Execute custom scenarios
-          const scenarioResults = await this.executeToolScenarios(
-            client,
-            tool.name,
-            customScenarios
-          );
-          allScenarioResults.push(...scenarioResults);
+      // Execute personas in parallel with concurrency limit
+      const parallelResults = await parallelLimit(personaTasks, { concurrency });
 
-          // Convert scenarios to interview questions for integration with profiling
-          questions = customScenarios.map(s => this.scenarioToQuestion(s));
+      // Check for errors
+      if (!parallelResults.allSucceeded) {
+        for (const [index, error] of parallelResults.errors) {
+          this.logger.error({
+            persona: this.personas[index]?.name,
+            error: error.message,
+          }, 'Persona interview failed');
+        }
+      }
 
-          // If not custom-only mode, also generate LLM questions
-          if (!this.config.customScenariosOnly) {
-            const llmQuestions = await orchestrator.generateQuestions(
+      // Aggregate results
+      const successfulResults = parallelResults.results.filter((r): r is PersonaInterviewData => r !== undefined);
+      const aggregated = this.aggregateParallelResults(successfulResults, discovery);
+
+      // Update tracking maps
+      for (const [toolName, data] of aggregated.toolInteractionsMap) {
+        const existing = toolInteractionsMap.get(toolName);
+        if (existing) {
+          existing.interactions = data.interactions;
+          existing.findingsByPersona = data.findingsByPersona;
+        }
+      }
+
+      // Update persona stats
+      for (const [personaId, stats] of aggregated.personaStats) {
+        personaStats.set(personaId, stats);
+      }
+
+      allScenarioResults = aggregated.allScenarioResults;
+
+    } else {
+      // Sequential persona execution (original behavior)
+      for (const persona of this.personas) {
+        progress.currentPersona = persona.name;
+        onProgress?.(progress);
+
+        // Create orchestrator with server context and streaming if enabled
+        const orchestrator = this.createOrchestrator(persona);
+        const stats = personaStats.get(persona.id)!;
+
+        // Interview each tool with this persona
+        for (const tool of discovery.tools) {
+          progress.currentTool = tool.name;
+          onProgress?.(progress);
+
+          const personaInteractions: ToolInteraction[] = [];
+          const previousErrors: Array<{ args: Record<string, unknown>; error: string }> = [];
+
+          // Check for custom scenarios for this tool
+          const customScenarios = this.getScenariosForTool(tool.name);
+
+          // If customScenariosOnly and we have scenarios, skip LLM generation
+          let questions: InterviewQuestion[] = [];
+
+          if (customScenarios.length > 0) {
+            // Execute custom scenarios
+            const scenarioResults = await this.executeToolScenarios(
+              client,
+              tool.name,
+              customScenarios
+            );
+            allScenarioResults.push(...scenarioResults);
+
+            // Convert scenarios to interview questions for integration with profiling
+            questions = customScenarios.map(s => this.scenarioToQuestion(s));
+
+            // If not custom-only mode, also generate LLM questions
+            if (!this.config.customScenariosOnly) {
+              const llmQuestions = await orchestrator.generateQuestions(
+                tool,
+                this.config.maxQuestionsPerTool,
+                this.config.skipErrorTests
+              );
+              questions = [...questions, ...llmQuestions];
+            }
+          } else if (!this.config.customScenariosOnly) {
+            // No custom scenarios - generate LLM questions as usual
+            questions = await orchestrator.generateQuestions(
               tool,
               this.config.maxQuestionsPerTool,
               this.config.skipErrorTests
             );
-            questions = [...questions, ...llmQuestions];
           }
-        } else if (!this.config.customScenariosOnly) {
-          // No custom scenarios - generate LLM questions as usual
-          questions = await orchestrator.generateQuestions(
-            tool,
-            this.config.maxQuestionsPerTool,
-            this.config.skipErrorTests
-          );
-        }
-        // If customScenariosOnly and no scenarios for this tool, skip it
+          // If customScenariosOnly and no scenarios for this tool, skip it
 
-        // Ask each question with retry logic
-        for (const question of questions) {
-          const { interaction, hadError } = await this.executeWithRetry(
-            client,
-            tool.name,
-            question,
-            orchestrator,
-            persona.id,
-            stats,
-            previousErrors
-          );
+          // Ask each question with retry logic
+          for (const question of questions) {
+            const { interaction, hadError } = await this.executeWithRetry(
+              client,
+              tool.name,
+              question,
+              orchestrator,
+              persona.id,
+              stats
+            );
 
-          personaInteractions.push(interaction);
+            personaInteractions.push(interaction);
 
-          // Track errors for learning
-          if (hadError && interaction.error) {
-            previousErrors.push({
-              args: question.args,
-              error: interaction.error,
-            });
+            // Track errors for learning
+            if (hadError && interaction.error) {
+              previousErrors.push({
+                args: question.args,
+                error: interaction.error,
+              });
 
-            // If we have multiple failures, regenerate remaining questions with error context
-            // Skip in scenarios-only mode - we only run the defined scenarios
-            if (!this.config.customScenariosOnly &&
-                previousErrors.length >= 2 && personaInteractions.length < questions.length) {
-              const remaining = this.config.maxQuestionsPerTool - personaInteractions.length;
-              if (remaining > 0) {
-                this.logger.debug({ tool: tool.name, errors: previousErrors.length },
-                  'Regenerating questions after errors');
-                const newQuestions = await orchestrator.generateQuestions(
-                  tool,
-                  remaining,
-                  this.config.skipErrorTests,
-                  previousErrors
-                );
-                // Replace remaining questions with newly generated ones
-                questions = [...questions.slice(0, personaInteractions.length), ...newQuestions];
+              // If we have multiple failures, regenerate remaining questions with error context
+              // Skip in scenarios-only mode - we only run the defined scenarios
+              if (!this.config.customScenariosOnly &&
+                  previousErrors.length >= 2 && personaInteractions.length < questions.length) {
+                const remaining = this.config.maxQuestionsPerTool - personaInteractions.length;
+                if (remaining > 0) {
+                  this.logger.debug({ tool: tool.name, errors: previousErrors.length },
+                    'Regenerating questions after errors');
+                  const newQuestions = await orchestrator.generateQuestions(
+                    tool,
+                    remaining,
+                    this.config.skipErrorTests,
+                    previousErrors
+                  );
+                  // Replace remaining questions with newly generated ones
+                  questions = [...questions.slice(0, personaInteractions.length), ...newQuestions];
+                }
               }
             }
+
+            stats.questionsAsked++;
+            progress.questionsAsked++;
+            onProgress?.(progress);
           }
 
-          stats.questionsAsked++;
-          progress.questionsAsked++;
+          // Synthesize this persona's findings for this tool
+          // Skip LLM synthesis in scenarios-only mode
+          let personaProfile: { behavioralNotes: string[]; limitations: string[]; securityNotes: string[] };
+          if (this.config.customScenariosOnly) {
+            // In scenarios-only mode, generate simple profile from scenario results
+            const errors = personaInteractions.filter(i => i.error).map(i => i.error!);
+            personaProfile = {
+              behavioralNotes: [`Executed ${personaInteractions.length} scenario(s)`],
+              limitations: errors.length > 0 ? [`${errors.length} scenario(s) returned errors`] : [],
+              securityNotes: [],
+            };
+          } else {
+            personaProfile = await orchestrator.synthesizeToolProfile(
+              tool,
+              personaInteractions.map(i => ({
+                question: i.question,
+                response: i.response,
+                error: i.error,
+                analysis: i.analysis,
+              }))
+            );
+          }
+
+          // Store findings
+          const toolData = toolInteractionsMap.get(tool.name)!;
+          toolData.interactions.push(...personaInteractions);
+          toolData.findingsByPersona.push({
+            personaId: persona.id,
+            personaName: persona.name,
+            behavioralNotes: personaProfile.behavioralNotes,
+            limitations: personaProfile.limitations,
+            securityNotes: personaProfile.securityNotes,
+          });
+
+          progress.toolsCompleted++;
           onProgress?.(progress);
         }
 
-        // Synthesize this persona's findings for this tool
-        // Skip LLM synthesis in scenarios-only mode
-        let personaProfile: { behavioralNotes: string[]; limitations: string[]; securityNotes: string[] };
-        if (this.config.customScenariosOnly) {
-          // In scenarios-only mode, generate simple profile from scenario results
-          const errors = personaInteractions.filter(i => i.error).map(i => i.error!);
-          personaProfile = {
-            behavioralNotes: [`Executed ${personaInteractions.length} scenario(s)`],
-            limitations: errors.length > 0 ? [`${errors.length} scenario(s) returned errors`] : [],
-            securityNotes: [],
-          };
-        } else {
-          personaProfile = await orchestrator.synthesizeToolProfile(
-            tool,
-            personaInteractions.map(i => ({
-              question: i.question,
-              response: i.response,
-              error: i.error,
-              analysis: i.analysis,
-            }))
-          );
-        }
-
-        // Store findings
-        const toolData = toolInteractionsMap.get(tool.name)!;
-        toolData.interactions.push(...personaInteractions);
-        toolData.findingsByPersona.push({
-          personaId: persona.id,
-          personaName: persona.name,
-          behavioralNotes: personaProfile.behavioralNotes,
-          limitations: personaProfile.limitations,
-          securityNotes: personaProfile.securityNotes,
-        });
-
-        progress.toolsCompleted++;
+        progress.personasCompleted++;
+        // Reset tool count for next persona
+        progress.toolsCompleted = 0;
         onProgress?.(progress);
       }
-
-      progress.personasCompleted++;
-      // Reset tool count for next persona
-      progress.toolsCompleted = 0;
-      onProgress?.(progress);
     }
 
     // Build aggregated tool profiles
@@ -409,7 +517,7 @@ export class Interviewer {
     if (discovery.prompts.length > 0) {
       this.logger.info({ promptCount: discovery.prompts.length }, 'Interviewing prompts');
 
-      const primaryOrchestrator = new Orchestrator(this.llm, this.personas[0], this.serverContext);
+      const primaryOrchestrator = this.createOrchestrator(this.personas[0]);
 
       for (const prompt of discovery.prompts) {
         progress.currentTool = `prompt:${prompt.name}`;
@@ -531,7 +639,7 @@ export class Interviewer {
     if (discoveredResources.length > 0 && !this.config.customScenariosOnly) {
       this.logger.info({ resourceCount: discoveredResources.length }, 'Interviewing resources');
 
-      const primaryOrchestrator = new Orchestrator(this.llm, this.personas[0], this.serverContext);
+      const primaryOrchestrator = this.createOrchestrator(this.personas[0]);
 
       for (const resource of discoveredResources) {
         progress.currentTool = `resource:${resource.name}`;
@@ -548,7 +656,12 @@ export class Interviewer {
           let error = null;
 
           try {
-            response = await client.readResource(resource.uri);
+            // Apply timeout to resource read to prevent indefinite hangs
+            response = await withTimeout(
+              client.readResource(resource.uri),
+              this.config.resourceTimeout ?? DEFAULT_TIMEOUTS.resourceRead,
+              `Resource read: ${resource.uri}`
+            );
             resourceReadCount++;
           } catch (e) {
             error = e instanceof Error ? e.message : String(e);
@@ -609,6 +722,27 @@ export class Interviewer {
       }
     }
 
+    // Execute workflows if configured
+    let workflowResults: WorkflowResult[] | undefined;
+    let workflowSummary: WorkflowSummary | undefined;
+
+    const workflowConfig = this.config.workflowConfig;
+    if (workflowConfig && (workflowConfig.workflows?.length || workflowConfig.discoverWorkflows)) {
+      progress.phase = 'workflows';
+      onProgress?.(progress);
+
+      const { results, summary } = await this.executeWorkflows(
+        client,
+        discovery,
+        workflowConfig,
+        progress,
+        onProgress
+      );
+
+      workflowResults = results.length > 0 ? results : undefined;
+      workflowSummary = summary;
+    }
+
     // Synthesize overall findings (use first persona's orchestrator for synthesis)
     // Skip LLM synthesis in scenarios-only mode
     progress.phase = 'synthesizing';
@@ -626,7 +760,7 @@ export class Interviewer {
         recommendations: [],
       };
     } else {
-      const primaryOrchestrator = new Orchestrator(this.llm, this.personas[0]);
+      const primaryOrchestrator = this.createOrchestrator(this.personas[0]);
       overall = await primaryOrchestrator.synthesizeOverall(discovery, toolProfiles);
     }
 
@@ -648,6 +782,7 @@ export class Interviewer {
       errorCount: totalErrorCount,
       model: this.config.model,
       personas: Array.from(personaStats.values()),
+      workflows: workflowSummary,
     };
 
     progress.phase = 'complete';
@@ -666,6 +801,7 @@ export class Interviewer {
       toolProfiles,
       promptProfiles: promptProfiles.length > 0 ? promptProfiles : undefined,
       resourceProfiles: resourceProfiles.length > 0 ? resourceProfiles : undefined,
+      workflowResults,
       scenarioResults: allScenarioResults.length > 0 ? allScenarioResults : undefined,
       summary: overall.summary,
       limitations: overall.limitations,
@@ -713,6 +849,7 @@ export class Interviewer {
   /**
    * Execute a tool call with retry logic for recoverable errors.
    * Learns from errors and can update server context based on error messages.
+   * Uses caching to avoid redundant tool calls with identical arguments.
    */
   private async executeWithRetry(
     client: MCPClient,
@@ -720,39 +857,72 @@ export class Interviewer {
     question: InterviewQuestion,
     orchestrator: Orchestrator,
     personaId: string,
-    stats: PersonaSummary,
-    _previousErrors: Array<{ args: Record<string, unknown>; error: string }>
+    stats: PersonaSummary
   ): Promise<{ interaction: ToolInteraction; hadError: boolean }> {
     const interactionStart = Date.now();
-    let response = null;
-    let error = null;
+    let response: MCPToolCallResult | null = null;
+    let error: string | null = null;
     let hadError = false;
+    let fromCache = false;
 
-    try {
-      response = await client.callTool(toolName, question.args);
-      stats.toolCallCount++;
+    // Check cache for tool response (same tool + same args = same response)
+    if (this.cache) {
+      const cachedResponse = this.cache.getToolResponse<MCPToolCallResult>(
+        toolName,
+        question.args
+      );
+      if (cachedResponse) {
+        response = cachedResponse;
+        fromCache = true;
+        this.logger.debug({ toolName, args: question.args }, 'Tool response served from cache');
+        stats.toolCallCount++; // Still count as a tool call for metrics
 
-      if (response.isError) {
-        stats.errorCount++;
-        hadError = true;
-
-        // Extract error message and learn from it
-        const errorContent = response.content?.find(c => c.type === 'text');
-        if (errorContent && 'text' in errorContent) {
-          error = String(errorContent.text);
-
-          // Try to extract constraints from error message
-          this.learnFromError(error, orchestrator);
+        if (response.isError) {
+          stats.errorCount++;
+          hadError = true;
+          const errorContent = response.content?.find(c => c.type === 'text');
+          if (errorContent && 'text' in errorContent) {
+            error = String(errorContent.text);
+          }
         }
       }
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      stats.errorCount++;
-      stats.toolCallCount++;
-      hadError = true;
+    }
 
-      // Learn from exception message too
-      this.learnFromError(error, orchestrator);
+    // Make actual tool call if not cached
+    if (!fromCache) {
+      try {
+        response = await client.callTool(toolName, question.args);
+        stats.toolCallCount++;
+
+        if (response.isError) {
+          stats.errorCount++;
+          hadError = true;
+
+          // Extract error message and learn from it
+          const errorContent = response.content?.find(c => c.type === 'text');
+          if (errorContent && 'text' in errorContent) {
+            error = String(errorContent.text);
+
+            // Try to extract constraints from error message
+            this.learnFromError(error, orchestrator);
+          }
+        } else {
+          // Cache successful responses for reuse by other personas
+          // Don't cache errors as they may be transient
+          if (this.cache && response) {
+            this.cache.setToolResponse(toolName, question.args, response);
+            this.logger.debug({ toolName, args: question.args }, 'Tool response cached');
+          }
+        }
+      } catch (e) {
+        error = e instanceof Error ? e.message : String(e);
+        stats.errorCount++;
+        stats.toolCallCount++;
+        hadError = true;
+
+        // Learn from exception message too
+        this.learnFromError(error, orchestrator);
+      }
     }
 
     // Analyze the response with this persona's perspective
@@ -825,6 +995,225 @@ export class Interviewer {
   }
 
   /**
+   * Interview all tools with a single persona.
+   * Designed for parallel execution across personas.
+   *
+   * @param client - MCP client for tool calls
+   * @param discovery - Discovery result with available tools
+   * @param persona - Persona to use for this interview
+   * @param toolCallMutex - Mutex for serializing tool calls (shared resource)
+   * @returns PersonaInterviewData with all interactions and findings
+   */
+  private async interviewPersona(
+    client: MCPClient,
+    discovery: DiscoveryResult,
+    persona: Persona,
+    toolCallMutex: ReturnType<typeof createMutex>
+  ): Promise<PersonaInterviewData> {
+    const orchestrator = this.createOrchestrator(persona);
+
+    const stats: PersonaSummary = {
+      id: persona.id,
+      name: persona.name,
+      questionsAsked: 0,
+      toolCallCount: 0,
+      errorCount: 0,
+    };
+
+    const toolInteractions = new Map<string, ToolInteraction[]>();
+    const toolFindings = new Map<string, PersonaFindings>();
+    const scenarioResults: ScenarioResult[] = [];
+
+    // Interview each tool with this persona
+    for (const tool of discovery.tools) {
+      const personaInteractions: ToolInteraction[] = [];
+      const previousErrors: Array<{ args: Record<string, unknown>; error: string }> = [];
+
+      // Check for custom scenarios for this tool
+      const customScenarios = this.getScenariosForTool(tool.name);
+
+      // Build questions list
+      let questions: InterviewQuestion[] = [];
+
+      if (customScenarios.length > 0) {
+        // Execute custom scenarios (need mutex for tool calls)
+        await toolCallMutex.acquire();
+        try {
+          const results = await this.executeToolScenarios(client, tool.name, customScenarios);
+          scenarioResults.push(...results);
+        } finally {
+          toolCallMutex.release();
+        }
+
+        // Convert scenarios to interview questions
+        questions = customScenarios.map(s => this.scenarioToQuestion(s));
+
+        // If not custom-only mode, also generate LLM questions
+        if (!this.config.customScenariosOnly) {
+          const llmQuestions = await orchestrator.generateQuestions(
+            tool,
+            this.config.maxQuestionsPerTool,
+            this.config.skipErrorTests
+          );
+          questions = [...questions, ...llmQuestions];
+        }
+      } else if (!this.config.customScenariosOnly) {
+        // No custom scenarios - generate LLM questions as usual
+        questions = await orchestrator.generateQuestions(
+          tool,
+          this.config.maxQuestionsPerTool,
+          this.config.skipErrorTests
+        );
+      }
+
+      // Ask each question with retry logic
+      for (const question of questions) {
+        // Acquire mutex for tool calls (shared MCP client)
+        await toolCallMutex.acquire();
+        let interaction: ToolInteraction;
+        let hadError: boolean;
+        try {
+          const result = await this.executeWithRetry(
+            client,
+            tool.name,
+            question,
+            orchestrator,
+            persona.id,
+            stats
+          );
+          interaction = result.interaction;
+          hadError = result.hadError;
+        } finally {
+          toolCallMutex.release();
+        }
+
+        personaInteractions.push(interaction);
+
+        // Track errors for learning
+        if (hadError && interaction.error) {
+          previousErrors.push({
+            args: question.args,
+            error: interaction.error,
+          });
+
+          // If we have multiple failures, regenerate remaining questions
+          if (!this.config.customScenariosOnly &&
+              previousErrors.length >= 2 && personaInteractions.length < questions.length) {
+            const remaining = this.config.maxQuestionsPerTool - personaInteractions.length;
+            if (remaining > 0) {
+              this.logger.debug({ tool: tool.name, errors: previousErrors.length },
+                'Regenerating questions after errors');
+              const newQuestions = await orchestrator.generateQuestions(
+                tool,
+                remaining,
+                this.config.skipErrorTests,
+                previousErrors
+              );
+              questions = [...questions.slice(0, personaInteractions.length), ...newQuestions];
+            }
+          }
+        }
+
+        stats.questionsAsked++;
+      }
+
+      // Synthesize this persona's findings for this tool
+      let personaProfile: { behavioralNotes: string[]; limitations: string[]; securityNotes: string[] };
+      if (this.config.customScenariosOnly) {
+        const errors = personaInteractions.filter(i => i.error).map(i => i.error!);
+        personaProfile = {
+          behavioralNotes: [`Executed ${personaInteractions.length} scenario(s)`],
+          limitations: errors.length > 0 ? [`${errors.length} scenario(s) returned errors`] : [],
+          securityNotes: [],
+        };
+      } else {
+        personaProfile = await orchestrator.synthesizeToolProfile(
+          tool,
+          personaInteractions.map(i => ({
+            question: i.question,
+            response: i.response,
+            error: i.error,
+            analysis: i.analysis,
+          }))
+        );
+      }
+
+      // Store interactions and findings
+      toolInteractions.set(tool.name, personaInteractions);
+      toolFindings.set(tool.name, {
+        personaId: persona.id,
+        personaName: persona.name,
+        behavioralNotes: personaProfile.behavioralNotes,
+        limitations: personaProfile.limitations,
+        securityNotes: personaProfile.securityNotes,
+      });
+    }
+
+    this.logger.debug({
+      persona: persona.name,
+      toolCount: discovery.tools.length,
+      questionsAsked: stats.questionsAsked,
+    }, 'Persona interview complete');
+
+    return {
+      persona,
+      stats,
+      toolInteractions,
+      toolFindings,
+      scenarioResults,
+    };
+  }
+
+  /**
+   * Aggregate results from parallel persona interviews.
+   */
+  private aggregateParallelResults(
+    personaResults: PersonaInterviewData[],
+    discovery: DiscoveryResult
+  ): {
+    toolInteractionsMap: Map<string, { interactions: ToolInteraction[]; findingsByPersona: PersonaFindings[] }>;
+    personaStats: Map<string, PersonaSummary>;
+    allScenarioResults: ScenarioResult[];
+  } {
+    const toolInteractionsMap = new Map<string, { interactions: ToolInteraction[]; findingsByPersona: PersonaFindings[] }>();
+
+    // Initialize map for each tool
+    for (const tool of discovery.tools) {
+      toolInteractionsMap.set(tool.name, {
+        interactions: [],
+        findingsByPersona: [],
+      });
+    }
+
+    const personaStats = new Map<string, PersonaSummary>();
+    const allScenarioResults: ScenarioResult[] = [];
+
+    // Aggregate results from each persona
+    for (const result of personaResults) {
+      personaStats.set(result.persona.id, result.stats);
+      allScenarioResults.push(...result.scenarioResults);
+
+      // Merge tool interactions
+      for (const [toolName, interactions] of result.toolInteractions) {
+        const toolData = toolInteractionsMap.get(toolName);
+        if (toolData) {
+          toolData.interactions.push(...interactions);
+        }
+      }
+
+      // Merge tool findings
+      for (const [toolName, findings] of result.toolFindings) {
+        const toolData = toolInteractionsMap.get(toolName);
+        if (toolData) {
+          toolData.findingsByPersona.push(findings);
+        }
+      }
+    }
+
+    return { toolInteractionsMap, personaStats, allScenarioResults };
+  }
+
+  /**
    * Convert a TestScenario to an InterviewQuestion.
    */
   private scenarioToQuestion(scenario: TestScenario): InterviewQuestion {
@@ -858,8 +1247,7 @@ export class Interviewer {
   async executeToolScenarios(
     client: MCPClient,
     toolName: string,
-    scenarios: TestScenario[],
-    onScenarioComplete?: (result: ScenarioResult) => void
+    scenarios: TestScenario[]
   ): Promise<ScenarioResult[]> {
     const results: ScenarioResult[] = [];
 
@@ -908,7 +1296,6 @@ export class Interviewer {
       };
 
       results.push(result);
-      onScenarioComplete?.(result);
 
       this.logger.debug({
         tool: toolName,
@@ -928,8 +1315,7 @@ export class Interviewer {
   async executePromptScenarios(
     client: MCPClient,
     promptName: string,
-    scenarios: PromptScenario[],
-    onScenarioComplete?: (result: ScenarioResult) => void
+    scenarios: PromptScenario[]
   ): Promise<ScenarioResult[]> {
     const results: ScenarioResult[] = [];
 
@@ -966,7 +1352,6 @@ export class Interviewer {
       };
 
       results.push(result);
-      onScenarioComplete?.(result);
 
       this.logger.debug({
         prompt: promptName,
@@ -977,5 +1362,155 @@ export class Interviewer {
     }
 
     return results;
+  }
+
+  /**
+   * Execute workflow discovery and/or execution.
+   * Discovers workflows using LLM if enabled, loads from file if provided,
+   * and executes all workflows against the MCP server.
+   */
+  private async executeWorkflows(
+    client: MCPClient,
+    discovery: DiscoveryResult,
+    workflowConfig: NonNullable<InterviewConfig['workflowConfig']>,
+    progress: InterviewProgress,
+    onProgress?: ProgressCallback
+  ): Promise<{ results: WorkflowResult[]; summary: WorkflowSummary }> {
+    const allWorkflows: Workflow[] = [];
+    let discoveredCount = 0;
+    let loadedCount = 0;
+
+    // Add user-provided workflows
+    if (workflowConfig.workflows && workflowConfig.workflows.length > 0) {
+      allWorkflows.push(...workflowConfig.workflows);
+      loadedCount = workflowConfig.workflows.length;
+      this.logger.info({ count: loadedCount }, 'Using workflows loaded from file');
+    }
+
+    // Discover workflows using LLM if enabled
+    if (workflowConfig.discoverWorkflows && discovery.tools.length >= 2) {
+      this.logger.info('Discovering workflows using LLM analysis');
+
+      const discoverer = new WorkflowDiscoverer(this.llm, {
+        maxWorkflows: workflowConfig.maxDiscoveredWorkflows ?? WORKFLOW.MAX_DISCOVERED_WORKFLOWS,
+        minSteps: WORKFLOW.MIN_WORKFLOW_STEPS,
+        maxSteps: WORKFLOW.MAX_WORKFLOW_STEPS,
+      });
+
+      try {
+        const discovered = await discoverer.discover(discovery.tools);
+        if (discovered.length > 0) {
+          allWorkflows.push(...discovered);
+          discoveredCount = discovered.length;
+          this.logger.info({
+            count: discoveredCount,
+            workflows: discovered.map(w => w.name),
+          }, 'Discovered workflows');
+        } else {
+          this.logger.info('No workflows discovered from tool analysis');
+        }
+      } catch (error) {
+        this.logger.warn({
+          error: error instanceof Error ? error.message : String(error),
+        }, 'Workflow discovery failed');
+      }
+    }
+
+    // Execute all workflows
+    const results: WorkflowResult[] = [];
+
+    if (allWorkflows.length > 0 && !workflowConfig.skipWorkflowExecution) {
+      this.logger.info({ count: allWorkflows.length }, 'Executing workflows');
+
+      progress.totalWorkflows = allWorkflows.length;
+      progress.workflowsCompleted = 0;
+      onProgress?.(progress);
+
+      const executor = new WorkflowExecutor(
+        client,
+        this.llm,
+        discovery.tools,
+        {
+          stepTimeout: WORKFLOW.STEP_TIMEOUT,
+          analyzeSteps: !this.config.customScenariosOnly,
+          generateSummary: !this.config.customScenariosOnly,
+          stateTracking: workflowConfig.enableStateTracking
+            ? {
+                enabled: true,
+                snapshotBefore: true,
+                snapshotAfter: true,
+                snapshotAfterEachStep: false,
+              }
+            : undefined,
+          timeouts: {
+            toolCall: WORKFLOW.STEP_TIMEOUT,
+            stateSnapshot: WORKFLOW.STATE_SNAPSHOT_TIMEOUT,
+            probeTool: WORKFLOW.PROBE_TOOL_TIMEOUT,
+            llmAnalysis: WORKFLOW.LLM_ANALYSIS_TIMEOUT,
+            llmSummary: WORKFLOW.LLM_SUMMARY_TIMEOUT,
+          },
+        }
+      );
+
+      for (const workflow of allWorkflows) {
+        progress.currentWorkflow = workflow.name;
+        onProgress?.(progress);
+
+        this.logger.debug({
+          workflowId: workflow.id,
+          workflowName: workflow.name,
+          stepCount: workflow.steps.length,
+        }, 'Executing workflow');
+
+        try {
+          const result = await executor.execute(workflow);
+          results.push(result);
+
+          this.logger.info({
+            workflowId: workflow.id,
+            success: result.success,
+            durationMs: result.durationMs,
+          }, 'Workflow execution complete');
+        } catch (error) {
+          this.logger.error({
+            workflowId: workflow.id,
+            error: error instanceof Error ? error.message : String(error),
+          }, 'Workflow execution failed');
+
+          // Create a failed result
+          results.push({
+            workflow,
+            steps: [],
+            success: false,
+            failureReason: error instanceof Error ? error.message : String(error),
+            durationMs: 0,
+            dataFlow: [],
+          });
+        }
+
+        progress.workflowsCompleted = (progress.workflowsCompleted ?? 0) + 1;
+        onProgress?.(progress);
+      }
+    }
+
+    // Build summary
+    const successfulCount = results.filter(r => r.success).length;
+    const summary: WorkflowSummary = {
+      workflowCount: results.length,
+      successfulCount,
+      failedCount: results.length - successfulCount,
+      discoveredCount,
+      loadedCount,
+    };
+
+    this.logger.info({
+      total: summary.workflowCount,
+      successful: summary.successfulCount,
+      failed: summary.failedCount,
+      discovered: summary.discoveredCount,
+      loaded: summary.loadedCount,
+    }, 'Workflow execution summary');
+
+    return { results, summary };
   }
 }

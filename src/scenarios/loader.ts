@@ -3,8 +3,8 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { parse as parseYaml } from 'yaml';
 import type { QuestionCategory } from '../persona/types.js';
+import { parseYamlSecure } from '../utils/yaml-parser.js';
 import type {
   TestScenario,
   PromptScenario,
@@ -48,7 +48,7 @@ export function loadScenariosFromFile(path: string): LoadedScenarios {
   }
 
   const content = readFileSync(path, 'utf-8');
-  const parsed = parseYaml(content) as TestScenariosYAML;
+  const parsed = parseYamlSecure<TestScenariosYAML>(content);
 
   if (!parsed || typeof parsed !== 'object') {
     throw new Error(`Invalid test scenarios file: ${path} (expected object)`);

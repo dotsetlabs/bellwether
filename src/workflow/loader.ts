@@ -3,11 +3,13 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { parse as parseYaml } from 'yaml';
+import { parseAllDocuments } from 'yaml';
 import type { Workflow, WorkflowStep, WorkflowYAML, Assertion } from './types.js';
+import { parseYamlSecure, YAML_SECURITY_LIMITS } from '../utils/yaml-parser.js';
 
 /**
  * Load workflows from a YAML file.
+ * Supports both single-document and multi-document YAML (separated by ---).
  */
 export function loadWorkflowsFromFile(path: string): Workflow[] {
   if (!existsSync(path)) {
@@ -15,7 +17,30 @@ export function loadWorkflowsFromFile(path: string): Workflow[] {
   }
 
   const content = readFileSync(path, 'utf-8');
-  const parsed = parseYaml(content);
+
+  // Check if content has multiple YAML documents (separated by ---)
+  if (content.includes('\n---')) {
+    // Parse as multi-document YAML
+    const documents = parseAllDocuments(content);
+
+    const rawWorkflows: WorkflowYAML[] = [];
+    for (const doc of documents) {
+      if (doc.errors && doc.errors.length > 0) {
+        throw new Error(`YAML parse error: ${doc.errors[0].message}`);
+      }
+      const parsed = doc.toJS({
+        maxAliasCount: YAML_SECURITY_LIMITS.MAX_ALIAS_COUNT,
+      });
+      if (parsed) {
+        rawWorkflows.push(parsed);
+      }
+    }
+
+    return rawWorkflows.map((raw, index) => validateAndNormalizeWorkflow(raw, path, index));
+  }
+
+  // Single document - use secure parser
+  const parsed = parseYamlSecure(content);
 
   // Handle single workflow or array of workflows
   const rawWorkflows: WorkflowYAML[] = Array.isArray(parsed) ? parsed : [parsed];

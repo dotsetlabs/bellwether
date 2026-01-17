@@ -34,15 +34,14 @@ describe('Interactive Mode', () => {
       const { createInterface } = await import('readline');
       const mockRl = (createInterface as ReturnType<typeof vi.fn>)();
 
-      // Mock responses: server command, personas (no for all), format, output dir, max questions, baseline options
+      // Mock responses: server command, personas (yes for first), format, output dir, max questions, baseline options
       let questionIndex = 0;
       const responses = [
         'npx @modelcontextprotocol/server-filesystem /tmp', // server command
-        'y', // friendly persona
-        'n', // adversarial
-        'n', // compliance
-        'n', // thorough
-        'n', // minimal
+        'y', // technical_writer persona
+        'n', // security_tester
+        'n', // qa_engineer
+        'n', // novice_user
         '1', // output format (markdown)
         '', // output dir (default)
         '', // max questions (default)
@@ -59,7 +58,7 @@ describe('Interactive Mode', () => {
 
       const mockConfig = {
         llm: { provider: 'openai', model: 'gpt-4o', apiKey: '' },
-        interview: { maxQuestionsPerTool: 10, timeout: 30000, personas: ['friendly'] },
+        interview: { maxQuestionsPerTool: 10, timeout: 30000, personas: ['technical_writer'] },
         output: { format: 'markdown' },
       };
 
@@ -67,7 +66,7 @@ describe('Interactive Mode', () => {
 
       expect(result.serverCommand).toBe('npx');
       expect(result.serverArgs).toContain('@modelcontextprotocol/server-filesystem');
-      expect(result.selectedPersonas).toContain('friendly');
+      expect(result.selectedPersonas).toContain('technical_writer');
       expect(result.outputFormat).toBe('markdown');
       expect(result.saveBaseline).toBe(true);
     });
@@ -78,11 +77,10 @@ describe('Interactive Mode', () => {
 
       let questionIndex = 0;
       const responses = [
-        'y', // friendly persona
-        'n', // adversarial
-        'n', // compliance
-        'n', // thorough
-        'n', // minimal
+        'y', // technical_writer persona
+        'n', // security_tester
+        'n', // qa_engineer
+        'n', // novice_user
         '2', // output format (json)
         './output', // output dir
         '5', // max questions
@@ -98,7 +96,7 @@ describe('Interactive Mode', () => {
 
       const mockConfig = {
         llm: { provider: 'openai', model: 'gpt-4o', apiKey: '' },
-        interview: { maxQuestionsPerTool: 10, timeout: 30000, personas: ['friendly'] },
+        interview: { maxQuestionsPerTool: 10, timeout: 30000, personas: ['technical_writer'] },
         output: { format: 'markdown' },
       };
 
@@ -112,17 +110,16 @@ describe('Interactive Mode', () => {
       expect(result.saveBaseline).toBe(false);
     });
 
-    it('should default to friendly persona if none selected', async () => {
+    it('should default to technical_writer persona if none selected', async () => {
       const { createInterface } = await import('readline');
       const mockRl = (createInterface as ReturnType<typeof vi.fn>)();
 
       let questionIndex = 0;
       const responses = [
-        'n', // friendly persona
-        'n', // adversarial
-        'n', // compliance
-        'n', // thorough
-        'n', // minimal
+        'n', // technical_writer persona
+        'n', // security_tester
+        'n', // qa_engineer
+        'n', // novice_user
         '1', // output format
         '', // output dir
         '', // max questions
@@ -144,8 +141,8 @@ describe('Interactive Mode', () => {
 
       const result = await promptForConfig(mockConfig as any, 'node', ['server.js']);
 
-      // Should default to friendly when none selected
-      expect(result.selectedPersonas).toContain('friendly');
+      // Should default to technical_writer when none selected
+      expect(result.selectedPersonas).toContain('technical_writer');
     });
   });
 
@@ -207,7 +204,7 @@ describe('Interactive Mode', () => {
       displayConfigSummary({
         serverCommand: 'node',
         serverArgs: ['server.js', '--port', '3000'],
-        selectedPersonas: ['friendly', 'adversarial'],
+        selectedPersonas: ['technical_writer', 'security_tester'],
         outputFormat: 'both',
         outputDir: './output',
         saveBaseline: true,
@@ -219,7 +216,7 @@ describe('Interactive Mode', () => {
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Configuration Summary'));
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('node'));
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('server.js'));
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('friendly, adversarial'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('technical_writer, security_tester'));
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('both'));
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('./output'));
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('my-baseline.json'));
@@ -236,14 +233,14 @@ describe('Interactive Mode', () => {
       displayConfigSummary({
         serverCommand: 'python',
         serverArgs: [],
-        selectedPersonas: ['friendly'],
+        selectedPersonas: ['technical_writer'],
         outputFormat: 'markdown',
         outputDir: '.',
         saveBaseline: false,
       });
 
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('python'));
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('friendly'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('technical_writer'));
       // Should not mention baseline since saveBaseline is false
       const calls = consoleSpy.mock.calls.flat().join('\n');
       expect(calls).not.toContain('Save baseline:');
@@ -260,7 +257,7 @@ describe('Interactive Mode', () => {
       const config: Awaited<ReturnType<typeof promptForConfig>> = {
         serverCommand: 'test',
         serverArgs: [],
-        selectedPersonas: ['friendly'],
+        selectedPersonas: ['technical_writer'],
         outputFormat: 'markdown',
         outputDir: '.',
         saveBaseline: false,

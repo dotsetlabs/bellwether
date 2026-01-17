@@ -385,7 +385,8 @@ describe('prompts/templates', () => {
       const prompt = buildToolProfileSynthesisPrompt(emptyContext);
 
       expect(prompt).toContain('get_weather');
-      expect(prompt).toContain('Interactions:');
+      // Template uses XML-style INTERACTIONS tag
+      expect(prompt).toContain('<INTERACTIONS>');
     });
   });
 

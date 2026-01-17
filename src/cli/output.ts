@@ -260,6 +260,218 @@ export class Output {
 }
 
 /**
+ * Streaming text display configuration.
+ */
+export interface StreamingDisplayConfig {
+  /** Prefix to show before streaming output */
+  prefix?: string;
+  /** Suffix to show after streaming completes */
+  suffix?: string;
+  /** Whether to show a spinner during streaming */
+  showSpinner?: boolean;
+  /** Maximum line width before wrapping */
+  maxWidth?: number;
+  /** Stream to write to (defaults to stdout) */
+  stream?: NodeJS.WriteStream;
+  /** Color/style for the streaming text */
+  style?: 'dim' | 'normal' | 'bright';
+}
+
+/**
+ * Streaming display controller for real-time LLM output.
+ * Provides clean, formatted output during streaming operations.
+ */
+export class StreamingDisplay {
+  private config: StreamingDisplayConfig;
+  private stream: NodeJS.WriteStream;
+  private buffer: string = '';
+  private lineLength: number = 0;
+  private isActive: boolean = false;
+  private quietMode: boolean;
+
+  constructor(config: StreamingDisplayConfig = {}) {
+    this.config = config;
+    this.stream = config.stream ?? process.stdout;
+    this.quietMode = globalConfig.quiet ?? false;
+  }
+
+  /**
+   * Start streaming display with optional prefix.
+   */
+  start(prefix?: string): void {
+    if (this.quietMode) return;
+
+    this.isActive = true;
+    this.buffer = '';
+    this.lineLength = 0;
+
+    const displayPrefix = prefix ?? this.config.prefix;
+    if (displayPrefix) {
+      this.stream.write(displayPrefix);
+      this.lineLength = displayPrefix.length;
+    }
+  }
+
+  /**
+   * Write a chunk of streaming text.
+   */
+  write(chunk: string): void {
+    if (this.quietMode || !this.isActive) return;
+
+    this.buffer += chunk;
+
+    // Apply styling if configured
+    let styledChunk = chunk;
+    if (this.config.style === 'dim') {
+      styledChunk = `\x1b[2m${chunk}\x1b[0m`;
+    } else if (this.config.style === 'bright') {
+      styledChunk = `\x1b[1m${chunk}\x1b[0m`;
+    }
+
+    // Handle line wrapping if maxWidth is set
+    if (this.config.maxWidth) {
+      const maxWidth = this.config.maxWidth;
+      for (const char of chunk) {
+        if (char === '\n') {
+          this.stream.write('\n');
+          this.lineLength = 0;
+        } else {
+          if (this.lineLength >= maxWidth) {
+            this.stream.write('\n');
+            this.lineLength = 0;
+          }
+          this.stream.write(this.config.style === 'dim' ? `\x1b[2m${char}\x1b[0m` : char);
+          this.lineLength++;
+        }
+      }
+    } else {
+      this.stream.write(styledChunk);
+      // Track line length for potential future use
+      const lastNewline = chunk.lastIndexOf('\n');
+      if (lastNewline >= 0) {
+        this.lineLength = chunk.length - lastNewline - 1;
+      } else {
+        this.lineLength += chunk.length;
+      }
+    }
+  }
+
+  /**
+   * Complete the streaming display.
+   */
+  finish(suffix?: string): string {
+    if (this.quietMode) return this.buffer;
+
+    this.isActive = false;
+
+    const displaySuffix = suffix ?? this.config.suffix;
+    if (displaySuffix) {
+      this.stream.write(displaySuffix);
+    }
+
+    // Ensure we end on a newline
+    if (this.lineLength > 0) {
+      this.stream.write('\n');
+    }
+
+    return this.buffer;
+  }
+
+  /**
+   * Abort the streaming display (e.g., on error).
+   */
+  abort(message?: string): void {
+    if (this.quietMode) return;
+
+    this.isActive = false;
+    if (message) {
+      this.stream.write(`\n${message}\n`);
+    } else if (this.lineLength > 0) {
+      this.stream.write('\n');
+    }
+  }
+
+  /**
+   * Get the complete buffer content.
+   */
+  getBuffer(): string {
+    return this.buffer;
+  }
+
+  /**
+   * Check if streaming is currently active.
+   */
+  isStreaming(): boolean {
+    return this.isActive;
+  }
+}
+
+/**
+ * Create a streaming display for interview operations.
+ * Provides context-appropriate prefixes and styling.
+ */
+export function createStreamingDisplay(
+  operation: 'generating' | 'analyzing' | 'synthesizing',
+  context?: string
+): StreamingDisplay {
+  const prefixes: Record<string, string> = {
+    generating: context ? `Generating questions for ${context}... ` : 'Generating... ',
+    analyzing: context ? `Analyzing ${context}... ` : 'Analyzing... ',
+    synthesizing: context ? `Synthesizing ${context}... ` : 'Synthesizing... ',
+  };
+
+  return new StreamingDisplay({
+    prefix: prefixes[operation] ?? '',
+    style: 'dim',
+    maxWidth: 80,
+  });
+}
+
+/**
+ * Simple streaming callback that writes to stdout.
+ * Use this for basic streaming output without the full StreamingDisplay.
+ */
+export function createStreamingCallback(prefix?: string): {
+  onStart: (operation: string, context?: string) => void;
+  onChunk: (chunk: string, operation: string) => void;
+  onComplete: (text: string, operation: string) => void;
+  onError: (error: Error, operation: string) => void;
+} {
+  let started = false;
+  const quiet = globalConfig.quiet ?? false;
+
+  return {
+    onStart: (_operation: string, _context?: string) => {
+      if (quiet) return;
+      if (prefix) {
+        process.stdout.write(prefix);
+        started = true;
+      }
+    },
+    onChunk: (chunk: string, _operation: string) => {
+      if (quiet) return;
+      if (!started && prefix) {
+        process.stdout.write(prefix);
+        started = true;
+      }
+      process.stdout.write(chunk);
+    },
+    onComplete: (_text: string, _operation: string) => {
+      if (quiet) return;
+      if (started) {
+        process.stdout.write('\n');
+      }
+    },
+    onError: (error: Error, _operation: string) => {
+      if (quiet) return;
+      if (started) {
+        process.stdout.write(`\n[Error: ${error.message}]\n`);
+      }
+    },
+  };
+}
+
+/**
  * Default export for convenient importing.
  */
 export default {
@@ -281,4 +493,7 @@ export default {
   numberedList,
   createOutput,
   Output,
+  StreamingDisplay,
+  createStreamingDisplay,
+  createStreamingCallback,
 };

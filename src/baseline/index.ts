@@ -105,3 +105,13 @@ export {
   type NormalizedAssertion,
   type SemanticComparisonResult,
 } from './semantic.js';
+
+// Schema comparison utilities
+export {
+  computeSchemaHash,
+  compareSchemas,
+  computeConsensusSchemaHash,
+  type SchemaChangeType,
+  type SchemaChange,
+  type SchemaComparisonResult,
+} from './schema-compare.js';
