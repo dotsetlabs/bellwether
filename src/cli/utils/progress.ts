@@ -74,6 +74,18 @@ export class InterviewProgressBar {
   update(progress: InterviewProgress): void {
     if (!this.enabled || !this.bar || !this.started) return;
 
+    // Handle workflow phase differently
+    if (progress.phase === 'workflows' && progress.totalWorkflows) {
+      this.bar.update(progress.workflowsCompleted ?? 0, {
+        persona: 'Workflows',
+        tool: progress.currentWorkflow ?? '...',
+        current: (progress.workflowsCompleted ?? 0) + 1,
+        total: progress.totalWorkflows,
+        questions: progress.questionsAsked,
+      });
+      return;
+    }
+
     const current =
       progress.personasCompleted * progress.totalTools + progress.toolsCompleted;
 

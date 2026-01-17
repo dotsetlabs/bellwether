@@ -19,6 +19,7 @@ import type {
   WorkflowStateTracking,
   StateSnapshot,
   StateChange,
+  WorkflowTimeoutConfig,
 } from './types.js';
 import { StateTracker } from './state-tracker.js';
 import {
@@ -27,39 +28,26 @@ import {
   COMPLETION_OPTIONS,
 } from '../prompts/templates.js';
 import { getLogger, startTiming } from '../logging/logger.js';
+import { withTimeout, DEFAULT_TIMEOUTS, checkAborted } from '../utils/timeout.js';
 
 /**
- * Default executor options (excluding callbacks).
+ * Default executor options (excluding callbacks and signal).
  */
-const DEFAULT_OPTIONS = {
+const DEFAULT_OPTIONS: Omit<Required<WorkflowExecutorOptions>, 'onProgress' | 'stateTracking' | 'timeouts' | 'signal'> & {
+  timeouts: Required<WorkflowTimeoutConfig>;
+} = {
   continueOnError: false,
-  stepTimeout: 30000,
+  stepTimeout: DEFAULT_TIMEOUTS.toolCall,
   analyzeSteps: true,
   generateSummary: true,
-} as const;
-
-/**
- * Wrap a promise with a timeout.
- */
-async function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  operationName: string
-): Promise<T> {
-  let timeoutId: NodeJS.Timeout;
-
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error(`${operationName} timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-  });
-
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    clearTimeout(timeoutId!);
-  }
-}
+  timeouts: {
+    toolCall: DEFAULT_TIMEOUTS.toolCall,
+    stateSnapshot: DEFAULT_TIMEOUTS.stateSnapshot,
+    probeTool: DEFAULT_TIMEOUTS.probeTool,
+    llmAnalysis: DEFAULT_TIMEOUTS.responseAnalysis,
+    llmSummary: DEFAULT_TIMEOUTS.profileSynthesis,
+  },
+};
 
 /**
  * Executes workflows against an MCP server.
@@ -69,6 +57,7 @@ export class WorkflowExecutor {
   private onProgress?: WorkflowProgressCallback;
   private logger = getLogger('workflow-executor');
   private stateTracker?: StateTracker;
+  private timeouts: Required<WorkflowTimeoutConfig>;
 
   constructor(
     private client: MCPClient,
@@ -76,16 +65,26 @@ export class WorkflowExecutor {
     private tools: MCPTool[],
     private options: WorkflowExecutorOptions = {}
   ) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    // Merge options with defaults, including nested timeouts
+    this.options = {
+      ...DEFAULT_OPTIONS,
+      ...options,
+      timeouts: { ...DEFAULT_OPTIONS.timeouts, ...options.timeouts },
+    };
+    this.timeouts = this.options.timeouts as Required<WorkflowTimeoutConfig>;
     this.onProgress = options.onProgress;
 
-    // Initialize state tracker if enabled
+    // Initialize state tracker if enabled, passing timeout config
     if (this.options.stateTracking?.enabled) {
       this.stateTracker = new StateTracker(
         client,
         tools,
         llm,
-        this.options.stateTracking
+        this.options.stateTracking,
+        {
+          snapshotTimeout: this.timeouts.stateSnapshot,
+          probeTimeout: this.timeouts.probeTool,
+        }
       );
     }
   }
@@ -118,11 +117,18 @@ export class WorkflowExecutor {
 
   /**
    * Execute a workflow.
+   *
+   * @param workflow - The workflow to execute
+   * @throws AbortError if the operation is aborted via signal
    */
   async execute(workflow: Workflow): Promise<WorkflowResult> {
+    const signal = this.options.signal;
     const done = startTiming(this.logger, `workflow:${workflow.id}`);
     const startTime = Date.now();
     this.stepResults = [];
+
+    // Check if already aborted before starting
+    checkAborted(signal, `Workflow '${workflow.id}'`);
 
     this.logger.info({
       workflowId: workflow.id,
@@ -144,6 +150,7 @@ export class WorkflowExecutor {
 
     // Take initial state snapshot if enabled
     if (this.stateTracker && this.options.stateTracking?.snapshotBefore) {
+      checkAborted(signal, 'Initial state snapshot');
       this.logger.debug('Taking initial state snapshot');
       const initialSnapshot = await this.stateTracker.takeSnapshot(-1);
       snapshots.push(initialSnapshot);
@@ -151,6 +158,9 @@ export class WorkflowExecutor {
 
     for (let i = 0; i < workflow.steps.length; i++) {
       const step = workflow.steps[i];
+
+      // Check for abort before each step
+      checkAborted(signal, `Workflow step ${i + 1}/${workflow.steps.length}`);
 
       // Emit executing progress before step
       this.emitProgress(workflow, 'executing', i, startTime, step);
@@ -160,6 +170,7 @@ export class WorkflowExecutor {
 
       // Take snapshot after each step if enabled
       if (this.stateTracker && this.options.stateTracking?.snapshotAfterEachStep) {
+        checkAborted(signal, `State snapshot after step ${i + 1}`);
         const snapshot = await this.stateTracker.takeSnapshot(i);
         snapshots.push(snapshot);
 
@@ -183,6 +194,7 @@ export class WorkflowExecutor {
 
     // Take final state snapshot if enabled
     if (this.stateTracker && this.options.stateTracking?.snapshotAfter) {
+      checkAborted(signal, 'Final state snapshot');
       this.logger.debug('Taking final state snapshot');
       const finalSnapshot = await this.stateTracker.takeSnapshot(this.stepResults.length - 1);
 
@@ -206,6 +218,7 @@ export class WorkflowExecutor {
     // Build state tracking result
     let stateTracking: WorkflowStateTracking | undefined;
     if (this.stateTracker) {
+      checkAborted(signal, 'State tracking summary');
       const toolRoles = this.stateTracker.getAllToolInfo();
       let dependencies = this.stateTracker.inferDependencies(this.stepResults);
 
@@ -239,6 +252,7 @@ export class WorkflowExecutor {
     // Generate summary if requested
     let summary: string | undefined;
     if (this.options.generateSummary) {
+      checkAborted(signal, 'Workflow summary generation');
       // Emit summarizing progress
       this.emitProgress(workflow, 'summarizing', workflow.steps.length, startTime);
       summary = await this.generateWorkflowSummary(workflow, this.stepResults, success);

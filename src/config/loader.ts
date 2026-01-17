@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
+import { parseYamlSecure } from '../utils/yaml-parser.js';
 import type { LLMProviderId } from '../llm/client.js';
 import { DEFAULT_MODELS, detectProvider } from '../llm/index.js';
 
@@ -189,7 +189,7 @@ function loadConfigFile(path: string): BellwetherConfig {
   let parsed: unknown;
 
   try {
-    parsed = parseYaml(content);
+    parsed = parseYamlSecure(content);
   } catch (error) {
     throw new Error(
       `Invalid YAML in config file ${path}: ${error instanceof Error ? error.message : 'Unknown error'}`

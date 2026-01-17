@@ -5,6 +5,7 @@
 import { getLogger } from '../logging/logger.js';
 import {
   BellwetherError,
+  LLMRateLimitError,
   isRetryable,
   wrapError,
   createTimingContext,
@@ -136,13 +137,26 @@ export async function withRetry<T>(
       }
 
       // Calculate delay for next attempt
-      const delayMs = calculateDelay(
-        attempt,
-        initialDelayMs,
-        maxDelayMs,
-        backoffMultiplier,
-        jitter
-      );
+      // Use server-provided retry-after if available (from LLMRateLimitError)
+      let delayMs: number;
+      if (error instanceof LLMRateLimitError && error.retryAfterMs) {
+        // Use server-specified delay, but respect our maxDelayMs cap
+        delayMs = Math.min(error.retryAfterMs, maxDelayMs);
+        logger.debug({
+          operation,
+          serverDelayMs: error.retryAfterMs,
+          actualDelayMs: delayMs,
+          message: `Using server-provided retry delay`,
+        });
+      } else {
+        delayMs = calculateDelay(
+          attempt,
+          initialDelayMs,
+          maxDelayMs,
+          backoffMultiplier,
+          jitter
+        );
+      }
 
       // Log retry
       logger.debug({

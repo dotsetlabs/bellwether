@@ -60,6 +60,18 @@ inputs:
   scenarios-only:
     description: 'Run only custom scenarios (no LLM required)'
     default: 'false'
+  workflows-path:
+    description: 'Path to workflow definitions YAML file'
+    required: false
+  discover-workflows:
+    description: 'Enable LLM-based workflow discovery'
+    default: 'false'
+  parallel-personas:
+    description: 'Run persona interviews in parallel for faster execution'
+    default: 'false'
+  no-cache:
+    description: 'Disable response caching for fresh results'
+    default: 'false'
   timeout:
     description: 'Timeout for tool calls in milliseconds'
     default: '30000'
@@ -197,6 +209,25 @@ runs:
 
         if [ "${{ inputs.scenarios-only }}" = "true" ]; then
           CMD="$CMD --scenarios-only"
+        fi
+
+        # Workflow support
+        if [ -n "${{ inputs.workflows-path }}" ]; then
+          CMD="$CMD --workflows ${{ inputs.workflows-path }}"
+        fi
+
+        if [ "${{ inputs.discover-workflows }}" = "true" ]; then
+          CMD="$CMD --discover-workflows"
+        fi
+
+        # Parallel persona execution
+        if [ "${{ inputs.parallel-personas }}" = "true" ]; then
+          CMD="$CMD --parallel-personas"
+        fi
+
+        # Caching control
+        if [ "${{ inputs.no-cache }}" = "true" ]; then
+          CMD="$CMD --no-cache"
         fi
 
         # Output JSON report if requested

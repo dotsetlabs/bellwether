@@ -21,6 +21,28 @@ export interface CompletionOptions {
 }
 
 /**
+ * Options for streaming completions.
+ */
+export interface StreamingOptions extends CompletionOptions {
+  /** Callback invoked with each chunk of text as it arrives */
+  onChunk?: (chunk: string) => void;
+  /** Callback invoked when streaming completes with full text */
+  onComplete?: (fullText: string) => void;
+  /** Callback invoked if an error occurs during streaming */
+  onError?: (error: Error) => void;
+}
+
+/**
+ * Result of a streaming completion.
+ */
+export interface StreamingResult {
+  /** The complete text (after streaming finishes) */
+  text: string;
+  /** Whether streaming completed successfully */
+  completed: boolean;
+}
+
+/**
  * Provider capabilities and metadata.
  */
 export interface ProviderInfo {
@@ -51,6 +73,20 @@ export interface LLMClient {
    * Generate a completion from a single prompt.
    */
   complete(prompt: string, options?: CompletionOptions): Promise<string>;
+
+  /**
+   * Stream a completion from a single prompt.
+   * Yields text chunks as they arrive from the LLM.
+   * Returns the complete response text when done.
+   */
+  stream(prompt: string, options?: StreamingOptions): Promise<StreamingResult>;
+
+  /**
+   * Stream a chat completion from a list of messages.
+   * Yields text chunks as they arrive from the LLM.
+   * Returns the complete response text when done.
+   */
+  streamChat(messages: Message[], options?: StreamingOptions): Promise<StreamingResult>;
 
   /**
    * Parse JSON from LLM response, handling common formatting issues.

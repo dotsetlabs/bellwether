@@ -2,8 +2,9 @@ import { Command } from 'commander';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { parse, stringify } from 'yaml';
+import { stringify } from 'yaml';
 import { z } from 'zod';
+import { parseYamlSecure } from '../../utils/yaml-parser.js';
 import * as output from '../output.js';
 
 /**
@@ -78,7 +79,7 @@ function loadProfile(name: string): Profile | null {
     return null;
   }
   const content = readFileSync(path, 'utf-8');
-  return parse(content) as Profile;
+  return parseYamlSecure<Profile>(content);
 }
 
 function saveProfile(profile: Profile): void {
@@ -310,7 +311,7 @@ export const profileCommand = new Command('profile')
         }
 
         const content = readFileSync(file, 'utf-8');
-        const rawProfile = parse(content);
+        const rawProfile = parseYamlSecure<Record<string, unknown>>(content);
 
         // Validate profile against schema to prevent malicious YAML
         const parseResult = profileSchema.safeParse({

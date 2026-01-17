@@ -137,6 +137,7 @@ export class HTTPTransport extends BaseTransport {
 
   /**
    * Handle a streaming HTTP response (text/event-stream).
+   * Includes timeout handling to prevent indefinite hangs.
    */
   private async handleStreamingResponse(response: Response): Promise<void> {
     const reader = response.body?.getReader();
@@ -146,11 +147,36 @@ export class HTTPTransport extends BaseTransport {
 
     const decoder = new TextDecoder();
     let buffer = '';
+    let readerLocked = true;
+
+    /**
+     * Read with timeout to prevent indefinite hangs.
+     * Returns the read result or throws on timeout.
+     */
+    const readWithTimeout = async (): Promise<{ value?: Uint8Array; done: boolean }> => {
+      return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Streaming read timeout'));
+        }, this.timeout);
+
+        reader.read().then(
+          (result) => {
+            clearTimeout(timeoutId);
+            resolve(result);
+          },
+          (error) => {
+            clearTimeout(timeoutId);
+            reject(error);
+          }
+        );
+      });
+    };
 
     try {
       let done = false;
       while (!done) {
-        const result = await reader.read();
+        // Use timeout-wrapped read to prevent indefinite blocking
+        const result = await readWithTimeout();
         done = result.done;
 
         if (done) {
@@ -206,8 +232,26 @@ export class HTTPTransport extends BaseTransport {
           // Ignore incomplete data
         }
       }
+    } catch (error) {
+      // On timeout or other errors, cancel the reader to release the lock
+      if (readerLocked) {
+        try {
+          await reader.cancel();
+        } catch {
+          // Ignore cancel errors - reader may already be closed
+        }
+      }
+      throw error;
     } finally {
-      reader.releaseLock();
+      // Release the lock if still held
+      if (readerLocked) {
+        try {
+          reader.releaseLock();
+          readerLocked = false;
+        } catch {
+          // Ignore releaseLock errors - lock may already be released by cancel
+        }
+      }
     }
   }
 

@@ -94,6 +94,14 @@ Bellwether complements your existing tests—it doesn't replace them.
 - **Custom Test Scenarios** - Define YAML test cases with assertions
 - **Scenarios-Only Mode** - Run tests without LLM (free, deterministic)
 - **Multiple Personas** - Technical writer, security tester, QA engineer, novice user
+- **Workflow Testing** - Multi-step tool sequences with state tracking
+- **Parallel Execution** - Run persona interviews concurrently (`--parallel-personas`)
+
+### Performance & Cost Control
+- **Response Caching** - Avoid redundant tool calls and LLM analysis (`--cache`)
+- **Streaming Output** - Real-time LLM responses (`--stream`)
+- **Token Budgets** - Prevent runaway costs (`--max-tokens`)
+- **Automatic Fallback** - Falls back to Ollama if primary LLM fails (`--fallback`)
 
 ### Ecosystem
 - **MCP Registry Search** - Discover servers from the official registry
@@ -234,6 +242,53 @@ Run with:
 ```bash
 bellwether interview --scenarios ./bellwether-tests.yaml npx @mcp/server
 bellwether interview --scenarios-only npx @mcp/server  # No LLM needed, uses bellwether-tests.yaml
+```
+
+## Workflow Testing
+
+Test multi-step tool sequences with `bellwether-workflows.yaml`:
+
+```yaml
+version: "1"
+description: Multi-step workflow tests
+
+workflows:
+  - name: file-operations
+    description: Create, read, and clean up a file
+    steps:
+      - tool: write_file
+        args:
+          path: "/tmp/test.txt"
+          content: "Hello World"
+        expect:
+          success: true
+
+      - tool: read_file
+        args:
+          path: "/tmp/test.txt"
+        expect:
+          contains: "Hello World"
+
+      - tool: delete_file
+        args:
+          path: "/tmp/test.txt"
+        expect:
+          success: true
+```
+
+Run workflows:
+```bash
+# Run user-defined workflows
+bellwether interview --workflows ./bellwether-workflows.yaml npx @mcp/server
+
+# Auto-discover workflows using LLM
+bellwether interview --discover-workflows npx @mcp/server
+
+# Enable state tracking for debugging
+bellwether interview --workflows ./workflows.yaml --workflow-state-tracking npx @mcp/server
+
+# Generate a sample workflow file
+bellwether interview --init-workflows
 ```
 
 ## Documented by Bellwether

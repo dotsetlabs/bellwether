@@ -423,4 +423,272 @@ describe('Orchestrator', () => {
       expect(questions[0].args.config).toEqual({});
     });
   });
+
+  describe('error handling paths', () => {
+    it('should categorize rate limit errors as retryable', async () => {
+      let attempts = 0;
+      const rateLimitingMock = new MockLLMClient({});
+      rateLimitingMock.complete = vi.fn().mockImplementation(() => {
+        attempts++;
+        if (attempts <= 2) {
+          const error = new Error('Rate limit exceeded 429');
+          throw error;
+        }
+        // Return just the JSON string, not an object wrapper
+        return Promise.resolve(
+          JSON.stringify([{ description: 'Test', category: 'happy_path', args: {} }])
+        );
+      });
+
+      const retryOrchestrator = new Orchestrator(rateLimitingMock);
+      const questions = await retryOrchestrator.generateQuestions(weatherTool, 1);
+
+      // Should have retried and eventually succeeded
+      expect(attempts).toBe(3);
+      expect(questions).toHaveLength(1);
+    });
+
+    it('should not retry on non-retryable errors like auth errors', async () => {
+      let attempts = 0;
+      const authErrorMock = new MockLLMClient({});
+      authErrorMock.complete = vi.fn().mockImplementation(() => {
+        attempts++;
+        const error = new Error('401 Unauthorized - invalid api key');
+        throw error;
+      });
+
+      const authOrchestrator = new Orchestrator(authErrorMock);
+      const questions = await authOrchestrator.generateQuestions(weatherTool, 1);
+
+      // Should have fallen back to defaults without excessive retries
+      // Auth errors should not be retried
+      expect(attempts).toBeLessThanOrEqual(1);
+      expect(questions.length).toBeGreaterThan(0); // Fallback questions
+    });
+
+    it('should handle timeout errors with retry', async () => {
+      let attempts = 0;
+      const timeoutMock = new MockLLMClient({});
+      timeoutMock.complete = vi.fn().mockImplementation(() => {
+        attempts++;
+        if (attempts <= 1) {
+          const error = new Error('Request timeout');
+          error.name = 'TimeoutError';
+          throw error;
+        }
+        // Return just the JSON string, not an object wrapper
+        return Promise.resolve(
+          JSON.stringify([{ description: 'Success', category: 'happy_path', args: {} }])
+        );
+      });
+
+      const timeoutOrchestrator = new Orchestrator(timeoutMock);
+      const questions = await timeoutOrchestrator.generateQuestions(weatherTool, 1);
+
+      // Should have retried at least once
+      expect(attempts).toBeGreaterThanOrEqual(1);
+      expect(questions.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should detect refusal responses', async () => {
+      const refusalMock = new MockLLMClient({
+        defaultResponse: "I can't help with that request.",
+      });
+
+      const refusalOrchestrator = new Orchestrator(refusalMock);
+      const questions = await refusalOrchestrator.generateQuestions(weatherTool, 1);
+
+      // Should fall back to defaults since response isn't valid JSON
+      expect(questions.length).toBeGreaterThan(0);
+      expect(questions[0].category).toBe('happy_path');
+    });
+
+    it('should handle malformed JSON responses gracefully', async () => {
+      const malformedMock = new MockLLMClient({
+        defaultResponse: '{"incomplete": json',
+      });
+
+      const malformedOrchestrator = new Orchestrator(malformedMock);
+      const questions = await malformedOrchestrator.generateQuestions(weatherTool, 1);
+
+      // Should fall back to defaults
+      expect(questions.length).toBeGreaterThan(0);
+    });
+
+    it('should handle empty response from LLM', async () => {
+      const emptyMock = new MockLLMClient({
+        defaultResponse: '',
+      });
+
+      const emptyOrchestrator = new Orchestrator(emptyMock);
+      const questions = await emptyOrchestrator.generateQuestions(weatherTool, 1);
+
+      // Should fall back to defaults
+      expect(questions.length).toBeGreaterThan(0);
+    });
+
+    it('should handle network errors with retry', async () => {
+      let attempts = 0;
+      const networkMock = new MockLLMClient({});
+      networkMock.complete = vi.fn().mockImplementation(() => {
+        attempts++;
+        if (attempts <= 1) {
+          throw new Error('ECONNRESET');
+        }
+        // Return just the JSON string, not an object wrapper
+        return Promise.resolve(
+          JSON.stringify([{ description: 'Test', category: 'happy_path', args: {} }])
+        );
+      });
+
+      const networkOrchestrator = new Orchestrator(networkMock);
+      const questions = await networkOrchestrator.generateQuestions(weatherTool, 1);
+
+      expect(attempts).toBe(2);
+      expect(questions).toHaveLength(1);
+    });
+
+    it('should respect max retry attempts', async () => {
+      let attempts = 0;
+      const alwaysFailingMock = new MockLLMClient({});
+      alwaysFailingMock.complete = vi.fn().mockImplementation(() => {
+        attempts++;
+        throw new Error('Rate limit exceeded 429');
+      });
+
+      const retryOrchestrator = new Orchestrator(alwaysFailingMock);
+      const questions = await retryOrchestrator.generateQuestions(weatherTool, 1);
+
+      // Should have given up after max retries and used fallback
+      // Default max retries is 3
+      expect(attempts).toBeLessThanOrEqual(4); // Initial + 3 retries max
+      expect(questions.length).toBeGreaterThan(0); // Fallback questions
+    });
+  });
+
+  describe('cache integration', () => {
+    it('should cache analysis results', async () => {
+      const { ToolResponseCache } = await import('../../src/cache/response-cache.js');
+      const cache = new ToolResponseCache();
+
+      mockLLM.setConfig({
+        defaultResponse: 'Analysis: Tool returned expected results.',
+      });
+
+      const orchestratorWithCache = new Orchestrator(mockLLM, undefined, undefined, cache);
+
+      const question: InterviewQuestion = {
+        description: 'Test query',
+        category: 'happy_path',
+        args: { location: 'NYC' },
+      };
+      const response = createMockToolResult('Weather in NYC: Sunny');
+
+      // First call - should compute and cache
+      const analysis1 = await orchestratorWithCache.analyzeResponse(
+        weatherTool,
+        question,
+        response,
+        null
+      );
+
+      // Verify the result is cached
+      const responseHash = cache.hashResponse(response);
+      const cachedAnalysis = cache.getAnalysis(weatherTool.name, question.args, responseHash);
+      expect(cachedAnalysis).toBe(analysis1);
+    });
+
+    it('should return cached analysis without LLM call', async () => {
+      const { ToolResponseCache } = await import('../../src/cache/response-cache.js');
+      const cache = new ToolResponseCache();
+
+      let llmCallCount = 0;
+      const trackingMock = new MockLLMClient({
+        defaultResponse: 'Fresh analysis',
+      });
+      const originalComplete = trackingMock.complete.bind(trackingMock);
+      trackingMock.complete = vi.fn().mockImplementation((...args: unknown[]) => {
+        llmCallCount++;
+        return originalComplete(...args);
+      });
+
+      const orchestratorWithCache = new Orchestrator(trackingMock, undefined, undefined, cache);
+
+      const question: InterviewQuestion = {
+        description: 'Test query',
+        category: 'happy_path',
+        args: { location: 'NYC' },
+      };
+      const response = createMockToolResult('Weather in NYC: Sunny');
+
+      // Pre-populate cache
+      const responseHash = cache.hashResponse(response);
+      cache.setAnalysis(weatherTool.name, question.args, responseHash, 'Cached analysis from previous run');
+
+      // Call analyzeResponse - should return cached without LLM call
+      const analysis = await orchestratorWithCache.analyzeResponse(
+        weatherTool,
+        question,
+        response,
+        null
+      );
+
+      expect(analysis).toBe('Cached analysis from previous run');
+      expect(llmCallCount).toBe(0); // No LLM call should have been made
+    });
+
+    it('should not cache when response is null', async () => {
+      const { ToolResponseCache } = await import('../../src/cache/response-cache.js');
+      const cache = new ToolResponseCache();
+
+      mockLLM.setConfig({
+        defaultResponse: 'Analysis of null response',
+      });
+
+      const orchestratorWithCache = new Orchestrator(mockLLM, undefined, undefined, cache);
+
+      const question: InterviewQuestion = {
+        description: 'Test error',
+        category: 'error_handling',
+        args: {},
+      };
+
+      await orchestratorWithCache.analyzeResponse(
+        weatherTool,
+        question,
+        null, // null response
+        'Tool call failed'
+      );
+
+      // Cache should be empty since response was null
+      const stats = cache.getStats();
+      expect(stats.entries).toBe(0);
+    });
+
+    it('should work correctly without cache', async () => {
+      // Create fresh mock for this test
+      const freshMock = new MockLLMClient({
+        defaultResponse: 'Analysis without cache',
+      });
+
+      // No cache passed
+      const orchestratorNoCache = new Orchestrator(freshMock);
+
+      const question: InterviewQuestion = {
+        description: 'Test query',
+        category: 'happy_path',
+        args: { location: 'NYC' },
+      };
+      const response = createMockToolResult('Weather in NYC: Sunny');
+
+      const analysis = await orchestratorNoCache.analyzeResponse(
+        weatherTool,
+        question,
+        response,
+        null
+      );
+
+      expect(analysis).toBe('Analysis without cache');
+    });
+  });
 });

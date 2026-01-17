@@ -156,6 +156,48 @@ Filter changes by confidence score:
 
 The security preset includes the security testing persona for adversarial testing.
 
+### Workflow Testing
+
+```yaml
+- name: Test with Workflows
+  uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx @modelcontextprotocol/server-filesystem'
+    server-args: '/tmp'
+    workflows-path: './bellwether-workflows.yaml'
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
+Or auto-discover workflows:
+
+```yaml
+- name: Auto-Discover Workflows
+  uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx @modelcontextprotocol/server-filesystem'
+    server-args: '/tmp'
+    discover-workflows: 'true'
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
+### Fast Parallel Execution
+
+For faster CI with multiple personas:
+
+```yaml
+- name: Parallel Interview
+  uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx @modelcontextprotocol/server-filesystem'
+    server-args: '/tmp'
+    preset: 'thorough'
+    parallel-personas: 'true'
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
 ## Inputs
 
 | Input | Description | Required | Default |
@@ -177,6 +219,10 @@ The security preset includes the security testing persona for adversarial testin
 | `output-dir` | Directory for output files | No | `.` |
 | `scenarios-path` | Path to custom test scenarios YAML | No | - |
 | `scenarios-only` | Run only custom scenarios (no LLM) | No | `false` |
+| `workflows-path` | Path to workflow definitions YAML | No | - |
+| `discover-workflows` | Enable LLM-based workflow discovery | No | `false` |
+| `parallel-personas` | Run persona interviews in parallel | No | `false` |
+| `no-cache` | Disable response caching | No | `false` |
 | `timeout` | Timeout for tool calls in ms | No | `30000` |
 | `llm-provider` | LLM provider (auto-detected from API key) | No | - |
 | `llm-model` | LLM model to use | No | - |

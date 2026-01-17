@@ -13,6 +13,7 @@ import type {
   BehavioralAssertion,
   WorkflowSignature,
 } from './types.js';
+import { computeConsensusSchemaHash } from './schema-compare.js';
 
 /**
  * Zod schema for behavioral assertion validation.
@@ -197,14 +198,10 @@ function createServerFingerprint(result: InterviewResult): ServerFingerprint {
 function createToolFingerprint(profile: ToolProfile): ToolFingerprint {
   const assertions = extractToolAssertions(profile);
 
-  // Find the original schema from interactions
-  let schemaHash = 'unknown';
-  const firstInteraction = profile.interactions[0];
-  if (firstInteraction) {
-    // Hash the arguments structure as a proxy for schema
-    const argsKeys = Object.keys(firstInteraction.question.args).sort();
-    schemaHash = hashString(JSON.stringify(argsKeys));
-  }
+  // Compute schema hash from all interactions (not just first)
+  // This includes argument types and infers schema from actual values
+  const interactions = profile.interactions.map(i => ({ args: i.question.args }));
+  const { hash: schemaHash } = computeConsensusSchemaHash(interactions);
 
   return {
     name: profile.name,

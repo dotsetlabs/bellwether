@@ -7,6 +7,8 @@
  * - Take state snapshots before/after workflow steps
  * - Detect state changes between snapshots
  * - Infer dependencies between workflow steps
+ *
+ * RELIABILITY: All probe tool calls have timeouts to prevent indefinite hangs.
  */
 
 import { createHash } from 'crypto';
@@ -24,6 +26,7 @@ import type {
   WorkflowStepResult,
 } from './types.js';
 import { getLogger } from '../logging/logger.js';
+import { withTimeout, DEFAULT_TIMEOUTS, TimeoutError } from '../utils/timeout.js';
 
 /**
  * Patterns that indicate a tool reads state.
@@ -56,19 +59,34 @@ const PROBE_PATTERNS = [
 ];
 
 /**
+ * Timeout configuration for state tracking operations.
+ */
+export interface StateTrackerTimeoutConfig {
+  /** Timeout for state snapshot operations in ms */
+  snapshotTimeout?: number;
+  /** Timeout for individual probe tool calls in ms */
+  probeTimeout?: number;
+}
+
+/**
  * State tracker for workflow execution.
  */
 export class StateTracker {
   private logger = getLogger('state-tracker');
   private toolClassifications: Map<string, ToolStateInfo> = new Map();
   private probeTools: string[] = [];
+  private snapshotTimeout: number;
+  private probeTimeout: number;
 
   constructor(
     private client: MCPClient,
     private tools: MCPTool[],
     _llm?: LLMClient,
-    private options: StateTrackingOptions = {}
+    private options: StateTrackingOptions = {},
+    timeoutConfig?: StateTrackerTimeoutConfig
   ) {
+    this.snapshotTimeout = timeoutConfig?.snapshotTimeout ?? DEFAULT_TIMEOUTS.stateSnapshot;
+    this.probeTimeout = timeoutConfig?.probeTimeout ?? DEFAULT_TIMEOUTS.probeTool;
     this.classifyTools();
   }
 
@@ -190,28 +208,90 @@ export class StateTracker {
 
   /**
    * Take a state snapshot using available probe tools.
+   *
+   * RELIABILITY: Each probe tool call has an individual timeout to prevent hangs.
+   * The entire snapshot operation also has a total timeout.
+   *
+   * @param afterStepIndex - The step index this snapshot was taken after
+   * @param snapshotTimeoutMs - Optional total timeout for the snapshot operation (overrides configured timeout)
    */
-  async takeSnapshot(afterStepIndex: number): Promise<StateSnapshot> {
+  async takeSnapshot(
+    afterStepIndex: number,
+    snapshotTimeoutMs?: number
+  ): Promise<StateSnapshot> {
+    const effectiveSnapshotTimeout = snapshotTimeoutMs ?? this.snapshotTimeout;
+    const snapshotStart = Date.now();
     const timestamp = new Date();
     const stateData: Record<string, unknown> = {};
+    let successCount = 0;
+    let failureCount = 0;
 
-    // Call each probe tool to gather state
+    // Track consecutive failures for circuit breaker
+    let consecutiveFailures = 0;
+    const maxConsecutiveFailures = Math.ceil(this.probeTools.length * 0.5);
+
+    // Call each probe tool to gather state with individual timeouts
     for (const probeName of this.probeTools) {
+      // Check if we've exceeded the total snapshot timeout
+      const elapsed = Date.now() - snapshotStart;
+      if (elapsed >= effectiveSnapshotTimeout) {
+        this.logger.warn(
+          { afterStepIndex, elapsed, timeout: effectiveSnapshotTimeout },
+          'Snapshot operation exceeded total timeout, stopping probe calls'
+        );
+        break;
+      }
+
+      // Circuit breaker: stop if too many consecutive failures
+      if (consecutiveFailures >= maxConsecutiveFailures) {
+        this.logger.warn(
+          { consecutiveFailures, maxConsecutiveFailures },
+          'Too many consecutive probe failures, aborting snapshot'
+        );
+        break;
+      }
+
       try {
-        const result = await this.client.callTool(probeName, {});
+        // Apply timeout to individual probe tool call
+        const result = await withTimeout(
+          this.client.callTool(probeName, {}),
+          this.probeTimeout,
+          `Probe tool '${probeName}'`
+        );
         const content = this.extractContent(result);
         stateData[probeName] = content;
+        successCount++;
+        consecutiveFailures = 0; // Reset on success
       } catch (error) {
+        failureCount++;
+        consecutiveFailures++;
+
+        const isTimeout = error instanceof TimeoutError;
         this.logger.warn({
           probe: probeName,
           error: error instanceof Error ? error.message : String(error),
+          isTimeout,
+          consecutiveFailures,
         }, 'Probe tool failed');
-        stateData[probeName] = { error: 'probe_failed' };
+
+        stateData[probeName] = {
+          error: isTimeout ? 'probe_timeout' : 'probe_failed',
+          message: error instanceof Error ? error.message : String(error),
+        };
       }
     }
 
-    // If no probes available, create empty snapshot
-    const data = Object.keys(stateData).length > 0 ? stateData : null;
+    // Log snapshot summary
+    this.logger.debug({
+      afterStepIndex,
+      probeCount: this.probeTools.length,
+      successCount,
+      failureCount,
+      durationMs: Date.now() - snapshotStart,
+    }, 'Snapshot completed');
+
+    // If no probes available or all failed, create empty snapshot
+    const data = successCount > 0 ? stateData : null;
     const hash = this.hashState(data);
 
     return {
@@ -439,7 +519,8 @@ export function createStateTracker(
   client: MCPClient,
   tools: MCPTool[],
   llm?: LLMClient,
-  options?: StateTrackingOptions
+  options?: StateTrackingOptions,
+  timeoutConfig?: StateTrackerTimeoutConfig
 ): StateTracker {
-  return new StateTracker(client, tools, llm, options);
+  return new StateTracker(client, tools, llm, options, timeoutConfig);
 }

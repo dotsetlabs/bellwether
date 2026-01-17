@@ -5,8 +5,10 @@ import type {
   MCPResourceReadResult,
 } from '../transport/types.js';
 import type { Persona, QuestionCategory } from '../persona/types.js';
-import type { WorkflowResult } from '../workflow/types.js';
+import type { Workflow, WorkflowResult
+} from '../workflow/types.js';
 import type { LoadedScenarios, ScenarioResult } from '../scenarios/types.js';
+import type { ToolResponseCache } from '../cache/response-cache.js';
 
 /**
  * Server context extracted during discovery/initial probing.
@@ -21,6 +23,39 @@ export interface ServerContext {
   constraints?: string[];
   /** Server-specific hints extracted from tool descriptions */
   hints?: string[];
+}
+
+/**
+ * Streaming callback for interview operations.
+ * These callbacks provide real-time feedback during LLM operations.
+ */
+export interface InterviewStreamingCallbacks {
+  /** Called when streaming starts for an operation (e.g., "question:toolName") */
+  onStart?: (operation: string, context?: string) => void;
+  /** Called with each chunk of streaming text */
+  onChunk?: (chunk: string, operation: string) => void;
+  /** Called when streaming completes with the full text */
+  onComplete?: (text: string, operation: string) => void;
+  /** Called if an error occurs during streaming */
+  onError?: (error: Error, operation: string) => void;
+}
+
+/**
+ * Configuration for workflow testing.
+ */
+export interface WorkflowConfig {
+  /** Path to user-provided workflow YAML file */
+  workflowsFile?: string;
+  /** User-provided workflows (parsed from file or programmatically) */
+  workflows?: Workflow[];
+  /** Enable LLM-based workflow discovery */
+  discoverWorkflows?: boolean;
+  /** Maximum workflows to discover (default: 3) */
+  maxDiscoveredWorkflows?: number;
+  /** Skip workflow execution (discovery/load only) */
+  skipWorkflowExecution?: boolean;
+  /** Enable state tracking during workflow execution */
+  enableStateTracking?: boolean;
 }
 
 /**
@@ -41,6 +76,20 @@ export interface InterviewConfig {
   customScenarios?: LoadedScenarios;
   /** Whether to only run custom scenarios (skip LLM-generated questions) */
   customScenariosOnly?: boolean;
+  /** Timeout for resource reads in ms (default: 15000) */
+  resourceTimeout?: number;
+  /** Enable streaming output during LLM operations */
+  enableStreaming?: boolean;
+  /** Callbacks for streaming output */
+  streamingCallbacks?: InterviewStreamingCallbacks;
+  /** Enable parallel persona execution */
+  parallelPersonas?: boolean;
+  /** Maximum concurrent persona interviews (default: 3) */
+  personaConcurrency?: number;
+  /** Cache for tool responses and LLM analysis */
+  cache?: ToolResponseCache;
+  /** Workflow testing configuration */
+  workflowConfig?: WorkflowConfig;
 }
 
 /**
@@ -253,6 +302,22 @@ export interface PersonaSummary {
   errorCount: number;
 }
 
+/**
+ * Summary of workflow execution in the interview.
+ */
+export interface WorkflowSummary {
+  /** Total workflows executed */
+  workflowCount: number;
+  /** Number of successful workflows */
+  successfulCount: number;
+  /** Number of failed workflows */
+  failedCount: number;
+  /** Number discovered via LLM */
+  discoveredCount: number;
+  /** Number loaded from file */
+  loadedCount: number;
+}
+
 export interface InterviewMetadata {
   /** Start time */
   startTime: Date;
@@ -270,4 +335,6 @@ export interface InterviewMetadata {
   model?: string;
   /** Personas used in the interview */
   personas?: PersonaSummary[];
+  /** Workflow execution summary */
+  workflows?: WorkflowSummary;
 }

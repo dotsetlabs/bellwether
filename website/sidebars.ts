@@ -37,6 +37,7 @@ const sidebars: SidebarsConfig = {
           items: [
             'cli/login',
             'cli/link',
+            'cli/projects',
             'cli/upload',
             'cli/history',
           ],

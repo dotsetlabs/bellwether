@@ -3,9 +3,11 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { parse as parseYaml } from 'yaml';
 import type { Persona, PersonaYAML, QuestionCategory, QuestionBias } from './types.js';
+import { parseYamlSecure } from '../utils/yaml-parser.js';
 import { BUILTIN_PERSONAS, isBuiltinPersona, DEFAULT_PERSONA } from './builtins.js';
+import { validatePersona, formatValidationErrors, normalizeBiasWeights } from './validation.js';
+import { getLogger } from '../logging/logger.js';
 
 /**
  * Options for loading personas.
@@ -106,7 +108,7 @@ export function loadPersonaFromFile(path: string): Persona {
   }
 
   const content = readFileSync(path, 'utf-8');
-  const parsed = parseYaml(content) as PersonaYAML;
+  const parsed = parseYamlSecure<PersonaYAML>(content);
 
   return validateAndNormalizePersona(parsed, path);
 }
@@ -115,7 +117,7 @@ export function loadPersonaFromFile(path: string): Persona {
  * Validate and normalize a persona definition.
  */
 function validateAndNormalizePersona(data: Partial<PersonaYAML>, source: string): Persona {
-  // Required fields
+  // Required fields - basic checks first
   if (!data.id || typeof data.id !== 'string') {
     throw new Error(`Persona from ${source} missing required field: id`);
   }
@@ -134,7 +136,7 @@ function validateAndNormalizePersona(data: Partial<PersonaYAML>, source: string)
     boundary: 0.25,
   };
 
-  const questionBias: QuestionBias = {
+  let questionBias: QuestionBias = {
     ...defaultBias,
     ...(data.questionBias ?? {}),
   };
@@ -143,15 +145,8 @@ function validateAndNormalizePersona(data: Partial<PersonaYAML>, source: string)
   const defaultCategories: QuestionCategory[] = ['happy_path', 'edge_case', 'error_handling'];
   const categories = data.categories ?? defaultCategories;
 
-  // Validate categories
-  const validCategories: QuestionCategory[] = ['happy_path', 'edge_case', 'error_handling', 'boundary', 'security'];
-  for (const cat of categories) {
-    if (!validCategories.includes(cat)) {
-      throw new Error(`Invalid category "${cat}" in persona ${data.id}. Valid categories: ${validCategories.join(', ')}`);
-    }
-  }
-
-  return {
+  // Create the persona object
+  const persona: Persona = {
     id: data.id,
     name: data.name,
     description: data.description ?? `Custom persona: ${data.name}`,
@@ -161,6 +156,34 @@ function validateAndNormalizePersona(data: Partial<PersonaYAML>, source: string)
     additionalContext: data.additionalContext,
     builtin: false,
   };
+
+  // Run comprehensive validation
+  const validationResult = validatePersona(persona, {
+    // Allow some flexibility for custom personas
+    warnUnusedBiases: true,
+    allowMissingSecurity: false,
+  });
+
+  if (!validationResult.valid) {
+    throw new Error(formatValidationErrors(validationResult, source));
+  }
+
+  // Log warnings if any
+  if (validationResult.warnings.length > 0) {
+    const logger = getLogger('persona-loader');
+    for (const warning of validationResult.warnings) {
+      logger.warn({ source, warning }, 'Persona validation warning');
+    }
+  }
+
+  // Normalize bias weights if they don't sum to 1.0
+  const sum = Object.values(questionBias).filter(v => typeof v === 'number').reduce((a, b) => a + (b as number), 0);
+  if (Math.abs(sum - 1.0) > 0.01) {
+    questionBias = normalizeBiasWeights(questionBias);
+    persona.questionBias = questionBias;
+  }
+
+  return persona;
 }
 
 /**

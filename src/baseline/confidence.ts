@@ -16,6 +16,7 @@ import type {
   DiffConfidence,
   BehaviorAspect,
 } from './types.js';
+import { calculateStemmedKeywordOverlap } from '../utils/semantic.js';
 
 /**
  * Default weights for confidence factors.
@@ -148,9 +149,20 @@ export function calculateSemanticConfidence(
 
 /**
  * Calculates keyword overlap between two strings.
+ * Now uses stemming for better matching (e.g., "files" matches "file").
  * Returns a score 0-100.
  */
 export function calculateKeywordOverlap(text1: string, text2: string): number {
+  // Use stemmed keyword overlap for better semantic matching
+  return calculateStemmedKeywordOverlap(text1, text2);
+}
+
+/**
+ * Calculates raw keyword overlap without stemming.
+ * Use this when exact word matching is needed.
+ * Returns a score 0-100.
+ */
+export function calculateRawKeywordOverlap(text1: string, text2: string): number {
   const words1 = extractKeywords(text1);
   const words2 = extractKeywords(text2);
 
