@@ -212,14 +212,14 @@ API keys are:
 
 Bellwether only calls tools that exist on your server. It generates test scenarios but doesn't execute arbitrary code. Use appropriate test environments.
 
-### Are "Documented by Bellwether" badges security certifications?
+### Are "Verified by Bellwether" badges security certifications?
 
-No. Documentation badges indicate testing coverage levels, not security certifications.
+No. Verification badges indicate testing coverage levels, not security certifications.
 
-- **Bronze-Gold**: Documentation and testing coverage tiers
-- **Platinum**: Comprehensive documentation with all testing personas
+- **Bronze-Gold**: Testing coverage tiers
+- **Platinum**: Comprehensive testing with all personas
 
-Badges show that a server has been systematically documented and tested with Bellwether. While security hygiene checks are included, this is a first line of defense, not a replacement for professional security audits.
+Badges show that a server has been systematically tested with Bellwether. While security hygiene checks are included, this is a first line of defense, not a replacement for professional security audits.
 
 For production systems handling sensitive data, you should still conduct professional security reviews.
 

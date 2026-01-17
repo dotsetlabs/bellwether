@@ -27,9 +27,9 @@ export ANTHROPIC_API_KEY=sk-ant-xxx
 # Or use Ollama for free (ollama serve must be running)
 ```
 
-## 3. Interview Your First MCP Server
+## 3. Test Your First MCP Server
 
-You can interview any MCP server—local scripts, npm packages, or remote endpoints:
+You can test any MCP server—local scripts, npm packages, or remote endpoints:
 
 ```bash
 # Local Node.js server (most common during development)
@@ -45,9 +45,9 @@ bellwether interview python ./mcp_server.py
 This will:
 1. Connect to the MCP server
 2. Discover available tools, prompts, and resources
-3. Generate intelligent test scenarios using the LLM
-4. Execute tests against each capability
-5. Generate `AGENTS.md` documentation with performance metrics
+3. Test from 4 different personas (technical writer, security tester, QA engineer, novice user)
+4. Generate `AGENTS.md` documentation **for free** from test results
+5. Save a baseline for future drift detection
 
 ### Available Presets
 
@@ -110,9 +110,9 @@ bellwether registry filesystem
 bellwether registry database
 ```
 
-### Get Documented
+### Get Verified
 
-Run the documentation process to earn coverage badges:
+Run the verification process to earn coverage badges:
 
 ```bash
 bellwether verify --tier gold npx your-server

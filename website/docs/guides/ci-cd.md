@@ -433,7 +433,7 @@ jobs:
 ```
 
 Badge status reflects:
-- **Documented** (green): Server has been documented
+- **Verified** (green): Server has been verified
 - **Stable** (green): No behavioral drift between versions
 - **Drift detected** (yellow): Behavioral changes found
 - **Breaking changes** (red): Significant breaking changes

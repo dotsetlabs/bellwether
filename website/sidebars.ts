@@ -42,6 +42,14 @@ const sidebars: SidebarsConfig = {
             'cli/history',
           ],
         },
+        {
+          type: 'category',
+          label: 'Advanced',
+          items: [
+            'cli/eval',
+            'cli/feedback',
+          ],
+        },
       ],
     },
     {
@@ -66,6 +74,9 @@ const sidebars: SidebarsConfig = {
         'guides/ci-cd',
         'guides/configuration',
         'guides/cloud-integration',
+        'guides/github-gitlab',
+        'guides/webhooks',
+        'guides/notifications',
         'guides/custom-personas',
         'guides/custom-scenarios',
         'guides/remote-servers',
