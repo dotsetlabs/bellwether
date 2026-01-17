@@ -1,7 +1,7 @@
 {
   "name": "@dotsetlabs/bellwether",
   "version": "0.4.0",
-  "description": "Interview MCP servers to generate behavioral documentation, detect drift, and identify security vulnerabilities",
+  "description": "Behavioral drift detection for MCP servers. Test from 4 personas, catch regressions, get documentation free.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -8,7 +8,6 @@ import {
   estimateInterviewCost,
   formatCostEstimate,
   getModelPricing,
-  isKnownModel,
   type TokenUsage,
   type CostEstimate,
 } from '../../src/cost/tracker.js';
@@ -69,31 +68,6 @@ describe('CostTracker', () => {
 
       const usage = tracker.getUsage();
       expect(usage.totalTokens).toBe(1500);
-    });
-  });
-
-  describe('estimateTokens', () => {
-    it('should estimate ~4 chars per token', () => {
-      const text = 'Hello world!'; // 12 chars
-      const estimated = CostTracker.estimateTokens(text);
-      expect(estimated).toBe(3); // ceil(12/4)
-    });
-
-    it('should round up partial tokens', () => {
-      const text = 'Hi'; // 2 chars
-      const estimated = CostTracker.estimateTokens(text);
-      expect(estimated).toBe(1); // ceil(2/4)
-    });
-
-    it('should handle empty string', () => {
-      const estimated = CostTracker.estimateTokens('');
-      expect(estimated).toBe(0);
-    });
-
-    it('should handle long text', () => {
-      const text = 'a'.repeat(4000); // 4000 chars
-      const estimated = CostTracker.estimateTokens(text);
-      expect(estimated).toBe(1000); // 4000/4
     });
   });
 
@@ -333,29 +307,3 @@ describe('getModelPricing', () => {
   });
 });
 
-describe('isKnownModel', () => {
-  it('should return true for OpenAI models', () => {
-    expect(isKnownModel('gpt-4o')).toBe(true);
-    expect(isKnownModel('gpt-4o-mini')).toBe(true);
-    expect(isKnownModel('gpt-4-turbo')).toBe(true);
-    expect(isKnownModel('gpt-3.5-turbo')).toBe(true);
-  });
-
-  it('should return true for Anthropic models', () => {
-    expect(isKnownModel('claude-3-5-sonnet-20241022')).toBe(true);
-    expect(isKnownModel('claude-3-opus-20240229')).toBe(true);
-    expect(isKnownModel('claude-3-haiku-20240307')).toBe(true);
-  });
-
-  it('should return true for Ollama models', () => {
-    expect(isKnownModel('llama3.2')).toBe(true);
-    expect(isKnownModel('mixtral')).toBe(true);
-    expect(isKnownModel('codellama')).toBe(true);
-  });
-
-  it('should return false for unknown models', () => {
-    expect(isKnownModel('unknown-model')).toBe(false);
-    expect(isKnownModel('gpt-99')).toBe(false);
-    expect(isKnownModel('')).toBe(false);
-  });
-});

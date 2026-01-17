@@ -54,7 +54,9 @@ import {
 } from '../../scenarios/index.js';
 import {
   loadWorkflowsFromFile,
+  tryLoadDefaultWorkflows,
   generateSampleWorkflowYaml,
+  DEFAULT_WORKFLOWS_FILE,
 } from '../../workflow/loader.js';
 import { WORKFLOW } from '../../constants.js';
 import type { WorkflowConfig } from '../../interview/types.js';
@@ -542,6 +544,20 @@ export const interviewCommand = new Command('interview')
 
         if (options.discoverWorkflows) {
           output.info('Workflow discovery enabled - will analyze tools for workflow patterns');
+        }
+      } else {
+        // Try auto-loading default workflows file from output directory
+        // Similar to how scenarios are auto-loaded from bellwether-tests.yaml
+        const defaultWorkflows = tryLoadDefaultWorkflows(outputDir);
+        if (defaultWorkflows && defaultWorkflows.length > 0) {
+          workflowConfig = {
+            discoverWorkflows: false,
+            maxDiscoveredWorkflows: WORKFLOW.MAX_DISCOVERED_WORKFLOWS,
+            enableStateTracking: options.workflowStateTracking,
+            workflows: defaultWorkflows,
+            workflowsFile: `${outputDir}/${DEFAULT_WORKFLOWS_FILE}`,
+          };
+          output.info(`Auto-loaded ${defaultWorkflows.length} workflow(s) from ${DEFAULT_WORKFLOWS_FILE}`);
         }
       }
 

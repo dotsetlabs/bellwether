@@ -93,13 +93,6 @@ export class CostTracker {
   }
 
   /**
-   * Estimate tokens from text (rough approximation: ~4 chars per token).
-   */
-  static estimateTokens(text: string): number {
-    return Math.ceil(text.length / 4);
-  }
-
-  /**
    * Get total usage so far.
    */
   getUsage(): TokenUsage {
@@ -225,11 +218,4 @@ export function formatCostEstimate(estimate: CostEstimate): string {
  */
 export function getModelPricing(model: string): { input: number; output: number } | null {
   return MODEL_PRICING[model] ?? null;
-}
-
-/**
- * Check if a model is a known model with pricing.
- */
-export function isKnownModel(model: string): boolean {
-  return model in MODEL_PRICING;
 }

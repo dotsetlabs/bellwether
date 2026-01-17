@@ -441,8 +441,7 @@ export interface BellwetherCloudClient {
   /** Upload a baseline to a project */
   uploadBaseline(
     projectId: string,
-    baseline: BellwetherBaseline,
-    options?: { public?: boolean }
+    baseline: BellwetherBaseline
   ): Promise<UploadResult>;
 
   /** Get baseline history for a project */

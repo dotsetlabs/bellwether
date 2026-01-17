@@ -515,6 +515,19 @@ export function normalizeConstraint(constraint: string): NormalizedConstraint | 
 }
 
 /**
+ * Format types that are considered equivalent or related.
+ */
+const FORMAT_EQUIVALENTS: Record<string, string[]> = {
+  json: ['json'],
+  xml: ['xml'],
+  csv: ['csv'],
+  yaml: ['yaml', 'yml'],
+  html: ['html', 'htm'],
+  text: ['text', 'txt', 'plain'],
+  binary: ['binary', 'bin'],
+};
+
+/**
  * Compare two constraint values with unit normalization.
  *
  * @param a - First constraint
@@ -528,10 +541,31 @@ export function compareConstraints(a: string | undefined, b: string | undefined)
   const normA = normalizeConstraint(a);
   const normB = normalizeConstraint(b);
 
+  // Check if both are format types (non-numeric strings)
+  const cleanA = a.replace(/\s/g, '').toLowerCase();
+  const cleanB = b.replace(/\s/g, '').toLowerCase();
+
+  // Check if these are format type strings (json, xml, etc.)
+  const isFormatA = Object.keys(FORMAT_EQUIVALENTS).some(fmt =>
+    FORMAT_EQUIVALENTS[fmt].includes(cleanA)
+  );
+  const isFormatB = Object.keys(FORMAT_EQUIVALENTS).some(fmt =>
+    FORMAT_EQUIVALENTS[fmt].includes(cleanB)
+  );
+
+  if (isFormatA && isFormatB) {
+    // Both are format types - compare them
+    const formatA = Object.keys(FORMAT_EQUIVALENTS).find(fmt =>
+      FORMAT_EQUIVALENTS[fmt].includes(cleanA)
+    );
+    const formatB = Object.keys(FORMAT_EQUIVALENTS).find(fmt =>
+      FORMAT_EQUIVALENTS[fmt].includes(cleanB)
+    );
+    return formatA === formatB ? 100 : 0; // Format types must match exactly
+  }
+
   // If both couldn't be parsed, do string comparison
   if (!normA && !normB) {
-    const cleanA = a.replace(/\s/g, '').toLowerCase();
-    const cleanB = b.replace(/\s/g, '').toLowerCase();
     return cleanA === cleanB ? 100 : 30;
   }
 
@@ -560,18 +594,24 @@ export const EXTENDED_SECURITY_KEYWORDS: Record<string, string[]> = {
   path_traversal: [
     'path traversal', 'directory traversal', '../', '..\\', 'lfi',
     'local file inclusion', 'arbitrary file', 'file path manipulation',
+    'escape directory', 'outside base', 'outside allowed', 'read files',
+    'directory escape', 'file access', 'traverse', 'dot dot slash',
   ],
   command_injection: [
     'command injection', 'shell injection', 'os command', 'exec',
     'system(', 'subprocess', 'shell=true', 'code execution',
+    'system call', 'execute command', 'command execution', 'shell command',
   ],
   sql_injection: [
     'sql injection', 'sqli', 'query injection', 'database injection',
-    'union select', 'drop table', 'or 1=1',
+    'union select', 'drop table', 'or 1=1', 'inject sql', 'sql can be injected',
+    'malicious sql', 'sql vulnerability', 'unsanitized sql', 'sql command',
+    'database query', 'sql statement', 'parameterized', 'prepared statement',
   ],
   xss: [
     'xss', 'cross-site scripting', 'script injection', 'html injection',
-    'dom-based', 'reflected xss', 'stored xss',
+    'dom-based', 'reflected xss', 'stored xss', 'cross site', 'javascript injection',
+    'without encoding', 'unescaped output', 'unsanitized output', 'xss vulnerability',
   ],
   xxe: [
     'xxe', 'xml external entity', 'xml injection', 'entity expansion',
@@ -580,6 +620,8 @@ export const EXTENDED_SECURITY_KEYWORDS: Record<string, string[]> = {
   ssrf: [
     'ssrf', 'server-side request forgery', 'internal network',
     'localhost access', 'cloud metadata', '169.254.169.254',
+    'internal services', 'server side request',
+    'internal resources', 'access internal',
   ],
   deserialization: [
     'deserialization', 'unsafe deserialization', 'object injection',
@@ -619,7 +661,7 @@ export const EXTENDED_SECURITY_KEYWORDS: Record<string, string[]> = {
   ],
   input_validation: [
     'input validation', 'sanitization', 'validation', 'untrusted input',
-    'user input', 'injection', 'malformed input',
+    'user input', 'malformed input', 'validate input', 'input sanitization',
   ],
   output_encoding: [
     'output encoding', 'escape', 'encoding', 'sanitize output',
@@ -694,4 +736,487 @@ export function extractSecurityCategoryExtended(text: string): string {
  */
 export function areSemanticallySimular(text1: string, text2: string, threshold = 60): boolean {
   return calculateStemmedKeywordOverlap(text1, text2) >= threshold;
+}
+
+// ============================================================================
+// QUALIFIER EXTRACTION
+// ============================================================================
+// These functions extract specific qualifiers that distinguish similar-but-different
+// concepts. This prevents false positives like matching "SQL injection" with
+// "NoSQL injection" or "upload limit" with "download limit".
+
+/**
+ * Database type qualifiers that distinguish different injection types.
+ */
+export type DatabaseQualifier = 'sql' | 'nosql' | 'mongodb' | 'redis' | 'generic';
+
+/**
+ * Direction qualifiers for file/data operations.
+ */
+export type DirectionQualifier = 'upload' | 'download' | 'read' | 'write' | 'generic';
+
+/**
+ * Timeout type qualifiers.
+ */
+export type TimeoutQualifier = 'connection' | 'read' | 'write' | 'request' | 'response' | 'idle' | 'generic';
+
+/**
+ * Polarity indicator for assertions (positive vs negative statements).
+ */
+export type Polarity = 'positive' | 'negative' | 'neutral';
+
+/**
+ * Full qualifier extraction result.
+ */
+export interface QualifierResult {
+  database: DatabaseQualifier;
+  direction: DirectionQualifier;
+  timeout: TimeoutQualifier;
+  polarity: Polarity;
+  isNegated: boolean;
+  rateTimeUnit: 'second' | 'minute' | 'hour' | 'day' | 'unknown';
+}
+
+/**
+ * Extract database type qualifier from text.
+ * Distinguishes SQL from NoSQL/MongoDB/Redis etc.
+ */
+export function extractDatabaseQualifier(text: string): DatabaseQualifier {
+  const lower = text.toLowerCase();
+
+  // Check for explicit NoSQL indicators BEFORE SQL check
+  // (otherwise "NoSQL" would match "SQL" first)
+  if (lower.includes('nosql') ||
+      lower.includes('no-sql') ||
+      lower.includes('non-sql') ||
+      lower.includes('document database') ||
+      lower.includes('key-value')) {
+    return 'nosql';
+  }
+
+  // Specific database types
+  if (lower.includes('mongodb') || lower.includes('mongo db')) {
+    return 'mongodb';
+  }
+  if (lower.includes('redis')) {
+    return 'redis';
+  }
+
+  // Generic SQL (checked after NoSQL to avoid false matches)
+  if (lower.includes('sql') && !lower.includes('nosql')) {
+    return 'sql';
+  }
+
+  return 'generic';
+}
+
+/**
+ * Extract direction qualifier from text.
+ * Distinguishes upload from download, read from write.
+ */
+export function extractDirectionQualifier(text: string): DirectionQualifier {
+  const lower = text.toLowerCase();
+
+  // Upload indicators
+  if (lower.includes('upload') ||
+      lower.includes('incoming') ||
+      lower.includes('receive') ||
+      lower.includes('inbound') ||
+      lower.includes('sent to server')) {
+    return 'upload';
+  }
+
+  // Download indicators
+  if (lower.includes('download') ||
+      lower.includes('outgoing') ||
+      lower.includes('fetch') ||
+      lower.includes('outbound') ||
+      lower.includes('retrieve') ||
+      lower.includes('from server')) {
+    return 'download';
+  }
+
+  // Read vs write
+  if (lower.includes('read') && !lower.includes('write')) {
+    return 'read';
+  }
+  if (lower.includes('write') && !lower.includes('read')) {
+    return 'write';
+  }
+
+  return 'generic';
+}
+
+/**
+ * Extract timeout type qualifier from text.
+ * Distinguishes connection timeout from read/write/request timeouts.
+ */
+export function extractTimeoutQualifier(text: string): TimeoutQualifier {
+  const lower = text.toLowerCase();
+
+  if (lower.includes('connection timeout') ||
+      lower.includes('connect timeout') ||
+      lower.includes('connection time')) {
+    return 'connection';
+  }
+
+  if (lower.includes('read timeout') ||
+      lower.includes('reading timeout') ||
+      lower.includes('socket read')) {
+    return 'read';
+  }
+
+  if (lower.includes('write timeout') ||
+      lower.includes('writing timeout') ||
+      lower.includes('socket write')) {
+    return 'write';
+  }
+
+  if (lower.includes('request timeout')) {
+    return 'request';
+  }
+
+  if (lower.includes('response timeout')) {
+    return 'response';
+  }
+
+  if (lower.includes('idle timeout') ||
+      lower.includes('inactivity timeout')) {
+    return 'idle';
+  }
+
+  return 'generic';
+}
+
+/**
+ * Extract rate limit time unit from text.
+ * Distinguishes per-second from per-minute from per-hour limits.
+ */
+export function extractRateTimeUnit(text: string): 'second' | 'minute' | 'hour' | 'day' | 'unknown' {
+  const lower = text.toLowerCase();
+
+  // Per second patterns
+  if (lower.includes('per second') ||
+      lower.includes('/s') ||
+      lower.includes('/sec') ||
+      lower.includes('per sec')) {
+    return 'second';
+  }
+
+  // Per minute patterns
+  if (lower.includes('per minute') ||
+      lower.includes('/m') ||
+      lower.includes('/min') ||
+      lower.includes('per min') ||
+      lower.includes('rpm')) {
+    return 'minute';
+  }
+
+  // Per hour patterns
+  if (lower.includes('per hour') ||
+      lower.includes('/h') ||
+      lower.includes('/hr') ||
+      lower.includes('per hr') ||
+      lower.includes('hourly')) {
+    return 'hour';
+  }
+
+  // Per day patterns
+  if (lower.includes('per day') ||
+      lower.includes('/d') ||
+      lower.includes('daily') ||
+      lower.includes('per 24')) {
+    return 'day';
+  }
+
+  return 'unknown';
+}
+
+/**
+ * Detect overall polarity of an assertion.
+ * Returns 'negative' if the statement is negated/denied.
+ */
+export function detectPolarity(text: string): Polarity {
+  const lower = text.toLowerCase();
+
+  // Strong negative indicators at the start
+  const negativeStarters = [
+    'not ', 'no ', 'never ', 'without ', 'lacks ', 'missing ',
+    'does not ', "doesn't ", 'cannot ', "can't ", 'will not ',
+    "won't ", 'should not ', "shouldn't ", 'must not ', "mustn't ",
+    'is not ', "isn't ", 'are not ', "aren't ", 'was not ', "wasn't ",
+    'were not ', "weren't ", 'has not ', "hasn't ", 'have not ', "haven't ",
+    'did not ', "didn't ", 'do not ', "don't ", 'does not ', "doesn't ",
+    'unable to ', 'fails to ', 'failed to ', 'prevents ', 'blocks ',
+    'denies ', 'rejects ', 'refuses ', 'prohibits ', 'disallows ',
+  ];
+
+  // Check if text starts with negative
+  for (const starter of negativeStarters) {
+    if (lower.startsWith(starter)) {
+      return 'negative';
+    }
+  }
+
+  // Check for "not a/an" patterns indicating absence
+  if (/not\s+a\s+\w+/.test(lower) ||
+      /not\s+an\s+\w+/.test(lower) ||
+      /no\s+\w+\s+(vulnerability|issue|problem|risk|threat)/.test(lower) ||
+      /is\s+not\s+\w+/.test(lower)) {
+    return 'negative';
+  }
+
+  // Positive affirmation patterns
+  const positiveIndicators = [
+    'is a ', 'is an ', 'contains ', 'includes ', 'has ', 'found ',
+    'detected ', 'identified ', 'discovered ', 'confirmed ', 'exists ',
+    'present ', 'vulnerable to ', 'affected by ', 'susceptible to ',
+  ];
+
+  for (const indicator of positiveIndicators) {
+    if (lower.includes(indicator)) {
+      return 'positive';
+    }
+  }
+
+  return 'neutral';
+}
+
+/**
+ * Check if a security finding or assertion is negated.
+ * Returns true if the text explicitly denies the assertion/vulnerability.
+ */
+export function isSecurityFindingNegated(text: string): boolean {
+  const lower = text.toLowerCase();
+
+  // Patterns that explicitly deny a vulnerability or assertion
+  const negationPatterns = [
+    // Vulnerability negations
+    /not\s+(a\s+)?(critical|high|medium|low|severe)\s+vulnerab/i,
+    /no\s+(critical|high|medium|low)\s+(severity\s+)?vulnerab/i,
+    /not\s+vulnerable\s+to/i,
+    /no\s+vulnerab/i,
+    /vulnerab\w*\s+(was\s+)?not\s+found/i,
+    /no\s+(security\s+)?(issues?|problems?|risks?|threats?)\s+found/i,
+    /does\s+not\s+(have|contain|exhibit)\s+\w*\s*vulnerab/i,
+    /lacks?\s+\w*\s*vulnerab/i,
+    /absence\s+of\s+\w*\s*vulnerab/i,
+    /free\s+(from|of)\s+\w*\s*vulnerab/i,
+    /passed\s+security/i,
+    /security\s+check\s+passed/i,
+    /is\s+secure/i,
+    /not\s+affected/i,
+    /not\s+susceptible/i,
+    // General action negations (for assertions)
+    /is\s+not\s+(validated|required|enabled|allowed|supported)/i,
+    /\b(not|never)\s+(validated|required|enabled|allowed|supported|checked|verified)\b/i,
+    /\b(disabled|disallowed|unsupported|unchecked|unverified)\b/i,
+    /\bno\s+(size|rate|time)\s+limit\b/i,
+    /\b(lacks?|missing|without)\s+(validation|authentication|authorization)/i,
+  ];
+
+  for (const pattern of negationPatterns) {
+    if (pattern.test(lower)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Extract all qualifiers from text.
+ * Provides comprehensive context for semantic comparison.
+ */
+export function extractQualifiers(text: string): QualifierResult {
+  return {
+    database: extractDatabaseQualifier(text),
+    direction: extractDirectionQualifier(text),
+    timeout: extractTimeoutQualifier(text),
+    polarity: detectPolarity(text),
+    isNegated: isSecurityFindingNegated(text),
+    rateTimeUnit: extractRateTimeUnit(text),
+  };
+}
+
+/**
+ * Opposite term pairs that indicate incompatible meanings.
+ * When one text contains one term and the other contains its opposite,
+ * they should not match.
+ *
+ * Format: [term1, term2, useWordBoundary]
+ * useWordBoundary: true if we should match as whole words (prevents "asynchronous" matching "synchronous")
+ */
+const OPPOSITE_TERMS: Array<[string, string, boolean]> = [
+  // State opposites (need word boundaries to avoid substring matches)
+  ['enabled', 'disabled', false],
+  ['required', 'optional', false],
+  ['synchronous', 'asynchronous', true], // word boundary to avoid substring match
+  ['sync', 'async', true], // abbreviations
+  ['horizontal', 'vertical', true],
+  ['read', 'write', true], // word boundary for "read" vs "write"
+  ['upload', 'download', false],
+  ['input', 'output', false],
+  ['success', 'failure', false],
+  ['valid', 'invalid', false],
+  ['secure', 'insecure', false],
+  ['encrypted', 'unencrypted', false],
+  ['authenticated', 'unauthenticated', false],
+  ['authorized', 'unauthorized', false],
+  // Quantity opposites
+  ['limited', 'unlimited', false],
+  // HTTP status code opposites
+  ['200', '201', true], // Different success codes
+  ['200', '404', true],
+  ['200', '500', true],
+  // Severity opposites
+  ['high', 'low', true],
+  ['critical', 'low', true],
+  // Security type opposites
+  ['server-side', 'cross-site', true],
+  ['ssrf', 'csrf', true],
+  ['xss', 'csrf', true],
+  ['local file', 'remote file', false],
+  ['lfi', 'rfi', true],
+  // v1.3.0: Additional behavior opposites for better assertion matching
+  ['error', 'null', true], // Different return types
+  ['null', 'default', true], // Different return values
+  ['throws', 'returns', true], // Different error handling
+  ['creates', 'fails', true], // Different file behaviors
+  ['creates', 'deletes', true],
+  ['exists', 'not found', false],
+  ['found', 'missing', true],
+  // Format opposites
+  ['json', 'text', true],
+  ['json', 'plain text', false],
+  ['binary', 'text', true],
+  // Rate limit time units
+  ['per minute', 'per hour', false],
+  ['per second', 'per minute', false],
+  ['per second', 'per hour', false],
+  // Limit presence opposites
+  ['no limit', 'limit of', false],
+  ['no size limit', 'size limit', false],
+];
+
+/**
+ * Check if a word exists in text as a whole word (not as substring).
+ */
+function containsWord(text: string, word: string): boolean {
+  const regex = new RegExp(`\\b${word}\\b`, 'i');
+  return regex.test(text);
+}
+
+/**
+ * Check if two texts contain opposite terms.
+ */
+function containsOppositeTerms(text1: string, text2: string): string | null {
+  const lower1 = text1.toLowerCase();
+  const lower2 = text2.toLowerCase();
+
+  for (const [term1, term2, useWordBoundary] of OPPOSITE_TERMS) {
+    let has1InText1: boolean;
+    let has2InText2: boolean;
+    let has1InText2: boolean;
+    let has2InText1: boolean;
+
+    if (useWordBoundary) {
+      has1InText1 = containsWord(lower1, term1);
+      has2InText2 = containsWord(lower2, term2);
+      has1InText2 = containsWord(lower1, term2);
+      has2InText1 = containsWord(lower2, term1);
+    } else {
+      has1InText1 = lower1.includes(term1);
+      has2InText2 = lower2.includes(term2);
+      has1InText2 = lower1.includes(term2);
+      has2InText1 = lower2.includes(term1);
+    }
+
+    // Check if text1 has term1 and text2 has term2 (but not vice versa)
+    if (has1InText1 && has2InText2 && !has1InText2 && !has2InText1) {
+      return `${term1} vs ${term2}`;
+    }
+    // Check if text1 has term2 and text2 has term1 (but not vice versa)
+    if (has2InText1 && has1InText2 && !has1InText1 && !has2InText2) {
+      return `${term2} vs ${term1}`;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Compare qualifiers between two texts.
+ * Returns a compatibility score (0-100).
+ */
+export function compareQualifiers(text1: string, text2: string): {
+  score: number;
+  incompatibilities: string[];
+} {
+  const q1 = extractQualifiers(text1);
+  const q2 = extractQualifiers(text2);
+  const incompatibilities: string[] = [];
+  let score = 100;
+
+  // Negation mismatch is fatal - positive and negative can't match
+  if ((q1.isNegated && !q2.isNegated) || (!q1.isNegated && q2.isNegated)) {
+    incompatibilities.push('negation mismatch (one affirms, one denies)');
+    score -= 80; // Almost always a mismatch
+  }
+
+  // Polarity mismatch (weaker than negation)
+  if (q1.polarity !== q2.polarity && q1.polarity !== 'neutral' && q2.polarity !== 'neutral') {
+    if ((q1.polarity === 'positive' && q2.polarity === 'negative') ||
+        (q1.polarity === 'negative' && q2.polarity === 'positive')) {
+      incompatibilities.push(`polarity mismatch (${q1.polarity} vs ${q2.polarity})`);
+      score -= 40;
+    }
+  }
+
+  // Check for opposite terms (enabled vs disabled, synchronous vs asynchronous, etc.)
+  const oppositeTerms = containsOppositeTerms(text1, text2);
+  if (oppositeTerms) {
+    incompatibilities.push(`opposite terms: ${oppositeTerms}`);
+    score -= 60;
+  }
+
+  // Database qualifier mismatch (SQL vs NoSQL is incompatible)
+  if (q1.database !== 'generic' && q2.database !== 'generic' && q1.database !== q2.database) {
+    incompatibilities.push(`database type mismatch (${q1.database} vs ${q2.database})`);
+    score -= 60; // Increased penalty
+  }
+
+  // Direction qualifier mismatch (upload vs download is incompatible)
+  if (q1.direction !== 'generic' && q2.direction !== 'generic' && q1.direction !== q2.direction) {
+    incompatibilities.push(`direction mismatch (${q1.direction} vs ${q2.direction})`);
+    score -= 50; // Increased penalty
+  }
+
+  // Timeout type mismatch
+  if (q1.timeout !== 'generic' && q2.timeout !== 'generic' && q1.timeout !== q2.timeout) {
+    incompatibilities.push(`timeout type mismatch (${q1.timeout} vs ${q2.timeout})`);
+    score -= 55; // Increased penalty to ensure score < 50
+  }
+
+  // Rate time unit mismatch (per minute vs per hour is different)
+  if (q1.rateTimeUnit !== 'unknown' && q2.rateTimeUnit !== 'unknown' &&
+      q1.rateTimeUnit !== q2.rateTimeUnit) {
+    incompatibilities.push(`rate time unit mismatch (${q1.rateTimeUnit} vs ${q2.rateTimeUnit})`);
+    score -= 55; // Increased penalty to ensure score < 50
+  }
+
+  return {
+    score: Math.max(0, score),
+    incompatibilities,
+  };
+}
+
+/**
+ * Check if two texts have compatible qualifiers for matching.
+ * Returns false if there are critical incompatibilities.
+ */
+export function qualifiersCompatible(text1: string, text2: string): boolean {
+  const { score } = compareQualifiers(text1, text2);
+  // Require more than 50% compatibility for texts to match (stricter threshold)
+  return score > 50;
 }

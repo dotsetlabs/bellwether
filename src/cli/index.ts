@@ -58,6 +58,8 @@ import { authCommand } from './commands/auth.js';
 import { badgeCommand } from './commands/badge.js';
 import { createRegistryCommand } from './commands/registry.js';
 import { createVerifyCommand } from './commands/verify.js';
+import { createEvalCommand } from './commands/eval.js';
+import { createFeedbackCommand } from './commands/feedback.js';
 import { configureLogger, type LogLevel } from '../logging/logger.js';
 import { VERSION } from '../version.js';
 
@@ -65,35 +67,43 @@ const program = new Command();
 
 // ASCII art banner for help
 const banner = `
-Bellwether - Behavioral Documentation for MCP Servers
+Bellwether - Behavioral Drift Detection for MCP Servers
 `;
 
 // Extended help with examples
 const examples = `
 Examples:
 
-  Interview a server:
+  Test a server (generates AGENTS.md documentation):
     $ bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 
-  Interactive mode (prompts for options):
-    $ bellwether interview --interactive
-
-  Discover tools without interviewing:
-    $ bellwether discover npx @mcp/server-postgres
-
-  Save and compare baselines:
+  Save baseline for drift detection:
     $ bellwether interview --save-baseline npx @mcp/my-server
-    $ bellwether interview --compare-baseline ./baseline.json npx @mcp/my-server
 
-  CI/CD workflow (fail on drift):
+  Detect behavioral drift (for CI/CD):
     $ bellwether interview --compare-baseline ./baseline.json --fail-on-drift npx @mcp/my-server
 
-  Quick interview (fast, for CI):
+  Quick test (fast, for PRs):
     $ bellwether interview --quick npx @mcp/my-server
 
+  Interactive mode:
+    $ bellwether interview --interactive
+
+  Discover tools without full test:
+    $ bellwether discover npx @mcp/server-postgres
+
   Search MCP Registry:
-    $ bellwether registry filesystem    # Search for filesystem servers
-    $ bellwether registry --json        # List servers as JSON
+    $ bellwether registry filesystem
+
+  Evaluate drift detection accuracy:
+    $ bellwether eval                     # Run full evaluation
+    $ bellwether eval --failures          # Show failed cases
+    $ bellwether eval --stats             # Dataset statistics
+
+  Feedback and telemetry:
+    $ bellwether feedback --list          # List logged decisions
+    $ bellwether feedback <id> --type false_positive  # Report issue
+    $ bellwether feedback --analyze       # Analyze feedback patterns
 
   Cloud workflow:
     $ bellwether login                    # Authenticate
@@ -108,7 +118,7 @@ Documentation: https://docs.bellwether.sh
 program
   .name('bellwether')
   .description(`${banner}
-Interview MCP servers to generate behavioral documentation, detect drift, and ensure tool reliability.
+Test MCP servers from 4 personas. Detect behavioral drift. Get documentation free.
 
 For more information on a specific command, use:
   bellwether <command> --help`)
@@ -127,15 +137,15 @@ For more information on a specific command, use:
 // Add command groups for better organization
 program.addHelpText('beforeAll', '\nCore Commands:');
 
-// Core commands - local interview and documentation
+// Core commands - local interview and testing
 program.addCommand(
   interviewCommand.description(
-    'Interview an MCP server and generate behavioral documentation'
+    'Test an MCP server from 4 personas, detect drift, generate AGENTS.md'
   )
 );
 program.addCommand(
   watchCommand.description(
-    'Watch for MCP server changes and auto-interview'
+    'Watch for MCP server changes and auto-test'
   )
 );
 program.addCommand(
@@ -171,6 +181,16 @@ program.addCommand(
 program.addCommand(
   createVerifyCommand().description(
     'Generate verification report for Verified by Bellwether program'
+  )
+);
+program.addCommand(
+  createEvalCommand().description(
+    'Evaluate drift detection algorithm accuracy against golden dataset'
+  )
+);
+program.addCommand(
+  createFeedbackCommand().description(
+    'Submit feedback on drift detection decisions for algorithm improvement'
   )
 );
 

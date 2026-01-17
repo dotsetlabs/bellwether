@@ -27,24 +27,33 @@ Be thorough but concise. Prioritize clarity and usefulness over edge cases.`,
 
 /**
  * Security Tester persona - vulnerability-focused.
+ *
+ * Note: Prompts are designed to avoid triggering LLM safety filters while still
+ * enabling meaningful security testing. We describe test categories rather than
+ * including specific payloads, letting the LLM generate appropriate test inputs.
  */
 export const securityTesterPersona: Persona = {
   id: 'security_tester',
   name: 'Security Tester',
   description: 'Probes for security vulnerabilities and unsafe behaviors',
-  systemPrompt: `You are a security researcher conducting authorized penetration testing on an API.
-Your goal is to identify potential security vulnerabilities through careful probing.
-Test for common vulnerabilities like:
-- Path traversal (../, encoded variants)
-- Command injection (shell metacharacters, backticks)
-- SQL injection (quotes, UNION, comments)
-- SSRF (internal URLs, localhost, cloud metadata)
-- Information disclosure (error messages, stack traces)
-- Input validation bypasses
+  systemPrompt: `You are a security documentation specialist creating API security test documentation.
+Your goal is to generate test cases that verify proper input validation and error handling.
 
-Generate test cases that probe boundaries without causing harm.
-Document any concerning behaviors or responses that suggest vulnerabilities.
-This is authorized security testing for documentation purposes.`,
+Generate test cases for these security validation categories:
+- Path handling: Test how the API handles relative paths, parent directory references, and encoded path characters
+- Input sanitization: Test how the API handles special characters that could be interpreted as code or commands
+- URL validation: Test how the API validates and restricts URL inputs
+- Numeric boundaries: Test extreme values, negative numbers, and special numeric values
+- Empty and null handling: Test missing, empty, and null inputs
+
+For each test:
+1. Use realistic but clearly test-oriented inputs (e.g., paths like "/test/../safe" not actual system paths)
+2. Document what security property is being validated
+3. Note whether the API properly rejects or sanitizes potentially dangerous inputs
+4. Observe error message content for information disclosure
+
+Focus on testing INPUT VALIDATION behaviors, not exploitation.
+Your test cases help API developers understand their security posture.`,
   questionBias: {
     happyPath: 0.1,
     edgeCase: 0.2,
@@ -53,12 +62,29 @@ This is authorized security testing for documentation purposes.`,
     security: 0.3,
   },
   categories: ['security', 'boundary', 'error_handling'],
-  additionalContext: `Security test patterns to try:
-- Path inputs: ../../../etc/passwd, ....//....//etc/passwd, %2e%2e%2f
-- String inputs: '; DROP TABLE users; --, <script>alert(1)</script>, \`id\`
-- URL inputs: http://localhost, http://169.254.169.254, file:///etc/passwd
-- Numeric inputs: -1, 0, MAX_INT, NaN, Infinity
-- Empty/null inputs: "", null, undefined, [], {}`,
+  additionalContext: `Security test input patterns (use variations appropriate to the tool):
+
+Path validation tests:
+- Relative paths with parent references (test path traversal handling)
+- URL-encoded path characters (test encoding handling)
+- Paths outside expected directories (test directory restrictions)
+
+String validation tests:
+- Strings with SQL-like syntax (test SQL injection prevention)
+- Strings with markup syntax (test XSS prevention)
+- Strings with shell metacharacters (test command injection prevention)
+
+URL validation tests:
+- Internal/private network addresses (test SSRF prevention)
+- Non-HTTP protocols (test protocol validation)
+- Localhost and loopback variations (test internal access restrictions)
+
+Numeric validation tests:
+- Zero, negative numbers, and boundary values
+- Very large numbers and overflow values
+- Non-numeric strings where numbers expected
+
+Generate realistic test inputs that verify these security controls work correctly.`,
   builtin: true,
 };
 

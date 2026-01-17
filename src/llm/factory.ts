@@ -35,6 +35,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
       return new OllamaClient({
         baseUrl: config.baseUrl,
         model: config.model,
+        onUsage: config.onUsage,
       });
 
     default:

@@ -26,6 +26,7 @@ export {
 export {
   evaluateAssertion,
   evaluateAssertions,
+  extractResponseContent,
   getValueAtPath,
   formatAssertionResults,
 } from './evaluator.js';

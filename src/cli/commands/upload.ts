@@ -20,7 +20,6 @@ export const uploadCommand = new Command('upload')
   .description('Upload a baseline to Bellwether Cloud')
   .argument('[baseline]', `Path to baseline JSON file (default: ${DEFAULT_BASELINE_FILE})`)
   .option('-p, --project <id>', 'Project ID to upload to (uses linked project if not specified)')
-  .option('--public', 'Make baseline publicly viewable')
   .option('--ci', 'CI mode - output URL only, exit 1 on breaking drift')
   .option('--session <session>', 'Session token (overrides stored/env session)')
   .option('--fail-on-drift', 'Exit with error if any behavioral drift detected')
@@ -117,9 +116,7 @@ export const uploadCommand = new Command('upload')
     }
 
     try {
-      const result = await client.uploadBaseline(projectId, cloudBaseline, {
-        public: options.public,
-      });
+      const result = await client.uploadBaseline(projectId, cloudBaseline);
 
       if (isCiMode) {
         // CI mode - minimal output

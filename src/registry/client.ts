@@ -12,6 +12,7 @@ import type {
 } from './types.js';
 import { getLogger } from '../logging/logger.js';
 import { URLS, REGISTRY } from '../constants.js';
+import { USER_AGENT } from '../version.js';
 
 const logger = getLogger('registry');
 
@@ -59,7 +60,7 @@ export class RegistryClient {
       const response = await fetch(url, {
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'bellwether/0.2.0',
+          'User-Agent': USER_AGENT,
         },
         signal: controller.signal,
       });
@@ -112,18 +113,6 @@ export class RegistryClient {
     return null;
   }
 
-  /**
-   * Get all servers (paginated).
-   */
-  async *getAllServers(batchSize: number = 100): AsyncGenerator<RegistryServerEntry[], void, unknown> {
-    let cursor: string | undefined;
-
-    do {
-      const response = await this.listServers({ limit: batchSize, cursor });
-      yield response.servers;
-      cursor = response.metadata.nextCursor;
-    } while (cursor);
-  }
 }
 
 /**

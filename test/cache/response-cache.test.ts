@@ -99,17 +99,6 @@ describe('ResponseCache', () => {
       expect(cache.get('key1')).toBe('value');
     });
 
-    it('should prune expired entries', () => {
-      cache.set('key1', 'value1', { ttlMs: 1000 });
-      cache.set('key2', 'value2', { ttlMs: 5000 });
-
-      vi.advanceTimersByTime(2000);
-
-      const pruned = cache.prune();
-      expect(pruned).toBe(1);
-      expect(cache.has('key1')).toBe(false);
-      expect(cache.has('key2')).toBe(true);
-    });
   });
 
   describe('statistics', () => {

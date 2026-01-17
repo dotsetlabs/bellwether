@@ -237,14 +237,6 @@ export function isAuthenticated(): boolean {
   return token !== undefined && isValidSessionFormat(token);
 }
 
-/**
- * Get the stored user info (if authenticated).
- */
-export function getStoredUser(): StoredSession['user'] | null {
-  const session = getStoredSession();
-  return session?.user ?? null;
-}
-
 // ============================================================================
 // Project Link Management
 // ============================================================================

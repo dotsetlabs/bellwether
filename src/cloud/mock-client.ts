@@ -278,8 +278,7 @@ export class MockCloudClient implements BellwetherCloudClient {
 
   async uploadBaseline(
     projectId: string,
-    baseline: BellwetherBaseline,
-    options?: { public?: boolean }
+    baseline: BellwetherBaseline
   ): Promise<UploadResult> {
     if (!this.isAuthenticated()) {
       throw new Error('Not authenticated');
@@ -323,9 +322,6 @@ export class MockCloudClient implements BellwetherCloudClient {
     const project = projects[projectIndex];
     project.baselineCount = version;
     project.lastUploadAt = new Date().toISOString();
-    if (options?.public !== undefined) {
-      project.isPublic = options.public;
-    }
     this.saveProjects(projects);
 
     // Build result

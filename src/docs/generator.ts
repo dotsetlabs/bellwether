@@ -1035,6 +1035,10 @@ interface ToolPerformanceMetrics {
   p50Ms: number;
   p95Ms: number;
   errorRate: number;
+  /** Average time for tool execution only (MCP transport) */
+  avgToolMs?: number;
+  /** Average time for LLM analysis only */
+  avgAnalysisMs?: number;
 }
 
 /**
@@ -1057,6 +1061,21 @@ function calculatePerformanceMetrics(profiles: ToolProfile[]): ToolPerformanceMe
     const p50Index = Math.floor(sortedDurations.length * 0.5);
     const p95Index = Math.floor(sortedDurations.length * 0.95);
 
+    // Calculate separate averages for tool execution and LLM analysis
+    const toolDurations = profile.interactions
+      .map(i => i.toolExecutionMs)
+      .filter((d): d is number => d !== undefined && d > 0);
+    const analysisDurations = profile.interactions
+      .map(i => i.llmAnalysisMs)
+      .filter((d): d is number => d !== undefined && d > 0);
+
+    const avgToolMs = toolDurations.length > 0
+      ? Math.round(toolDurations.reduce((a, b) => a + b, 0) / toolDurations.length)
+      : undefined;
+    const avgAnalysisMs = analysisDurations.length > 0
+      ? Math.round(analysisDurations.reduce((a, b) => a + b, 0) / analysisDurations.length)
+      : undefined;
+
     metrics.push({
       toolName: profile.name,
       callCount: profile.interactions.length,
@@ -1066,6 +1085,8 @@ function calculatePerformanceMetrics(profiles: ToolProfile[]): ToolPerformanceMe
       p50Ms: sortedDurations[p50Index] ?? 0,
       p95Ms: sortedDurations[Math.min(p95Index, sortedDurations.length - 1)] ?? 0,
       errorRate: errorCount / profile.interactions.length,
+      avgToolMs,
+      avgAnalysisMs,
     });
   }
 
@@ -1100,18 +1121,58 @@ function generatePerformanceSection(profiles: ToolProfile[]): string[] {
 
   lines.push('');
 
+  // Add timing breakdown if separate timing data is available
+  const metricsWithBreakdown = metrics.filter(m => m.avgToolMs !== undefined && m.avgAnalysisMs !== undefined);
+  if (metricsWithBreakdown.length > 0) {
+    lines.push('### Timing Breakdown');
+    lines.push('');
+    lines.push('Breakdown of total time into tool execution (MCP) and LLM analysis:');
+    lines.push('');
+    lines.push('| Tool | Total Avg | Tool Exec | LLM Analysis | Tool % |');
+    lines.push('|------|-----------|-----------|--------------|--------|');
+
+    for (const m of metricsWithBreakdown) {
+      const toolPct = m.avgToolMs !== undefined && m.avgMs > 0
+        ? Math.round((m.avgToolMs / m.avgMs) * 100)
+        : 0;
+      lines.push(`| \`${escapeTableCell(m.toolName)}\` | ${m.avgMs}ms | ${m.avgToolMs}ms | ${m.avgAnalysisMs}ms | ${toolPct}% |`);
+    }
+
+    lines.push('');
+  }
+
   // Add performance insights
   const slowTools = metrics.filter(m => m.avgMs > 1000);
   const unreliableTools = metrics.filter(m => m.errorRate > 0.3);
+  // Identify tools where LLM analysis dominates (>70% of total time)
+  const llmDominatedTools = metricsWithBreakdown.filter(m => {
+    const toolPct = m.avgToolMs !== undefined && m.avgMs > 0 ? (m.avgToolMs / m.avgMs) : 0;
+    return toolPct < 0.3; // Tool execution is < 30% means LLM is > 70%
+  });
 
-  if (slowTools.length > 0 || unreliableTools.length > 0) {
+  if (slowTools.length > 0 || unreliableTools.length > 0 || llmDominatedTools.length > 0) {
     lines.push('### Performance Insights');
     lines.push('');
 
     if (slowTools.length > 0) {
       lines.push('**Slow Tools** (avg > 1s):');
       for (const tool of slowTools) {
-        lines.push(`- \`${tool.toolName}\`: ${tool.avgMs}ms average`);
+        // Include breakdown if available
+        if (tool.avgToolMs !== undefined && tool.avgAnalysisMs !== undefined) {
+          lines.push(`- \`${tool.toolName}\`: ${tool.avgMs}ms average (tool: ${tool.avgToolMs}ms, analysis: ${tool.avgAnalysisMs}ms)`);
+        } else {
+          lines.push(`- \`${tool.toolName}\`: ${tool.avgMs}ms average`);
+        }
+      }
+      lines.push('');
+    }
+
+    if (llmDominatedTools.length > 0) {
+      lines.push('**LLM Analysis Dominated** (tool execution < 30% of total):');
+      lines.push('');
+      lines.push('These timings are dominated by LLM analysis rather than actual tool execution:');
+      for (const tool of llmDominatedTools) {
+        lines.push(`- \`${tool.toolName}\`: tool exec ${tool.avgToolMs}ms vs analysis ${tool.avgAnalysisMs}ms`);
       }
       lines.push('');
     }

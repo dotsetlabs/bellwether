@@ -115,3 +115,54 @@ export {
   type SchemaChange,
   type SchemaComparisonResult,
 } from './schema-compare.js';
+
+// Calibration utilities
+export {
+  calibrateConfidence,
+  formatCalibratedConfidence,
+  getCalibratedConfidenceLabel,
+  meetsCalibratedThreshold,
+  updateCalibrationModel,
+  calculateCalibrationError,
+  DEFAULT_CALIBRATION_MODEL,
+  type CalibrationBucket,
+} from './calibration.js';
+
+// Telemetry and decision logging
+export {
+  DecisionLogger,
+  FeedbackManager,
+  getDecisionLogger,
+  getFeedbackManager,
+  resetTelemetry,
+  type ComparisonDecision,
+  type FeedbackReport,
+  type FeedbackAnalysis,
+  type CategoryMatch,
+} from './telemetry.js';
+
+// A/B testing framework
+export {
+  runABTest,
+  formatABTestReport,
+  createDefaultVariant,
+  compareAlgorithms,
+  type AlgorithmVariant,
+  type ABTestResult,
+  type VariantComparison,
+  type SignificanceAnalysis,
+} from './ab-testing.js';
+
+// Embedding support (optional)
+export {
+  OllamaEmbeddings,
+  EmbeddingEnhancedComparator,
+  cosineSimilarity,
+  compareWithEmbeddings,
+  checkOllamaEmbeddings,
+  createEmbeddingFactor,
+  DEFAULT_EMBEDDING_CONFIG,
+  type EmbeddingProvider,
+  type EmbeddingConfig,
+  type EmbeddingComparisonResult,
+} from './embeddings.js';

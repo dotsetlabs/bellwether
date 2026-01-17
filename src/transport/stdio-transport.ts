@@ -275,7 +275,8 @@ export class StdioTransport extends BaseTransport {
       );
     }
 
-    this.removeAllListeners();
+    // Emit close before removing listeners so handlers can react
     this.emit('close');
+    this.removeAllListeners();
   }
 }
