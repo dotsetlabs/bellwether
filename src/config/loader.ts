@@ -14,6 +14,61 @@ import {
   type BellwetherConfigNew,
 } from './validator.js';
 
+/**
+ * Interpolate environment variables in a string.
+ * Supports ${VAR} and $VAR syntax.
+ *
+ * @param value - String that may contain env var references
+ * @returns String with env vars replaced with their values
+ */
+function interpolateEnvVars(value: string): string {
+  // Match ${VAR} or ${VAR:-default} syntax
+  return value.replace(/\$\{([^}]+)\}/g, (match, expr) => {
+    // Check for default value syntax: ${VAR:-default}
+    const [varName, defaultValue] = expr.split(':-');
+    const envValue = process.env[varName.trim()];
+    if (envValue !== undefined) {
+      return envValue;
+    }
+    if (defaultValue !== undefined) {
+      return defaultValue;
+    }
+    // Return original if no value and no default
+    return match;
+  });
+}
+
+/**
+ * Recursively interpolate environment variables in a config object.
+ * Only interpolates string values.
+ *
+ * @param obj - Object to interpolate
+ * @returns New object with env vars interpolated
+ */
+function interpolateConfig<T>(obj: T): T {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+
+  if (typeof obj === 'string') {
+    return interpolateEnvVars(obj) as T;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => interpolateConfig(item)) as T;
+  }
+
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = interpolateConfig(value);
+    }
+    return result as T;
+  }
+
+  return obj;
+}
+
 // Re-export the new config type
 export type { BellwetherConfigNew };
 
@@ -76,6 +131,9 @@ export function loadConfigNew(explicitPath?: string): BellwetherConfigNew {
   if (parsed === null || parsed === undefined) {
     parsed = {};
   }
+
+  // Interpolate environment variables (e.g., ${PLEX_TOKEN})
+  parsed = interpolateConfig(parsed);
 
   // SECURITY: Reject API keys stored directly in config files
   const rawConfig = parsed as Record<string, unknown>;

@@ -57,9 +57,12 @@ server:
   timeout: 30000
 
   # Additional environment variables for the server process
+  # Use ${VAR} syntax for interpolation (see "Environment Variable Interpolation" below)
   # env:
   #   NODE_ENV: production
   #   DEBUG: "mcp:*"
+  #   API_KEY: "${API_KEY}"
+  #   LOG_LEVEL: "${LOG_LEVEL:-info}"
 
 # =============================================================================
 # TEST MODE
@@ -162,7 +165,7 @@ output:
   # - agents.md: Human-readable markdown documentation
   # - json: Machine-readable JSON report
   # - both: Generate both formats
-  format: agents.md
+  format: both
 
   # Generate cloud-compatible baseline format
   # Required for bellwether upload
@@ -320,6 +323,76 @@ bellwether auth
 | `OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
 | `LOG_LEVEL` | Override logging level |
 | `BELLWETHER_SESSION` | Cloud authentication token |
+
+## Environment Variable Interpolation
+
+Bellwether supports environment variable interpolation in your configuration file, allowing you to reference secrets without committing them to version control.
+
+### Syntax
+
+```yaml
+server:
+  env:
+    # Basic interpolation - pulls from shell or .env file
+    API_KEY: "${API_KEY}"
+    SERVICE_URL: "${SERVICE_URL}"
+
+    # With default values - uses fallback if var is not set
+    LOG_LEVEL: "${LOG_LEVEL:-info}"
+    DEBUG: "${DEBUG:-false}"
+    TIMEOUT: "${TIMEOUT:-30000}"
+```
+
+### How It Works
+
+1. **At runtime**, Bellwether replaces `${VAR}` with the value of the environment variable `VAR`
+2. **Default values** can be specified with `${VAR:-default}` syntax
+3. **Unset variables** without defaults are left as-is (useful for catching missing config)
+
+### Example Workflow
+
+```bash
+# Set environment variables
+export PLEX_URL="http://192.168.1.100:32400"
+export PLEX_TOKEN="your-token-here"
+
+# Or use a .env file with dotenv
+# PLEX_URL=http://192.168.1.100:32400
+# PLEX_TOKEN=your-token-here
+
+# Run bellwether - it will interpolate the values
+bellwether test
+```
+
+:::tip Commit-Safe Configuration
+This pattern allows you to commit `bellwether.yaml` to version control while keeping secrets in environment variables or `.env` files (which should be gitignored).
+:::
+
+### Common Patterns
+
+**API Keys and Tokens:**
+```yaml
+server:
+  env:
+    API_KEY: "${API_KEY}"
+    AUTH_TOKEN: "${AUTH_TOKEN}"
+```
+
+**URLs with Defaults:**
+```yaml
+server:
+  env:
+    BASE_URL: "${BASE_URL:-http://localhost:3000}"
+    API_ENDPOINT: "${API_ENDPOINT:-/api/v1}"
+```
+
+**Feature Flags:**
+```yaml
+server:
+  env:
+    DEBUG: "${DEBUG:-false}"
+    LOG_LEVEL: "${LOG_LEVEL:-info}"
+```
 
 ## Multiple Configurations
 

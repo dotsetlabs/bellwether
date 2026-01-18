@@ -5,6 +5,32 @@ All notable changes to Bellwether will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-01-18
+
+### Added
+
+#### Environment Variable Interpolation
+- **`${VAR}` syntax in bellwether.yaml** - Reference environment variables in config files
+- **`${VAR:-default}` syntax** - Provide fallback values when env vars are not set
+- Allows committing `bellwether.yaml` to version control without exposing secrets
+- Works with shell exports or `.env` files loaded via dotenv
+
+#### Auto-Detection of Environment Variables
+- **`.env.example` detection** - `bellwether init` now detects env vars from `.env.example`, `.env.sample`, etc.
+- Automatically adds detected env vars to generated `bellwether.yaml` with interpolation syntax
+- Shows user what was detected and reminds them to set values before running tests
+
+### Fixed
+
+- **Default output format** - Changed from `agents.md` to `both` so `bellwether baseline save` works immediately after `bellwether init`
+- **Command parsing in init** - Fixed parsing of server command argument (e.g., `"node dist/index.js"` now correctly splits into command and args)
+
+### Documentation
+
+- Added "Environment Variables" section to init command documentation
+- Added "Environment Variable Interpolation" guide to configuration documentation
+- Updated examples to show `${VAR}` syntax usage
+
 ## [0.5.0] - 2026-01-17
 
 ### Breaking Changes
