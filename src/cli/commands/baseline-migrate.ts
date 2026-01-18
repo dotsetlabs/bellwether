@@ -150,7 +150,8 @@ export const migrateCommand = new Command('migrate')
       const migrated = migrateBaseline(rawBaseline);
 
       // Recalculate integrity hash after migration
-      const { integrityHash: _oldHash, ...baselineWithoutHash } = migrated;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { integrityHash: _, ...baselineWithoutHash } = migrated;
       const finalBaseline = recalculateIntegrityHash(baselineWithoutHash);
 
       // Save migrated baseline
