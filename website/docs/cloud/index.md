@@ -169,7 +169,7 @@ See [CI/CD Integration](/guides/ci-cd) for complete examples.
 | [`projects`](/cloud/projects) | List your projects |
 | [`upload`](/cloud/upload) | Upload baseline |
 | [`history`](/cloud/history) | View upload history |
-| [`diff`](/cloud/diff) | Compare versions |
+| `diff` | Compare versions (see [history](/cloud/history)) |
 | [`badge`](/cloud/badge) | Get embeddable badge |
 
 ## See Also
