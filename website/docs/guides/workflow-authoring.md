@@ -311,5 +311,5 @@ One workflow = one user journey:
 ## See Also
 
 - [Workflows](/concepts/workflows) - Workflow concepts
-- [interview](/cli/test) - Running workflows
+- [test](/cli/test) - Running workflows
 - [Drift Detection](/concepts/drift-detection) - Track workflow changes

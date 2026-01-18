@@ -15,10 +15,10 @@ Bellwether detects behavioral changes in your [MCP (Model Context Protocol)](htt
 npm install -g @dotsetlabs/bellwether
 
 # Initialize configuration
-bellwether init
+bellwether init npx @mcp/your-server
 
 # Run tests
-bellwether test npx @mcp/your-server
+bellwether test
 
 # Save baseline for drift detection
 bellwether baseline save
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npx @dotsetlabs/bellwether test npx @mcp/your-server
+      - run: npx @dotsetlabs/bellwether test
       - run: npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
@@ -65,31 +65,46 @@ This catches the changes that break AI agent workflows.
 **[docs.bellwether.sh](https://docs.bellwether.sh)** - Full documentation including:
 
 - [Quick Start](https://docs.bellwether.sh/quickstart)
-- [CLI Reference](https://docs.bellwether.sh/cli/test)
+- [CLI Reference](https://docs.bellwether.sh/cli/init)
+- [Test Modes](https://docs.bellwether.sh/concepts/test-modes)
 - [CI/CD Integration](https://docs.bellwether.sh/guides/ci-cd)
-- [Custom Scenarios](https://docs.bellwether.sh/guides/custom-scenarios)
+- [Cloud Features](https://docs.bellwether.sh/cloud)
 
 ## Configuration
 
 All settings are configured in `bellwether.yaml`. Create one with:
 
 ```bash
-bellwether init                    # Default structural mode (free, fast)
-bellwether init --preset ci        # Optimized for CI/CD
-bellwether init --preset security  # Security-focused testing
-bellwether init --preset thorough  # Comprehensive testing
-bellwether init --preset local     # Full mode with local Ollama
+bellwether init npx @mcp/your-server           # Default structural mode (free, fast)
+bellwether init --preset ci npx @mcp/server    # Optimized for CI/CD
+bellwether init --preset security npx @mcp/server  # Security-focused testing
+bellwether init --preset thorough npx @mcp/server  # Comprehensive testing
+bellwether init --preset local npx @mcp/server # Full mode with local Ollama
 ```
 
 The generated config file is fully documented with all available options.
+
+### Environment Variable Interpolation
+
+Reference environment variables in your config:
+
+```yaml
+server:
+  command: "npx @mcp/your-server"
+  env:
+    API_KEY: "${API_KEY}"
+    DEBUG: "${DEBUG:-false}"  # With default value
+```
+
+This allows committing `bellwether.yaml` to version control without exposing secrets.
 
 ## Modes
 
 ### Structural Mode (Default, Recommended for CI)
 
 ```bash
-bellwether init           # Creates bellwether.yaml with mode: structural
-bellwether test npx @mcp/your-server
+bellwether init npx @mcp/your-server
+bellwether test
 ```
 
 - **Zero LLM** - No API keys required
@@ -100,11 +115,11 @@ bellwether test npx @mcp/your-server
 ### Full Mode (Optional)
 
 ```bash
-bellwether init --preset local     # Uses local Ollama (free)
+bellwether init --preset local npx @mcp/your-server  # Uses local Ollama (free)
 # or
-bellwether init --preset thorough  # Uses OpenAI (requires API key)
+bellwether init --preset thorough npx @mcp/server    # Uses OpenAI (requires API key)
 
-bellwether test npx @mcp/your-server
+bellwether test
 ```
 
 - Requires LLM (Ollama for free local, or OpenAI/Anthropic)
@@ -118,15 +133,25 @@ bellwether test npx @mcp/your-server
 
 ```bash
 # Initialize configuration (creates bellwether.yaml)
-bellwether init
-bellwether init --preset ci
+bellwether init npx @mcp/server
+bellwether init --preset ci npx @mcp/server
 
 # Run tests using config settings
-bellwether test npx @mcp/server
 bellwether test                    # Uses server.command from config
+bellwether test npx @mcp/server    # Override server command
 
 # Discover server capabilities
 bellwether discover npx @mcp/server
+
+# Watch mode (re-test on file changes)
+bellwether watch --watch-path ./src
+
+# Search MCP Registry
+bellwether registry filesystem
+bellwether registry database --limit 5
+
+# Generate verification report
+bellwether verify npx @mcp/server --tier gold
 ```
 
 ### Baseline Commands
@@ -148,17 +173,45 @@ bellwether baseline show ./baseline.json --json
 bellwether baseline diff v1.json v2.json
 ```
 
-### Other Commands
+### Cloud Commands
 
 ```bash
-# Watch mode (re-test on file changes)
-bellwether watch npx @mcp/server
+# Authenticate with Bellwether Cloud
+bellwether login
+bellwether login --status
+bellwether login --logout
 
-# Manage API keys securely
-bellwether auth
+# Link project to cloud
+bellwether link
+bellwether link --status
+bellwether link --unlink
 
-# Upload baseline to Bellwether Cloud
+# List cloud projects
+bellwether projects
+bellwether projects --json
+
+# Upload baseline to cloud
 bellwether upload
+bellwether upload --ci --fail-on-drift
+
+# View baseline version history
+bellwether history
+bellwether history --limit 20
+
+# Compare cloud baseline versions
+bellwether diff 1 2
+
+# Get verification badge
+bellwether badge --markdown
+```
+
+### Auth Commands
+
+```bash
+# Manage LLM API keys (stored in system keychain)
+bellwether auth
+bellwether auth status
+bellwether auth clear
 ```
 
 ## Custom Test Scenarios
@@ -189,7 +242,7 @@ scenarios:
 Then run:
 
 ```bash
-bellwether test npx @mcp/server
+bellwether test
 ```
 
 ## Presets
@@ -202,7 +255,7 @@ bellwether test npx @mcp/server
 | `thorough` | full | All 4 personas, workflow discovery |
 | `local` | full | Local Ollama, free, private |
 
-Use with: `bellwether init --preset <name>`
+Use with: `bellwether init --preset <name> npx @mcp/server`
 
 ## GitHub Action
 
@@ -216,6 +269,18 @@ Use with: `bellwether init --preset <name>`
 ```
 
 See [action/README.md](./action/README.md) for full documentation.
+
+## Environment Variables
+
+| Variable | Description |
+|:---------|:------------|
+| `OPENAI_API_KEY` | OpenAI API key (full mode) |
+| `ANTHROPIC_API_KEY` | Anthropic API key (full mode) |
+| `OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
+| `BELLWETHER_SESSION` | Cloud session token for CI/CD |
+| `BELLWETHER_API_URL` | Cloud API URL (default: `https://api.bellwether.sh`) |
+
+See [.env.example](./.env.example) for full documentation.
 
 ## Development
 

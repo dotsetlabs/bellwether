@@ -9,7 +9,7 @@ sidebar_position: 2
 
 - **Node.js 20 or later** - Required for running Bellwether
 - **An LLM API key** - OpenAI, Anthropic, or use Ollama locally (free)
-- **An MCP server to interview** - Any server implementing the Model Context Protocol
+- **An MCP server to test** - Any server implementing the Model Context Protocol
 
 ## Install via npm
 
@@ -178,7 +178,7 @@ Or in your home directory at `~/.bellwether/bellwether.yaml` for global defaults
 
 ## Verify Setup
 
-Test your installation with a simple interview:
+Test your installation:
 
 ```bash
 # With OpenAI
@@ -193,7 +193,7 @@ bellwether test npx @modelcontextprotocol/server-memory
 You should see:
 1. Connection to the MCP server
 2. Tool discovery
-3. Interview questions being generated
+3. Test scenarios being run
 4. AGENTS.md file generated
 
 ## Troubleshooting
@@ -251,7 +251,7 @@ nvm use 20
 
 ## Next Steps
 
-- [Quick Start](/quickstart) - Run your first interview
+- [Quick Start](/quickstart) - Run your first test
 - [Local Development](/guides/local-development) - Test your MCP server during development
 - [Configuration Guide](/guides/configuration) - Advanced configuration options
 - [CLI Reference](/cli/test) - Full command documentation

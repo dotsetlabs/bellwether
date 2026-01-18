@@ -53,7 +53,7 @@ They're complementary. Use both.
 
 "Verified by Bellwether" means **systematically tested with Bellwether**, not independently certified. Badges indicate:
 
-- The server was interviewed with Bellwether
+- The server was tested with Bellwether
 - It achieved the specified test coverage tier
 - Results are self-reported by the server maintainer
 

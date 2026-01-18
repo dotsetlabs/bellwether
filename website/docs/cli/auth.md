@@ -1,6 +1,6 @@
 ---
 title: auth
-sidebar_position: 5
+sidebar_position: 7
 ---
 
 # bellwether auth
@@ -234,4 +234,4 @@ If you have keys in multiple locations (e.g., both keychain and environment), th
 
 - [Installation](/installation) - Full setup guide
 - [Configuration](/guides/configuration) - Config file options
-- [login](/cli/login) - Bellwether Cloud authentication (different from LLM auth)
+- [login](/cloud/login) - Bellwether Cloud authentication (different from LLM auth)

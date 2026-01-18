@@ -1,6 +1,6 @@
 ---
 title: projects
-sidebar_position: 8
+sidebar_position: 4
 ---
 
 # bellwether projects
@@ -94,7 +94,7 @@ Run `bellwether link` to create a project.
 
 ## See Also
 
-- [login](/cli/login) - Authenticate with Bellwether Cloud
-- [link](/cli/link) - Link directory to a project
-- [upload](/cli/upload) - Upload baselines to a project
-- [history](/cli/history) - View baseline history
+- [login](/cloud/login) - Authenticate with Bellwether Cloud
+- [link](/cloud/link) - Link directory to a project
+- [upload](/cloud/upload) - Upload baselines to a project
+- [history](/cloud/history) - View baseline history

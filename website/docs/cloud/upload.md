@@ -1,6 +1,6 @@
 ---
 title: upload
-sidebar_position: 8
+sidebar_position: 5
 ---
 
 # bellwether upload
@@ -68,7 +68,7 @@ bellwether upload --ci --fail-on-drift
 ### GitHub Actions
 
 ```yaml
-- name: Interview and Upload
+- name: Test and Upload
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
@@ -112,6 +112,6 @@ View at: https://bellwether.sh/projects/proj_abc123/baselines/12
 
 ## See Also
 
-- [link](/cli/link) - Link project first
-- [history](/cli/history) - View upload history
+- [link](/cloud/link) - Link project first
+- [history](/cloud/history) - View upload history
 - [CI/CD Guide](/guides/ci-cd) - Pipeline integration

@@ -88,7 +88,7 @@ jobs:
       - name: Install Bellwether
         run: npm install -g @dotsetlabs/bellwether
 
-      - name: Run Interview
+      - name: Run Test
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |

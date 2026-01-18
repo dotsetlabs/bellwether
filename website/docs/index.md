@@ -8,6 +8,8 @@ sidebar_position: 1
 
 > **Test your MCP servers. Catch drift. Get documentation for free.**
 
+Bellwether is a CLI tool for **behavioral drift detection** in MCP servers. It catches regressions before deployment and generates AGENTS.md documentation as a byproduct.
+
 ## What is MCP?
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io) is an open standard created by Anthropic for connecting AI assistants to external tools. When you hear "MCP server," think "a service that gives AI agents capabilities"—like reading files, querying databases, or calling APIs.
@@ -24,118 +26,23 @@ Your MCP Server (tools, data, capabilities)
 
 ---
 
-Bellwether is a CLI tool for **behavioral drift detection** in MCP servers. It **interviews** your server from 4 different personas, catches regressions before deployment, and generates AGENTS.md documentation as a byproduct:
-
-1. **Discovering** available tools, prompts, and resources
-2. **Testing from 4 personas** - Technical writer, security tester, QA engineer, novice user
-3. **Detecting behavioral drift** between baseline and current behavior
-4. **Generating documentation** - AGENTS.md reflects what your server actually does
-
 ## Why Bellwether?
 
 | Problem | Solution |
 |:--------|:---------|
-| Breaking changes slip into production unnoticed | **Behavioral drift detection** - Compare baselines to catch regressions before deployment |
-| Manual testing misses edge cases | **4-persona testing** - The only tool that tests from technical writer, security tester, QA engineer, and novice user perspectives |
-| Security vulnerabilities are hard to discover | **Security persona** - Dedicated adversarial testing catches path traversal, injection, and info disclosure |
-| Documentation gets stale | **Free documentation** - AGENTS.md is generated automatically from test results |
-
-## What Makes Bellwether Different
-
-| Feature | Bellwether | Other MCP Tools |
-|:--------|:-----------|:----------------|
-| **Behavioral drift detection** | ✅ Semantic comparison | ❌ Schema-only or none |
-| **Multi-persona testing** | ✅ 4 unique perspectives | ❌ Single perspective |
-| **Documentation generation** | ✅ AGENTS.md included | ❌ Not available |
-| **CI/CD integration** | ✅ GitHub Action | ⚠️ Limited |
-
-## Key Features
-
-- **Behavioral Drift Detection** - Compare baselines to catch regressions before deployment (not just schema changes)
-- **4-Persona Testing** - Technical writer, security tester, QA engineer, novice user—the only MCP tool with multi-perspective testing
-- **Free Documentation** - AGENTS.md generated automatically from test results
-- **CI/CD Integration** - GitHub Action for automated regression testing in your pipeline
-- **Security Hygiene** - Dedicated security persona catches common vulnerabilities
-- **Complete MCP Coverage** - Test tools, prompts, and resources with content previews and access patterns
-- **MCP Registry Integration** - Search and discover servers from the official MCP Registry
-- **Verification Badges** - Earn Bronze, Silver, Gold, or Platinum coverage badges for your server
+| Breaking changes slip into production | **Drift detection** catches regressions before deployment |
+| Manual testing misses edge cases | **Multi-persona testing** covers technical, security, QA, and novice perspectives |
+| Security vulnerabilities go unnoticed | **Security persona** tests for path traversal, injection, info disclosure |
+| Documentation gets stale | **AGENTS.md** is generated from actual behavior |
 
 ## Two Testing Modes
 
-Bellwether offers two testing modes to fit your workflow:
-
-| Mode | Cost | Use Case |
+| Mode | Cost | Best For |
 |:-----|:-----|:---------|
-| **Structural** (default) | Free | Fast schema comparison, CI/CD pipelines, deterministic |
-| **Full** | ~$0.01-0.15 | LLM-powered testing, intelligent scenarios, multi-persona |
+| **Structural** (default) | Free | CI/CD, fast checks, schema validation |
+| **Full** | ~$0.01-0.15 | Deep testing, documentation, security audits |
 
-## How It Works
-
-```
-   MCP Server           Bellwether                    Output
-       |                   |                          |
-       |  tools/list       |                          |
-       |<------------------|                          |
-       |                   |                          |
-       |   tools/call      |   LLM generates          |
-       |<------------------|   test scenarios         |
-       |                   |                          |
-       |   responses       |                          |
-       |------------------>|   Analyze behavior       |
-       |                   |                          |
-       |                   |----------------------->  AGENTS.md
-       |                   |                          baseline.json
-```
-
-## Output Example
-
-Bellwether generates `AGENTS.md` files documenting observed server behavior:
-
-```markdown
-# @modelcontextprotocol/server-filesystem
-
-> Generated by Bellwether on 2026-01-12
-
-## Overview
-
-A file management server providing tools for reading, writing, and searching files.
-
-## Tools
-
-### read_file
-
-Read contents of a file from the specified path.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| path | string | yes | Path to the file to read |
-
-**Observed Behavior:**
-- Returns file contents as UTF-8 text
-- Binary files are returned as base64-encoded content
-- Maximum file size: 10MB
-
-**Limitations:**
-- Cannot read files outside configured root directory
-
-**Security Considerations:**
-- Path traversal attempts (../) are normalized within root
-```
-
-## Cost Efficiency
-
-Bellwether uses LLMs for intelligent testing in full mode. Typical costs per test (10 tools, 3 questions each):
-
-| Mode/Model | Cost | Quality |
-|:-----------|:-----|:--------|
-| Structural (free) | $0.00 | Schema comparison |
-| Ollama (local) | Free | Variable |
-| `gpt-4o-mini` | ~$0.02 | Good (recommended for CI) |
-| `claude-haiku-4-5-latest` | ~$0.04 | Good |
-| `gpt-4o` | ~$0.12 | Best |
-| `claude-sonnet-4-5-latest` | ~$0.13 | Best |
-
-Use `bellwether init --preset ci` for the fastest, cheapest CI runs (structural mode, $0.00).
+See [Test Modes](/concepts/test-modes) for details.
 
 ## Quick Example
 
@@ -143,48 +50,28 @@ Use `bellwether init --preset ci` for the fastest, cheapest CI runs (structural 
 # Install
 npm install -g @dotsetlabs/bellwether
 
-# Initialize config (structural mode is free and fast)
+# Initialize (structural mode is free)
 bellwether init npx @modelcontextprotocol/server-filesystem /tmp
 
 # Run test
 bellwether test
 
-# Output: AGENTS.md with behavioral documentation
-```
-
-## Local Development Workflow
-
-Bellwether integrates into your development workflow to catch behavioral drift before deployment:
-
-```bash
-# 1. Initialize configuration
-bellwether init node ./src/mcp-server.js
-
-# 2. Run test and generate documentation
-bellwether test
-
-# 3. Save a baseline for drift detection
+# Save baseline for drift detection
 bellwether baseline save
-
-# 4. Use watch mode for continuous testing
-bellwether watch --watch-path ./src
-
-# 5. Before committing, check for drift
-bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
-Use Ollama for completely free LLM-powered testing during development:
+## What You Get
 
-```bash
-bellwether init --preset local node ./src/mcp-server.js
-```
+After running a test, Bellwether generates:
+
+- **AGENTS.md** - Documentation of tool behavior, parameters, error handling
+- **bellwether-report.json** - Machine-readable test results
+- **bellwether-baseline.json** - Baseline for future drift comparison
 
 ## Next Steps
 
-- [Installation](/installation) - Install Bellwether and configure your LLM provider
-- [Quick Start](/quickstart) - Run your first test in 5 minutes
-- [Local Development](/guides/local-development) - Test your server during development
-- [CLI Reference](/cli/test) - Full command documentation
-- [MCP Registry](/cli/registry) - Discover servers to test
-- [Verification Badges](/cli/verify) - Earn coverage badges for your server
-- [CI/CD Integration](/guides/ci-cd) - Automate with the GitHub Action
+- [Installation](/installation) - Install and configure Bellwether
+- [Quick Start](/quickstart) - Run your first test
+- [Test Modes](/concepts/test-modes) - Choose between structural and full modes
+- [CLI Reference](/cli/init) - Full command documentation
+- [Cloud](/cloud) - Baseline history and verification badges

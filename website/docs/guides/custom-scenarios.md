@@ -20,7 +20,7 @@ bellwether test --init-scenarios
 
 # Edit bellwether-tests.yaml with your scenarios
 
-# Run interview with custom scenarios
+# Run test with custom scenarios
 bellwether test npx your-server
 ```
 
@@ -330,6 +330,6 @@ Scenario results are also included in:
 
 ## See Also
 
-- [interview](/cli/test) - CLI reference
+- [test](/cli/test) - CLI reference
 - [CI/CD Integration](/guides/ci-cd) - Pipeline setup
 - [Personas](/concepts/personas) - LLM-based testing personas

@@ -29,7 +29,7 @@ The CLI is free and open source (MIT license). Optional cloud features (baseline
 
 ### How much does it cost to run?
 
-Typical costs per interview:
+Typical costs per test:
 
 | Model | Cost |
 |:------|:-----|
@@ -98,7 +98,7 @@ npm update -g @dotsetlabs/bellwether
 
 ## Usage
 
-### How do I interview an MCP server?
+### How do I test an MCP server?
 
 ```bash
 bellwether test npx @modelcontextprotocol/server-filesystem /tmp
@@ -158,7 +158,7 @@ bellwether test \
 |:-----|:--------|
 | 0 | Success |
 | 1 | Drift or security issues |
-| 2 | Interview error |
+| 2 | Test error |
 
 ### How do I minimize CI costs?
 
@@ -253,7 +253,7 @@ Increase timeout:
 bellwether test --timeout 120000 npx your-server
 ```
 
-### "Interview taking too long"
+### "Test taking too long"
 
 Use quick mode:
 

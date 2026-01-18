@@ -7,31 +7,28 @@ sidebar_position: 3
 
 Get up and running with Bellwether in 5 minutes.
 
-## 1. Install Bellwether
+## 1. Install
 
 ```bash
 npm install -g @dotsetlabs/bellwether
 ```
 
-## 2. Initialize Configuration
+## 2. Initialize
 
-Bellwether uses a config file (`bellwether.yaml`) for all settings. Initialize one:
+Create a config file for your MCP server:
 
 ```bash
 # Default: structural mode (free, fast, deterministic)
 bellwether init npx @modelcontextprotocol/server-filesystem /tmp
-
-# Or for full LLM-powered testing with local Ollama (free)
-bellwether init --preset local npx @modelcontextprotocol/server-filesystem /tmp
 ```
 
 This creates `bellwether.yaml` with your server command and settings.
 
-### Available Presets
+### Presets
 
 | Preset | Mode | Description |
 |:-------|:-----|:------------|
-| *(default)* | Structural | Free, fast, deterministic schema comparison |
+| *(default)* | Structural | Free, fast, deterministic |
 | `--preset ci` | Structural | Optimized for CI/CD pipelines |
 | `--preset local` | Full | LLM testing with local Ollama (free) |
 | `--preset security` | Full | Security-focused testing |
@@ -42,60 +39,36 @@ This creates `bellwether.yaml` with your server command and settings.
 If using full mode with OpenAI or Anthropic:
 
 ```bash
-# Interactive setup (recommended - stores securely in keychain)
+# Interactive (stores securely in keychain)
 bellwether auth
 
-# Or set environment variable
+# Or environment variable
 export OPENAI_API_KEY=sk-xxx
-# or
-export ANTHROPIC_API_KEY=sk-ant-xxx
 ```
 
-Structural mode and `--preset local` require no API keys.
+Structural mode and Ollama require no API keys.
 
-## 4. Run Your First Test
+## 4. Run Test
 
 ```bash
 bellwether test
 ```
 
-This will:
-1. Connect to the MCP server defined in your config
-2. Discover available tools, prompts, and resources
-3. Test using the mode specified in config (structural or full)
-4. Generate `AGENTS.md` documentation
-5. Generate `bellwether-report.json` for baseline comparison
+This discovers tools, runs tests, and generates:
+- `AGENTS.md` - behavioral documentation
+- `bellwether-report.json` - test results
 
-## 5. View the Results
-
-Open the generated `AGENTS.md` file:
-
-```bash
-cat AGENTS.md
-```
-
-You'll see comprehensive documentation including:
-- Tool descriptions with observed behavior
-- Parameter documentation
-- Error handling patterns
-- Limitations and edge cases
-- Security considerations
-- Quick reference with tool signatures
-- Performance metrics (response times, error rates)
-
-## 6. Save a Baseline
-
-Save your test results as a baseline for drift detection:
+## 5. Save Baseline
 
 ```bash
 bellwether baseline save
 ```
 
-This creates `bellwether-baseline.json` that captures the server's current behavior.
+Creates `bellwether-baseline.json` for drift detection.
 
-## 7. Detect Drift
+## 6. Detect Drift
 
-Later, after making changes, compare against your baseline:
+After making changes, compare against baseline:
 
 ```bash
 bellwether test
@@ -115,173 +88,32 @@ bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ### Local Development
 
 ```bash
-# 1. Initialize config
-bellwether init node ./src/mcp-server.js
-
-# 2. Run test
+bellwether init node ./src/server.js
 bellwether test
-
-# 3. Save baseline
 bellwether baseline save
-
-# 4. Watch for changes (re-tests on file changes)
-bellwether watch --watch-path ./src
-
-# 5. Before committing, check for drift
-bellwether baseline compare ./bellwether-baseline.json
+bellwether watch --watch-path ./src    # Re-test on file changes
 ```
 
 ### CI/CD Pipeline
 
 ```bash
-# 1. Run test (uses committed bellwether.yaml)
 bellwether test
-
-# 2. Compare against committed baseline
 bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
 ### Security Audit
 
 ```bash
-# Initialize with security preset
 bellwether init --preset security npx your-server
-
-# Run security-focused test
-bellwether test
-```
-
-### Comprehensive Testing
-
-```bash
-# Initialize with thorough preset
-bellwether init --preset thorough npx your-server
-
-# Run full multi-persona test
 bellwether test
 ```
 
 ---
-
-## What's Next?
-
-### Discover MCP Servers
-
-Find servers to test from the official MCP Registry:
-
-```bash
-bellwether registry filesystem
-bellwether registry database
-```
-
-### Get Verified
-
-Run the verification process to earn coverage badges:
-
-```bash
-bellwether verify --tier gold npx your-server
-```
-
-### Configure Testing
-
-Edit `bellwether.yaml` to customize:
-
-```yaml
-# Mode: structural (free) or full (LLM)
-mode: full
-
-# LLM provider
-llm:
-  provider: openai
-  model: gpt-4o-mini
-
-# Test settings (full mode)
-test:
-  personas:
-    - technical_writer
-    - security_tester
-  maxQuestionsPerTool: 5
-```
-
-See [Configuration Guide](/guides/configuration) for all options.
-
-### Remote MCP Servers
-
-Test remote MCP servers over HTTP by editing your config:
-
-```yaml
-server:
-  transport: sse
-  url: https://api.example.com/mcp
-```
-
-See [Remote Servers](/guides/remote-servers) for details.
-
----
-
-## Example Output
-
-After running a test, your `AGENTS.md` will look like this:
-
-```markdown
-# @modelcontextprotocol/server-filesystem
-
-> Generated by Bellwether on 2026-01-12 using gpt-4o
-
-## Overview
-
-A file management server providing read/write access to the local filesystem.
-
-## Tools
-
-### read_file
-
-Reads the contents of a file from the specified path.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| path | string | yes | Absolute or relative path to the file |
-
-**Observed Behavior:**
-- Returns file contents as UTF-8 text for text files
-- Returns base64-encoded content for binary files
-- Follows symlinks (does not resolve them)
-- Maximum file size: 10MB
-
-**Error Handling:**
-- `ENOENT`: File not found - returns clear error message
-- `EACCES`: Permission denied - returns error without path
-- `EISDIR`: Path is a directory - returns appropriate error
-
-**Limitations:**
-- Cannot read files outside configured root directory
-- Large files (>10MB) are rejected entirely
-
-**Security Considerations:**
-- Path traversal attempts (../) are normalized within root
-- Does not expose absolute paths in error messages
-
-## Quick Reference
-
-| Tool | Signature |
-|------|-----------|
-| read_file | `read_file(path)` |
-
-## Performance
-
-| Tool | Calls | Avg | P95 | Max | Errors |
-|------|-------|-----|-----|-----|--------|
-| read_file | 5 | 45ms | 120ms | 150ms | 0% |
-```
 
 ## Next Steps
 
-- [Local Development](/guides/local-development) - Test during development with watch mode and drift detection
-- [CLI Reference](/cli/test) - Full command options
-- [MCP Registry](/cli/registry) - Discover servers to test
-- [Verification](/cli/verify) - Get your server certified
-- [Personas](/concepts/personas) - Understanding testing personas
-- [Drift Detection](/concepts/drift-detection) - Set up behavioral regression testing
-- [CI/CD Integration](/guides/ci-cd) - Automate with GitHub Actions, GitLab CI, etc.
-- [Custom Scenarios](/guides/custom-scenarios) - Define deterministic YAML test scenarios
-- [Remote Servers](/guides/remote-servers) - Test MCP servers over HTTP
+- [Test Modes](/concepts/test-modes) - Structural vs full mode
+- [Local Development](/guides/local-development) - Watch mode and continuous testing
+- [CI/CD Integration](/guides/ci-cd) - GitHub Actions, GitLab CI
+- [Cloud](/cloud) - Baseline history and verification badges
+- [Configuration](/guides/configuration) - Customize bellwether.yaml

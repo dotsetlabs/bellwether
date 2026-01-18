@@ -1,6 +1,6 @@
 ---
 title: Baselines
-sidebar_position: 3
+sidebar_position: 2
 ---
 
 # Baselines
@@ -151,4 +151,4 @@ When comparing baselines, Bellwether detects:
 
 - [Drift Detection](/concepts/drift-detection) - Understanding drift severity
 - [CI/CD Integration](/guides/ci-cd) - Automated baseline checking
-- [upload](/cli/upload) - Cloud baseline sync
+- [upload](/cloud/upload) - Cloud baseline sync

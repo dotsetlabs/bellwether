@@ -164,9 +164,9 @@ Error: Tool 'my_tool' not found
 bellwether discover npx server
 ```
 
-## Interview Issues
+## Test Issues
 
-### Timeout During Interview
+### Timeout During Test
 
 ```
 Error: Tool call timed out
@@ -258,7 +258,7 @@ This is expected when drift is found. Options:
 ### Exit Code 2 in CI
 
 ```
-Error: Interview failed
+Error: Test failed
 ```
 
 **Solutions:**

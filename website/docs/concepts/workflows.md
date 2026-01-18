@@ -253,4 +253,4 @@ args:
 
 - [Workflow Authoring Guide](/guides/workflow-authoring) - Advanced workflow patterns
 - [Drift Detection](/concepts/drift-detection) - Track workflow behavior changes
-- [interview](/cli/test) - Running workflows
+- [test](/cli/test) - Running workflows

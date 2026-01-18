@@ -1,11 +1,11 @@
 ---
 title: discover
-sidebar_position: 2
+sidebar_position: 5
 ---
 
 # bellwether discover
 
-Quick discovery of MCP server capabilities without interviewing.
+Quick discovery of MCP server capabilities without running tests.
 
 ## Synopsis
 
@@ -16,7 +16,7 @@ bellwether summary [options] <command> [args...]  # alias
 
 ## Description
 
-The `discover` command connects to an MCP server and lists its capabilities (tools, prompts, and resources) without conducting a full interview. This is useful for quick reconnaissance or verifying server connectivity.
+The `discover` command connects to an MCP server and lists its capabilities (tools, prompts, and resources) without conducting a full test. This is useful for quick reconnaissance or verifying server connectivity.
 
 The `summary` command is an alias for `discover` - both commands work identically.
 
@@ -148,7 +148,7 @@ bellwether discover \
 
 ### Verify Server Connectivity
 
-Before running a full interview, verify the server starts and responds:
+Before running a full test, verify the server starts and responds:
 
 ```bash
 bellwether discover npx your-server && echo "Server OK"
@@ -172,13 +172,13 @@ bellwether discover --json npx your-server > capabilities.json
 
 ### Debugging Server Issues
 
-Use discover to isolate connection vs. interview issues:
+Use discover to isolate connection vs. test issues:
 
 ```bash
 # If this fails, it's a connection issue
 bellwether discover npx your-server
 
-# If discover works but interview fails, it's an LLM/interview issue
+# If discover works but test fails, it's an LLM/test issue
 bellwether test npx your-server
 ```
 
@@ -191,5 +191,5 @@ bellwether test npx your-server
 
 ## See Also
 
-- [interview](/cli/test) - Full behavioral interview
+- [test](/cli/test) - Full behavioral testing
 - [init](/cli/init) - Create configuration file

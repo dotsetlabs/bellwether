@@ -1,6 +1,6 @@
 ---
 title: badge
-sidebar_position: 8
+sidebar_position: 7
 ---
 
 # bellwether badge
@@ -128,10 +128,10 @@ A verified MCP server for...
 
 ### CI Badge Updates
 
-Update badge status after CI interviews:
+Update badge status after CI tests:
 
 ```bash
-# Run interview and upload baseline
+# Run test and upload baseline
 bellwether test --preset ci npx your-server
 bellwether upload
 
@@ -165,7 +165,7 @@ done
 
 ## See Also
 
-- [upload](/cli/upload) - Upload baselines to cloud
-- [link](/cli/link) - Link local project to cloud
-- [login](/cli/login) - Authenticate with Bellwether Cloud
+- [upload](/cloud/upload) - Upload baselines to cloud
+- [link](/cloud/link) - Link local project to cloud
+- [login](/cloud/login) - Authenticate with Bellwether Cloud
 - [Cloud Integration](/guides/cloud-integration) - Full cloud workflow
