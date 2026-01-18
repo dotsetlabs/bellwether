@@ -856,7 +856,7 @@ export class Interviewer {
       toolCallCount: totalToolCallCount,
       resourceReadCount: resourceReadCount > 0 ? resourceReadCount : undefined,
       errorCount: totalErrorCount,
-      model: this.config.model,
+      model: this.config.structuralOnly ? 'structural' : this.config.model,
       personas: Array.from(personaStats.values()),
       workflows: workflowSummary,
       serverCommand: this.config.serverCommand,
