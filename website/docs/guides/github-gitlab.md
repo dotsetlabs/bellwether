@@ -92,7 +92,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          bellwether interview \
+          bellwether test \
             --preset ci \
             --save-baseline ./baseline.json \
             npx your-mcp-server
@@ -145,7 +145,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          npx @dotsetlabs/bellwether interview \
+          npx @dotsetlabs/bellwether test \
             --preset ci \
             --save-baseline ./pr-baseline.json \
             npx your-server
@@ -190,7 +190,7 @@ bellwether:
   image: node:20
   script:
     - npm install -g @dotsetlabs/bellwether
-    - bellwether interview
+    - bellwether test
         --preset ci
         --save-baseline ./baseline.json
         npx your-mcp-server
@@ -217,7 +217,7 @@ bellwether:mr:
 
     # Generate MR baseline
     - npm install -g @dotsetlabs/bellwether
-    - bellwether interview
+    - bellwether test
         --preset ci
         --save-baseline ./mr-baseline.json
         npx your-server
@@ -239,7 +239,7 @@ bellwether:commit:
   image: node:20
   script:
     - npm install -g @dotsetlabs/bellwether
-    - bellwether interview
+    - bellwether test
         --preset ci
         --save-baseline ./baseline.json
         npx your-server
@@ -274,7 +274,7 @@ Add these CI/CD variables in GitLab:
 The `--preset ci` option is optimized for fast, low-cost CI runs:
 
 ```bash
-bellwether interview --preset ci npx your-server
+bellwether test --preset ci npx your-server
 ```
 
 ### 2. Cache Dependencies

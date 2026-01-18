@@ -44,7 +44,7 @@ Follow the prompts to create or select a project.
 
 ```bash
 # Generate and upload
-bellwether interview --save-baseline npx your-server
+bellwether test --save-baseline npx your-server
 bellwether upload
 ```
 
@@ -90,7 +90,7 @@ Copy the markdown from the `badge` command:
 
 ```bash
 # After uploading baseline, get updated badge
-bellwether interview --preset ci npx your-server
+bellwether test --preset ci npx your-server
 bellwether upload
 bellwether badge --markdown
 ```
@@ -114,7 +114,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
         run: |
-          npx @dotsetlabs/bellwether interview --save-baseline npx your-server
+          npx @dotsetlabs/bellwether test --save-baseline npx your-server
           npx @dotsetlabs/bellwether upload --ci --fail-on-drift
 ```
 

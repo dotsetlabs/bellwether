@@ -19,10 +19,16 @@ vi.mock('fs/promises', () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Mock config loader
-vi.mock('../../../src/config/loader.js', () => ({
-  loadConfig: vi.fn().mockResolvedValue(null),
-}));
+// Mock config loader - use importOriginal to get the real ConfigNotFoundError for instanceof checks
+vi.mock('../../../src/config/loader.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/config/loader.js')>();
+  return {
+    ...actual,
+    loadConfigNew: vi.fn().mockImplementation(() => {
+      throw new actual.ConfigNotFoundError();
+    }),
+  };
+});
 
 // Mock LLM client
 vi.mock('../../../src/llm/index.js', () => ({

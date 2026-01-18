@@ -18,7 +18,7 @@ A baseline is a JSON file containing:
 ## Creating a Baseline
 
 ```bash
-bellwether interview --save-baseline npx your-server
+bellwether test --save-baseline npx your-server
 ```
 
 This generates `bellwether-baseline.json`:
@@ -64,10 +64,10 @@ This generates `bellwether-baseline.json`:
 
 ```bash
 # Save to specific path
-bellwether interview --save-baseline ./baselines/v1.json npx your-server
+bellwether test --save-baseline ./baselines/v1.json npx your-server
 
 # Compare against specific baseline
-bellwether interview --compare-baseline ./baselines/v1.json npx your-server
+bellwether test --compare-baseline ./baselines/v1.json npx your-server
 ```
 
 ## Baseline in CI/CD
@@ -76,7 +76,7 @@ bellwether interview --compare-baseline ./baselines/v1.json npx your-server
 
 ```bash
 # Create baseline
-bellwether interview --save-baseline npx your-server
+bellwether test --save-baseline npx your-server
 
 # Commit
 git add bellwether-baseline.json
@@ -89,7 +89,7 @@ git commit -m "Update behavioral baseline"
 # GitHub Actions
 - name: Check Behavioral Drift
   run: |
-    bellwether interview \
+    bellwether test \
       --compare-baseline ./bellwether-baseline.json \
       --fail-on-drift \
       npx your-server
@@ -101,10 +101,10 @@ When intentional changes are made:
 
 ```bash
 # Review changes
-bellwether interview --compare-baseline ./baseline.json npx your-server
+bellwether test --compare-baseline ./baseline.json npx your-server
 
 # Update baseline
-bellwether interview --save-baseline npx your-server
+bellwether test --save-baseline npx your-server
 
 # Commit
 git add bellwether-baseline.json

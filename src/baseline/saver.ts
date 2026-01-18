@@ -8,6 +8,7 @@ import { z } from 'zod';
 import type { InterviewResult, ToolProfile } from '../interview/types.js';
 import type {
   BehavioralBaseline,
+  BaselineMode,
   ToolFingerprint,
   ServerFingerprint,
   BehavioralAssertion,
@@ -66,6 +67,7 @@ const workflowSignatureSchema = z.object({
 const baselineSchema = z.object({
   version: z.number().int().positive(),
   createdAt: z.string().or(z.date()),
+  mode: z.enum(['full', 'structural']).optional(), // Optional for backwards compatibility
   serverCommand: z.string(),
   server: serverFingerprintSchema,
   tools: z.array(toolFingerprintSchema),
@@ -85,7 +87,8 @@ export const BASELINE_VERSION = 1;
  */
 export function createBaseline(
   result: InterviewResult,
-  serverCommand: string
+  serverCommand: string,
+  mode: BaselineMode = 'full'
 ): BehavioralBaseline {
   const server = createServerFingerprint(result);
   const tools = result.toolProfiles.map(createToolFingerprint);
@@ -95,6 +98,7 @@ export function createBaseline(
   const baselineData: Omit<BehavioralBaseline, 'integrityHash'> = {
     version: BASELINE_VERSION,
     createdAt: new Date(),
+    mode,
     serverCommand,
     server,
     tools,

@@ -97,7 +97,7 @@ export const linkCommand = new Command('link')
     output.info(`Server command: ${project.serverCommand}`);
     output.info('\nSaved to .bellwether/link.json');
     output.info('\nYou can now run:');
-    output.info('  bellwether interview <server> --save-baseline');
+    output.info('  bellwether test <server> --save-baseline');
     output.info('  bellwether upload');
   });
 

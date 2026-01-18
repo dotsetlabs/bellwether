@@ -374,8 +374,9 @@ describe('Baseline Comparison', () => {
 
       const diff = compareBaselines(baseline1, baseline2);
 
-      // Semantic comparison should detect change in security category
-      expect(diff.behaviorChanges.some((c) => c.aspect === 'security')).toBe(true);
+      // Structural comparison does not compare security notes (LLM-generated content)
+      // Only schema and description changes are detected
+      expect(diff.behaviorChanges.some((c) => c.aspect === 'security')).toBe(false);
     });
 
     it('should NOT flag paraphrased security notes as drift (semantic comparison)', () => {
@@ -525,7 +526,7 @@ describe('Baseline Comparison', () => {
   });
 
   describe('hasSecurityChanges', () => {
-    it('should detect security-related changes', () => {
+    it('should return false when only security notes differ (structural comparison does not track security notes)', () => {
       const result1 = createMockInterviewResult({
         tools: [{
           name: 'test_tool',
@@ -552,7 +553,8 @@ describe('Baseline Comparison', () => {
 
       const diff = compareBaselines(baseline1, baseline2);
 
-      expect(hasSecurityChanges(diff)).toBe(true);
+      // Structural comparison does not track security note changes
+      expect(hasSecurityChanges(diff)).toBe(false);
     });
   });
 

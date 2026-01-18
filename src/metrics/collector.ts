@@ -16,6 +16,7 @@ import type {
   DashboardMetrics,
 } from './types.js';
 import { getModelPricing } from '../cost/tracker.js';
+import { PERCENTILES } from '../constants.js';
 
 /**
  * Options for the metrics collector.
@@ -567,9 +568,9 @@ export class MetricsCollector {
       const avg = sum / count;
       const min = sorted[0];
       const max = sorted[count - 1];
-      const p50 = sorted[Math.floor(count * 0.5)];
-      const p95 = sorted[Math.floor(count * 0.95)];
-      const p99 = sorted[Math.floor(count * 0.99)];
+      const p50 = sorted[Math.floor(count * PERCENTILES.P50)];
+      const p95 = sorted[Math.floor(count * PERCENTILES.P95)];
+      const p99 = sorted[Math.floor(count * PERCENTILES.P99)];
 
       results.push({
         operation: operation as OperationType,

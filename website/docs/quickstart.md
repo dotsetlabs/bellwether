@@ -13,7 +13,33 @@ Get up and running with Bellwether in 5 minutes.
 npm install -g @dotsetlabs/bellwether
 ```
 
-## 2. Set Your API Key
+## 2. Initialize Configuration
+
+Bellwether uses a config file (`bellwether.yaml`) for all settings. Initialize one:
+
+```bash
+# Default: structural mode (free, fast, deterministic)
+bellwether init npx @modelcontextprotocol/server-filesystem /tmp
+
+# Or for full LLM-powered testing with local Ollama (free)
+bellwether init --preset local npx @modelcontextprotocol/server-filesystem /tmp
+```
+
+This creates `bellwether.yaml` with your server command and settings.
+
+### Available Presets
+
+| Preset | Mode | Description |
+|:-------|:-----|:------------|
+| *(default)* | Structural | Free, fast, deterministic schema comparison |
+| `--preset ci` | Structural | Optimized for CI/CD pipelines |
+| `--preset local` | Full | LLM testing with local Ollama (free) |
+| `--preset security` | Full | Security-focused testing |
+| `--preset thorough` | Full | Comprehensive multi-persona testing |
+
+## 3. Set API Key (Full Mode Only)
+
+If using full mode with OpenAI or Anthropic:
 
 ```bash
 # Interactive setup (recommended - stores securely in keychain)
@@ -23,42 +49,24 @@ bellwether auth
 export OPENAI_API_KEY=sk-xxx
 # or
 export ANTHROPIC_API_KEY=sk-ant-xxx
-
-# Or use Ollama for free (ollama serve must be running)
 ```
 
-## 3. Test Your First MCP Server
+Structural mode and `--preset local` require no API keys.
 
-You can test any MCP server—local scripts, npm packages, or remote endpoints:
+## 4. Run Your First Test
 
 ```bash
-# Local Node.js server (most common during development)
-bellwether interview node ./src/mcp-server.js
-
-# npm package via npx
-bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
-
-# Python server
-bellwether interview python ./mcp_server.py
+bellwether test
 ```
 
 This will:
-1. Connect to the MCP server
+1. Connect to the MCP server defined in your config
 2. Discover available tools, prompts, and resources
-3. Test from 4 different personas (technical writer, security tester, QA engineer, novice user)
-4. Generate `AGENTS.md` documentation **for free** from test results
-5. Save a baseline for future drift detection
+3. Test using the mode specified in config (structural or full)
+4. Generate `AGENTS.md` documentation
+5. Generate `bellwether-report.json` for baseline comparison
 
-### Available Presets
-
-| Preset | Use Case | Cost |
-|:-------|:---------|:-----|
-| `--preset docs` | Quick documentation generation | ~$0.02 |
-| `--preset security` | Security-focused testing | ~$0.05 |
-| `--preset thorough` | Comprehensive testing with all personas | ~$0.10 |
-| `--preset ci` | Fast CI/CD checks | ~$0.01 |
-
-## 4. View the Results
+## 5. View the Results
 
 Open the generated `AGENTS.md` file:
 
@@ -66,7 +74,7 @@ Open the generated `AGENTS.md` file:
 cat AGENTS.md
 ```
 
-You'll see comprehensive documentation of what the server actually does, including:
+You'll see comprehensive documentation including:
 - Tool descriptions with observed behavior
 - Parameter documentation
 - Error handling patterns
@@ -75,29 +83,85 @@ You'll see comprehensive documentation of what the server actually does, includi
 - Quick reference with tool signatures
 - Performance metrics (response times, error rates)
 
-## Deterministic Testing (No LLM Required)
+## 6. Save a Baseline
 
-For CI/CD pipelines and situations where you need 100% deterministic results, Bellwether offers scenarios-only mode:
+Save your test results as a baseline for drift detection:
 
 ```bash
-# Generate a sample scenarios file
-bellwether interview --init-scenarios
-
-# Run only your custom scenarios (no LLM, no API costs, fully deterministic)
-bellwether interview --scenarios-only npx your-server
+bellwether baseline save
 ```
 
-This is ideal for:
-- **CI/CD pipelines** where you need consistent pass/fail results
-- **Cost-sensitive environments** where you want to avoid LLM API costs
-- **Compliance requirements** where non-deterministic testing is not acceptable
+This creates `bellwether-baseline.json` that captures the server's current behavior.
 
-See [Custom Scenarios](/guides/custom-scenarios) for details on writing YAML test scenarios.
+## 7. Detect Drift
 
-:::tip When to use each mode
-- **LLM-guided testing**: Discovery, initial documentation, exploratory testing
-- **Scenarios-only mode**: CI/CD gates, regression testing, deterministic verification
-:::
+Later, after making changes, compare against your baseline:
+
+```bash
+bellwether test
+bellwether baseline compare ./bellwether-baseline.json
+```
+
+For CI/CD, fail on drift:
+
+```bash
+bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+```
+
+---
+
+## Common Workflows
+
+### Local Development
+
+```bash
+# 1. Initialize config
+bellwether init node ./src/mcp-server.js
+
+# 2. Run test
+bellwether test
+
+# 3. Save baseline
+bellwether baseline save
+
+# 4. Watch for changes (re-tests on file changes)
+bellwether watch --watch-path ./src
+
+# 5. Before committing, check for drift
+bellwether baseline compare ./bellwether-baseline.json
+```
+
+### CI/CD Pipeline
+
+```bash
+# 1. Run test (uses committed bellwether.yaml)
+bellwether test
+
+# 2. Compare against committed baseline
+bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+```
+
+### Security Audit
+
+```bash
+# Initialize with security preset
+bellwether init --preset security npx your-server
+
+# Run security-focused test
+bellwether test
+```
+
+### Comprehensive Testing
+
+```bash
+# Initialize with thorough preset
+bellwether init --preset thorough npx your-server
+
+# Run full multi-persona test
+bellwether test
+```
+
+---
 
 ## What's Next?
 
@@ -118,151 +182,46 @@ Run the verification process to earn coverage badges:
 bellwether verify --tier gold npx your-server
 ```
 
-### Save a Baseline for Drift Detection
+### Configure Testing
 
-```bash
-bellwether interview npx your-server --save-baseline
-```
-
-### Compare Against a Baseline
-
-```bash
-bellwether interview npx your-server \
-  --compare-baseline ./bellwether-baseline.json \
-  --fail-on-drift
-```
-
-### Quick Mode for CI
-
-For fast, cheap CI runs (~$0.01):
-
-```bash
-bellwether interview --preset ci npx your-server
-```
-
-### Security Testing
-
-Test with a security focus:
-
-```bash
-bellwether interview --preset security npx your-server
-```
-
-### Thorough Testing
-
-Test with all personas for comprehensive coverage:
-
-```bash
-bellwether interview --preset thorough npx your-server
-```
-
-### Custom Test Scenarios (No LLM Required)
-
-Run deterministic tests without LLM costs:
-
-```bash
-# Generate a sample scenarios file
-bellwether interview --init-scenarios
-
-# Run only custom scenarios (fast, no API costs)
-bellwether interview --scenarios-only npx your-server
-```
-
-### Remote MCP Servers
-
-Test remote MCP servers over HTTP:
-
-```bash
-# Via SSE transport
-bellwether interview --transport sse --url https://api.example.com/mcp npx placeholder
-
-# Via Streamable HTTP
-bellwether interview --transport streamable-http --url https://api.example.com/mcp npx placeholder
-```
-
-### Customize Configuration
-
-Create `bellwether.yaml`:
+Edit `bellwether.yaml` to customize:
 
 ```yaml
-version: 1
+# Mode: structural (free) or full (LLM)
+mode: full
 
+# LLM provider
 llm:
   provider: openai
-  model: gpt-5-mini  # Cheaper, faster
+  model: gpt-4o-mini
 
-interview:
-  maxQuestionsPerTool: 5
+# Test settings (full mode)
+test:
   personas:
     - technical_writer
     - security_tester
+  maxQuestionsPerTool: 5
 ```
 
-Then run:
+See [Configuration Guide](/guides/configuration) for all options.
 
-```bash
-bellwether interview npx your-server
+### Remote MCP Servers
+
+Test remote MCP servers over HTTP by editing your config:
+
+```yaml
+server:
+  transport: sse
+  url: https://api.example.com/mcp
 ```
 
-## Common Workflows
+See [Remote Servers](/guides/remote-servers) for details.
 
-### Local Development: Test While You Build
-
-```bash
-# Run against your local server during development
-bellwether interview node ./src/mcp-server.js
-
-# Save a baseline after initial development
-bellwether interview --save-baseline node ./src/mcp-server.js
-
-# Use watch mode for continuous testing (re-interviews on file changes)
-bellwether watch node ./src/mcp-server.js --watch-path ./src
-
-# Before committing, check for unintended drift
-bellwether interview --compare-baseline ./bellwether-baseline.json node ./src/mcp-server.js
-```
-
-### Documentation: Generate AGENTS.md
-
-```bash
-# Quick documentation with preset
-bellwether interview --preset docs node ./src/mcp-server.js
-
-# View generated docs
-cat AGENTS.md
-```
-
-### CI/CD: Check for Behavioral Drift
-
-```bash
-# In CI pipeline - fast and cheap
-bellwether interview \
-  --preset ci \
-  --compare-baseline ./baseline.json \
-  --fail-on-drift \
-  npx your-server
-```
-
-### Security: Audit an MCP Server
-
-```bash
-# Security-focused interview with JSON output for analysis
-bellwether interview \
-  --preset security \
-  --json \
-  npx your-server
-```
-
-### Watch Mode: Continuous Testing
-
-```bash
-# Re-interview when source files change
-bellwether watch npx your-server --watch-path ./src
-```
+---
 
 ## Example Output
 
-After running an interview, your `AGENTS.md` will look like this:
+After running a test, your `AGENTS.md` will look like this:
 
 ```markdown
 # @modelcontextprotocol/server-filesystem
@@ -318,7 +277,7 @@ Reads the contents of a file from the specified path.
 ## Next Steps
 
 - [Local Development](/guides/local-development) - Test during development with watch mode and drift detection
-- [CLI Reference](/cli/interview) - Full command options
+- [CLI Reference](/cli/test) - Full command options
 - [MCP Registry](/cli/registry) - Discover servers to test
 - [Verification](/cli/verify) - Get your server certified
 - [Personas](/concepts/personas) - Understanding testing personas

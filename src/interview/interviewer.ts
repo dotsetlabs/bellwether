@@ -23,11 +23,11 @@ import type { Persona } from '../persona/types.js';
 import { DEFAULT_PERSONA } from '../persona/builtins.js';
 import { getLogger, startTiming } from '../logging/logger.js';
 import type { TestScenario, PromptScenario, ScenarioResult } from '../scenarios/types.js';
-import type { PromptQuestion } from './types.js';
+import type { PromptQuestion, ResourceQuestion } from './types.js';
 import { evaluateAssertions } from '../scenarios/evaluator.js';
 import { withTimeout, DEFAULT_TIMEOUTS, parallelLimit, createMutex } from '../utils/index.js';
 import type { ToolResponseCache } from '../cache/response-cache.js';
-import { INTERVIEW, WORKFLOW } from '../constants.js';
+import { INTERVIEW, WORKFLOW, DISPLAY_LIMITS } from '../constants.js';
 import { WorkflowDiscoverer } from '../workflow/discovery.js';
 import { WorkflowExecutor } from '../workflow/executor.js';
 import type { Workflow, WorkflowResult } from '../workflow/types.js';
@@ -49,7 +49,7 @@ export const DEFAULT_CONFIG: InterviewConfig = {
 export const DEFAULT_PERSONAS: Persona[] = [DEFAULT_PERSONA];
 
 export interface InterviewProgress {
-  phase: 'starting' | 'interviewing' | 'workflows' | 'synthesizing' | 'complete';
+  phase: 'starting' | 'interviewing' | 'prompts' | 'resources' | 'workflows' | 'synthesizing' | 'complete';
   currentTool?: string;
   currentPersona?: string;
   personasCompleted: number;
@@ -63,6 +63,14 @@ export interface InterviewProgress {
   workflowsCompleted?: number;
   /** Total workflows to execute */
   totalWorkflows?: number;
+  /** Number of prompts completed */
+  promptsCompleted?: number;
+  /** Total prompts to interview */
+  totalPrompts?: number;
+  /** Number of resources completed */
+  resourcesCompleted?: number;
+  /** Total resources to interview */
+  totalResources?: number;
 }
 
 export type ProgressCallback = (progress: InterviewProgress) => void;
@@ -273,6 +281,10 @@ export class Interviewer {
       toolsCompleted: 0,
       totalTools: discovery.tools.length,
       questionsAsked: 0,
+      promptsCompleted: 0,
+      totalPrompts: discovery.prompts.length,
+      resourcesCompleted: 0,
+      totalResources: (discovery.resources ?? []).length,
     };
 
     onProgress?.(progress);
@@ -393,8 +405,8 @@ export class Interviewer {
             // Convert scenarios to interview questions for integration with profiling
             questions = customScenarios.map(s => this.scenarioToQuestion(s));
 
-            // If not custom-only mode, also generate LLM questions
-            if (!this.config.customScenariosOnly) {
+            // If not custom-only mode, also generate LLM questions (skip in fast CI mode)
+            if (!this.config.customScenariosOnly && !this.config.structuralOnly) {
               const llmQuestions = await orchestrator.generateQuestions(
                 tool,
                 this.config.maxQuestionsPerTool,
@@ -403,12 +415,19 @@ export class Interviewer {
               questions = [...questions, ...llmQuestions];
             }
           } else if (!this.config.customScenariosOnly) {
-            // No custom scenarios - generate LLM questions as usual
-            questions = await orchestrator.generateQuestions(
-              tool,
-              this.config.maxQuestionsPerTool,
-              this.config.skipErrorTests
-            );
+            // No custom scenarios - generate questions
+            if (this.config.structuralOnly) {
+              // Fast CI mode: use fallback questions (no LLM call)
+              questions = orchestrator.getFallbackQuestions(tool, this.config.skipErrorTests)
+                .slice(0, this.config.maxQuestionsPerTool);
+            } else {
+              // Normal mode: generate LLM questions
+              questions = await orchestrator.generateQuestions(
+                tool,
+                this.config.maxQuestionsPerTool,
+                this.config.skipErrorTests
+              );
+            }
           }
           // If customScenariosOnly and no scenarios for this tool, skip it
 
@@ -433,8 +452,8 @@ export class Interviewer {
               });
 
               // If we have multiple failures, regenerate remaining questions with error context
-              // Skip in scenarios-only mode - we only run the defined scenarios
-              if (!this.config.customScenariosOnly &&
+              // Skip in scenarios-only mode and fast CI mode
+              if (!this.config.customScenariosOnly && !this.config.structuralOnly &&
                   previousErrors.length >= 2 && personaInteractions.length < questions.length) {
                 const remaining = this.config.maxQuestionsPerTool - personaInteractions.length;
                 if (remaining > 0) {
@@ -458,14 +477,15 @@ export class Interviewer {
           }
 
           // Synthesize this persona's findings for this tool
-          // Skip LLM synthesis in scenarios-only mode
+          // Skip LLM synthesis in scenarios-only mode and fast CI mode
           let personaProfile: { behavioralNotes: string[]; limitations: string[]; securityNotes: string[] };
-          if (this.config.customScenariosOnly) {
-            // In scenarios-only mode, generate simple profile from scenario results
+          if (this.config.customScenariosOnly || this.config.structuralOnly) {
+            // In fast mode, generate simple profile from results (no LLM call)
             const errors = personaInteractions.filter(i => i.error).map(i => i.error!);
+            const successes = personaInteractions.filter(i => !i.error);
             personaProfile = {
-              behavioralNotes: [`Executed ${personaInteractions.length} scenario(s)`],
-              limitations: errors.length > 0 ? [`${errors.length} scenario(s) returned errors`] : [],
+              behavioralNotes: [`Executed ${personaInteractions.length} test(s), ${successes.length} succeeded`],
+              limitations: errors.length > 0 ? [`${errors.length} test(s) returned errors`] : [],
               securityNotes: [],
             };
           } else {
@@ -517,6 +537,11 @@ export class Interviewer {
     if (discovery.prompts.length > 0) {
       this.logger.info({ promptCount: discovery.prompts.length }, 'Interviewing prompts');
 
+      // Update phase for prompts
+      progress.phase = 'prompts';
+      progress.promptsCompleted = 0;
+      onProgress?.(progress);
+
       const primaryOrchestrator = this.createOrchestrator(this.personas[0]);
 
       for (const prompt of discovery.prompts) {
@@ -546,14 +571,17 @@ export class Interviewer {
             args: s.args,
           }));
 
-          // If not custom-only mode, also generate LLM questions
-          if (!this.config.customScenariosOnly) {
+          // If not custom-only mode and not fast CI mode, also generate LLM questions
+          if (!this.config.customScenariosOnly && !this.config.structuralOnly) {
             const llmQuestions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
             questions = [...questions, ...llmQuestions];
           }
-        } else if (!this.config.customScenariosOnly) {
+        } else if (!this.config.customScenariosOnly && !this.config.structuralOnly) {
           // No custom scenarios - generate LLM questions as usual
           questions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
+        } else if (this.config.structuralOnly) {
+          // Fast CI mode: use simple fallback question for prompt
+          questions = [{ description: 'Basic prompt test', args: {} }];
         }
         // If customScenariosOnly and no scenarios for this prompt, skip it
 
@@ -568,13 +596,13 @@ export class Interviewer {
             error = e instanceof Error ? e.message : String(e);
           }
 
-          // Skip LLM analysis in scenarios-only mode
+          // Skip LLM analysis in scenarios-only mode and fast CI mode
           let analysis: string;
-          if (this.config.customScenariosOnly) {
+          if (this.config.customScenariosOnly || this.config.structuralOnly) {
             if (error) {
               analysis = `Error: ${error}`;
             } else if (response) {
-              analysis = 'Prompt scenario executed successfully.';
+              analysis = 'Prompt call succeeded.';
             } else {
               analysis = 'No response received.';
             }
@@ -601,16 +629,17 @@ export class Interviewer {
         }
 
         // Synthesize prompt profile
-        // Skip LLM synthesis in scenarios-only mode
+        // Skip LLM synthesis in scenarios-only mode and fast CI mode
         let profile: { name: string; description: string; arguments: Array<{ name: string; description?: string; required?: boolean }>; behavioralNotes: string[]; limitations: string[] };
-        if (this.config.customScenariosOnly) {
+        if (this.config.customScenariosOnly || this.config.structuralOnly) {
           const errors = promptInteractions.filter(i => i.error).length;
+          const successes = promptInteractions.length - errors;
           profile = {
             name: prompt.name,
             description: prompt.description || prompt.name,
             arguments: prompt.arguments || [],
-            behavioralNotes: [`Executed ${promptInteractions.length} scenario(s)${errors > 0 ? `, ${errors} with errors` : ''}`],
-            limitations: [],
+            behavioralNotes: [`Executed ${promptInteractions.length} test(s), ${successes} succeeded`],
+            limitations: errors > 0 ? [`${errors} test(s) returned errors`] : [],
           };
         } else {
           profile = await primaryOrchestrator.synthesizePromptProfile(
@@ -628,6 +657,10 @@ export class Interviewer {
           ...profile,
           interactions: promptInteractions,
         });
+
+        // Update prompt progress
+        progress.promptsCompleted = (progress.promptsCompleted ?? 0) + 1;
+        onProgress?.(progress);
       }
     }
 
@@ -639,6 +672,11 @@ export class Interviewer {
     if (discoveredResources.length > 0 && !this.config.customScenariosOnly) {
       this.logger.info({ resourceCount: discoveredResources.length }, 'Interviewing resources');
 
+      // Update phase for resources
+      progress.phase = 'resources';
+      progress.resourcesCompleted = 0;
+      onProgress?.(progress);
+
       const primaryOrchestrator = this.createOrchestrator(this.personas[0]);
 
       for (const resource of discoveredResources) {
@@ -647,8 +685,14 @@ export class Interviewer {
 
         const resourceInteractions: ResourceInteraction[] = [];
 
-        // Generate resource questions using the orchestrator
-        const questions = await primaryOrchestrator.generateResourceQuestions(resource, 2);
+        // Generate resource questions (skip LLM in fast CI mode)
+        let questions: ResourceQuestion[];
+        if (this.config.structuralOnly) {
+          // Fast CI mode: use simple fallback question
+          questions = [{ description: 'Basic resource read test', category: 'happy_path' as const }];
+        } else {
+          questions = await primaryOrchestrator.generateResourceQuestions(resource, 2);
+        }
 
         for (const question of questions) {
           const interactionStart = Date.now();
@@ -668,12 +712,24 @@ export class Interviewer {
             resourceReadCount++;
           }
 
-          const analysis = await primaryOrchestrator.analyzeResourceResponse(
-            resource,
-            question,
-            response,
-            error
-          );
+          // Skip LLM analysis in fast CI mode
+          let analysis: string;
+          if (this.config.structuralOnly) {
+            if (error) {
+              analysis = `Error: ${error}`;
+            } else if (response) {
+              analysis = 'Resource read succeeded.';
+            } else {
+              analysis = 'No response received.';
+            }
+          } else {
+            analysis = await primaryOrchestrator.analyzeResourceResponse(
+              resource,
+              question,
+              response,
+              error
+            );
+          }
 
           resourceInteractions.push({
             resourceUri: resource.uri,
@@ -689,16 +745,30 @@ export class Interviewer {
           onProgress?.(progress);
         }
 
-        // Synthesize resource profile
-        const profile = await primaryOrchestrator.synthesizeResourceProfile(
-          resource,
-          resourceInteractions.map(i => ({
-            question: i.question,
-            response: i.response,
-            error: i.error,
-            analysis: i.analysis,
-          }))
-        );
+        // Synthesize resource profile (skip LLM in fast CI mode)
+        let profile;
+        if (this.config.structuralOnly) {
+          const errors = resourceInteractions.filter(i => i.error).length;
+          const successes = resourceInteractions.length - errors;
+          profile = {
+            name: resource.name,
+            uri: resource.uri,
+            description: resource.description || resource.name,
+            mimeType: resource.mimeType,
+            behavioralNotes: [`Executed ${resourceInteractions.length} read(s), ${successes} succeeded`],
+            limitations: errors > 0 ? [`${errors} read(s) returned errors`] : [],
+          };
+        } else {
+          profile = await primaryOrchestrator.synthesizeResourceProfile(
+            resource,
+            resourceInteractions.map(i => ({
+              question: i.question,
+              response: i.response,
+              error: i.error,
+              analysis: i.analysis,
+            }))
+          );
+        }
 
         // Extract content preview from first successful read
         let contentPreview: string | undefined;
@@ -706,8 +776,8 @@ export class Interviewer {
         if (successfulRead?.response?.contents?.[0]) {
           const content = successfulRead.response.contents[0];
           if (content.text) {
-            contentPreview = content.text.length > 500
-              ? content.text.substring(0, 500) + '...'
+            contentPreview = content.text.length > DISPLAY_LIMITS.CONTENT_TEXT_PREVIEW
+              ? content.text.substring(0, DISPLAY_LIMITS.CONTENT_TEXT_PREVIEW) + '...'
               : content.text;
           } else if (content.blob) {
             contentPreview = `[Binary data: ${content.blob.length} bytes base64]`;
@@ -719,6 +789,10 @@ export class Interviewer {
           interactions: resourceInteractions,
           contentPreview,
         });
+
+        // Update resource progress
+        progress.resourcesCompleted = (progress.resourcesCompleted ?? 0) + 1;
+        onProgress?.(progress);
       }
     }
 
@@ -744,19 +818,21 @@ export class Interviewer {
     }
 
     // Synthesize overall findings (use first persona's orchestrator for synthesis)
-    // Skip LLM synthesis in scenarios-only mode
+    // Skip LLM synthesis in scenarios-only mode and fast CI mode
     progress.phase = 'synthesizing';
     onProgress?.(progress);
 
     let overall: { summary: string; limitations: string[]; recommendations: string[] };
-    if (this.config.customScenariosOnly) {
-      const totalScenarios = toolProfiles.reduce((sum, p) => sum + p.interactions.length, 0);
+    if (this.config.customScenariosOnly || this.config.structuralOnly) {
+      // Fast mode: generate simple summary without LLM
+      const totalTests = toolProfiles.reduce((sum, p) => sum + p.interactions.length, 0);
       const totalErrors = toolProfiles.reduce(
         (sum, p) => sum + p.interactions.filter(i => i.error).length, 0
       );
+      const successRate = totalTests > 0 ? Math.round((1 - totalErrors / totalTests) * 100) : 100;
       overall = {
-        summary: `Executed ${totalScenarios} custom scenario(s) across ${toolProfiles.length} tool(s).${totalErrors > 0 ? ` ${totalErrors} scenario(s) returned errors.` : ''}`,
-        limitations: [],
+        summary: `Tested ${toolProfiles.length} tool(s) with ${totalTests} call(s). Success rate: ${successRate}%.${totalErrors > 0 ? ` ${totalErrors} call(s) returned errors.` : ''}`,
+        limitations: totalErrors > 0 ? ['Some tool calls returned errors - see individual tool sections for details.'] : [],
         recommendations: [],
       };
     } else {
@@ -783,6 +859,7 @@ export class Interviewer {
       model: this.config.model,
       personas: Array.from(personaStats.values()),
       workflows: workflowSummary,
+      serverCommand: this.config.serverCommand,
     };
 
     progress.phase = 'complete';
@@ -931,19 +1008,19 @@ export class Interviewer {
     }
 
     // Analyze the response with this persona's perspective
-    // Skip LLM analysis in scenarios-only mode - just use assertion results
+    // Skip LLM analysis in scenarios-only mode and fast CI mode
     let analysis: string;
     const llmAnalysisStart = Date.now();
-    if (this.config.customScenariosOnly) {
-      // In scenarios-only mode, generate analysis from assertion results
+    if (this.config.customScenariosOnly || this.config.structuralOnly) {
+      // In fast mode, generate simple analysis (no LLM call)
       if (error) {
         analysis = `Error: ${error}`;
       } else if (response) {
-        analysis = 'Scenario executed successfully.';
+        analysis = 'Tool call succeeded.';
       } else {
         analysis = 'No response received.';
       }
-      llmAnalysisMs = 0; // No LLM call in scenarios-only mode
+      llmAnalysisMs = 0; // No LLM call in fast mode
     } else {
       const tool: MCPTool = { name: toolName, description: '' };
       analysis = await orchestrator.analyzeResponse(
@@ -979,7 +1056,7 @@ export class Interviewer {
     const pathMatch = error.match(/access denied|not allowed|outside.*(?:allowed|permitted).*?([/\\][^\s"']+)/i);
     if (pathMatch) {
       // Error mentions a path restriction
-      const constraint = `Path access restricted: ${error.substring(0, 100)}`;
+      const constraint = `Path access restricted: ${error.substring(0, DISPLAY_LIMITS.ERROR_CONSTRAINT_LENGTH)}`;
       const currentContext = orchestrator.getServerContext() ?? { constraints: [] };
       if (!currentContext.constraints?.includes(constraint)) {
         currentContext.constraints = [...(currentContext.constraints ?? []), constraint];

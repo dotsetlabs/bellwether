@@ -20,7 +20,7 @@ Bellwether generates output in multiple formats to support different use cases: 
 Human-readable behavioral documentation.
 
 ```bash
-bellwether interview npx your-server
+bellwether test npx your-server
 # Output: AGENTS.md
 ```
 
@@ -107,7 +107,7 @@ The `AGENTS.md` output includes:
 Machine-readable format for programmatic access.
 
 ```bash
-bellwether interview --json npx your-server
+bellwether test --json npx your-server
 # Output: bellwether-report.json
 ```
 
@@ -180,14 +180,14 @@ The JSON report includes:
 Save a baseline for drift detection:
 
 ```bash
-bellwether interview --save-baseline npx your-server
+bellwether test --save-baseline npx your-server
 # Output: bellwether-baseline.json
 ```
 
 The baseline captures the server's behavior at a point in time. Later, compare against it:
 
 ```bash
-bellwether interview --compare-baseline ./bellwether-baseline.json npx your-server
+bellwether test --compare-baseline ./bellwether-baseline.json npx your-server
 ```
 
 ### Example Baseline
@@ -216,7 +216,7 @@ bellwether interview --compare-baseline ./bellwether-baseline.json npx your-serv
 Generate both documentation and JSON report:
 
 ```bash
-bellwether interview --json -o ./output npx your-server
+bellwether test --json -o ./output npx your-server
 ```
 
 This creates:
@@ -226,12 +226,12 @@ This creates:
 ## Custom Output Directory
 
 ```bash
-bellwether interview -o ./docs npx your-server
+bellwether test -o ./docs npx your-server
 # Output: docs/AGENTS.md
 ```
 
 ## See Also
 
 - [CI/CD Integration](/guides/ci-cd) - Using outputs in pipelines
-- [interview](/cli/interview) - Output options
+- [interview](/cli/test) - Output options
 - [Drift Detection](/concepts/drift-detection) - Comparing outputs

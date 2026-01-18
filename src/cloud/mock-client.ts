@@ -32,6 +32,7 @@ import type {
 } from './types.js';
 import { isMockSession, MOCK_SESSION_PREFIX } from './auth.js';
 import * as output from '../cli/output.js';
+import { TIME_CONSTANTS } from '../constants.js';
 
 /**
  * Directory for mock cloud storage.
@@ -576,7 +577,7 @@ export function generateMockSession(username: string = 'dev'): StoredSession {
       githubName: username,
       plan: 'free',
     },
-    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+    expiresAt: new Date(Date.now() + TIME_CONSTANTS.SESSION_EXPIRATION_MS).toISOString(), // 30 days
   };
 }
 

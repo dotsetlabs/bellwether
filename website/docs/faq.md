@@ -87,7 +87,7 @@ Yes, using Ollama for local LLM inference:
 ```bash
 ollama serve
 ollama pull llama3.2
-bellwether interview npx your-server
+bellwether test npx your-server
 ```
 
 ### How do I update Bellwether?
@@ -101,7 +101,7 @@ npm update -g @dotsetlabs/bellwether
 ### How do I interview an MCP server?
 
 ```bash
-bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
+bellwether test npx @modelcontextprotocol/server-filesystem /tmp
 ```
 
 ### What output formats are supported?
@@ -113,23 +113,23 @@ bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 
 ```bash
 # Single persona
-bellwether interview --persona security_tester npx server
+bellwether test --persona security_tester npx server
 
 # Multiple personas
-bellwether interview --persona technical_writer,security_tester npx server
+bellwether test --persona technical_writer,security_tester npx server
 ```
 
 ### How do I save a baseline?
 
 ```bash
-bellwether interview --save-baseline npx your-server
+bellwether test --save-baseline npx your-server
 # Creates: bellwether-baseline.json
 ```
 
 ### How do I compare against a baseline?
 
 ```bash
-bellwether interview \
+bellwether test \
   --compare-baseline ./bellwether-baseline.json \
   --fail-on-drift \
   npx your-server
@@ -145,7 +145,7 @@ bellwether interview \
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   run: |
-    npx @dotsetlabs/bellwether interview \
+    npx @dotsetlabs/bellwether test \
       --ci \
       --compare-baseline ./baseline.json \
       --fail-on-drift \
@@ -165,7 +165,7 @@ bellwether interview \
 Use quick mode:
 
 ```bash
-bellwether interview --quick npx your-server
+bellwether test --quick npx your-server
 ```
 
 This uses a cheaper model and fewer questions (~$0.01).
@@ -250,7 +250,7 @@ bellwether discover npx your-server
 Increase timeout:
 
 ```bash
-bellwether interview --timeout 120000 npx your-server
+bellwether test --timeout 120000 npx your-server
 ```
 
 ### "Interview taking too long"
@@ -258,7 +258,7 @@ bellwether interview --timeout 120000 npx your-server
 Use quick mode:
 
 ```bash
-bellwether interview --quick npx your-server
+bellwether test --quick npx your-server
 ```
 
 ## Contributing

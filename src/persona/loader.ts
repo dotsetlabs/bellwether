@@ -8,6 +8,7 @@ import { parseYamlSecure } from '../utils/yaml-parser.js';
 import { BUILTIN_PERSONAS, isBuiltinPersona, DEFAULT_PERSONA } from './builtins.js';
 import { validatePersona, formatValidationErrors, normalizeBiasWeights } from './validation.js';
 import { getLogger } from '../logging/logger.js';
+import { MATH_FACTORS } from '../constants.js';
 
 /**
  * Options for loading personas.
@@ -130,10 +131,10 @@ function validateAndNormalizePersona(data: Partial<PersonaYAML>, source: string)
 
   // Normalize question bias with defaults
   const defaultBias: QuestionBias = {
-    happyPath: 0.25,
-    edgeCase: 0.25,
-    errorHandling: 0.25,
-    boundary: 0.25,
+    happyPath: MATH_FACTORS.DEFAULT_QUESTION_BIAS,
+    edgeCase: MATH_FACTORS.DEFAULT_QUESTION_BIAS,
+    errorHandling: MATH_FACTORS.DEFAULT_QUESTION_BIAS,
+    boundary: MATH_FACTORS.DEFAULT_QUESTION_BIAS,
   };
 
   let questionBias: QuestionBias = {

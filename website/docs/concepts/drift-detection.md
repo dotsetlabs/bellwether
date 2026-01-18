@@ -65,7 +65,7 @@ For CI/CD pipelines requiring deterministic results:
 
 ```bash
 # Use scenarios-only mode with your own YAML test definitions
-bellwether interview --scenarios-only --compare-baseline ./baseline.json npx your-server
+bellwether test --scenarios-only --compare-baseline ./baseline.json npx your-server
 ```
 
 This mode:
@@ -98,18 +98,18 @@ This mode:
 
 ```bash
 # Save initial baseline
-bellwether interview --save-baseline npx your-server
+bellwether test --save-baseline npx your-server
 
 # Make changes to server...
 
 # Compare against baseline
-bellwether interview --compare-baseline ./bellwether-baseline.json npx your-server
+bellwether test --compare-baseline ./bellwether-baseline.json npx your-server
 ```
 
 ### CI/CD Pipeline
 
 ```bash
-bellwether interview \
+bellwether test \
   --ci \
   --compare-baseline ./bellwether-baseline.json \
   --fail-on-drift \
@@ -121,7 +121,7 @@ bellwether interview \
 **Strict mode** (`--strict`) provides 100% deterministic drift detection by only reporting structural changes:
 
 ```bash
-bellwether interview \
+bellwether test \
   --compare-baseline ./baseline.json \
   --fail-on-drift \
   --strict \
@@ -176,7 +176,7 @@ There are two threshold options with different purposes:
 
 ```bash
 # Only report changes with >80% confidence
-bellwether interview \
+bellwether test \
   --compare-baseline ./baseline.json \
   --min-confidence 80 \
   npx your-server
@@ -186,7 +186,7 @@ bellwether interview \
 
 ```bash
 # Only fail CI if breaking changes have 90%+ confidence
-bellwether interview \
+bellwether test \
   --compare-baseline ./baseline.json \
   --fail-on-drift \
   --confidence-threshold 90 \
@@ -274,10 +274,10 @@ When drift is expected (new features, fixes):
 
 ```bash
 # Review the changes
-bellwether interview --compare-baseline ./baseline.json npx your-server
+bellwether test --compare-baseline ./baseline.json npx your-server
 
 # Update baseline if changes are correct
-bellwether interview --save-baseline npx your-server
+bellwether test --save-baseline npx your-server
 
 # Commit updated baseline
 git add bellwether-baseline.json
@@ -328,4 +328,4 @@ Cloud provides:
 - [Baselines](/concepts/baselines) - Creating and managing baselines
 - [CI/CD Integration](/guides/ci-cd) - Automated drift checking
 - [Configuration](/guides/configuration) - Config file drift options
-- [interview](/cli/interview) - Running drift detection
+- [interview](/cli/test) - Running drift detection

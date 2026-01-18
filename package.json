@@ -1,7 +1,7 @@
 {
   "name": "@dotsetlabs/bellwether",
-  "version": "0.4.0",
-  "description": "Behavioral drift detection for MCP servers. Test from 4 personas, catch regressions, get documentation free.",
+  "version": "0.5.0",
+  "description": "Behavioral drift detection for MCP servers. Zero-LLM structural mode by default, optional multi-persona testing with OpenAI/Anthropic. Auto-generate AGENTS.md documentation.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

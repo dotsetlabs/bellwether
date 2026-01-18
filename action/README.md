@@ -1,25 +1,22 @@
 # Bellwether GitHub Action
 
-> **Test your MCP servers. Catch drift. Get documentation for free.**
+> **Catch MCP server drift before your users do. Zero LLM required.**
 
-Behavioral drift detection for MCP servers in CI/CD. The only tool that tests from 4 unique personas.
+Structural drift detection for MCP servers in CI/CD. Free. Deterministic. Fast.
 
 ## Features
 
-- **Behavioral Drift Detection** - Compare baselines to catch regressions before deployment (not just schema changes)
-- **4-Persona Testing** - Technical writer, security tester, QA engineer, novice user—unique to Bellwether
+- **Structural Drift Detection** - Catch tool additions, removals, schema changes
+- **Zero LLM Required** - No API keys, no token costs (in structural mode)
+- **Deterministic** - Same input = same output
 - **CI/CD Gating** - Block deployments when behavior drifts unexpectedly
-- **Free Documentation** - AGENTS.md generated automatically from test results
-- **Custom Test Scenarios** - Define deterministic tests (with or without LLM)
-- **Multiple LLM Providers** - OpenAI, Anthropic, or Ollama
+- **Config-Driven** - Uses `bellwether.yaml` for all settings
 
-## Usage
-
-### Basic Usage
+## Quick Start
 
 ```yaml
 name: MCP Drift Detection
-on: [push, pull_request]
+on: [pull_request]
 
 jobs:
   bellwether:
@@ -27,101 +24,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Test MCP Server
+      - name: Detect Drift
         uses: dotsetlabs/bellwether/action@v1
         with:
-          server-command: 'npx @modelcontextprotocol/server-filesystem'
-          server-args: '/tmp'
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          server-command: 'npx @mcp/your-server'
 ```
 
-### Quick Mode (Recommended for PRs)
+No secrets needed. Free. Runs in seconds.
+
+## Usage
+
+### Basic Drift Detection
 
 ```yaml
-- name: Quick Interview
+- name: Detect Drift
   uses: dotsetlabs/bellwether/action@v1
   with:
-    server-command: 'npx @modelcontextprotocol/server-filesystem'
-    server-args: '/tmp'
-    quick: 'true'
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-```
-
-### Using Presets
-
-```yaml
-- name: Security-focused Interview
-  uses: dotsetlabs/bellwether/action@v1
-  with:
-    server-command: 'npx @modelcontextprotocol/server-filesystem'
-    server-args: '/tmp'
-    preset: 'security'  # Options: docs, security, thorough, ci
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-```
-
-### Drift Detection
-
-```yaml
-- name: Interview with Drift Detection
-  uses: dotsetlabs/bellwether/action@v1
-  with:
-    server-command: 'npx @modelcontextprotocol/server-filesystem'
-    server-args: '/tmp'
+    server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
     fail-on-drift: 'true'
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-```
-
-### Deterministic Drift Detection (Strict Mode)
-
-For CI/CD pipelines requiring 100% reproducible results, use strict mode:
-
-```yaml
-- name: Deterministic Drift Detection
-  uses: dotsetlabs/bellwether/action@v1
-  with:
-    server-command: 'npx @modelcontextprotocol/server-filesystem'
-    server-args: '/tmp'
-    baseline-path: './bellwether-baseline.json'
-    fail-on-drift: 'true'
-    strict: 'true'  # Only structural changes (no LLM comparison)
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-```
-
-### Confidence-Based Drift Detection
-
-Filter changes by confidence score:
-
-```yaml
-- name: High-Confidence Drift Detection
-  uses: dotsetlabs/bellwether/action@v1
-  with:
-    server-command: 'npx @modelcontextprotocol/server-filesystem'
-    server-args: '/tmp'
-    baseline-path: './bellwether-baseline.json'
-    fail-on-drift: 'true'
-    min-confidence: '80'  # Only report changes with 80%+ confidence
-    confidence-threshold: '90'  # Only fail on breaking changes with 90%+ confidence
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 ```
 
 ### Save Baseline
 
 ```yaml
-- name: Interview and Save Baseline
+- name: Save Baseline
   uses: dotsetlabs/bellwether/action@v1
   with:
-    server-command: 'npx @modelcontextprotocol/server-filesystem'
-    server-args: '/tmp'
+    server-command: 'npx @mcp/your-server'
     save-baseline: 'true'
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
 - name: Commit Baseline
   uses: stefanzweifel/git-auto-commit-action@v5
@@ -130,72 +61,32 @@ Filter changes by confidence score:
     file_pattern: 'bellwether-baseline.json'
 ```
 
-### Custom Scenarios (No LLM Required)
+### With Custom Config
 
 ```yaml
-- name: Run Custom Scenarios
+- name: Run with Custom Config
   uses: dotsetlabs/bellwether/action@v1
   with:
-    server-command: 'npx @modelcontextprotocol/server-filesystem'
-    server-args: '/tmp'
-    scenarios-path: './bellwether-tests.yaml'
-    scenarios-only: 'true'
+    server-command: 'npx @mcp/your-server'
+    config-path: './configs/ci.yaml'
 ```
 
-### Security-Focused Interview
+### Full Mode with LLM (Optional)
+
+For comprehensive testing with LLM-generated scenarios, create a config with full mode:
 
 ```yaml
-- name: Security Interview
-  uses: dotsetlabs/bellwether/action@v1
-  with:
-    server-command: 'npx @modelcontextprotocol/server-filesystem'
-    server-args: '/tmp'
-    preset: 'security'
-    output-json: 'true'
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+# bellwether.yaml
+mode: full
+llm:
+  provider: openai
 ```
 
-The security preset includes the security testing persona for adversarial testing.
-
-### Workflow Testing
-
 ```yaml
-- name: Test with Workflows
+- name: Full Test
   uses: dotsetlabs/bellwether/action@v1
   with:
-    server-command: 'npx @modelcontextprotocol/server-filesystem'
-    server-args: '/tmp'
-    workflows-path: './bellwether-workflows.yaml'
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-```
-
-Or auto-discover workflows:
-
-```yaml
-- name: Auto-Discover Workflows
-  uses: dotsetlabs/bellwether/action@v1
-  with:
-    server-command: 'npx @modelcontextprotocol/server-filesystem'
-    server-args: '/tmp'
-    discover-workflows: 'true'
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-```
-
-### Fast Parallel Execution
-
-For faster CI with multiple personas:
-
-```yaml
-- name: Parallel Interview
-  uses: dotsetlabs/bellwether/action@v1
-  with:
-    server-command: 'npx @modelcontextprotocol/server-filesystem'
-    server-args: '/tmp'
-    preset: 'thorough'
-    parallel-personas: 'true'
+    server-command: 'npx @mcp/your-server'
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 ```
@@ -206,30 +97,11 @@ For faster CI with multiple personas:
 |-------|-------------|----------|---------|
 | `server-command` | Command to start the MCP server | Yes | - |
 | `server-args` | Arguments to pass to the server | No | `''` |
-| `preset` | Interview preset (docs, security, thorough, ci) | No | - |
-| `personas` | Comma-separated personas (if not using preset) | No | `technical_writer` |
-| `max-questions` | Max questions per tool (if not using preset) | No | `3` |
-| `quick` | Quick mode for fast CI runs | No | `false` |
-| `security` | Include security testing persona | No | `false` |
-| `baseline-path` | Path to baseline file for drift comparison | No | - |
+| `config-path` | Path to bellwether.yaml config file | No | `bellwether.yaml` |
+| `baseline-path` | Path to baseline file for drift comparison | No | `bellwether-baseline.json` |
 | `fail-on-drift` | Fail if drift is detected | No | `true` |
-| `strict` | Strict mode: only structural changes (deterministic) | No | `false` |
-| `min-confidence` | Minimum confidence (0-100) to report changes | No | `0` |
-| `confidence-threshold` | Confidence threshold (0-100) for failures | No | `80` |
-| `save-baseline` | Save baseline after interview | No | `false` |
-| `output-json` | Also generate JSON report | No | `false` |
+| `save-baseline` | Save baseline after test | No | `false` |
 | `output-dir` | Directory for output files | No | `.` |
-| `scenarios-path` | Path to custom test scenarios YAML | No | - |
-| `scenarios-only` | Run only custom scenarios (no LLM) | No | `false` |
-| `workflows-path` | Path to workflow definitions YAML | No | - |
-| `discover-workflows` | Enable LLM-based workflow discovery | No | `false` |
-| `parallel-personas` | Run persona interviews in parallel | No | `false` |
-| `no-cache` | Disable response caching | No | `false` |
-| `timeout` | Timeout for tool calls in ms | No | `30000` |
-| `llm-provider` | LLM provider (auto-detected from API key) | No | - |
-| `llm-model` | LLM model to use | No | - |
-| `openai-api-key` | OpenAI API key (or use env var) | No | - |
-| `anthropic-api-key` | Anthropic API key (or use env var) | No | - |
 
 ## Outputs
 
@@ -238,50 +110,90 @@ For faster CI with multiple personas:
 | `result` | Check result: passed or failed |
 | `exit-code` | Exit code (0=pass, 1=fail, 2=error) |
 | `drift-detected` | Whether drift was detected |
-| `security-tested` | Whether security persona was included |
 | `tool-count` | Number of tools discovered |
-| `error-count` | Number of errors encountered |
 | `agents-md` | Path to generated AGENTS.md file |
-| `json-report` | Path to JSON report file |
-| `baseline-file` | Path to saved baseline file |
+| `baseline-file` | Path to baseline file |
 
 ## Artifacts
 
 The action automatically uploads:
 - `bellwether-docs`: The generated AGENTS.md file
 - `bellwether-baseline`: The baseline file (if saved)
-- `bellwether-report`: The JSON report (if `output-json: true`)
+- `bellwether-report`: The JSON report
 
-## Using with Different LLM Providers
+## Configuration
 
-### Anthropic
+All test settings are configured in `bellwether.yaml`. If no config file exists, the action automatically creates one with `--preset ci` (structural mode, optimized for CI).
 
+### Create Config Locally
+
+```bash
+# CI-optimized (structural, fast, free)
+bellwether init --preset ci
+
+# Full mode with local Ollama
+bellwether init --preset local
+
+# Commit the config
+git add bellwether.yaml
+git commit -m "Add Bellwether config"
+```
+
+### Example Config
+
+```yaml
+# bellwether.yaml
+server:
+  command: "npx @mcp/your-server"
+  timeout: 30000
+
+mode: structural  # Free, fast, deterministic
+
+output:
+  dir: "."
+  format: both  # Generate JSON for baseline comparison
+
+baseline:
+  failOnDrift: true
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success - no drift detected |
+| `1` | Drift detected or test failed |
+| `2` | Configuration or connection error |
+
+## Migration from v0.x
+
+If you were using the old flag-based inputs:
+
+**Before:**
+```yaml
+- uses: dotsetlabs/bellwether/action@v0
+  with:
+    server-command: 'npx @mcp/server'
+    preset: 'ci'
+    max-questions: '3'
+    personas: 'technical_writer'
+    structural-only: 'true'
+```
+
+**After:**
 ```yaml
 - uses: dotsetlabs/bellwether/action@v1
   with:
-    server-command: 'npx your-server'
-    llm-provider: 'anthropic'
-    llm-model: 'claude-3-5-sonnet-20241022'
-  env:
-    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    server-command: 'npx @mcp/server'
 ```
 
-### Self-hosted Ollama
-
-```yaml
-- uses: dotsetlabs/bellwether/action@v1
-  with:
-    server-command: 'npx your-server'
-    llm-provider: 'ollama'
-    llm-model: 'llama2'
-```
+All settings now come from `bellwether.yaml`. The action auto-creates one if missing.
 
 ## Security
 
 - Never commit API keys to your repository
 - Use GitHub Secrets to store sensitive values
-- Use `preset: security` or `security: true` for adversarial testing
-- The action filters out sensitive environment variables when spawning servers
+- For structural mode (default), no API keys are needed
 
 ## License
 

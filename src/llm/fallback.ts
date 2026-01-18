@@ -23,6 +23,7 @@ import {
   LLMConnectionError,
   LLMRateLimitError,
 } from '../errors/types.js';
+import { TIME_CONSTANTS, RETRY } from '../constants.js';
 
 const logger = getLogger('fallback-llm');
 
@@ -85,9 +86,9 @@ export class FallbackLLMClient implements LLMClient {
       providers: config.providers,
       useOllamaFallback: config.useOllamaFallback ?? true,
       ollamaModel: config.ollamaModel ?? DEFAULT_MODELS.ollama,
-      healthCheckIntervalMs: config.healthCheckIntervalMs ?? 60000,
-      maxConsecutiveFailures: config.maxConsecutiveFailures ?? 3,
-      unhealthyRetryDelayMs: config.unhealthyRetryDelayMs ?? 300000,
+      healthCheckIntervalMs: config.healthCheckIntervalMs ?? TIME_CONSTANTS.HEALTH_CHECK_INTERVAL,
+      maxConsecutiveFailures: config.maxConsecutiveFailures ?? RETRY.DEFAULT_ATTEMPTS,
+      unhealthyRetryDelayMs: config.unhealthyRetryDelayMs ?? TIME_CONSTANTS.UNHEALTHY_RETRY_DELAY,
       onUsage: config.onUsage,
     };
 

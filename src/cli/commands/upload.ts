@@ -1,13 +1,17 @@
 /**
  * Upload command for uploading baselines to Bellwether Cloud.
+ *
+ * Can read baseline path from bellwether.yaml config.
  */
 
 import { Command } from 'commander';
 import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import { getSessionToken, getLinkedProject } from '../../cloud/auth.js';
 import { createCloudClient } from '../../cloud/client.js';
 import { loadBaseline } from '../../baseline/saver.js';
 import { convertToCloudBaseline } from '../../baseline/converter.js';
+import { loadConfigNew } from '../../config/loader.js';
 import type { BellwetherBaseline } from '../../cloud/types.js';
 import * as output from '../output.js';
 
@@ -16,15 +20,40 @@ import * as output from '../output.js';
  */
 const DEFAULT_BASELINE_FILE = 'bellwether-baseline.json';
 
+/**
+ * Try to get output directory from config file.
+ */
+function getOutputDirFromConfig(configPath?: string): string {
+  try {
+    const config = loadConfigNew(configPath);
+    return config.output.dir;
+  } catch {
+    return '.';
+  }
+}
+
 export const uploadCommand = new Command('upload')
   .description('Upload a baseline to Bellwether Cloud')
   .argument('[baseline]', `Path to baseline JSON file (default: ${DEFAULT_BASELINE_FILE})`)
+  .option('-c, --config <path>', 'Path to config file (for reading output directory)')
   .option('-p, --project <id>', 'Project ID to upload to (uses linked project if not specified)')
   .option('--ci', 'CI mode - output URL only, exit 1 on breaking drift')
   .option('--session <session>', 'Session token (overrides stored/env session)')
   .option('--fail-on-drift', 'Exit with error if any behavioral drift detected')
   .action(async (baselineArg: string | undefined, options) => {
-    const baselinePath = baselineArg ?? DEFAULT_BASELINE_FILE;
+    // Try to get output directory from config
+    const outputDir = getOutputDirFromConfig(options.config);
+
+    // Determine baseline path - check explicit arg, then config output dir
+    let baselinePath = baselineArg;
+    if (!baselinePath) {
+      const configBaseline = join(outputDir, DEFAULT_BASELINE_FILE);
+      if (existsSync(configBaseline)) {
+        baselinePath = configBaseline;
+      } else {
+        baselinePath = DEFAULT_BASELINE_FILE;
+      }
+    }
     const isCiMode = options.ci;
 
     // Get session
@@ -45,7 +74,9 @@ export const uploadCommand = new Command('upload')
         process.exit(1);
       }
       output.error(`Baseline file not found: ${baselinePath}`);
-      output.error('\nRun `bellwether interview <server> --save-baseline` first.');
+      output.error('\nCreate a baseline first:');
+      output.error('  1. Run `bellwether test` (with output.format: json in config)');
+      output.error('  2. Run `bellwether baseline save`');
       process.exit(1);
     }
 

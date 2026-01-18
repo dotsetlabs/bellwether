@@ -2,6 +2,7 @@ import type { MCPClient } from '../transport/mcp-client.js';
 import type { DiscoveryResult, ToolDetail, ToolInputSchema } from './types.js';
 import type { MCPTool, MCPPrompt, MCPResource } from '../transport/types.js';
 import { getLogger } from '../logging/logger.js';
+import { DISPLAY_LIMITS } from '../constants.js';
 
 const logger = getLogger('discovery');
 
@@ -130,8 +131,8 @@ export function summarizeDiscovery(result: DiscoveryResult): string {
       lines.push(`  ${tool.name}(${allParams})`);
       if (tool.description) {
         // Truncate long descriptions
-        const desc = tool.description.length > 70
-          ? tool.description.substring(0, 67) + '...'
+        const desc = tool.description.length > DISPLAY_LIMITS.DESCRIPTION_MAX_LENGTH
+          ? tool.description.substring(0, DISPLAY_LIMITS.DESCRIPTION_TRUNCATE_AT) + '...'
           : tool.description;
         lines.push(`    └─ ${desc}`);
       }
@@ -149,8 +150,8 @@ export function summarizeDiscovery(result: DiscoveryResult): string {
       }).join(', ') ?? '';
       lines.push(`  ${prompt.name}(${args})`);
       if (prompt.description) {
-        const desc = prompt.description.length > 70
-          ? prompt.description.substring(0, 67) + '...'
+        const desc = prompt.description.length > DISPLAY_LIMITS.DESCRIPTION_MAX_LENGTH
+          ? prompt.description.substring(0, DISPLAY_LIMITS.DESCRIPTION_TRUNCATE_AT) + '...'
           : prompt.description;
         lines.push(`    └─ ${desc}`);
       }
@@ -168,8 +169,8 @@ export function summarizeDiscovery(result: DiscoveryResult): string {
       lines.push(`  ${resource.name}${mimeType}`);
       lines.push(`    URI: ${resource.uri}`);
       if (resource.description) {
-        const desc = resource.description.length > 70
-          ? resource.description.substring(0, 67) + '...'
+        const desc = resource.description.length > DISPLAY_LIMITS.DESCRIPTION_MAX_LENGTH
+          ? resource.description.substring(0, DISPLAY_LIMITS.DESCRIPTION_TRUNCATE_AT) + '...'
           : resource.description;
         lines.push(`    └─ ${desc}`);
       }
@@ -180,7 +181,7 @@ export function summarizeDiscovery(result: DiscoveryResult): string {
   // Quick start hint
   lines.push('QUICK START');
   lines.push('───────────');
-  lines.push(`  bellwether interview ${result.serverCommand} ${result.serverArgs.join(' ')}`);
+  lines.push(`  bellwether test ${result.serverCommand} ${result.serverArgs.join(' ')}`);
   lines.push('');
   lines.push('  Options:');
   lines.push('    --preset docs      Documentation-focused (recommended)');

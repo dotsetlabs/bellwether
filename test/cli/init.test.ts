@@ -3,9 +3,10 @@ import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
-// We need to test the command action, not the command itself
-// Import the module to test the functionality
-import { generateDefaultConfig } from '../../src/config/loader.js';
+// Import the new template functions
+import { generateConfigTemplate, generatePresetConfig, PRESETS } from '../../src/config/template.js';
+import { validateConfig } from '../../src/config/validator.js';
+import { parseYamlSecure } from '../../src/utils/yaml-parser.js';
 
 describe('cli/init', () => {
   let testDir: string;
@@ -52,20 +53,177 @@ describe('cli/init', () => {
     }
   });
 
-  describe('init command functionality', () => {
+  describe('generateConfigTemplate', () => {
+    it('should generate valid YAML config', () => {
+      const content = generateConfigTemplate();
+
+      // Should be valid YAML
+      const parsed = parseYamlSecure(content);
+      expect(parsed).toBeDefined();
+    });
+
+    it('should include all required config sections', () => {
+      const content = generateConfigTemplate();
+
+      // Server section
+      expect(content).toContain('server:');
+      expect(content).toContain('command:');
+      expect(content).toContain('timeout:');
+
+      // Mode
+      expect(content).toContain('mode: structural');
+
+      // LLM section
+      expect(content).toContain('llm:');
+      expect(content).toContain('provider: ollama');
+
+      // Test settings
+      expect(content).toContain('test:');
+      expect(content).toContain('maxQuestionsPerTool:');
+
+      // Output section
+      expect(content).toContain('output:');
+      expect(content).toContain('dir:');
+
+      // Baseline section
+      expect(content).toContain('baseline:');
+      expect(content).toContain('failOnDrift:');
+
+      // Cache section
+      expect(content).toContain('cache:');
+      expect(content).toContain('enabled:');
+
+      // Logging section
+      expect(content).toContain('logging:');
+      expect(content).toContain('level:');
+    });
+
+    it('should generate config that validates against schema', () => {
+      const content = generateConfigTemplate();
+      const parsed = parseYamlSecure(content);
+
+      // Should validate without throwing
+      const validated = validateConfig(parsed);
+      expect(validated).toBeDefined();
+      expect(validated.mode).toBe('structural');
+      expect(validated.llm.provider).toBe('ollama');
+    });
+
+    it('should accept server command option', () => {
+      const content = generateConfigTemplate({
+        serverCommand: 'npx @mcp/test-server',
+      });
+
+      expect(content).toContain('command: "npx @mcp/test-server"');
+    });
+
+    it('should accept server args option', () => {
+      const content = generateConfigTemplate({
+        serverCommand: 'npx',
+        serverArgs: ['@mcp/test-server', '/data'],
+      });
+
+      expect(content).toContain('args:');
+      expect(content).toContain('@mcp/test-server');
+      expect(content).toContain('/data');
+    });
+
+    it('should set full mode when requested', () => {
+      const content = generateConfigTemplate({
+        mode: 'full',
+      });
+
+      expect(content).toContain('mode: full');
+    });
+
+    it('should set different LLM providers', () => {
+      const openaiContent = generateConfigTemplate({ provider: 'openai' });
+      expect(openaiContent).toContain('provider: openai');
+
+      const anthropicContent = generateConfigTemplate({ provider: 'anthropic' });
+      expect(anthropicContent).toContain('provider: anthropic');
+
+      const ollamaContent = generateConfigTemplate({ provider: 'ollama' });
+      expect(ollamaContent).toContain('provider: ollama');
+    });
+  });
+
+  describe('generatePresetConfig', () => {
+    it('should have all expected presets', () => {
+      expect(PRESETS).toHaveProperty('ci');
+      expect(PRESETS).toHaveProperty('security');
+      expect(PRESETS).toHaveProperty('thorough');
+      expect(PRESETS).toHaveProperty('local');
+    });
+
+    it('should generate CI preset config', () => {
+      const content = generatePresetConfig('ci');
+      const parsed = parseYamlSecure(content);
+      const validated = validateConfig(parsed);
+
+      // CI preset uses structural mode (fast, free, deterministic)
+      expect(validated.mode).toBe('structural');
+      // Structural mode sets failOnDrift to true by default
+      expect(validated.baseline.failOnDrift).toBe(true);
+    });
+
+    it('should generate security preset config', () => {
+      const content = generatePresetConfig('security');
+      const parsed = parseYamlSecure(content);
+      const validated = validateConfig(parsed);
+
+      // Security preset uses full mode with openai
+      expect(validated.mode).toBe('full');
+      expect(validated.llm.provider).toBe('openai');
+      // The base template includes technical_writer by default in full mode
+      // Additional personas from getPresetOverrides would be added separately
+      expect(validated.test.personas).toContain('technical_writer');
+    });
+
+    it('should generate thorough preset config', () => {
+      const content = generatePresetConfig('thorough');
+      const parsed = parseYamlSecure(content);
+      const validated = validateConfig(parsed);
+
+      // Thorough preset uses full mode with openai
+      expect(validated.mode).toBe('full');
+      expect(validated.llm.provider).toBe('openai');
+      // Base template defaults - overrides would add more settings
+      expect(validated.test.personas).toContain('technical_writer');
+    });
+
+    it('should generate local preset config', () => {
+      const content = generatePresetConfig('local');
+      const parsed = parseYamlSecure(content);
+      const validated = validateConfig(parsed);
+
+      // Local preset uses full mode with ollama
+      expect(validated.mode).toBe('full');
+      expect(validated.llm.provider).toBe('ollama');
+    });
+
+    it('should allow overriding preset with server command', () => {
+      const content = generatePresetConfig('ci', {
+        serverCommand: 'npx @mcp/custom-server',
+      });
+
+      expect(content).toContain('command: "npx @mcp/custom-server"');
+    });
+  });
+
+  describe('init command file creation', () => {
     it('should create bellwether.yaml in current directory', () => {
       const configPath = join(testDir, 'bellwether.yaml');
 
       // Simulate init command action
-      const content = generateDefaultConfig();
+      const content = generateConfigTemplate();
       writeFileSync(configPath, content);
 
       expect(existsSync(configPath)).toBe(true);
 
       const fileContent = readFileSync(configPath, 'utf-8');
-      expect(fileContent).toContain('version: 1');
-      expect(fileContent).toContain('provider: openai');
-      expect(fileContent).toContain('model: gpt-5-mini');
+      expect(fileContent).toContain('mode: structural');
+      expect(fileContent).toContain('provider: ollama');
     });
 
     it('should not overwrite existing config without --force', () => {
@@ -88,45 +246,12 @@ describe('cli/init', () => {
       writeFileSync(configPath, 'existing: content');
 
       // With --force, overwrites
-      const content = generateDefaultConfig();
+      const content = generateConfigTemplate();
       writeFileSync(configPath, content);
 
       const fileContent = readFileSync(configPath, 'utf-8');
-      expect(fileContent).toContain('version: 1');
+      expect(fileContent).toContain('mode: structural');
       expect(fileContent).not.toContain('existing: content');
-    });
-
-    it('should generate valid YAML config', () => {
-      const content = generateDefaultConfig();
-
-      expect(content).toContain('version: 1');
-      expect(content).toContain('llm:');
-      expect(content).toContain('interview:');
-      expect(content).toContain('output:');
-    });
-
-    it('should include all required config sections', () => {
-      const content = generateDefaultConfig();
-
-      // LLM section
-      expect(content).toContain('provider:');
-      expect(content).toContain('model:');
-
-      // Interview section
-      expect(content).toContain('maxQuestionsPerTool:');
-      expect(content).toContain('timeout:');
-
-      // Output section
-      expect(content).toContain('format:');
-    });
-
-    it('should include commented optional settings', () => {
-      const content = generateDefaultConfig();
-
-      // Optional settings should be commented out
-      expect(content).toContain('# apiKeyEnvVar');
-      expect(content).toContain('# skipErrorTests');
-      expect(content).toContain('# outputDir');
     });
   });
 
@@ -140,6 +265,12 @@ describe('cli/init', () => {
       expect(() => {
         writeFileSync(configPath, 'content');
       }).toThrow();
+    });
+
+    it('should reject unknown preset names', () => {
+      expect(() => {
+        generatePresetConfig('unknown-preset');
+      }).toThrow(/Unknown preset/);
     });
   });
 });

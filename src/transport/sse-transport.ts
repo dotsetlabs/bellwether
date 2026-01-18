@@ -1,5 +1,29 @@
 import type { JSONRPCMessage } from './types.js';
 import { BaseTransport, type BaseTransportConfig } from './base-transport.js';
+import { TIME_CONSTANTS, TIMEOUTS } from '../constants.js';
+
+/**
+ * Validate that a URL uses HTTPS in production contexts.
+ * Allows HTTP only for localhost/127.0.0.1 for local development.
+ */
+function validateSecureUrl(url: string): void {
+  try {
+    const parsed = new URL(url);
+    const isLocalhost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+
+    if (parsed.protocol !== 'https:' && !isLocalhost) {
+      throw new Error(
+        `SSE transport requires HTTPS for remote servers. ` +
+        `Got: ${parsed.protocol}//. Use HTTPS to protect session tokens in transit.`
+      );
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('SSE transport')) {
+      throw error;
+    }
+    throw new Error(`Invalid SSE URL: ${url}`);
+  }
+}
 
 // Type for event listener functions
 type SSEEventListener = (event: Event) => void;
@@ -60,16 +84,16 @@ export class SSETransport extends BaseTransport {
   /** Flag to prevent reconnection after close() is called */
   private isClosing = false;
   /** Maximum backoff delay in milliseconds */
-  private readonly maxBackoffDelay = 30000;
+  private readonly maxBackoffDelay = TIME_CONSTANTS.SSE_MAX_BACKOFF;
 
   constructor(config: SSETransportConfig) {
     super(config);
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.sessionId = config.sessionId;
     this.headers = config.headers ?? {};
-    this.reconnectDelay = config.reconnectDelay ?? 1000;
+    this.reconnectDelay = config.reconnectDelay ?? TIME_CONSTANTS.SSE_RECONNECT_DELAY;
     this.maxReconnectAttempts = config.maxReconnectAttempts ?? 5;
-    this.timeout = config.timeout ?? 30000;
+    this.timeout = config.timeout ?? TIMEOUTS.DEFAULT;
 
     // Add session ID to headers if provided
     if (this.sessionId) {
@@ -84,6 +108,10 @@ export class SSETransport extends BaseTransport {
     if (this.connected) {
       return;
     }
+
+    // SECURITY: Validate URL uses HTTPS for remote servers
+    // This protects session tokens that may be passed via URL parameters
+    validateSecureUrl(this.baseUrl);
 
     // Reset closing flag on fresh connection
     this.isClosing = false;

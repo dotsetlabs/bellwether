@@ -60,7 +60,7 @@ export const historyCommand = new Command('history')
 
       if (history.length === 0) {
         output.info('No baselines uploaded yet.');
-        output.info('\nRun `bellwether interview <server> --save-baseline` then `bellwether upload`.');
+        output.info('\nRun `bellwether test <server> --save-baseline` then `bellwether upload`.');
         return;
       }
 

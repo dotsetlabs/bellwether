@@ -141,5 +141,5 @@ Press `Ctrl+C` to stop watch mode.
 
 ## See Also
 
-- [interview](/cli/interview) - Single interview command
+- [interview](/cli/test) - Single interview command
 - [Drift Detection](/concepts/drift-detection) - Understanding changes

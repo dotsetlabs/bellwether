@@ -22,7 +22,7 @@ SSE (Server-Sent Events) is ideal for servers that need to push updates to clien
 ### Basic Usage
 
 ```bash
-bellwether interview \
+bellwether test \
   --transport sse \
   --url https://api.example.com/mcp \
   npx placeholder-not-used
@@ -35,7 +35,7 @@ When using remote transports, the command argument (`npx placeholder-not-used`) 
 ### With Authentication
 
 ```bash
-bellwether interview \
+bellwether test \
   --transport sse \
   --url https://api.example.com/mcp \
   --session-id "your-auth-token"
@@ -56,7 +56,7 @@ Streamable HTTP is a simpler request-response model that supports streaming resp
 ### Basic Usage
 
 ```bash
-bellwether interview \
+bellwether test \
   --transport streamable-http \
   --url https://api.example.com/mcp \
   npx placeholder
@@ -67,7 +67,7 @@ bellwether interview \
 For servers requiring authentication or custom headers, use the session ID:
 
 ```bash
-bellwether interview \
+bellwether test \
   --transport streamable-http \
   --url https://api.example.com/mcp \
   --session-id "Bearer your-jwt-token"
@@ -111,7 +111,7 @@ bellwether discover \
 ### Public MCP Server
 
 ```bash
-bellwether interview \
+bellwether test \
   --transport sse \
   --url https://mcp.example.com/public \
   --preset docs \
@@ -122,7 +122,7 @@ bellwether interview \
 
 ```bash
 # Using bearer token
-bellwether interview \
+bellwether test \
   --transport streamable-http \
   --url https://api.example.com/mcp \
   --session-id "Bearer eyJhbGciOiJIUzI1NiIs..." \
@@ -133,7 +133,7 @@ bellwether interview \
 
 ```bash
 # Test a locally running remote-protocol server
-bellwether interview \
+bellwether test \
   --transport sse \
   --url http://localhost:3000/mcp \
   npx placeholder
@@ -144,7 +144,7 @@ bellwether interview \
 Both transports respect the `--timeout` flag for request timeouts:
 
 ```bash
-bellwether interview \
+bellwether test \
   --transport sse \
   --url https://slow-server.example.com/mcp \
   --timeout 120000 \
@@ -226,6 +226,6 @@ When connecting to remote MCP servers:
 
 ## See Also
 
-- [interview](/cli/interview) - CLI reference
+- [interview](/cli/test) - CLI reference
 - [discover](/cli/discover) - Quick discovery
 - [CI/CD Integration](/guides/ci-cd) - Pipeline setup

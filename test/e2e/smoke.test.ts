@@ -11,7 +11,8 @@ import { tmpdir } from 'os';
 import { resetLogger, configureLogger } from '../../src/logging/logger.js';
 
 // Import core modules
-import { generateDefaultConfig, loadConfig } from '../../src/config/loader.js';
+import { loadConfigNew, ConfigNotFoundError } from '../../src/config/loader.js';
+import { generateConfigTemplate } from '../../src/config/template.js';
 import { generateAgentsMd, generateJsonReport } from '../../src/docs/generator.js';
 import {
   createBaseline,
@@ -245,11 +246,11 @@ describe('e2e/smoke', () => {
   describe('Configuration workflow', () => {
     it('should generate and load default config', () => {
       // Generate default config
-      const configContent = generateDefaultConfig();
+      const configContent = generateConfigTemplate();
       expect(configContent).toBeTruthy();
-      expect(configContent).toContain('version: 1');
+      expect(configContent).toContain('mode:');
       expect(configContent).toContain('llm:');
-      expect(configContent).toContain('interview:');
+      expect(configContent).toContain('test:');
 
       // Write config file
       const configPath = join(testDir, 'bellwether.yaml');
@@ -257,41 +258,36 @@ describe('e2e/smoke', () => {
       expect(existsSync(configPath)).toBe(true);
 
       // Load config
-      const config = loadConfig(configPath);
-      expect(config.version).toBe(1);
+      const config = loadConfigNew(configPath);
+      expect(config.mode).toBeDefined();
       expect(config.llm.provider).toBeDefined();
-      expect(config.interview.maxQuestionsPerTool).toBeDefined();
+      expect(config.test.maxQuestionsPerTool).toBeDefined();
     });
 
-    it('should handle missing config gracefully with defaults', () => {
-      const config = loadConfig();
-
-      expect(config.version).toBe(1);
-      // Provider detection depends on available API keys; in test env it falls back to ollama
-      expect(['openai', 'anthropic', 'ollama']).toContain(config.llm.provider);
-      expect(config.llm.model).toBeDefined();
-      expect(config.interview.maxQuestionsPerTool).toBe(3);
+    it('should throw ConfigNotFoundError when no config exists', () => {
+      // New system requires config file to exist
+      expect(() => loadConfigNew()).toThrow(ConfigNotFoundError);
     });
 
     it('should merge CLI options with config', () => {
       const configPath = join(testDir, 'bellwether.yaml');
       writeFileSync(configPath, `
-version: 1
+mode: full
 llm:
   provider: openai
   model: gpt-4o
-interview:
+test:
   maxQuestionsPerTool: 3
 `);
 
-      const config = loadConfig(configPath);
+      const config = loadConfigNew(configPath);
 
       // CLI options would override config
       const cliOptions = { model: 'gpt-4-turbo', maxQuestions: '5' };
       const finalModel = cliOptions.model ?? config.llm.model;
       const finalMaxQuestions = cliOptions.maxQuestions
         ? parseInt(cliOptions.maxQuestions, 10)
-        : config.interview.maxQuestionsPerTool;
+        : config.test.maxQuestionsPerTool;
 
       expect(finalModel).toBe('gpt-4-turbo');
       expect(finalMaxQuestions).toBe(5);
@@ -492,9 +488,9 @@ interview:
     it('should simulate complete interview-to-documentation workflow', () => {
       // Step 1: Load configuration
       const configPath = join(testDir, 'bellwether.yaml');
-      const configContent = generateDefaultConfig();
+      const configContent = generateConfigTemplate();
       writeFileSync(configPath, configContent);
-      const config = loadConfig(configPath);
+      const config = loadConfigNew(configPath);
       expect(config).toBeTruthy();
 
       // Step 2: Simulate discovery (would connect to MCP server)
@@ -625,7 +621,7 @@ interview:
       writeFileSync(configPath, 'invalid: yaml: content: [[[');
 
       // Invalid YAML should throw an error
-      expect(() => loadConfig(configPath)).toThrow(/Invalid YAML/);
+      expect(() => loadConfigNew(configPath)).toThrow(/Invalid YAML/);
     });
 
     it('should handle missing baseline file', () => {

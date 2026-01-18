@@ -12,7 +12,7 @@ interface DiscoverOptions {
 }
 
 /**
- * Shared action handler for discover/summary commands.
+ * Action handler for the discover command.
  */
 async function discoverAction(command: string | undefined, args: string[], options: DiscoverOptions): Promise<void> {
   const timeout = parseInt(options.timeout ?? '30000', 10);
@@ -68,21 +68,7 @@ async function discoverAction(command: string | undefined, args: string[], optio
 }
 
 export const discoverCommand = new Command('discover')
-  .description('Discover MCP server capabilities without interviewing')
-  .argument('[command]', 'Command to start the MCP server (not required for remote)')
-  .argument('[args...]', 'Arguments to pass to the server')
-  .option('--json', 'Output as JSON')
-  .option('--timeout <ms>', 'Connection timeout in milliseconds', '30000')
-  .option('--transport <type>', 'Transport type: stdio, sse, streamable-http', 'stdio')
-  .option('--url <url>', 'URL for remote MCP server (requires --transport sse or streamable-http)')
-  .option('--session-id <id>', 'Session ID for remote server authentication')
-  .action(discoverAction);
-
-/**
- * Summary command - alias for discover with friendlier name.
- */
-export const summaryCommand = new Command('summary')
-  .description('Quick overview of an MCP server\'s capabilities (alias for discover)')
+  .description('Discover MCP server capabilities (tools, prompts, resources)')
   .argument('[command]', 'Command to start the MCP server (not required for remote)')
   .argument('[args...]', 'Arguments to pass to the server')
   .option('--json', 'Output as JSON')

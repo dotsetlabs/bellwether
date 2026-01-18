@@ -1,3 +1,10 @@
+/**
+ * Watch command - watch for file changes and auto-test.
+ *
+ * Uses bellwether.yaml for all test configuration.
+ * Only watch-specific options are available as flags.
+ */
+
 import { Command } from 'commander';
 import { existsSync, readdirSync, statSync } from 'fs';
 import { join, resolve } from 'path';
@@ -5,7 +12,8 @@ import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
 import { createLLMClient, type LLMClient } from '../../llm/index.js';
 import { Interviewer } from '../../interview/interviewer.js';
-import { loadConfig } from '../../config/loader.js';
+import { loadConfigNew, ConfigNotFoundError, type BellwetherConfigNew } from '../../config/loader.js';
+import { validateConfigForTest } from '../../config/validator.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
 import {
   createBaseline,
@@ -14,49 +22,83 @@ import {
   compareBaselines,
   formatDiffText,
 } from '../../baseline/index.js';
+import { parsePersonas } from '../../persona/builtins.js';
 import * as output from '../output.js';
-import { TIMEOUTS } from '../../constants.js';
 
 export const watchCommand = new Command('watch')
-  .description('Watch for MCP server changes and auto-interview')
-  .argument('<command>', 'Command to start the MCP server')
-  .argument('[args...]', 'Arguments to pass to the server')
+  .description('Watch for file changes and auto-test (uses bellwether.yaml)')
+  .argument('[server-command]', 'Server command (overrides config)')
+  .argument('[args...]', 'Server arguments')
   .option('-c, --config <path>', 'Path to config file')
   .option('-w, --watch-path <path>', 'Path to watch for changes', '.')
   .option('-i, --interval <ms>', 'Polling interval in milliseconds', '5000')
-  .option('--max-questions <n>', 'Max questions per tool')
-  .option('--baseline <path>', 'Baseline file to compare against', 'bellwether-baseline.json')
+  .option('--baseline <path>', 'Baseline file path', 'bellwether-baseline.json')
   .option('--on-change <command>', 'Command to run after detecting drift')
   .option('--debug', 'Show debug output for file scanning')
-  .action(async (command: string, args: string[], options) => {
-    const config = loadConfig(options.config);
+  .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
+    // Load configuration (required)
+    let config: BellwetherConfigNew;
+    try {
+      config = loadConfigNew(options.config);
+    } catch (error) {
+      if (error instanceof ConfigNotFoundError) {
+        output.error(error.message);
+        process.exit(1);
+      }
+      throw error;
+    }
+
+    // Determine server command (CLI arg overrides config)
+    const serverCommand = serverCommandArg || config.server.command;
+    const args = serverArgs.length > 0 ? serverArgs : config.server.args;
+
+    // Validate config for running tests
+    try {
+      validateConfigForTest(config, serverCommand);
+    } catch (error) {
+      output.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+
     const watchPath = resolve(options.watchPath);
     const interval = parseInt(options.interval, 10);
-    const maxQuestions = options.maxQuestions
-      ? parseInt(options.maxQuestions, 10)
-      : config.interview.maxQuestionsPerTool;
     const baselinePath = resolve(options.baseline);
 
+    // Extract settings from config
+    const isStructuralMode = config.mode === 'structural';
+    const timeout = config.server.timeout;
+    const maxQuestions = config.test.maxQuestionsPerTool;
+    const selectedPersonas = parsePersonas(config.test.personas);
+
     output.info('Bellwether Watch Mode\n');
-    output.info(`Server: ${command} ${args.join(' ')}`);
+    output.info(`Server: ${serverCommand} ${args.join(' ')}`);
+    output.info(`Mode: ${isStructuralMode ? 'structural' : 'full'}`);
     output.info(`Watching: ${watchPath}`);
     output.info(`Baseline: ${baselinePath}`);
     output.info(`Poll interval: ${interval}ms`);
     output.info('');
 
-    // Initialize LLM client
+    // Initialize LLM client (only for full mode)
     let llmClient: LLMClient;
-    try {
+
+    if (!isStructuralMode) {
+      try {
+        llmClient = createLLMClient({
+          provider: config.llm.provider,
+          model: config.llm.model || undefined,
+          baseUrl: config.llm.provider === 'ollama' ? config.llm.ollama.baseUrl : undefined,
+        });
+      } catch (error) {
+        output.error('Failed to initialize LLM client: ' + (error instanceof Error ? error.message : String(error)));
+        process.exit(1);
+      }
+    } else {
+      // For structural mode, create a minimal LLM client that won't be used
       llmClient = createLLMClient({
-        provider: config.llm.provider,
-        model: config.llm.model,
-        apiKey: config.llm.apiKey,
-        apiKeyEnvVar: config.llm.apiKeyEnvVar,
-        baseUrl: config.llm.baseUrl,
+        provider: 'ollama',
+        model: 'llama3.2', // Default model; not actually used in structural mode
+        baseUrl: 'http://localhost:11434',
       });
-    } catch (error) {
-      output.error('Failed to initialize LLM client: ' + (error instanceof Error ? error.message : String(error)));
-      process.exit(1);
     }
 
     // Track last baseline hash to detect changes
@@ -70,15 +112,15 @@ export const watchCommand = new Command('watch')
     // Track watched file modification times
     const fileModTimes = new Map<string, number>();
 
-    async function runInterview(): Promise<void> {
-      const mcpClient = new MCPClient({ timeout: TIMEOUTS.INTERVIEW });
+    async function runTest(): Promise<void> {
+      const mcpClient = new MCPClient({ timeout });
 
       try {
-        output.info('\n--- Running Interview ---');
-        output.info(`[${new Date().toLocaleTimeString()}] Starting interview...`);
+        output.info('\n--- Running Test ---');
+        output.info(`[${new Date().toLocaleTimeString()}] Starting test...`);
 
-        await mcpClient.connect(command, args);
-        const discovery = await discover(mcpClient, command, args);
+        await mcpClient.connect(serverCommand, args, config.server.env);
+        const discovery = await discover(mcpClient, serverCommand, args);
         output.info(`Found ${discovery.tools.length} tools`);
 
         if (discovery.tools.length === 0) {
@@ -87,29 +129,33 @@ export const watchCommand = new Command('watch')
           return;
         }
 
+        const fullServerCommand = `${serverCommand} ${args.join(' ')}`.trim();
         const interviewer = new Interviewer(llmClient, {
           maxQuestionsPerTool: maxQuestions,
-          timeout: TIMEOUTS.INTERVIEW,
-          skipErrorTests: config.interview.skipErrorTests ?? false,
-          model: config.llm.model,
+          timeout,
+          skipErrorTests: config.test.skipErrorTests,
+          model: config.llm.model || 'default',
+          personas: selectedPersonas,
+          structuralOnly: isStructuralMode,
+          serverCommand: fullServerCommand,
         });
 
         const progressCallback = (progress: InterviewProgress) => {
           const totalTools = progress.totalTools * progress.totalPersonas;
           const toolsDone = (progress.personasCompleted * progress.totalTools) + progress.toolsCompleted;
-          process.stdout.write(`\rInterviewing: ${toolsDone}/${totalTools} tools`.padEnd(60));
+          process.stdout.write(`\rTesting: ${toolsDone}/${totalTools} tools`.padEnd(60));
         };
 
         const result = await interviewer.interview(mcpClient, discovery, progressCallback);
         output.info('\n');
 
         // Create and compare baseline
-        const serverCommand = `${command} ${args.join(' ')}`;
-        const newBaseline = createBaseline(result, serverCommand);
+        const mode = isStructuralMode ? 'structural' : 'full';
+        const newBaseline = createBaseline(result, fullServerCommand, mode);
 
         if (lastBaselineHash && existsSync(baselinePath)) {
           const previousBaseline = loadBaseline(baselinePath);
-          const diff = compareBaselines(previousBaseline, newBaseline);
+          const diff = compareBaselines(previousBaseline, newBaseline, {});
 
           if (diff.severity !== 'none') {
             output.info('\n--- Behavioral Drift Detected ---');
@@ -125,12 +171,12 @@ export const watchCommand = new Command('watch')
                 const cmd = parts[0];
                 const cmdArgs = parts.slice(1).map((arg: string) => arg.replace(/^"|"$/g, ''));
                 // Use spawnSync without shell to prevent command injection
-                const result = spawnSync(cmd, cmdArgs, { stdio: 'inherit' });
-                if (result.error) {
-                  throw result.error;
+                const cmdResult = spawnSync(cmd, cmdArgs, { stdio: 'inherit' });
+                if (cmdResult.error) {
+                  throw cmdResult.error;
                 }
-                if (result.status !== 0) {
-                  output.error(`On-change command exited with code ${result.status}`);
+                if (cmdResult.status !== 0) {
+                  output.error(`On-change command exited with code ${cmdResult.status}`);
                 }
               } catch (e) {
                 output.error('On-change command failed: ' + (e instanceof Error ? e.message : String(e)));
@@ -147,14 +193,14 @@ export const watchCommand = new Command('watch')
         output.info(`Baseline updated: ${newBaseline.integrityHash.slice(0, 8)}`);
 
       } catch (error) {
-        output.error('Interview failed: ' + (error instanceof Error ? error.message : String(error)));
+        output.error('Test failed: ' + (error instanceof Error ? error.message : String(error)));
       } finally {
         await mcpClient.disconnect();
       }
     }
 
     function checkForChanges(): boolean {
-      // Simple file watcher - check if any .ts, .js, .json files changed
+      // Simple file watcher - check if any source files changed
       const extensions = ['.ts', '.js', '.json', '.py', '.go'];
       let changed = false;
 
@@ -188,8 +234,6 @@ export const watchCommand = new Command('watch')
             }
           }
         } catch (error) {
-          // Log filesystem errors but continue watching
-          // This handles transient issues like files being deleted during scan
           if (options.debug) {
             output.error(`Warning: Error scanning ${dir}: ` + (error instanceof Error ? error.message : String(error)));
           }
@@ -200,8 +244,8 @@ export const watchCommand = new Command('watch')
       return changed;
     }
 
-    // Initial interview
-    await runInterview();
+    // Initial test run
+    await runTest();
 
     output.info('\nWatching for changes... (Press Ctrl+C to exit)\n');
 
@@ -210,11 +254,9 @@ export const watchCommand = new Command('watch')
     let isRunningInterview = false;
 
     /**
-     * Poll for file changes and run interview when changes detected.
-     * Uses mutex to prevent concurrent interviews.
+     * Poll for file changes and run test when changes detected.
      */
     async function pollForChanges(): Promise<void> {
-      // Prevent concurrent interviews
       if (isRunningInterview) {
         return;
       }
@@ -222,7 +264,7 @@ export const watchCommand = new Command('watch')
       try {
         if (checkForChanges()) {
           isRunningInterview = true;
-          await runInterview();
+          await runTest();
           output.info('\nWatching for changes... (Press Ctrl+C to exit)\n');
         }
       } catch (error) {
@@ -234,13 +276,12 @@ export const watchCommand = new Command('watch')
 
     // Start polling interval
     currentInterval = setInterval(() => {
-      // Wrap async call with error handling - don't use fire-and-forget
       pollForChanges().catch((error) => {
         output.error('Unexpected polling error: ' + (error instanceof Error ? error.message : String(error)));
       });
     }, interval);
 
-    // Handle exit - ensure interval is properly cleaned up
+    // Handle exit
     const cleanup = (): void => {
       output.info('\n\nExiting watch mode.');
       if (currentInterval) {
