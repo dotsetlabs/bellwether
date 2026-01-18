@@ -5,6 +5,7 @@
 import { Command } from 'commander';
 import { execFile } from 'child_process';
 import { platform } from 'os';
+import { createInterface } from 'readline';
 import {
   getStoredSession,
   saveSession,
@@ -17,6 +18,11 @@ import { generateMockSession } from '../../cloud/mock-client.js';
 import type { DeviceAuthorizationResponse, DevicePollResponse, StoredSession, AuthMeResponse, SessionTeam } from '../../cloud/types.js';
 import * as output from '../output.js';
 import { TIME_CONSTANTS } from '../../constants.js';
+
+/**
+ * Header name for beta password.
+ */
+const BETA_PASSWORD_HEADER = 'x-beta-password';
 
 export const loginCommand = new Command('login')
   .description('Authenticate with Bellwether Cloud via GitHub')
@@ -68,8 +74,25 @@ export const loginCommand = new Command('login')
     output.info('Signing in with GitHub...\n');
 
     try {
+      // Step 0: Check if beta mode is enabled and get password if needed
+      let betaPassword: string | undefined;
+      const betaStatus = await checkBetaStatus();
+
+      if (betaStatus.betaMode) {
+        output.info('Bellwether Cloud is currently in beta.\n');
+        betaPassword = await promptForBetaPassword();
+
+        // Verify the beta password
+        const isValid = await verifyBetaPassword(betaPassword);
+        if (!isValid) {
+          output.error('Invalid beta password.');
+          process.exit(1);
+        }
+        output.info('Beta access verified.\n');
+      }
+
       // Step 1: Start device flow
-      const deviceAuth = await startDeviceFlow();
+      const deviceAuth = await startDeviceFlow(betaPassword);
 
       output.info('To authenticate, visit:\n');
       output.info(`  ${deviceAuth.verification_uri}\n`);
@@ -85,7 +108,8 @@ export const loginCommand = new Command('login')
       const result = await pollForCompletion(
         deviceAuth.device_code,
         deviceAuth.interval,
-        deviceAuth.expires_in
+        deviceAuth.expires_in,
+        betaPassword
       );
 
       if (!result.session_token || !result.user) {
@@ -129,15 +153,89 @@ export const loginCommand = new Command('login')
   });
 
 /**
+ * Check if beta mode is enabled.
+ */
+async function checkBetaStatus(): Promise<{ betaMode: boolean }> {
+  const baseUrl = getBaseUrl();
+
+  try {
+    const response = await fetch(`${baseUrl}/beta/status`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      return { betaMode: false };
+    }
+
+    return response.json() as Promise<{ betaMode: boolean }>;
+  } catch {
+    // If we can't reach the server, assume no beta mode
+    return { betaMode: false };
+  }
+}
+
+/**
+ * Prompt user for beta password.
+ */
+async function promptForBetaPassword(): Promise<string> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question('Enter beta password: ', (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
+/**
+ * Verify beta password with the server.
+ */
+async function verifyBetaPassword(password: string): Promise<boolean> {
+  const baseUrl = getBaseUrl();
+
+  try {
+    const response = await fetch(`${baseUrl}/beta/verify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        [BETA_PASSWORD_HEADER]: password,
+      },
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const result = await response.json() as { valid: boolean };
+    return result.valid;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Start OAuth device flow.
  */
-async function startDeviceFlow(): Promise<DeviceAuthorizationResponse> {
+async function startDeviceFlow(betaPassword?: string): Promise<DeviceAuthorizationResponse> {
   const baseUrl = getBaseUrl();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (betaPassword) {
+    headers[BETA_PASSWORD_HEADER] = betaPassword;
+  }
+
   const response = await fetch(`${baseUrl}/auth/github/device`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({}),
   });
 
@@ -155,11 +253,20 @@ async function startDeviceFlow(): Promise<DeviceAuthorizationResponse> {
 async function pollForCompletion(
   deviceCode: string,
   intervalSec: number,
-  expiresInSec: number
+  expiresInSec: number,
+  betaPassword?: string
 ): Promise<DevicePollResponse> {
   const baseUrl = getBaseUrl();
   const deadline = Date.now() + expiresInSec * 1000;
   let dots = 0;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (betaPassword) {
+    headers[BETA_PASSWORD_HEADER] = betaPassword;
+  }
 
   while (Date.now() < deadline) {
     // Wait for interval
@@ -172,9 +279,7 @@ async function pollForCompletion(
     // Poll for status
     const response = await fetch(`${baseUrl}/auth/github/device/poll`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({ device_code: deviceCode }),
     });
 
