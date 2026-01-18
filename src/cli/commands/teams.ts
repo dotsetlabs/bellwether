@@ -102,7 +102,7 @@ teamsCommand
       return;
     }
 
-    let targetTeamId = teamIdArg;
+    const targetTeamId = teamIdArg;
 
     // If no team ID provided, show interactive selection
     if (!targetTeamId) {
