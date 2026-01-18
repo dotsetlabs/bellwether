@@ -75,8 +75,15 @@ Authentication Status
 GitHub: octocat
 Name:   The Octocat
 Email:  octocat@github.com
-Plan:   free
 Mode:   Cloud
+Team:   Personal (free)
+
+Available teams (2):
+  - Personal [owner] (active)
+  - Work Team [member]
+
+Use `bellwether teams switch` to change active team.
+
 Session expires in 30 days
 ```
 
@@ -130,7 +137,12 @@ Credentials are stored in `~/.bellwether/session.json`:
     "githubName": "The Octocat",
     "email": "octocat@github.com",
     "plan": "free"
-  }
+  },
+  "activeTeamId": "team_abc123",
+  "teams": [
+    {"id": "team_abc123", "name": "Personal", "plan": "free", "role": "owner"},
+    {"id": "team_def456", "name": "Work Team", "plan": "team", "role": "member"}
+  ]
 }
 ```
 
@@ -140,6 +152,7 @@ Never commit session.json to version control.
 
 ## See Also
 
+- [teams](/cloud/teams) - Manage team selection
 - [link](/cloud/link) - Link a project
 - [upload](/cloud/upload) - Upload baselines
 - [Cloud Integration Guide](/guides/cloud-integration) - Full cloud setup

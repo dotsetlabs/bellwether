@@ -333,6 +333,7 @@ Sync with Bellwether Cloud for history and team visibility:
 | `OPENAI_API_KEY` | OpenAI API key | For full mode with OpenAI |
 | `ANTHROPIC_API_KEY` | Anthropic API key | For full mode with Anthropic |
 | `BELLWETHER_SESSION` | Cloud session token | For cloud upload |
+| `BELLWETHER_TEAM_ID` | Team ID for multi-team organizations | For cloud upload with specific team |
 
 ---
 

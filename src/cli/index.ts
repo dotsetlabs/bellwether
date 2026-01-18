@@ -55,6 +55,7 @@ import { uploadCommand } from './commands/upload.js';
 import { historyCommand, diffCommand } from './commands/history.js';
 import { authCommand } from './commands/auth.js';
 import { badgeCommand } from './commands/badge.js';
+import { teamsCommand } from './commands/teams.js';
 import { baselineCommand } from './commands/baseline.js';
 import { createRegistryCommand } from './commands/registry.js';
 import { createVerifyCommand } from './commands/verify.js';
@@ -89,6 +90,8 @@ Examples:
 
   Cloud workflow:
     $ bellwether login                    # Authenticate
+    $ bellwether teams                    # List your teams
+    $ bellwether teams switch <team-id>   # Switch active team
     $ bellwether link my-project          # Link to cloud project
     $ bellwether upload                   # Upload baseline
     $ bellwether history                  # View version history
@@ -164,6 +167,11 @@ program.addCommand(
 program.addCommand(
   loginCommand.description(
     'Authenticate with Bellwether Cloud'
+  )
+);
+program.addCommand(
+  teamsCommand.description(
+    'Manage team selection for cloud operations'
   )
 );
 program.addCommand(

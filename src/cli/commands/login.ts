@@ -5,6 +5,7 @@
 import { Command } from 'commander';
 import { execFile } from 'child_process';
 import { platform } from 'os';
+import { createInterface } from 'readline';
 import {
   getStoredSession,
   saveSession,
@@ -14,9 +15,14 @@ import {
   CONFIG_DIR,
 } from '../../cloud/auth.js';
 import { generateMockSession } from '../../cloud/mock-client.js';
-import type { DeviceAuthorizationResponse, DevicePollResponse, StoredSession } from '../../cloud/types.js';
+import type { DeviceAuthorizationResponse, DevicePollResponse, StoredSession, AuthMeResponse, SessionTeam } from '../../cloud/types.js';
 import * as output from '../output.js';
 import { TIME_CONSTANTS } from '../../constants.js';
+
+/**
+ * Header name for beta password.
+ */
+const BETA_PASSWORD_HEADER = 'x-beta-password';
 
 export const loginCommand = new Command('login')
   .description('Authenticate with Bellwether Cloud via GitHub')
@@ -68,8 +74,25 @@ export const loginCommand = new Command('login')
     output.info('Signing in with GitHub...\n');
 
     try {
+      // Step 0: Check if beta mode is enabled and get password if needed
+      let betaPassword: string | undefined;
+      const betaStatus = await checkBetaStatus();
+
+      if (betaStatus.betaMode) {
+        output.info('Bellwether Cloud is currently in beta.\n');
+        betaPassword = await promptForBetaPassword();
+
+        // Verify the beta password
+        const isValid = await verifyBetaPassword(betaPassword);
+        if (!isValid) {
+          output.error('Invalid beta password.');
+          process.exit(1);
+        }
+        output.info('Beta access verified.\n');
+      }
+
       // Step 1: Start device flow
-      const deviceAuth = await startDeviceFlow();
+      const deviceAuth = await startDeviceFlow(betaPassword);
 
       output.info('To authenticate, visit:\n');
       output.info(`  ${deviceAuth.verification_uri}\n`);
@@ -85,7 +108,8 @@ export const loginCommand = new Command('login')
       const result = await pollForCompletion(
         deviceAuth.device_code,
         deviceAuth.interval,
-        deviceAuth.expires_in
+        deviceAuth.expires_in,
+        betaPassword
       );
 
       if (!result.session_token || !result.user) {
@@ -93,11 +117,21 @@ export const loginCommand = new Command('login')
         process.exit(1);
       }
 
-      // Step 3: Save session
+      // Step 3: Fetch teams from /auth/me
+      const authMe = await fetchAuthMe(result.session_token);
+      const teams: SessionTeam[] = authMe?.teams ?? [];
+
+      // Auto-select first team as active (usually personal team)
+      const activeTeamId = teams.length > 0 ? teams[0].id : undefined;
+      const activeTeam = teams.find(t => t.id === activeTeamId);
+
+      // Step 4: Save session with teams
       const session: StoredSession = {
         sessionToken: result.session_token,
         user: result.user,
         expiresAt: new Date(Date.now() + TIME_CONSTANTS.SESSION_EXPIRATION_MS).toISOString(), // 30 days
+        activeTeamId,
+        teams,
       };
       saveSession(session);
 
@@ -105,7 +139,12 @@ export const loginCommand = new Command('login')
       if (result.user.email) {
         output.info(`Email: ${result.user.email}`);
       }
-      output.info(`Plan: ${result.user.plan}`);
+      if (activeTeam) {
+        output.info(`Team: ${activeTeam.name} (${activeTeam.plan})`);
+        if (teams.length > 1) {
+          output.info(`\nYou have access to ${teams.length} teams. Use \`bellwether teams\` to switch.`);
+        }
+      }
       output.info(`\nSession saved to ${CONFIG_DIR}/session.json`);
     } catch (err) {
       output.error('Authentication failed: ' + (err instanceof Error ? err.message : String(err)));
@@ -114,15 +153,89 @@ export const loginCommand = new Command('login')
   });
 
 /**
+ * Check if beta mode is enabled.
+ */
+async function checkBetaStatus(): Promise<{ betaMode: boolean }> {
+  const baseUrl = getBaseUrl();
+
+  try {
+    const response = await fetch(`${baseUrl}/beta/status`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      return { betaMode: false };
+    }
+
+    return response.json() as Promise<{ betaMode: boolean }>;
+  } catch {
+    // If we can't reach the server, assume no beta mode
+    return { betaMode: false };
+  }
+}
+
+/**
+ * Prompt user for beta password.
+ */
+async function promptForBetaPassword(): Promise<string> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question('Enter beta password: ', (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
+/**
+ * Verify beta password with the server.
+ */
+async function verifyBetaPassword(password: string): Promise<boolean> {
+  const baseUrl = getBaseUrl();
+
+  try {
+    const response = await fetch(`${baseUrl}/beta/verify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        [BETA_PASSWORD_HEADER]: password,
+      },
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const result = await response.json() as { valid: boolean };
+    return result.valid;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Start OAuth device flow.
  */
-async function startDeviceFlow(): Promise<DeviceAuthorizationResponse> {
+async function startDeviceFlow(betaPassword?: string): Promise<DeviceAuthorizationResponse> {
   const baseUrl = getBaseUrl();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (betaPassword) {
+    headers[BETA_PASSWORD_HEADER] = betaPassword;
+  }
+
   const response = await fetch(`${baseUrl}/auth/github/device`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({}),
   });
 
@@ -140,11 +253,20 @@ async function startDeviceFlow(): Promise<DeviceAuthorizationResponse> {
 async function pollForCompletion(
   deviceCode: string,
   intervalSec: number,
-  expiresInSec: number
+  expiresInSec: number,
+  betaPassword?: string
 ): Promise<DevicePollResponse> {
   const baseUrl = getBaseUrl();
   const deadline = Date.now() + expiresInSec * 1000;
   let dots = 0;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (betaPassword) {
+    headers[BETA_PASSWORD_HEADER] = betaPassword;
+  }
 
   while (Date.now() < deadline) {
     // Wait for interval
@@ -157,9 +279,7 @@ async function pollForCompletion(
     // Poll for status
     const response = await fetch(`${baseUrl}/auth/github/device/poll`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({ device_code: deviceCode }),
     });
 
@@ -200,6 +320,31 @@ async function pollForCompletion(
  */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Fetch user and teams from /auth/me endpoint.
+ */
+async function fetchAuthMe(sessionToken: string): Promise<AuthMeResponse | null> {
+  const baseUrl = getBaseUrl();
+
+  try {
+    const response = await fetch(`${baseUrl}/auth/me`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${sessionToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return response.json() as Promise<AuthMeResponse>;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -308,13 +453,28 @@ async function showStatus(): Promise<void> {
   if (session.user.email) {
     output.info(`Email:  ${session.user.email}`);
   }
-  output.info(`Plan:   ${session.user.plan}`);
   output.info(`Mode:   ${isMockSession(session.sessionToken) ? 'Mock (local storage)' : 'Cloud'}`);
+
+  // Show team information
+  if (session.teams && session.teams.length > 0) {
+    const activeTeam = session.teams.find(t => t.id === session.activeTeamId);
+    if (activeTeam) {
+      output.info(`Team:   ${activeTeam.name} (${activeTeam.plan})`);
+    }
+    if (session.teams.length > 1) {
+      output.info(`\nAvailable teams (${session.teams.length}):`);
+      for (const team of session.teams) {
+        const marker = team.id === session.activeTeamId ? ' (active)' : '';
+        output.info(`  - ${team.name} [${team.role}]${marker}`);
+      }
+      output.info('\nUse `bellwether teams switch` to change active team.');
+    }
+  }
 
   const expiresAt = new Date(session.expiresAt);
   const now = new Date();
   const daysRemaining = Math.ceil((expiresAt.getTime() - now.getTime()) / TIME_CONSTANTS.MS_PER_DAY);
-  output.info(`Session expires in ${daysRemaining} days`);
+  output.info(`\nSession expires in ${daysRemaining} days`);
 
   if (isMockSession(session.sessionToken)) {
     output.info('\nData is stored locally in ~/.bellwether/mock-cloud/');

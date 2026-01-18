@@ -8,7 +8,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, statSync, chmodSync } from 'fs';
 import { join } from 'path';
 import { homedir, platform } from 'os';
-import type { StoredSession, ProjectLink } from './types.js';
+import type { StoredSession, ProjectLink, SessionTeam } from './types.js';
 import { URLS } from '../constants.js';
 import * as output from '../cli/output.js';
 
@@ -31,6 +31,11 @@ export const SESSION_ENV_VAR = 'BELLWETHER_SESSION';
  * Environment variable name for API base URL.
  */
 export const BASE_URL_ENV_VAR = 'BELLWETHER_API_URL';
+
+/**
+ * Environment variable name for team ID override.
+ */
+export const TEAM_ID_ENV_VAR = 'BELLWETHER_TEAM_ID';
 
 /**
  * Session token prefix for validation.
@@ -235,6 +240,76 @@ export function isMockSession(token: string): boolean {
 export function isAuthenticated(): boolean {
   const token = getSessionToken();
   return token !== undefined && isValidSessionFormat(token);
+}
+
+/**
+ * Get the active team ID.
+ *
+ * Priority:
+ * 1. BELLWETHER_TEAM_ID environment variable
+ * 2. Team ID from project link (if in a linked project directory)
+ * 3. Active team ID from stored session
+ */
+export function getTeamId(projectDir: string = process.cwd()): string | undefined {
+  // Check environment variable first (for CI/CD)
+  const envTeamId = process.env[TEAM_ID_ENV_VAR];
+  if (envTeamId) {
+    return envTeamId;
+  }
+
+  // Check project link for project-specific team
+  const projectLink = getLinkedProject(projectDir);
+  if (projectLink?.teamId) {
+    return projectLink.teamId;
+  }
+
+  // Fall back to session's active team
+  const session = getStoredSession();
+  return session?.activeTeamId;
+}
+
+/**
+ * Get the active team details.
+ * Returns the full team object if available.
+ */
+export function getActiveTeam(projectDir: string = process.cwd()): SessionTeam | undefined {
+  const teamId = getTeamId(projectDir);
+  if (!teamId) {
+    return undefined;
+  }
+
+  const session = getStoredSession();
+  return session?.teams?.find(t => t.id === teamId);
+}
+
+/**
+ * Get all teams from the stored session.
+ */
+export function getSessionTeams(): SessionTeam[] {
+  const session = getStoredSession();
+  return session?.teams ?? [];
+}
+
+/**
+ * Set the active team in the stored session.
+ * Returns true if successful, false if team not found in session.
+ */
+export function setActiveTeam(teamId: string): boolean {
+  const session = getStoredSession();
+  if (!session) {
+    return false;
+  }
+
+  // Verify the team exists in the session
+  const teamExists = session.teams?.some(t => t.id === teamId);
+  if (!teamExists) {
+    return false;
+  }
+
+  // Update the active team
+  session.activeTeamId = teamId;
+  saveSession(session);
+  return true;
 }
 
 // ============================================================================
