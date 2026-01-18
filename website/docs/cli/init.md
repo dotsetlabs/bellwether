@@ -161,7 +161,7 @@ test:
 # =============================================================================
 output:
   dir: "."
-  format: agents.md
+  format: both
   cloudFormat: false
 
 # =============================================================================
@@ -206,6 +206,29 @@ Best for CI/CD pipelines and quick checks.
 - **What it tests**: Behavioral observations, edge cases, security, usability
 
 Best for thorough testing and documentation generation.
+
+## Environment Variables
+
+If your MCP server requires environment variables (API keys, tokens, URLs), add them to the `server.env` section using interpolation syntax:
+
+```yaml
+server:
+  command: "npx @your/mcp-server"
+  env:
+    # Reference environment variables from shell or .env file
+    API_KEY: "${API_KEY}"
+    SERVICE_URL: "${SERVICE_URL}"
+
+    # With default values
+    LOG_LEVEL: "${LOG_LEVEL:-info}"
+    DEBUG: "${DEBUG:-false}"
+```
+
+The `${VAR}` syntax pulls values from your environment (shell exports or `.env` file loaded via dotenv). This allows you to commit `bellwether.yaml` to version control without exposing secrets.
+
+:::tip
+Use `${VAR:-default}` syntax to provide fallback values when an environment variable isn't set.
+:::
 
 ## Next Steps After Init
 

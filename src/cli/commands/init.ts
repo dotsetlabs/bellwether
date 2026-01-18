@@ -6,11 +6,54 @@
  */
 
 import { Command } from 'commander';
-import { writeFileSync, existsSync } from 'fs';
+import { writeFileSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import * as readline from 'readline';
 import { generateConfigTemplate, generatePresetConfig, PRESETS } from '../../config/template.js';
 import * as output from '../output.js';
+
+/**
+ * Detect environment variables from .env.example or .env.sample files.
+ * Returns an array of variable names found.
+ */
+function detectEnvVars(cwd: string): string[] {
+  const envExampleFiles = [
+    '.env.example',
+    '.env.sample',
+    'env.example',
+    'env.sample',
+  ];
+
+  for (const filename of envExampleFiles) {
+    const filepath = join(cwd, filename);
+    if (existsSync(filepath)) {
+      try {
+        const content = readFileSync(filepath, 'utf-8');
+        const envVars: string[] = [];
+
+        for (const line of content.split('\n')) {
+          // Skip comments and empty lines
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) {
+            continue;
+          }
+
+          // Parse VAR=value or VAR= patterns
+          const match = trimmed.match(/^([A-Z_][A-Z0-9_]*)=/i);
+          if (match) {
+            envVars.push(match[1]);
+          }
+        }
+
+        return envVars;
+      } catch {
+        // Ignore read errors
+      }
+    }
+  }
+
+  return [];
+}
 
 /**
  * Prompt for user input.
@@ -58,8 +101,15 @@ export const initCommand = new Command('init')
     }
 
     // Determine server command
-    let serverCommand = serverCommandArg || '';
+    let serverCommand = '';
     let serverArgs: string[] = [];
+
+    // Parse server command argument if provided
+    if (serverCommandArg) {
+      const parts = serverCommandArg.split(/\s+/);
+      serverCommand = parts[0];
+      serverArgs = parts.slice(1);
+    }
 
     // If no server command and not using --yes, prompt for it
     if (!serverCommand && !options.yes && process.stdin.isTTY) {
@@ -80,6 +130,9 @@ export const initCommand = new Command('init')
     // Determine mode
     const mode = options.full ? 'full' : (options.preset ? PRESETS[options.preset].mode : 'structural');
 
+    // Detect environment variables from .env.example
+    const envVars = detectEnvVars(process.cwd());
+
     // Generate config content
     let content: string;
 
@@ -87,6 +140,7 @@ export const initCommand = new Command('init')
       content = generatePresetConfig(options.preset, {
         serverCommand,
         serverArgs,
+        envVars,
       });
     } else {
       content = generateConfigTemplate({
@@ -94,6 +148,7 @@ export const initCommand = new Command('init')
         serverArgs,
         mode: mode as 'structural' | 'full',
         provider: options.provider as 'ollama' | 'openai' | 'anthropic',
+        envVars,
       });
     }
 
@@ -103,6 +158,16 @@ export const initCommand = new Command('init')
     // Show success message
     output.success(`Created: ${configPath}`);
     output.newline();
+
+    // Show info about detected env vars
+    if (envVars.length > 0) {
+      output.info(`Detected ${envVars.length} environment variable(s) from .env.example:`);
+      output.info(`  ${envVars.join(', ')}`);
+      output.newline();
+      output.info('These have been added to bellwether.yaml with ${VAR} interpolation syntax.');
+      output.info('Make sure to set these in your environment or .env file before running tests.');
+      output.newline();
+    }
 
     // Show mode-specific guidance
     if (mode === 'structural') {
@@ -162,6 +227,15 @@ export const initCommand = new Command('init')
         output.info('  2. Run your first test:');
         output.info('     bellwether test');
       }
+    }
+
+    // Show env var hint only if no env vars were auto-detected
+    if (envVars.length === 0) {
+      output.newline();
+      output.info('Note: If your server requires environment variables, add them to bellwether.yaml:');
+      output.info('     server:');
+      output.info('       env:');
+      output.info('         MY_VAR: "${MY_VAR}"  # pulls from .env or shell');
     }
 
     output.newline();

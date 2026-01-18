@@ -19,6 +19,8 @@ export interface ConfigTemplateOptions {
   provider?: 'ollama' | 'openai' | 'anthropic';
   /** Preset name used to generate this config */
   preset?: string;
+  /** Environment variables detected from .env.example */
+  envVars?: string[];
 }
 
 /**
@@ -34,6 +36,7 @@ export function generateConfigTemplate(options: ConfigTemplateOptions = {}): str
     mode = 'structural',
     provider = 'ollama',
     preset,
+    envVars = [],
   } = options;
 
   const serverArgsYaml = serverArgs.length > 0
@@ -41,6 +44,11 @@ export function generateConfigTemplate(options: ConfigTemplateOptions = {}): str
     : '\n  args: []';
 
   const presetComment = preset ? `# Generated with: bellwether init --preset ${preset}\n` : '';
+
+  // Generate env section if env vars were detected
+  const envVarsYaml = envVars.length > 0
+    ? `\n  env:\n${envVars.map(v => `    ${v}: "\${${v}}"`).join('\n')}`
+    : '';
 
   // For structural mode, we comment out most LLM and test settings
   // For full mode, we enable them with sensible defaults
@@ -65,9 +73,10 @@ server:
   timeout: 30000
 
   # Additional environment variables for the server process
+  # Use \${VAR} syntax to reference environment variables${envVarsYaml}${envVars.length === 0 ? `
   # env:
   #   NODE_ENV: production
-  #   DEBUG: "mcp:*"
+  #   API_KEY: "\${API_KEY}"` : ''}
 
 # =============================================================================
 # TEST MODE
@@ -169,7 +178,7 @@ output:
   # - agents.md: Human-readable markdown documentation
   # - json: Machine-readable JSON report
   # - both: Generate both formats
-  format: agents.md
+  format: both
 
   # Generate cloud-compatible baseline format
   # Required for bellwether upload

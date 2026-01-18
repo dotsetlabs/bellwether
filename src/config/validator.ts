@@ -95,7 +95,7 @@ export const outputConfigSchema = z.object({
   /** Output directory */
   dir: z.string().default('.'),
   /** Output format */
-  format: z.enum(['agents.md', 'json', 'both']).default('agents.md'),
+  format: z.enum(['agents.md', 'json', 'both']).default('both'),
   /** Generate cloud-compatible format */
   cloudFormat: z.boolean().default(false),
 }).default({});
