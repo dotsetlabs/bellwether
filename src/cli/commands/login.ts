@@ -207,6 +207,7 @@ async function verifyBetaPassword(password: string): Promise<boolean> {
         'Content-Type': 'application/json',
         [BETA_PASSWORD_HEADER]: password,
       },
+      body: JSON.stringify({}),
     });
 
     if (!response.ok) {
