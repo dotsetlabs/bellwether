@@ -6,6 +6,7 @@
  */
 
 import type { Persona, QuestionBias, QuestionCategory } from './types.js';
+import { MATH_FACTORS } from '../constants.js';
 
 /**
  * Validation error with detailed information.
@@ -406,10 +407,10 @@ export function normalizeBiasWeights(bias: QuestionBias): QuestionBias {
   if (sum === 0) {
     // All zeros - return equal weights for the required fields
     return {
-      happyPath: 0.25,
-      edgeCase: 0.25,
-      errorHandling: 0.25,
-      boundary: 0.25,
+      happyPath: MATH_FACTORS.DEFAULT_QUESTION_BIAS,
+      edgeCase: MATH_FACTORS.DEFAULT_QUESTION_BIAS,
+      errorHandling: MATH_FACTORS.DEFAULT_QUESTION_BIAS,
+      boundary: MATH_FACTORS.DEFAULT_QUESTION_BIAS,
       security: bias.security !== undefined ? 0 : undefined,
     };
   }

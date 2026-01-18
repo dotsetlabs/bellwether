@@ -23,7 +23,7 @@ function createMockDiff(overrides: Partial<BehavioralDiff> = {}): BehavioralDiff
     breakingCount: 0,
     warningCount: 0,
     infoCount: 0,
-    summary: 'No behavioral changes detected.',
+    summary: 'No changes detected.',
     ...overrides,
   };
 }
@@ -34,9 +34,9 @@ describe('Diff Formatting', () => {
       const diff = createMockDiff();
       const output = formatDiffText(diff, false);
 
-      expect(output).toContain('Behavioral Drift Report');
-      expect(output).toContain('No behavioral changes detected');
-      expect(output).toContain('Overall Severity:');
+      expect(output).toContain('Drift Report');
+      expect(output).toContain('No changes detected');
+      expect(output).toContain('Severity:');
     });
 
     it('should format diff with removed tools', () => {
@@ -315,7 +315,7 @@ describe('Diff Formatting', () => {
 
       const output = formatDiffMarkdown(diff);
 
-      expect(output).toContain('## Behavioral Drift Report');
+      expect(output).toContain('## Drift Report');
       expect(output).toContain('**Severity:**');
       expect(output).toContain('WARNING');
     });
@@ -340,7 +340,7 @@ describe('Diff Formatting', () => {
       const output = formatDiffMarkdown(diff);
 
       expect(output).toContain('### Tool Changes');
-      expect(output).toContain('| Tool | Status | Confidence | Details |');
+      expect(output).toContain('| Tool | Status | Details |');
       expect(output).toContain('removed');
       expect(output).toContain('added');
       expect(output).toContain('modified');
@@ -365,8 +365,8 @@ describe('Diff Formatting', () => {
 
       const output = formatDiffMarkdown(diff);
 
-      expect(output).toContain('### Behavioral Changes');
-      expect(output).toContain('| Tool | Aspect | Significance | Confidence | Description |');
+      expect(output).toContain('### Changes');
+      expect(output).toContain('| Tool | Aspect | Significance | Description |');
       expect(output).toContain('test_tool');
       expect(output).toContain('security');
     });

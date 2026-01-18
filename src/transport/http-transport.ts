@@ -1,5 +1,6 @@
 import type { JSONRPCMessage, JSONRPCResponse } from './types.js';
 import { BaseTransport, type BaseTransportConfig } from './base-transport.js';
+import { TIMEOUTS, DISPLAY_LIMITS } from '../constants.js';
 
 /**
  * Configuration for HTTP Transport.
@@ -41,7 +42,7 @@ export class HTTPTransport extends BaseTransport {
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.sessionId = config.sessionId;
     this.headers = config.headers ?? {};
-    this.timeout = config.timeout ?? 30000;
+    this.timeout = config.timeout ?? TIMEOUTS.DEFAULT;
 
     // Add session ID to headers if provided
     if (this.sessionId) {
@@ -207,7 +208,7 @@ export class HTTPTransport extends BaseTransport {
               this.emit('message', message);
             } catch (error) {
               // Log streaming parse errors for visibility
-              const preview = data.length > 100 ? data.substring(0, 100) + '...' : data;
+              const preview = data.length > DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW ? data.substring(0, DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW) + '...' : data;
               this.logger.warn({ preview, error: error instanceof Error ? error.message : String(error) }, 'Failed to parse SSE message');
             }
           } else {
@@ -217,7 +218,7 @@ export class HTTPTransport extends BaseTransport {
               this.emit('message', message);
             } catch {
               // Not JSON - this is common for non-JSON lines in streams, log only in debug
-              this.log('Skipping non-JSON line', { preview: trimmedLine.substring(0, 50) });
+              this.log('Skipping non-JSON line', { preview: trimmedLine.substring(0, DISPLAY_LIMITS.RESPONSE_DATA_PREVIEW) });
             }
           }
         }

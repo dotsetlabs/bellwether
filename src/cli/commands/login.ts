@@ -16,6 +16,7 @@ import {
 import { generateMockSession } from '../../cloud/mock-client.js';
 import type { DeviceAuthorizationResponse, DevicePollResponse, StoredSession } from '../../cloud/types.js';
 import * as output from '../output.js';
+import { TIME_CONSTANTS } from '../../constants.js';
 
 export const loginCommand = new Command('login')
   .description('Authenticate with Bellwether Cloud via GitHub')
@@ -96,7 +97,7 @@ export const loginCommand = new Command('login')
       const session: StoredSession = {
         sessionToken: result.session_token,
         user: result.user,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+        expiresAt: new Date(Date.now() + TIME_CONSTANTS.SESSION_EXPIRATION_MS).toISOString(), // 30 days
       };
       saveSession(session);
 
@@ -312,7 +313,7 @@ async function showStatus(): Promise<void> {
 
   const expiresAt = new Date(session.expiresAt);
   const now = new Date();
-  const daysRemaining = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const daysRemaining = Math.ceil((expiresAt.getTime() - now.getTime()) / TIME_CONSTANTS.MS_PER_DAY);
   output.info(`Session expires in ${daysRemaining} days`);
 
   if (isMockSession(session.sessionToken)) {

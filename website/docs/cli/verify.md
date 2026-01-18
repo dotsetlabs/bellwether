@@ -226,6 +226,6 @@ Or with a link to your report:
 
 ## See Also
 
-- [interview](/cli/interview) - Standard behavioral interview
+- [interview](/cli/test) - Standard behavioral interview
 - [badge](/cli/badge) - Get embeddable badges
 - [CI/CD Integration](/guides/ci-cd) - Automate verification

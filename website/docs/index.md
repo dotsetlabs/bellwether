@@ -60,6 +60,15 @@ Bellwether is a CLI tool for **behavioral drift detection** in MCP servers. It *
 - **MCP Registry Integration** - Search and discover servers from the official MCP Registry
 - **Verification Badges** - Earn Bronze, Silver, Gold, or Platinum coverage badges for your server
 
+## Two Testing Modes
+
+Bellwether offers two testing modes to fit your workflow:
+
+| Mode | Cost | Use Case |
+|:-----|:-----|:---------|
+| **Structural** (default) | Free | Fast schema comparison, CI/CD pipelines, deterministic |
+| **Full** | ~$0.01-0.15 | LLM-powered testing, intelligent scenarios, multi-persona |
+
 ## How It Works
 
 ```
@@ -115,17 +124,18 @@ Read contents of a file from the specified path.
 
 ## Cost Efficiency
 
-Bellwether uses LLMs for intelligent testing. Typical costs per interview (10 tools, 3 questions each):
+Bellwether uses LLMs for intelligent testing in full mode. Typical costs per test (10 tools, 3 questions each):
 
-| Model | Cost | Quality |
-|:------|:-----|:--------|
-| `gpt-5-mini` | ~$0.02 | Good (recommended for CI) |
-| `claude-haiku-4-5` | ~$0.04 | Good |
-| `gpt-5.2` | ~$0.12 | Best |
-| `claude-sonnet-4-5` | ~$0.13 | Best |
+| Mode/Model | Cost | Quality |
+|:-----------|:-----|:--------|
+| Structural (free) | $0.00 | Schema comparison |
 | Ollama (local) | Free | Variable |
+| `gpt-4o-mini` | ~$0.02 | Good (recommended for CI) |
+| `claude-haiku-4-5-latest` | ~$0.04 | Good |
+| `gpt-4o` | ~$0.12 | Best |
+| `claude-sonnet-4-5-latest` | ~$0.13 | Best |
 
-Use `--quick` flag in CI for fastest, cheapest runs (~$0.01).
+Use `bellwether init --preset ci` for the fastest, cheapest CI runs (structural mode, $0.00).
 
 ## Quick Example
 
@@ -133,15 +143,11 @@ Use `--quick` flag in CI for fastest, cheapest runs (~$0.01).
 # Install
 npm install -g @dotsetlabs/bellwether
 
-# Set your API key (interactive setup - stores in keychain)
-bellwether auth
-# Or: export OPENAI_API_KEY=sk-xxx (or use Ollama for free)
+# Initialize config (structural mode is free and fast)
+bellwether init npx @modelcontextprotocol/server-filesystem /tmp
 
-# Interview a local server during development
-bellwether interview node ./src/mcp-server.js
-
-# Or interview an npm package
-bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
+# Run test
+bellwether test
 
 # Output: AGENTS.md with behavioral documentation
 ```
@@ -151,27 +157,34 @@ bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
 Bellwether integrates into your development workflow to catch behavioral drift before deployment:
 
 ```bash
-# 1. Test your local server
-bellwether interview node ./src/mcp-server.js
+# 1. Initialize configuration
+bellwether init node ./src/mcp-server.js
 
-# 2. Save a baseline after initial development
-bellwether interview --save-baseline node ./src/mcp-server.js
+# 2. Run test and generate documentation
+bellwether test
 
-# 3. Use watch mode for continuous testing
-bellwether watch node ./src/mcp-server.js --watch-path ./src
+# 3. Save a baseline for drift detection
+bellwether baseline save
 
-# 4. Before committing, check for drift
-bellwether interview --compare-baseline ./baseline.json node ./src/mcp-server.js
+# 4. Use watch mode for continuous testing
+bellwether watch --watch-path ./src
+
+# 5. Before committing, check for drift
+bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
-Use Ollama for completely free testing during development.
+Use Ollama for completely free LLM-powered testing during development:
+
+```bash
+bellwether init --preset local node ./src/mcp-server.js
+```
 
 ## Next Steps
 
 - [Installation](/installation) - Install Bellwether and configure your LLM provider
-- [Quick Start](/quickstart) - Run your first interview in 5 minutes
+- [Quick Start](/quickstart) - Run your first test in 5 minutes
 - [Local Development](/guides/local-development) - Test your server during development
-- [CLI Reference](/cli/interview) - Full command documentation
+- [CLI Reference](/cli/test) - Full command documentation
 - [MCP Registry](/cli/registry) - Discover servers to test
 - [Verification Badges](/cli/verify) - Earn coverage badges for your server
 - [CI/CD Integration](/guides/ci-cd) - Automate with the GitHub Action

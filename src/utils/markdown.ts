@@ -5,6 +5,8 @@
  * including tables, code blocks, and Mermaid diagrams.
  */
 
+import { DISPLAY_LIMITS } from '../constants.js';
+
 /**
  * Escape a string for use in a Markdown table cell.
  * Handles pipe characters and other special characters that break table structure.
@@ -254,7 +256,7 @@ export function escapeListItem(text: string): string {
  * @param maxWidth - Maximum width (default: 50)
  * @returns Wrapped text with <br> for line breaks
  */
-export function wrapTableCell(text: string, maxWidth: number = 50): string {
+export function wrapTableCell(text: string, maxWidth: number = DISPLAY_LIMITS.TABLE_CELL_MAX_WIDTH): string {
   if (!text || text.length <= maxWidth) {
     return escapeTableCell(text);
   }

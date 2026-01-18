@@ -27,6 +27,7 @@ import type {
 } from './types.js';
 import { getLogger } from '../logging/logger.js';
 import { withTimeout, DEFAULT_TIMEOUTS, TimeoutError } from '../utils/timeout.js';
+import { MATH_FACTORS, DISPLAY_LIMITS } from '../constants.js';
 
 /**
  * Patterns that indicate a tool reads state.
@@ -228,7 +229,7 @@ export class StateTracker {
 
     // Track consecutive failures for circuit breaker
     let consecutiveFailures = 0;
-    const maxConsecutiveFailures = Math.ceil(this.probeTools.length * 0.5);
+    const maxConsecutiveFailures = Math.ceil(this.probeTools.length * MATH_FACTORS.PROBE_FAILURE_THRESHOLD);
 
     // Call each probe tool to gather state with individual timeouts
     for (const probeName of this.probeTools) {
@@ -324,7 +325,7 @@ export class StateTracker {
    */
   private hashState(data: unknown): string {
     const json = JSON.stringify(data, null, 0);
-    return createHash('sha256').update(json).digest('hex').slice(0, 16);
+    return createHash('sha256').update(json).digest('hex').slice(0, DISPLAY_LIMITS.HASH_DISPLAY_LENGTH);
   }
 
   /**

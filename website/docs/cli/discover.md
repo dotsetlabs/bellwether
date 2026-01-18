@@ -83,10 +83,10 @@ TOOLS
 QUICK START
 ──────────────────────────────────────────────────────────────────
 
-  bellwether interview @modelcontextprotocol/server-filesystem /tmp --preset docs
+  bellwether test @modelcontextprotocol/server-filesystem /tmp --preset docs
     Quick documentation generation
 
-  bellwether interview @modelcontextprotocol/server-filesystem /tmp --preset security
+  bellwether test @modelcontextprotocol/server-filesystem /tmp --preset security
     Security-focused testing
 ```
 
@@ -179,7 +179,7 @@ Use discover to isolate connection vs. interview issues:
 bellwether discover npx your-server
 
 # If discover works but interview fails, it's an LLM/interview issue
-bellwether interview npx your-server
+bellwether test npx your-server
 ```
 
 ## Exit Codes
@@ -191,5 +191,5 @@ bellwether interview npx your-server
 
 ## See Also
 
-- [interview](/cli/interview) - Full behavioral interview
+- [interview](/cli/test) - Full behavioral interview
 - [init](/cli/init) - Create configuration file

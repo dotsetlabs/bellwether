@@ -202,3 +202,34 @@ export function getBuiltinPersonaIds(): BuiltInPersonaId[] {
  * Default persona for interviews.
  */
 export const DEFAULT_PERSONA = technicalWriterPersona;
+
+/**
+ * Parse persona list from string array of persona IDs.
+ * Returns the DEFAULT_PERSONA if the list is empty or contains no valid personas.
+ *
+ * @param personaList - Array of persona ID strings
+ * @param warnOnUnknown - Optional callback for unknown persona warnings
+ * @returns Array of resolved Persona objects
+ */
+export function parsePersonas(
+  personaList: string[],
+  warnOnUnknown?: (unknownName: string, validNames: string[]) => void
+): Persona[] {
+  if (personaList.length === 0) {
+    return [DEFAULT_PERSONA];
+  }
+
+  const personas: Persona[] = [];
+  const validNames = Object.keys(BUILTIN_PERSONAS);
+
+  for (const name of personaList) {
+    const persona = BUILTIN_PERSONAS[name as BuiltInPersonaId];
+    if (persona) {
+      personas.push(persona);
+    } else if (warnOnUnknown) {
+      warnOnUnknown(name, validNames);
+    }
+  }
+
+  return personas.length > 0 ? personas : [DEFAULT_PERSONA];
+}

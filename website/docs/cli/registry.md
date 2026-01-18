@@ -118,7 +118,7 @@ The default output shows:
 bellwether registry memory
 
 # Interview the found server
-bellwether interview npx @modelcontextprotocol/server-memory
+bellwether test npx @modelcontextprotocol/server-memory
 ```
 
 ### Explore the Ecosystem
@@ -138,7 +138,7 @@ bellwether registry "api"
 ```bash
 # Get server info programmatically
 SERVER=$(bellwether registry --json --limit 1 filesystem | jq -r '.[0].server.packages[0].identifier')
-bellwether interview npx $SERVER /tmp
+bellwether test npx $SERVER /tmp
 ```
 
 ## Supported Package Types
@@ -161,6 +161,6 @@ The registry includes servers from various package managers:
 
 ## See Also
 
-- [interview](/cli/interview) - Interview an MCP server
+- [interview](/cli/test) - Interview an MCP server
 - [discover](/cli/discover) - Quick capability discovery
 - [MCP Registry](https://registry.modelcontextprotocol.io/) - Official registry website

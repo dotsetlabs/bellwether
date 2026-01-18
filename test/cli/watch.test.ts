@@ -90,18 +90,54 @@ describe('watch command', () => {
     }));
 
     vi.doMock('../../src/config/loader.js', () => ({
-      loadConfig: vi.fn().mockReturnValue({
-        llm: {
-          provider: 'openai',
-          model: 'gpt-4o',
-          apiKey: 'test-key',
+      loadConfigNew: vi.fn().mockReturnValue({
+        server: {
+          command: '',
+          args: [],
+          timeout: 30000,
+          env: {},
         },
-        interview: {
-          maxQuestionsPerTool: 5,
+        mode: 'structural',
+        llm: {
+          provider: 'ollama',
+          model: '',
+          ollama: { baseUrl: 'http://localhost:11434' },
+        },
+        test: {
+          personas: [],
+          maxQuestionsPerTool: 3,
+          parallelPersonas: false,
           skipErrorTests: false,
         },
+        output: { dir: '.', format: 'agents.md', cloudFormat: false },
+        baseline: { failOnDrift: false, minConfidence: 0, confidenceThreshold: 80 },
+        cache: { enabled: true, dir: '.bellwether/cache' },
+        logging: { level: 'info', verbose: false },
+        scenarios: { only: false },
+        workflows: { discover: false, trackState: false },
       }),
+      ConfigNotFoundError: class ConfigNotFoundError extends Error {
+        constructor(searchedPaths?: string[]) {
+          super('No bellwether config file found.');
+          this.name = 'ConfigNotFoundError';
+        }
+      },
     }));
+
+    vi.doMock('../../src/config/validator.js', () => ({
+      validateConfigForTest: vi.fn(),
+    }));
+
+    vi.doMock('../../src/persona/builtins.js', () => {
+      const mockPersona = { name: 'technical_writer', systemPrompt: 'test', questionGuidance: '' };
+      return {
+        DEFAULT_PERSONA: mockPersona,
+        securityTesterPersona: { name: 'security_tester', systemPrompt: 'test', questionGuidance: '' },
+        qaEngineerPersona: { name: 'qa_engineer', systemPrompt: 'test', questionGuidance: '' },
+        noviceUserPersona: { name: 'novice_user', systemPrompt: 'test', questionGuidance: '' },
+        parsePersonas: vi.fn().mockReturnValue([mockPersona]),
+      };
+    });
 
     vi.doMock('../../src/baseline/index.js', () => ({
       createBaseline: vi.fn().mockReturnValue({
@@ -144,11 +180,12 @@ describe('watch command', () => {
       expect(watchCommand.description()).toContain('Watch');
     });
 
-    it('should require server command argument', async () => {
+    it('should have optional server command argument', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
       const args = watchCommand.registeredArguments;
-      expect(args[0].name()).toBe('command');
-      expect(args[0].required).toBe(true);
+      expect(args[0].name()).toBe('server-command');
+      // Server command is optional - can come from config
+      expect(args[0].required).toBe(false);
     });
 
     it('should have config option', async () => {
@@ -171,10 +208,11 @@ describe('watch command', () => {
       expect(intervalOpt?.defaultValue).toBe('5000');
     });
 
-    it('should have max-questions option', async () => {
+    it('should not have max-questions option (uses config)', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
+      // max-questions was removed - now reads from config
       const maxQuestionsOpt = watchCommand.options.find(o => o.long === '--max-questions');
-      expect(maxQuestionsOpt).toBeDefined();
+      expect(maxQuestionsOpt).toBeUndefined();
     });
 
     it('should have baseline option with default', async () => {

@@ -90,6 +90,10 @@ export interface InterviewConfig {
   cache?: ToolResponseCache;
   /** Workflow testing configuration */
   workflowConfig?: WorkflowConfig;
+  /** Skip LLM analysis for fast CI runs (uses fallback questions, skips synthesis) */
+  structuralOnly?: boolean;
+  /** Server command (for metadata tracking) */
+  serverCommand?: string;
 }
 
 /**
@@ -341,4 +345,6 @@ export interface InterviewMetadata {
   personas?: PersonaSummary[];
   /** Workflow execution summary */
   workflows?: WorkflowSummary;
+  /** Server command used to start the MCP server */
+  serverCommand?: string;
 }

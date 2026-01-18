@@ -19,7 +19,23 @@ Testing locally allows you to:
 - **Shift-left testing** - Catch behavioral regressions before they're deployed
 - **Fast iteration** - No waiting for deployments between tests
 - **CI/CD integration** - Gate deployments on drift detection
-- **Free testing** - Use Ollama for completely free local LLM inference
+- **Free testing** - Use structural mode or Ollama for completely free testing
+
+## Quick Start
+
+```bash
+# 1. Initialize configuration
+bellwether init node ./src/mcp-server.js
+
+# 2. Run test
+bellwether test
+
+# 3. Save baseline
+bellwether baseline save
+
+# 4. Watch for changes
+bellwether watch --watch-path ./src
+```
 
 ## Running Against Local Servers
 
@@ -29,40 +45,66 @@ The most common way to test locally is using stdio transport, where Bellwether s
 
 ```bash
 # Node.js server
-bellwether interview node ./src/mcp-server.js
+bellwether init node ./src/mcp-server.js
+bellwether test
 
 # Python server
-bellwether interview python ./mcp_server.py
+bellwether init python ./mcp_server.py
+bellwether test
 
 # TypeScript (via ts-node or tsx)
-bellwether interview npx tsx ./src/server.ts
+bellwether init npx tsx ./src/server.ts
+bellwether test
 
 # Any executable
-bellwether interview ./my-server-binary --config ./config.json
+bellwether init ./my-server-binary --config ./config.json
+bellwether test
 ```
 
 Bellwether communicates with your server via stdin/stdout using JSON-RPC 2.0.
 
 ### Localhost HTTP Servers
 
-If your server runs as an HTTP service locally:
+If your server runs as an HTTP service locally, configure transport in `bellwether.yaml`:
 
-```bash
-# SSE transport
-bellwether interview --transport sse --url http://localhost:3000/mcp npx placeholder
+```yaml
+server:
+  transport: sse
+  url: http://localhost:3000/mcp
+```
 
-# Streamable HTTP transport
-bellwether interview --transport streamable-http --url http://localhost:8000/mcp npx placeholder
+Or for streamable HTTP:
+
+```yaml
+server:
+  transport: streamable-http
+  url: http://localhost:8000/mcp
 ```
 
 ## Development Workflow
 
-### 1. Create Initial Baseline
+### 1. Initialize Configuration
+
+First, create your configuration file:
+
+```bash
+# Default structural mode (free, fast)
+bellwether init node ./src/mcp-server.js
+
+# Or full LLM mode with Ollama (free)
+bellwether init --preset local node ./src/mcp-server.js
+```
+
+### 2. Create Initial Baseline
 
 After your server is working, create a baseline to track future changes:
 
 ```bash
-bellwether interview --save-baseline node ./src/mcp-server.js
+# Run test first
+bellwether test
+
+# Save baseline
+bellwether baseline save
 ```
 
 This saves `bellwether-baseline.json` with:
@@ -71,41 +113,42 @@ This saves `bellwether-baseline.json` with:
 - Security findings
 - Performance metrics
 
-### 2. Develop with Watch Mode
+### 3. Develop with Watch Mode
 
 Run watch mode in a terminal while developing:
 
 ```bash
-bellwether watch node ./src/mcp-server.js --watch-path ./src
+bellwether watch --watch-path ./src
 ```
 
 Watch mode:
-- Runs an initial interview on startup
+- Runs an initial test on startup
 - Monitors `./src` for file changes
-- Re-interviews when files change
-- Shows diffs from previous interview
+- Re-tests when files change
+- Shows diffs from previous test
 
 Example output:
 ```
-[watch] Initial interview starting...
-[watch] Interview complete. Watching ./src for changes...
+[watch] Initial test starting...
+[watch] Test complete. Watching ./src for changes...
 
 [watch] File changed: src/tools/read.ts
-[watch] Re-running interview...
+[watch] Re-running test...
 
 Changes detected:
   + read_file now handles symlinks
   ~ error message format changed for ENOENT
 
-[watch] Interview complete. Watching for changes...
+[watch] Test complete. Watching for changes...
 ```
 
-### 3. Compare Against Baseline
+### 4. Compare Against Baseline
 
 Before committing, verify your changes against the baseline:
 
 ```bash
-bellwether interview --compare-baseline ./bellwether-baseline.json node ./src/mcp-server.js
+bellwether test
+bellwether baseline compare ./bellwether-baseline.json
 ```
 
 This shows:
@@ -113,16 +156,17 @@ This shows:
 - **Warnings** - Behavioral changes to investigate
 - **Info** - Documentation-only changes
 
-### 4. Update Baseline for Intentional Changes
+### 5. Update Baseline for Intentional Changes
 
 When changes are intentional (new features, bug fixes):
 
 ```bash
 # Review the changes
-bellwether interview --compare-baseline ./baseline.json node ./src/mcp-server.js
+bellwether test
+bellwether baseline compare ./bellwether-baseline.json
 
 # Update baseline if changes are correct
-bellwether interview --save-baseline node ./src/mcp-server.js
+bellwether baseline save --force
 
 # Commit updated baseline
 git add bellwether-baseline.json AGENTS.md
@@ -131,7 +175,7 @@ git commit -m "Update baseline: added symlink support"
 
 ## Using Ollama for Free Local Testing
 
-For completely free testing during development, use Ollama:
+For completely free LLM-powered testing during development, use Ollama:
 
 ```bash
 # Install Ollama (macOS)
@@ -143,30 +187,28 @@ ollama serve
 # Pull a model
 ollama pull llama3.2
 
-# Bellwether auto-detects Ollama when no API keys are set
-bellwether interview node ./src/mcp-server.js
+# Initialize with local preset
+bellwether init --preset local node ./src/mcp-server.js
+
+# Run test (free!)
+bellwether test
 ```
 
-Or configure in `bellwether.yaml`:
+The generated `bellwether.yaml` will be configured for Ollama:
 
 ```yaml
-version: 1
+mode: full
+
 llm:
   provider: ollama
-  model: llama3.2
-  baseUrl: http://localhost:11434
+  model: ""  # Uses llama3.2 by default
+  ollama:
+    baseUrl: "http://localhost:11434"
 ```
 
 ## Custom Test Scenarios
 
-For deterministic testing without LLM costs, define custom scenarios:
-
-```bash
-# Generate sample scenarios file
-bellwether interview --init-scenarios
-```
-
-Edit `bellwether-tests.yaml`:
+For deterministic testing without LLM costs, define custom scenarios in `bellwether-tests.yaml`:
 
 ```yaml
 version: 1
@@ -190,29 +232,26 @@ tools:
             expected: true
 ```
 
-Run scenarios without LLM:
+Configure in `bellwether.yaml` to use scenarios only:
+
+```yaml
+scenarios:
+  path: "./bellwether-tests.yaml"
+  only: true  # Skip LLM tests, run only scenarios
+```
+
+Then run:
 
 ```bash
-# Run only custom scenarios (fast, no API costs)
-bellwether interview --scenarios-only node ./src/mcp-server.js
+bellwether test
 ```
 
 ## CI/CD Integration
 
 Add drift detection to your CI pipeline:
 
-```bash
-# In CI - fail if drift detected
-bellwether interview \
-  --preset ci \
-  --compare-baseline ./bellwether-baseline.json \
-  --fail-on-drift \
-  node ./src/mcp-server.js
-```
-
-Example GitHub Actions workflow:
-
 ```yaml
+# .github/workflows/bellwether.yml
 name: MCP Server Tests
 on: [push, pull_request]
 
@@ -230,30 +269,36 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Bellwether
-        run: npm install -g @dotsetlabs/bellwether
+      - name: Run Bellwether Test
+        run: npx @dotsetlabs/bellwether test
 
-      - name: Check for drift
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          bellwether interview \
-            --preset ci \
-            --compare-baseline ./bellwether-baseline.json \
-            --fail-on-drift \
-            node ./src/mcp-server.js
+      - name: Check for Drift
+        run: npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
-## Quick Mode for Fast Feedback
+## Two Testing Modes
 
-During active development, use quick mode for faster feedback:
+Choose the right mode for your workflow:
+
+### Structural Mode (Default)
+
+- **Cost**: Free
+- **Speed**: Fast (seconds)
+- **Use case**: CI/CD, quick checks, schema verification
 
 ```bash
-# Quick interview with minimal questions
-bellwether interview --preset ci node ./src/mcp-server.js
+bellwether init node ./src/mcp-server.js  # Default structural
+```
 
-# Or explicitly set low question count
-bellwether interview --max-questions 2 node ./src/mcp-server.js
+### Full Mode
+
+- **Cost**: Free with Ollama, ~$0.01-0.15 with API
+- **Speed**: Slower (minutes)
+- **Use case**: Thorough testing, documentation, security audits
+
+```bash
+bellwether init --preset local node ./src/mcp-server.js   # Free with Ollama
+bellwether init --preset thorough node ./src/mcp-server.js  # Premium models
 ```
 
 ## Environment Variables
@@ -270,20 +315,22 @@ Your server receives a clean environment without these sensitive values.
 
 ### Server Startup Issues
 
-If your server takes time to start (common with `npx`):
+If your server takes time to start (common with `npx`), increase timeout in config:
 
-```bash
-# Increase startup timeout
-bellwether interview --timeout 60000 npx your-server
+```yaml
+server:
+  command: "npx your-server"
+  timeout: 60000  # 60 seconds
 ```
 
 ### Server Crashes
 
-Check the interview output for error details:
+Check the test output for error details. Enable debug logging:
 
-```bash
-# Enable debug mode for verbose output
-bellwether interview --debug node ./src/mcp-server.js
+```yaml
+logging:
+  level: debug
+  verbose: true
 ```
 
 ### Watch Mode Not Detecting Changes
@@ -292,16 +339,17 @@ Ensure you're watching the right directory:
 
 ```bash
 # Watch a specific directory
-bellwether watch node ./src/mcp-server.js --watch-path ./src
+bellwether watch --watch-path ./src
 
-# Adjust polling interval if changes aren't detected
-bellwether watch node ./src/mcp-server.js --interval 2000
+# Watch multiple directories
+bellwether watch --watch-path ./src --watch-path ./lib
 ```
 
 ## See Also
 
 - [watch](/cli/watch) - Watch mode CLI reference
-- [interview](/cli/interview) - Interview CLI reference
+- [test](/cli/test) - Test CLI reference
+- [baseline](/cli/baseline) - Baseline management
 - [Drift Detection](/concepts/drift-detection) - Understanding drift detection
 - [Custom Scenarios](/guides/custom-scenarios) - Deterministic testing
 - [CI/CD Integration](/guides/ci-cd) - Pipeline setup

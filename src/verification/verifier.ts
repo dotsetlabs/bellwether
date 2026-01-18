@@ -14,11 +14,12 @@ import type {
 import type { InterviewResult } from '../interview/types.js';
 import { getLogger } from '../logging/logger.js';
 import { VERSION } from '../version.js';
+import { TIME_CONSTANTS, DISPLAY_LIMITS } from '../constants.js';
 
 const logger = getLogger('verification');
 
 /** Verification validity period in days */
-const VERIFICATION_VALIDITY_DAYS = 90;
+const VERIFICATION_VALIDITY_DAYS = TIME_CONSTANTS.VERIFICATION_VALIDITY_DAYS;
 
 /**
  * Generate a verification result from an interview result.
@@ -28,7 +29,7 @@ export function generateVerificationResult(
   config: VerificationConfig
 ): VerificationResult {
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + VERIFICATION_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(now.getTime() + VERIFICATION_VALIDITY_DAYS * TIME_CONSTANTS.MS_PER_DAY);
 
   // Calculate test statistics
   const { testsPassed, testsTotal } = calculateTestStats(interview);
@@ -352,7 +353,7 @@ function generateReportHash(interview: InterviewResult): string {
   return createHash('sha256')
     .update(JSON.stringify(data))
     .digest('hex')
-    .substring(0, 16);
+    .substring(0, DISPLAY_LIMITS.HASH_DISPLAY_LENGTH);
 }
 
 /**

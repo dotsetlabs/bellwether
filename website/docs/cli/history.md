@@ -92,7 +92,7 @@ Or use the CLI:
 curl -o v10.json https://bellwether.sh/api/projects/proj_abc123/baselines/10
 curl -o v12.json https://bellwether.sh/api/projects/proj_abc123/baselines/12
 
-bellwether interview --compare-baseline v10.json --save-baseline v12.json npx your-server
+bellwether test --compare-baseline v10.json --save-baseline v12.json npx your-server
 ```
 
 ## See Also

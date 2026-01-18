@@ -3,9 +3,9 @@ import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import {
-  loadConfig,
-  generateDefaultConfig,
-  getDefaultConfig,
+  loadConfigNew,
+  ConfigNotFoundError,
+  CONFIG_NAMES,
 } from '../../src/config/loader.js';
 
 describe('config/loader', () => {
@@ -29,10 +29,9 @@ describe('config/loader', () => {
     }
   });
 
-  describe('loadConfig', () => {
-    it('should return default config when no config file exists', () => {
-      const config = loadConfig();
-      expect(config).toEqual(getDefaultConfig());
+  describe('loadConfigNew', () => {
+    it('should throw ConfigNotFoundError when no config file exists', () => {
+      expect(() => loadConfigNew()).toThrow(ConfigNotFoundError);
     });
 
     it('should load config from explicit path', () => {
@@ -40,26 +39,25 @@ describe('config/loader', () => {
       writeFileSync(
         configPath,
         `
-version: 1
+mode: structural
 llm:
   provider: openai
   model: gpt-4-turbo
-interview:
+test:
   maxQuestionsPerTool: 5
 `
       );
 
-      const config = loadConfig(configPath);
+      const config = loadConfigNew(configPath);
 
       expect(config.llm.model).toBe('gpt-4-turbo');
-      expect(config.interview.maxQuestionsPerTool).toBe(5);
-      // Should still have defaults for unspecified fields
-      expect(config.interview.timeout).toBe(getDefaultConfig().interview.timeout);
+      expect(config.test.maxQuestionsPerTool).toBe(5);
+      expect(config.mode).toBe('structural');
     });
 
     it('should throw error for non-existent explicit path', () => {
-      expect(() => loadConfig('/nonexistent/path/config.yaml')).toThrow(
-        'Config file not found'
+      expect(() => loadConfigNew('/nonexistent/path/config.yaml')).toThrow(
+        ConfigNotFoundError
       );
     });
 
@@ -67,41 +65,43 @@ interview:
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-version: 1
+mode: full
 llm:
-  model: gpt-3.5-turbo
+  provider: anthropic
+  model: claude-haiku-4-5
 `
       );
 
-      const config = loadConfig();
-      expect(config.llm.model).toBe('gpt-3.5-turbo');
+      const config = loadConfigNew();
+      expect(config.llm.model).toBe('claude-haiku-4-5');
+      expect(config.llm.provider).toBe('anthropic');
     });
 
     it('should find bellwether.yml in current directory', () => {
       writeFileSync(
         join(testDir, 'bellwether.yml'),
         `
-version: 1
-interview:
+mode: structural
+server:
   timeout: 60000
 `
       );
 
-      const config = loadConfig();
-      expect(config.interview.timeout).toBe(60000);
+      const config = loadConfigNew();
+      expect(config.server.timeout).toBe(60000);
     });
 
     it('should find .bellwether.yaml (dotfile) in current directory', () => {
       writeFileSync(
         join(testDir, '.bellwether.yaml'),
         `
-version: 1
+mode: structural
 output:
   format: json
 `
       );
 
-      const config = loadConfig();
+      const config = loadConfigNew();
       expect(config.output.format).toBe('json');
     });
 
@@ -109,6 +109,7 @@ output:
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
+mode: structural
 llm:
   model: preferred-model
 `
@@ -116,50 +117,51 @@ llm:
       writeFileSync(
         join(testDir, 'bellwether.yml'),
         `
+mode: structural
 llm:
   model: other-model
 `
       );
 
-      const config = loadConfig();
+      const config = loadConfigNew();
       expect(config.llm.model).toBe('preferred-model');
     });
 
-    it('should merge nested config with defaults', () => {
+    it('should apply defaults for unspecified values', () => {
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-version: 1
-interview:
+mode: full
+test:
   maxQuestionsPerTool: 10
 `
       );
 
-      const config = loadConfig();
+      const config = loadConfigNew();
 
       // Specified value
-      expect(config.interview.maxQuestionsPerTool).toBe(10);
+      expect(config.test.maxQuestionsPerTool).toBe(10);
       // Defaults for unspecified values
-      expect(config.interview.timeout).toBe(getDefaultConfig().interview.timeout);
-      expect(config.interview.skipErrorTests).toBe(getDefaultConfig().interview.skipErrorTests);
-      expect(config.llm.provider).toBe(getDefaultConfig().llm.provider);
-      expect(config.llm.model).toBe(getDefaultConfig().llm.model);
+      expect(config.server.timeout).toBe(30000);
+      expect(config.llm.provider).toBe('ollama');
+      expect(config.cache.enabled).toBe(true);
     });
 
     it('should handle empty config file gracefully', () => {
       writeFileSync(join(testDir, 'bellwether.yaml'), '');
 
-      // Empty YAML parses to null, loader should return defaults
-      const config = loadConfig();
-      expect(config).toEqual(getDefaultConfig());
+      // Empty YAML parses to null, loader should apply defaults
+      const config = loadConfigNew();
+      expect(config.mode).toBe('structural');
+      expect(config.llm.provider).toBe('ollama');
     });
 
-    it('should handle config with only version', () => {
-      writeFileSync(join(testDir, 'bellwether.yaml'), 'version: 2');
+    it('should handle config with only mode', () => {
+      writeFileSync(join(testDir, 'bellwether.yaml'), 'mode: full');
 
-      const config = loadConfig();
-      expect(config.version).toBe(2);
-      expect(config.llm).toEqual(getDefaultConfig().llm);
+      const config = loadConfigNew();
+      expect(config.mode).toBe('full');
+      expect(config.llm.provider).toBe('ollama');
     });
 
     it('should handle output format variations', () => {
@@ -169,106 +171,176 @@ interview:
         writeFileSync(
           join(testDir, 'bellwether.yaml'),
           `
+mode: structural
 output:
   format: ${format}
 `
         );
 
-        const config = loadConfig();
+        const config = loadConfigNew();
         expect(config.output.format).toBe(format);
       }
     });
 
-    it('should parse apiKeyEnvVar', () => {
+    it('should parse server configuration', () => {
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-llm:
-  apiKeyEnvVar: CUSTOM_API_KEY
+mode: structural
+server:
+  command: npx @mcp/my-server
+  args:
+    - --verbose
+  timeout: 45000
 `
       );
 
-      const config = loadConfig();
-      expect(config.llm.apiKeyEnvVar).toBe('CUSTOM_API_KEY');
+      const config = loadConfigNew();
+      expect(config.server.command).toBe('npx @mcp/my-server');
+      expect(config.server.args).toEqual(['--verbose']);
+      expect(config.server.timeout).toBe(45000);
     });
 
-    it('should parse outputDir', () => {
+    it('should parse baseline configuration', () => {
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-output:
-  outputDir: ./my-docs
+mode: structural
+baseline:
+  failOnDrift: true
+  minConfidence: 50
+  confidenceThreshold: 90
 `
       );
 
-      const config = loadConfig();
-      expect(config.output.outputDir).toBe('./my-docs');
+      const config = loadConfigNew();
+      expect(config.baseline.failOnDrift).toBe(true);
+      expect(config.baseline.minConfidence).toBe(50);
+      expect(config.baseline.confidenceThreshold).toBe(90);
     });
 
     it('should handle skipErrorTests boolean', () => {
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-interview:
+mode: full
+test:
   skipErrorTests: true
 `
       );
 
-      const config = loadConfig();
-      expect(config.interview.skipErrorTests).toBe(true);
+      const config = loadConfigNew();
+      expect(config.test.skipErrorTests).toBe(true);
+    });
+
+    it('should reject config with API keys stored directly', () => {
+      writeFileSync(
+        join(testDir, 'bellwether.yaml'),
+        `
+mode: full
+llm:
+  provider: openai
+  apiKey: sk-secret-key
+`
+      );
+
+      expect(() => loadConfigNew()).toThrow(/Security Error.*API key/);
+    });
+
+    it('should parse personas as array', () => {
+      writeFileSync(
+        join(testDir, 'bellwether.yaml'),
+        `
+mode: full
+test:
+  personas:
+    - technical_writer
+    - security_tester
+`
+      );
+
+      const config = loadConfigNew();
+      expect(config.test.personas).toEqual(['technical_writer', 'security_tester']);
+    });
+
+    it('should parse cache configuration', () => {
+      writeFileSync(
+        join(testDir, 'bellwether.yaml'),
+        `
+mode: structural
+cache:
+  enabled: false
+  dir: .custom-cache
+`
+      );
+
+      const config = loadConfigNew();
+      expect(config.cache.enabled).toBe(false);
+      expect(config.cache.dir).toBe('.custom-cache');
+    });
+
+    it('should parse logging configuration', () => {
+      writeFileSync(
+        join(testDir, 'bellwether.yaml'),
+        `
+mode: structural
+logging:
+  level: debug
+  verbose: true
+`
+      );
+
+      const config = loadConfigNew();
+      expect(config.logging.level).toBe('debug');
+      expect(config.logging.verbose).toBe(true);
+    });
+
+    it('should validate mode values', () => {
+      writeFileSync(
+        join(testDir, 'bellwether.yaml'),
+        `
+mode: invalid-mode
+`
+      );
+
+      expect(() => loadConfigNew()).toThrow();
+    });
+
+    it('should validate provider values', () => {
+      writeFileSync(
+        join(testDir, 'bellwether.yaml'),
+        `
+mode: full
+llm:
+  provider: invalid-provider
+`
+      );
+
+      expect(() => loadConfigNew()).toThrow();
     });
   });
 
-  describe('generateDefaultConfig', () => {
-    it('should generate valid YAML', () => {
-      const yaml = generateDefaultConfig();
-
-      expect(yaml).toContain('version: 1');
-      expect(yaml).toContain('provider: openai');
-      expect(yaml).toContain('model: gpt-5-mini');
-      expect(yaml).toContain('maxQuestionsPerTool: 3');
-      expect(yaml).toContain('timeout: 30000');
-      expect(yaml).toContain('format: agents.md');
-    });
-
-    it('should include commented options', () => {
-      const yaml = generateDefaultConfig();
-
-      expect(yaml).toContain('# apiKeyEnvVar');
-      expect(yaml).toContain('# skipErrorTests');
-      expect(yaml).toContain('# outputDir');
-    });
-
-    it('should be parseable and loadable', () => {
-      const yaml = generateDefaultConfig();
-      writeFileSync(join(testDir, 'bellwether.yaml'), yaml);
-
-      const config = loadConfig();
-      expect(config.version).toBe(1);
-      expect(config.llm.model).toBe('gpt-5-mini');
+  describe('CONFIG_NAMES', () => {
+    it('should include expected config file names', () => {
+      expect(CONFIG_NAMES).toContain('bellwether.yaml');
+      expect(CONFIG_NAMES).toContain('bellwether.yml');
+      expect(CONFIG_NAMES).toContain('.bellwether.yaml');
+      expect(CONFIG_NAMES).toContain('.bellwether.yml');
     });
   });
 
-  describe('getDefaultConfig', () => {
-    it('should have sensible defaults', () => {
-      const config = getDefaultConfig();
-      expect(config.version).toBe(1);
-      // Provider is auto-detected based on environment
-      expect(['openai', 'anthropic', 'ollama']).toContain(config.llm.provider);
-      expect(config.llm.model).toBeDefined();
-      expect(config.interview.maxQuestionsPerTool).toBe(3);
-      expect(config.interview.timeout).toBe(30000);
-      expect(config.interview.skipErrorTests).toBe(false);
-      expect(config.output.format).toBe('agents.md');
+  describe('ConfigNotFoundError', () => {
+    it('should have helpful error message', () => {
+      const error = new ConfigNotFoundError();
+      expect(error.message).toContain('bellwether init');
+      expect(error.name).toBe('ConfigNotFoundError');
     });
 
-    it('should not have undefined required fields', () => {
-      const config = getDefaultConfig();
-      expect(config.llm.provider).toBeDefined();
-      expect(config.llm.model).toBeDefined();
-      expect(config.interview.maxQuestionsPerTool).toBeDefined();
-      expect(config.interview.timeout).toBeDefined();
-      expect(config.output.format).toBeDefined();
+    it('should include searched paths when provided', () => {
+      const paths = ['/path/one', '/path/two'];
+      const error = new ConfigNotFoundError(paths);
+      expect(error.message).toContain('/path/one');
+      expect(error.message).toContain('/path/two');
     });
   });
 });

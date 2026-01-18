@@ -1,6 +1,7 @@
 import type { Readable, Writable } from 'stream';
 import type { JSONRPCMessage } from './types.js';
 import { BaseTransport, type BaseTransportConfig } from './base-transport.js';
+import { DISPLAY_LIMITS } from '../constants.js';
 
 /**
  * Configuration for StdioTransport.
@@ -59,7 +60,7 @@ export class StdioTransport extends BaseTransport {
   private setupInputHandler(): void {
     this.input.on('data', (chunk: Buffer) => {
       if (this.debug) {
-        this.logger.debug({ preview: chunk.toString('utf-8').substring(0, 500) }, 'Raw input received');
+        this.logger.debug({ preview: chunk.toString('utf-8').substring(0, DISPLAY_LIMITS.TRANSPORT_INPUT_PREVIEW) }, 'Raw input received');
       }
       const newSize = this.buffer.length + chunk.length;
       if (newSize > this.maxBufferSize) {
@@ -124,7 +125,7 @@ export class StdioTransport extends BaseTransport {
             } catch (error) {
               // Invalid JSON - log at warn level for visibility
               // This helps diagnose issues with malformed server responses
-              const preview = line.length > 100 ? line.substring(0, 100) + '...' : line;
+              const preview = line.length > DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW ? line.substring(0, DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW) + '...' : line;
               this.logger.warn({ preview, error: error instanceof Error ? error.message : String(error) }, 'Skipping invalid JSON message');
             }
           }
@@ -155,7 +156,7 @@ export class StdioTransport extends BaseTransport {
             } catch (error) {
               // Invalid JSON - log at warn level for visibility
               // This helps diagnose issues with malformed server responses
-              const preview = line.length > 100 ? line.substring(0, 100) + '...' : line;
+              const preview = line.length > DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW ? line.substring(0, DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW) + '...' : line;
               this.logger.warn({ preview, error: error instanceof Error ? error.message : String(error) }, 'Skipping invalid JSON message');
             }
           }

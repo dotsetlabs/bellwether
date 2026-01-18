@@ -42,7 +42,7 @@ import { MetricsCollector } from '../src/metrics/collector.js';
 import { parseYamlSecure, parseYamlStrict } from '../src/utils/yaml-parser.js';
 
 // Config loader imports
-import { loadConfig } from '../src/config/loader.js';
+import { loadConfigNew } from '../src/config/loader.js';
 
 describe('Evaluator Edge Cases', () => {
   describe('getValueAtPath edge cases', () => {
@@ -475,18 +475,20 @@ describe('Malformed Input Tests', () => {
       const configPath = join(testDir, 'bellwether.yaml');
       writeFileSync(configPath, '');
 
-      // Should not crash, returns default config (empty YAML parses to null)
-      const config = loadConfig(configPath);
+      // Should not crash, applies defaults (empty YAML parses to null)
+      const config = loadConfigNew(configPath);
       expect(config).toBeDefined();
+      expect(config.mode).toBe('structural');
     });
 
     it('should handle config with only comments', () => {
       const configPath = join(testDir, 'bellwether.yaml');
       writeFileSync(configPath, '# Just a comment\n# Another comment');
 
-      // Comments-only parses to null, returns default config
-      const config = loadConfig(configPath);
+      // Comments-only parses to null, applies defaults
+      const config = loadConfigNew(configPath);
       expect(config).toBeDefined();
+      expect(config.mode).toBe('structural');
     });
 
     it('should handle config with unknown fields', () => {
@@ -494,40 +496,53 @@ describe('Malformed Input Tests', () => {
       writeFileSync(
         configPath,
         `
-version: 1
+mode: structural
 unknownField: true
 anotherUnknown:
   nested: value
 llm:
   provider: openai
   model: gpt-4
-interview:
+test:
   maxQuestionsPerTool: 3
 output:
   format: agents.md
 `
       );
 
-      // Should load without crashing, ignoring unknown fields
-      const config = loadConfig(configPath);
+      // Should load without crashing, ignoring unknown fields (passthrough)
+      const config = loadConfigNew(configPath);
       expect(config.llm?.provider).toBe('openai');
     });
 
-    it('should handle config with wrong types', () => {
+    it('should throw validation error for invalid provider', () => {
       const configPath = join(testDir, 'bellwether.yaml');
       writeFileSync(
         configPath,
         `
-version: 1
+mode: structural
 llm:
   provider: invalid_provider
-interview:
-  maxQuestionsPerTool: "not a number"
 `
       );
 
-      // Should throw validation error or handle gracefully
-      expect(() => loadConfig(configPath)).toThrow();
+      // New loadConfigNew throws validation errors for invalid values
+      expect(() => loadConfigNew(configPath)).toThrow();
+    });
+
+    it('should reject string numbers with clear error message', () => {
+      const configPath = join(testDir, 'bellwether.yaml');
+      writeFileSync(
+        configPath,
+        `
+mode: structural
+test:
+  maxQuestionsPerTool: "5"
+`
+      );
+
+      // New config validation is strict about types - strings are not coerced
+      expect(() => loadConfigNew(configPath)).toThrow(/Expected number, received string/);
     });
   });
 

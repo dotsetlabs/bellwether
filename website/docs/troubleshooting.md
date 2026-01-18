@@ -36,7 +36,7 @@ EACCES: permission denied
 
 ```bash
 # Option 1: Use npx (no install needed)
-npx @dotsetlabs/bellwether interview npx server
+npx @dotsetlabs/bellwether test npx server
 
 # Option 2: Fix npm permissions
 sudo chown -R $(whoami) ~/.npm
@@ -129,7 +129,7 @@ Error: Failed to connect to MCP server
 
 3. **Increase timeout:**
    ```bash
-   bellwether interview --timeout 60000 npx server
+   bellwether test --timeout 60000 npx server
    ```
 
 ### Server Crashes
@@ -142,7 +142,7 @@ Error: Server process exited unexpectedly
 
 1. **Check server logs:**
    ```bash
-   bellwether interview --debug npx server
+   bellwether test --debug npx server
    ```
 
 2. **Test server independently:**
@@ -175,7 +175,7 @@ Error: Tool call timed out
 **Solution:** Increase timeout:
 
 ```bash
-bellwether interview --timeout 120000 npx server
+bellwether test --timeout 120000 npx server
 ```
 
 ### Empty Results
@@ -199,17 +199,17 @@ Warning: No tools discovered
 
 1. **Use a better model:**
    ```bash
-   bellwether interview --model gpt-4o npx server
+   bellwether test --model gpt-4o npx server
    ```
 
 2. **Increase questions:**
    ```bash
-   bellwether interview --max-questions 5 npx server
+   bellwether test --max-questions 5 npx server
    ```
 
 3. **Use multiple personas:**
    ```bash
-   bellwether interview --persona technical_writer,security_tester npx server
+   bellwether test --persona technical_writer,security_tester npx server
    ```
 
 ## Drift Detection Issues
@@ -223,7 +223,7 @@ Error: Baseline file not found: ./bellwether-baseline.json
 **Solution:** Create a baseline first:
 
 ```bash
-bellwether interview --save-baseline npx server
+bellwether test --save-baseline npx server
 ```
 
 ### Unexpected Drift
@@ -236,7 +236,7 @@ If you're seeing drift you don't expect:
 
 3. **Update baseline if changes are intentional:**
    ```bash
-   bellwether interview --save-baseline npx server
+   bellwether test --save-baseline npx server
    git add bellwether-baseline.json
    git commit -m "Update baseline"
    ```
@@ -268,7 +268,7 @@ Error: Interview failed
 2. **Enable debug logging:**
    ```yaml
    - run: |
-       bellwether interview --debug --log-file debug.log npx server
+       bellwether test --debug --log-file debug.log npx server
    - uses: actions/upload-artifact@v4
      if: failure()
      with:
@@ -278,7 +278,7 @@ Error: Interview failed
 
 3. **Test locally first:**
    ```bash
-   bellwether interview --ci npx server
+   bellwether test --ci npx server
    ```
 
 ## Cloud Issues
@@ -327,7 +327,7 @@ Error: Failed to upload baseline
 For detailed troubleshooting, enable debug mode:
 
 ```bash
-bellwether interview \
+bellwether test \
   --debug \
   --log-level debug \
   --log-file ./debug.log \

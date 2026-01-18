@@ -70,12 +70,12 @@ async function handleRegistry(
 
     // Footer with usage hint
     console.log('─'.repeat(60));
-    console.log(chalk.gray('To interview a server, run:'));
+    console.log(chalk.gray('To test a server, run:'));
     if (servers.length > 0) {
       const firstServer = servers[0].server;
       const runCmd = generateRunCommand(firstServer);
       if (runCmd) {
-        console.log(chalk.cyan(`  bellwether interview ${runCmd}`));
+        console.log(chalk.cyan(`  bellwether test ${runCmd}`));
       }
     }
   } catch (error) {

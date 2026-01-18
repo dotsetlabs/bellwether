@@ -238,7 +238,7 @@ project/
 ### Via Command Line
 
 ```bash
-bellwether interview \
+bellwether test \
   --persona-file ./my-persona.persona.yaml \
   npx your-server
 ```
@@ -309,4 +309,4 @@ If persona isn't finding expected issues:
 
 - [Personas](/concepts/personas) - Built-in personas
 - [Configuration](/guides/configuration) - Using personas in config
-- [interview](/cli/interview) - CLI options
+- [interview](/cli/test) - CLI options

@@ -51,19 +51,3 @@ export {
   type JsonCodeBlockOptions,
   type JsonCodeBlockResult,
 } from './markdown.js';
-export {
-  stem,
-  stemText,
-  extractStemmedKeywords,
-  calculateStemmedKeywordOverlap,
-  analyzeNegation,
-  isSeverityNegated,
-  extractSeverityWithNegation,
-  normalizeConstraint,
-  compareConstraints,
-  extractSecurityCategoryExtended,
-  areSemanticallySimular,
-  EXTENDED_SECURITY_KEYWORDS,
-  type NegationResult,
-  type NormalizedConstraint,
-} from './semantic.js';

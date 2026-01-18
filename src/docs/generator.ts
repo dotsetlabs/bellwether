@@ -7,6 +7,7 @@ import {
   mermaidLabel,
   validateJsonForCodeBlock,
 } from '../utils/index.js';
+import { DISPLAY_LIMITS, MATH_FACTORS } from '../constants.js';
 
 /**
  * Detect configuration issues based on error patterns.
@@ -44,7 +45,7 @@ function detectConfigurationIssues(profiles: ToolProfile[], metadata: InterviewM
   // If we found access-related errors, show warning
   if (totalErrors > 0 && accessErrors / totalErrors > 0.5) {
     return 'Most tool calls failed with access-related errors. The server may not have been configured with allowed directories. ' +
-      'For filesystem servers, try: `bellwether interview npx @modelcontextprotocol/server-filesystem /path/to/allowed/dir`';
+      'For filesystem servers, try: `bellwether test npx @modelcontextprotocol/server-filesystem /path/to/allowed/dir`';
   }
 
   // Also check synthesized limitations for access patterns (fallback)
@@ -62,7 +63,7 @@ function detectConfigurationIssues(profiles: ToolProfile[], metadata: InterviewM
   // If most tools have access-related limitations and high error rate, show warning
   if (totalLimitations > 0 && accessRelatedLimitations / totalLimitations > 0.5 && errorRate > 0.8) {
     return 'Most tool calls failed, likely due to missing allowed directories configuration. ' +
-      'For filesystem servers, try: `bellwether interview npx @modelcontextprotocol/server-filesystem /path/to/allowed/dir`';
+      'For filesystem servers, try: `bellwether test npx @modelcontextprotocol/server-filesystem /path/to/allowed/dir`';
   }
 
   return null;
@@ -368,8 +369,8 @@ export function generateAgentsMd(result: InterviewResult): string {
       if (profile.exampleOutput) {
         lines.push('**Example Output:**');
         lines.push('```');
-        lines.push(profile.exampleOutput.length > 300
-          ? profile.exampleOutput.substring(0, 300) + '...'
+        lines.push(profile.exampleOutput.length > DISPLAY_LIMITS.DOCS_EXAMPLE_LENGTH
+          ? profile.exampleOutput.substring(0, DISPLAY_LIMITS.DOCS_EXAMPLE_LENGTH) + '...'
           : profile.exampleOutput);
         lines.push('```');
         lines.push('');
@@ -897,7 +898,7 @@ function extractCommonConstraints(profiles: ToolProfile[]): {
   }
 
   // Constraints that appear in more than half of tools are "common"
-  const threshold = Math.max(2, Math.floor(profiles.length / 2));
+  const threshold = Math.max(MATH_FACTORS.MIN_COMMON_CONSTRAINT_THRESHOLD, Math.floor(profiles.length / 2));
   const common: string[] = [];
 
   for (const [, { count, original }] of constraintCounts) {

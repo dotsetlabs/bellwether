@@ -86,10 +86,10 @@ Each persona weights these categories differently:
 
 ```bash
 # Use a single persona
-bellwether interview --persona security_tester npx your-server
+bellwether test --persona security_tester npx your-server
 
 # Use multiple personas
-bellwether interview --persona technical_writer,security_tester npx your-server
+bellwether test --persona technical_writer,security_tester npx your-server
 ```
 
 ### Via Configuration File
@@ -106,11 +106,11 @@ interview:
 
 ```bash
 # Create a security profile
-bellwether profile create security --personas security_tester,qa_engineer
+bellwether preset create security --personas security_tester,qa_engineer
 
 # Use the profile
-bellwether profile use security
-bellwether interview npx your-server
+bellwether preset use security
+bellwether test npx your-server
 ```
 
 ## Combining Personas
@@ -168,5 +168,5 @@ For specialized testing needs, you can create custom personas. See the [Custom P
 ## See Also
 
 - [Custom Personas Guide](/guides/custom-personas) - Create your own personas
-- [interview](/cli/interview) - Using personas in interviews
+- [interview](/cli/test) - Using personas in interviews
 - [Workflows](/concepts/workflows) - Multi-step testing

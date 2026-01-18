@@ -84,7 +84,7 @@ const config: Config = {
             },
             {
               label: 'CLI Reference',
-              to: '/cli/interview',
+              to: '/cli/test',
             },
             {
               label: 'CI/CD Integration',

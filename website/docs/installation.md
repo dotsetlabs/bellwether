@@ -30,7 +30,7 @@ bellwether --version
 Run Bellwether directly without global installation:
 
 ```bash
-npx @dotsetlabs/bellwether interview <server-command>
+npx @dotsetlabs/bellwether test <server-command>
 ```
 
 This is useful for CI/CD pipelines or one-off usage.
@@ -130,7 +130,7 @@ ollama serve
 ollama pull llama3.2
 
 # Run Bellwether (no API key needed)
-bellwether interview npx @modelcontextprotocol/server-filesystem /tmp
+bellwether test npx @modelcontextprotocol/server-filesystem /tmp
 ```
 
 Default model: `llama3.2`
@@ -152,7 +152,7 @@ Bellwether automatically detects which provider to use based on environment vari
 Override with the `--provider` flag:
 
 ```bash
-bellwether interview --provider openai npx server
+bellwether test --provider openai npx server
 ```
 
 ## Configuration File
@@ -183,11 +183,11 @@ Test your installation with a simple interview:
 ```bash
 # With OpenAI
 export OPENAI_API_KEY=sk-xxx
-bellwether interview npx @modelcontextprotocol/server-memory
+bellwether test npx @modelcontextprotocol/server-memory
 
 # With Ollama (free)
 ollama serve &
-bellwether interview npx @modelcontextprotocol/server-memory
+bellwether test npx @modelcontextprotocol/server-memory
 ```
 
 You should see:
@@ -254,4 +254,4 @@ nvm use 20
 - [Quick Start](/quickstart) - Run your first interview
 - [Local Development](/guides/local-development) - Test your MCP server during development
 - [Configuration Guide](/guides/configuration) - Advanced configuration options
-- [CLI Reference](/cli/interview) - Full command documentation
+- [CLI Reference](/cli/test) - Full command documentation

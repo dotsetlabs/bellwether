@@ -1,5 +1,5 @@
-name: 'Bellwether MCP Interview'
-description: 'Behavioral testing, documentation generation, and drift detection for MCP servers'
+name: 'Bellwether MCP Test'
+description: 'Behavioral testing and drift detection for MCP servers'
 author: 'Dotset Labs LLC'
 
 branding:
@@ -8,114 +8,49 @@ branding:
 
 inputs:
   server-command:
-    description: 'MCP server command to test (e.g., "npx @modelcontextprotocol/server-filesystem")'
+    description: 'MCP server command to test (e.g., "npx @mcp/your-server")'
     required: true
   server-args:
     description: 'Arguments to pass to the server command'
     required: false
     default: ''
-  preset:
-    description: 'Interview preset: docs, security, thorough, ci (overrides personas/max-questions)'
+  config-path:
+    description: 'Path to bellwether.yaml config file. If not found, creates one with --preset ci'
     required: false
-  personas:
-    description: 'Comma-separated list of personas (technical_writer, security_tester, qa_engineer, novice_user). Ignored if preset is set.'
-    default: 'technical_writer'
-  max-questions:
-    description: 'Maximum questions per tool. Ignored if preset or quick is set.'
-    default: '3'
-  quick:
-    description: 'Quick mode for fast CI runs (1 question per tool, cheaper model). Recommended for PR checks.'
-    default: 'false'
+    default: 'bellwether.yaml'
   baseline-path:
-    description: 'Path to behavioral baseline file for drift detection'
+    description: 'Path to baseline file for drift comparison'
     required: false
+    default: 'bellwether-baseline.json'
   fail-on-drift:
     description: 'Fail the action if behavioral drift is detected'
     default: 'true'
-  strict:
-    description: 'Strict mode: only report structural (deterministic) changes for CI'
-    default: 'false'
-  min-confidence:
-    description: 'Minimum confidence score (0-100) to report a change'
-    default: '0'
-  confidence-threshold:
-    description: 'Confidence threshold (0-100) for CI to fail on breaking changes'
-    default: '80'
-  security:
-    description: 'Include security testing persona'
-    default: 'false'
   save-baseline:
-    description: 'Save baseline after interview. Set to "true" or provide a path.'
-    required: false
-    default: 'false'
-  output-json:
-    description: 'Also generate JSON report (bellwether-report.json)'
+    description: 'Save baseline after test'
     default: 'false'
   output-dir:
     description: 'Directory for output files'
     default: '.'
-  scenarios-path:
-    description: 'Path to custom test scenarios YAML file'
-    required: false
-  scenarios-only:
-    description: 'Run only custom scenarios (no LLM required)'
-    default: 'false'
-  workflows-path:
-    description: 'Path to workflow definitions YAML file'
-    required: false
-  discover-workflows:
-    description: 'Enable LLM-based workflow discovery'
-    default: 'false'
-  parallel-personas:
-    description: 'Run persona interviews in parallel for faster execution'
-    default: 'false'
-  no-cache:
-    description: 'Disable response caching for fresh results'
-    default: 'false'
-  timeout:
-    description: 'Timeout for tool calls in milliseconds'
-    default: '30000'
-  llm-provider:
-    description: 'LLM provider (auto-detected from API key env vars). Only set to override detection.'
-    required: false
-  llm-model:
-    description: 'LLM model to use. Defaults to gpt-5-mini (openai) or claude-haiku-4-5 (anthropic) in quick mode.'
-    required: false
-  openai-api-key:
-    description: 'OpenAI API key (alternative to OPENAI_API_KEY env var)'
-    required: false
-  anthropic-api-key:
-    description: 'Anthropic API key (alternative to ANTHROPIC_API_KEY env var)'
-    required: false
 
 outputs:
   result:
     description: 'Check result: passed or failed'
-    value: ${{ steps.interview.outputs.result }}
+    value: ${{ steps.test.outputs.result }}
   exit-code:
-    description: 'Exit code (0=pass, 1=drift/security fail, 2=error)'
-    value: ${{ steps.interview.outputs.exit-code }}
+    description: 'Exit code (0=pass, 1=drift/fail, 2=error)'
+    value: ${{ steps.test.outputs.exit-code }}
   drift-detected:
     description: 'Whether behavioral drift was detected (true/false)'
-    value: ${{ steps.interview.outputs.drift-detected }}
-  security-tested:
-    description: 'Whether security persona was included'
-    value: ${{ steps.interview.outputs.security-tested }}
+    value: ${{ steps.test.outputs.drift-detected }}
   tool-count:
     description: 'Number of tools discovered'
-    value: ${{ steps.interview.outputs.tool-count }}
-  error-count:
-    description: 'Number of errors encountered'
-    value: ${{ steps.interview.outputs.error-count }}
+    value: ${{ steps.test.outputs.tool-count }}
   agents-md:
     description: 'Path to generated AGENTS.md file'
-    value: ${{ steps.interview.outputs.agents-md }}
-  json-report:
-    description: 'Path to JSON report file (if output-json is true)'
-    value: ${{ steps.interview.outputs.json-report }}
+    value: ${{ steps.test.outputs.agents-md }}
   baseline-file:
-    description: 'Path to saved baseline file'
-    value: ${{ steps.interview.outputs.baseline-file }}
+    description: 'Path to baseline file'
+    value: ${{ steps.test.outputs.baseline-file }}
 
 runs:
   using: 'composite'
@@ -129,124 +64,39 @@ runs:
       shell: bash
       run: npm install -g @dotsetlabs/bellwether
 
-    - name: Run Bellwether Interview
+    - name: Initialize Config (if needed)
       shell: bash
-      id: interview
+      run: |
+        CONFIG_PATH="${{ inputs.config-path }}"
+        if [ ! -f "$CONFIG_PATH" ]; then
+          echo "::notice::Config not found, creating with --preset ci"
+          bellwether init --preset ci
+        fi
+
+    - name: Run Bellwether Test
+      shell: bash
+      id: test
       env:
         BELLWETHER_CI: 'true'
-        OPENAI_API_KEY: ${{ inputs.openai-api-key || env.OPENAI_API_KEY }}
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key || env.ANTHROPIC_API_KEY }}
+        OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
+        ANTHROPIC_API_KEY: ${{ env.ANTHROPIC_API_KEY }}
       run: |
         set +e
 
-        # Build the command
-        CMD="bellwether interview"
-        CMD="$CMD --timeout ${{ inputs.timeout }}"
-
+        CONFIG_PATH="${{ inputs.config-path }}"
         OUTPUT_DIR="${{ inputs.output-dir }}"
-        CMD="$CMD -o $OUTPUT_DIR"
+        BASELINE_PATH="${{ inputs.baseline-path }}"
 
-        # Preset takes precedence over individual settings
-        if [ -n "${{ inputs.preset }}" ]; then
-          CMD="$CMD --preset ${{ inputs.preset }}"
-          echo "::notice::Using preset: ${{ inputs.preset }}"
-        elif [ "${{ inputs.quick }}" = "true" ]; then
-          CMD="$CMD --quick"
-          echo "::notice::Running in quick mode (1 question per tool, cheaper model)"
-        else
-          CMD="$CMD --personas ${{ inputs.personas }}"
-          CMD="$CMD --max-questions ${{ inputs.max-questions }}"
-        fi
+        # Run test
+        echo "Running: bellwether test --config $CONFIG_PATH ${{ inputs.server-command }} ${{ inputs.server-args }}"
+        TEST_OUTPUT=$(bellwether test --config "$CONFIG_PATH" ${{ inputs.server-command }} ${{ inputs.server-args }} 2>&1)
+        TEST_EXIT=$?
 
-        # Add model if specified
-        if [ -n "${{ inputs.llm-model }}" ]; then
-          CMD="$CMD --model ${{ inputs.llm-model }}"
-        fi
+        echo "$TEST_OUTPUT"
 
-        # Add security persona if requested
-        if [ "${{ inputs.security }}" = "true" ]; then
-          CMD="$CMD --security"
-          echo "security-tested=true" >> $GITHUB_OUTPUT
-        else
-          echo "security-tested=false" >> $GITHUB_OUTPUT
-        fi
-
-        # Add baseline comparison if specified
-        if [ -n "${{ inputs.baseline-path }}" ]; then
-          CMD="$CMD --compare-baseline ${{ inputs.baseline-path }}"
-        fi
-
-        # Add baseline saving if specified
-        if [ "${{ inputs.save-baseline }}" = "true" ]; then
-          CMD="$CMD --save-baseline"
-        elif [ -n "${{ inputs.save-baseline }}" ] && [ "${{ inputs.save-baseline }}" != "false" ]; then
-          CMD="$CMD --save-baseline ${{ inputs.save-baseline }}"
-        fi
-
-        # Add fail-on-drift flag
-        if [ "${{ inputs.fail-on-drift }}" = "true" ]; then
-          CMD="$CMD --fail-on-drift"
-        fi
-
-        # Strict mode for deterministic results
-        if [ "${{ inputs.strict }}" = "true" ]; then
-          CMD="$CMD --strict"
-        fi
-
-        # Confidence threshold options
-        if [ "${{ inputs.min-confidence }}" != "0" ]; then
-          CMD="$CMD --min-confidence ${{ inputs.min-confidence }}"
-        fi
-
-        if [ "${{ inputs.confidence-threshold }}" != "80" ]; then
-          CMD="$CMD --confidence-threshold ${{ inputs.confidence-threshold }}"
-        fi
-
-        # Custom scenarios support
-        if [ -n "${{ inputs.scenarios-path }}" ]; then
-          CMD="$CMD --scenarios ${{ inputs.scenarios-path }}"
-        fi
-
-        if [ "${{ inputs.scenarios-only }}" = "true" ]; then
-          CMD="$CMD --scenarios-only"
-        fi
-
-        # Workflow support
-        if [ -n "${{ inputs.workflows-path }}" ]; then
-          CMD="$CMD --workflows ${{ inputs.workflows-path }}"
-        fi
-
-        if [ "${{ inputs.discover-workflows }}" = "true" ]; then
-          CMD="$CMD --discover-workflows"
-        fi
-
-        # Parallel persona execution
-        if [ "${{ inputs.parallel-personas }}" = "true" ]; then
-          CMD="$CMD --parallel-personas"
-        fi
-
-        # Caching control
-        if [ "${{ inputs.no-cache }}" = "true" ]; then
-          CMD="$CMD --no-cache"
-        fi
-
-        # Output JSON report if requested
-        if [ "${{ inputs.output-json }}" = "true" ]; then
-          CMD="$CMD --json"
-          echo "json-report=${OUTPUT_DIR}/bellwether-report.json" >> $GITHUB_OUTPUT
-        fi
-
-        # Add the server command and args
-        CMD="$CMD ${{ inputs.server-command }} ${{ inputs.server-args }}"
-
-        echo "Running: $CMD"
-        OUTPUT=$(eval $CMD 2>&1)
-        EXIT_CODE=$?
-
-        echo "$OUTPUT"
-
-        # Set outputs
-        echo "exit-code=$EXIT_CODE" >> $GITHUB_OUTPUT
+        # Extract tool count from output
+        TOOL_COUNT=$(echo "$TEST_OUTPUT" | grep -oP 'Discovered \K\d+(?= tools)' || echo "0")
+        echo "tool-count=$TOOL_COUNT" >> $GITHUB_OUTPUT
 
         # Check for AGENTS.md
         AGENTS_MD="${OUTPUT_DIR}/AGENTS.md"
@@ -254,57 +104,65 @@ runs:
           echo "agents-md=$AGENTS_MD" >> $GITHUB_OUTPUT
         fi
 
-        # Check for baseline file
-        BASELINE="${OUTPUT_DIR}/bellwether-baseline.json"
-        if [ -f "$BASELINE" ]; then
-          echo "baseline-file=$BASELINE" >> $GITHUB_OUTPUT
+        # If test failed, exit early
+        if [ $TEST_EXIT -ne 0 ]; then
+          echo "exit-code=$TEST_EXIT" >> $GITHUB_OUTPUT
+          echo "result=failed" >> $GITHUB_OUTPUT
+          echo "drift-detected=false" >> $GITHUB_OUTPUT
+          echo "::error::Bellwether test failed with exit code $TEST_EXIT"
+          exit $TEST_EXIT
         fi
 
-        # Extract tool count from output
-        TOOL_COUNT=$(echo "$OUTPUT" | grep -oP 'Discovered \K\d+(?= tools)' || echo "0")
-        echo "tool-count=$TOOL_COUNT" >> $GITHUB_OUTPUT
+        # Save baseline if requested
+        if [ "${{ inputs.save-baseline }}" = "true" ]; then
+          echo "Saving baseline..."
+          bellwether baseline save "$BASELINE_PATH" --force
+          echo "baseline-file=$BASELINE_PATH" >> $GITHUB_OUTPUT
+        fi
 
-        # Extract error count from output
-        ERROR_COUNT=$(echo "$OUTPUT" | grep -oP '\K\d+(?= errors)' || echo "0")
-        echo "error-count=$ERROR_COUNT" >> $GITHUB_OUTPUT
+        # Compare baseline if it exists
+        DRIFT_EXIT=0
+        if [ -f "$BASELINE_PATH" ] && [ "${{ inputs.save-baseline }}" != "true" ]; then
+          echo "Comparing against baseline: $BASELINE_PATH"
 
-        # Check for drift detection
-        if echo "$OUTPUT" | grep -qi "drift detected"; then
-          echo "drift-detected=true" >> $GITHUB_OUTPUT
+          COMPARE_FLAGS=""
+          if [ "${{ inputs.fail-on-drift }}" = "true" ]; then
+            COMPARE_FLAGS="--fail-on-drift"
+          fi
+
+          COMPARE_OUTPUT=$(bellwether baseline compare "$BASELINE_PATH" $COMPARE_FLAGS 2>&1)
+          DRIFT_EXIT=$?
+
+          echo "$COMPARE_OUTPUT"
+
+          if [ $DRIFT_EXIT -ne 0 ]; then
+            echo "drift-detected=true" >> $GITHUB_OUTPUT
+            echo "::warning::Behavioral drift detected"
+          else
+            echo "drift-detected=false" >> $GITHUB_OUTPUT
+          fi
         else
           echo "drift-detected=false" >> $GITHUB_OUTPUT
+          echo "baseline-file=$BASELINE_PATH" >> $GITHUB_OUTPUT
         fi
 
-        # Check JSON report
-        JSON_REPORT="${OUTPUT_DIR}/bellwether-report.json"
-        if [ -f "$JSON_REPORT" ]; then
-          echo "json-report=$JSON_REPORT" >> $GITHUB_OUTPUT
-        fi
+        # Set final result
+        FINAL_EXIT=$DRIFT_EXIT
+        echo "exit-code=$FINAL_EXIT" >> $GITHUB_OUTPUT
 
-        # Set result and provide helpful messages
-        if [ $EXIT_CODE -eq 0 ]; then
+        if [ $FINAL_EXIT -eq 0 ]; then
           echo "result=passed" >> $GITHUB_OUTPUT
-          echo "::notice::Bellwether interview passed"
-        elif [ $EXIT_CODE -eq 1 ]; then
+          echo "::notice::Bellwether test passed"
+        else
           echo "result=failed" >> $GITHUB_OUTPUT
           echo "::error::Bellwether check failed. Review the output above for details."
           echo ""
           echo "If drift was detected and changes are intentional, update your baseline:"
-          echo "  bellwether interview --save-baseline ${{ inputs.baseline-path || './bellwether-baseline.json' }} ${{ inputs.server-command }}"
-        elif [ $EXIT_CODE -eq 2 ]; then
-          echo "result=failed" >> $GITHUB_OUTPUT
-          echo "::error::Bellwether interview failed with errors."
-          echo ""
-          echo "Common issues:"
-          echo "  - MCP server failed to start: check your server-command"
-          echo "  - LLM API key not set: add OPENAI_API_KEY or ANTHROPIC_API_KEY secret"
-          echo "  - Server timeout: increase timeout input"
-        else
-          echo "result=failed" >> $GITHUB_OUTPUT
-          echo "::error::Bellwether interview failed with exit code $EXIT_CODE"
+          echo "  bellwether test ${{ inputs.server-command }}"
+          echo "  bellwether baseline save"
         fi
 
-        exit $EXIT_CODE
+        exit $FINAL_EXIT
 
     - name: Upload AGENTS.md artifact
       if: always()
@@ -315,15 +173,15 @@ runs:
         if-no-files-found: ignore
 
     - name: Upload baseline artifact
-      if: inputs.save-baseline != 'false' && always()
+      if: inputs.save-baseline == 'true' && always()
       uses: actions/upload-artifact@v4
       with:
         name: bellwether-baseline
-        path: ${{ inputs.output-dir }}/bellwether-baseline.json
+        path: ${{ inputs.baseline-path }}
         if-no-files-found: ignore
 
     - name: Upload JSON report artifact
-      if: inputs.output-json == 'true' && always()
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: bellwether-report

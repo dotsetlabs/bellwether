@@ -218,7 +218,7 @@ Set before running:
 
 ```bash
 export TEST_PASSWORD=secret
-bellwether interview --scenarios ./bellwether-tests.yaml npx server
+bellwether test --scenarios ./bellwether-tests.yaml npx server
 ```
 
 ## Running Workflows
@@ -235,13 +235,13 @@ For basic testing today, use `bellwether-tests.yaml`:
 
 ```bash
 # Generate sample scenarios file
-bellwether interview --init-scenarios
+bellwether test --init-scenarios
 
 # Run custom scenarios
-bellwether interview --scenarios ./bellwether-tests.yaml npx server
+bellwether test --scenarios ./bellwether-tests.yaml npx server
 
 # Run ONLY custom scenarios (no LLM costs)
-bellwether interview --scenarios-only npx server
+bellwether test --scenarios-only npx server
 ```
 
 ## Best Practices
@@ -311,5 +311,5 @@ One workflow = one user journey:
 ## See Also
 
 - [Workflows](/concepts/workflows) - Workflow concepts
-- [interview](/cli/interview) - Running workflows
+- [interview](/cli/test) - Running workflows
 - [Drift Detection](/concepts/drift-detection) - Track workflow changes

@@ -33,6 +33,7 @@ import {
 } from '../prompts/templates.js';
 import { getLogger } from '../logging/logger.js';
 import { withTimeout, DEFAULT_TIMEOUTS, TimeoutError } from '../utils/timeout.js';
+import { RETRY, DISPLAY_LIMITS } from '../constants.js';
 
 /**
  * Error categories for LLM operations.
@@ -396,7 +397,7 @@ export class Orchestrator {
 
         // Wait before retry with exponential backoff
         if (attempt < maxRetries) {
-          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+          const delay = Math.min(RETRY.INITIAL_DELAY * Math.pow(2, attempt), RETRY.MAX_DELAY);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
@@ -412,7 +413,8 @@ export class Orchestrator {
       'Using fallback questions after LLM failure'
     );
 
-    return this.generateFallbackQuestions(tool, skipErrorTests);
+    // Slice fallback questions to respect maxQuestions limit
+    return this.generateFallbackQuestionsInternal(tool, skipErrorTests).slice(0, maxQuestions);
   }
 
   /**
@@ -465,7 +467,7 @@ export class Orchestrator {
       if (response?.content) {
         const textContent = response.content.find(c => c.type === 'text');
         if (textContent && 'text' in textContent) {
-          return `Tool returned: ${String(textContent.text).substring(0, 100)}`;
+          return `Tool returned: ${String(textContent.text).substring(0, DISPLAY_LIMITS.TOOL_RESPONSE_PREVIEW)}`;
         }
       }
       return 'Tool executed successfully.';
@@ -551,9 +553,16 @@ export class Orchestrator {
   }
 
   /**
+   * Get fallback questions without LLM call (for fast CI mode).
+   */
+  getFallbackQuestions(tool: MCPTool, skipErrorTests: boolean): InterviewQuestion[] {
+    return this.generateFallbackQuestionsInternal(tool, skipErrorTests);
+  }
+
+  /**
    * Fallback questions when LLM fails.
    */
-  private generateFallbackQuestions(tool: MCPTool, skipErrorTests: boolean): InterviewQuestion[] {
+  private generateFallbackQuestionsInternal(tool: MCPTool, skipErrorTests: boolean): InterviewQuestion[] {
     const questions: InterviewQuestion[] = [];
     const schema = tool.inputSchema as { properties?: Record<string, unknown>; required?: string[] } | undefined;
 
@@ -693,8 +702,8 @@ export class Orchestrator {
       const questions = this.llm.parseJSON<PromptQuestion[]>(response);
       return questions.slice(0, maxQuestions);
     } catch {
-      // Fallback to basic questions
-      return this.generateFallbackPromptQuestions(prompt);
+      // Fallback to basic questions (slice to respect maxQuestions limit)
+      return this.generateFallbackPromptQuestions(prompt).slice(0, maxQuestions);
     }
   }
 
@@ -762,7 +771,7 @@ export class Orchestrator {
       if (successful?.response) {
         const firstMsg = successful.response.messages[0];
         if (firstMsg?.content?.type === 'text' && firstMsg.content.text) {
-          exampleOutput = firstMsg.content.text.substring(0, 500);
+          exampleOutput = firstMsg.content.text.substring(0, DISPLAY_LIMITS.EXAMPLE_OUTPUT_LENGTH);
         }
       }
 
@@ -915,8 +924,8 @@ Return ONLY valid JSON, no explanation.`;
       const questions = this.llm.parseJSON<ResourceQuestion[]>(response);
       return questions.slice(0, maxQuestions);
     } catch {
-      // Fallback to basic questions
-      return this.generateFallbackResourceQuestions(resource);
+      // Fallback to basic questions (slice to respect maxQuestions limit)
+      return this.generateFallbackResourceQuestions(resource).slice(0, maxQuestions);
     }
   }
 
@@ -1060,8 +1069,8 @@ Return ONLY valid JSON, no explanation.`;
     const summaries: string[] = [];
     for (const content of response.contents) {
       if (content.text) {
-        const preview = content.text.length > 200
-          ? content.text.substring(0, 200) + '...'
+        const preview = content.text.length > DISPLAY_LIMITS.CONTENT_PREVIEW_LENGTH
+          ? content.text.substring(0, DISPLAY_LIMITS.CONTENT_PREVIEW_LENGTH) + '...'
           : content.text;
         summaries.push(`Text (${content.mimeType ?? 'unknown'}): ${preview}`);
       } else if (content.blob) {

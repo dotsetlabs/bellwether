@@ -1,5 +1,5 @@
 /**
- * Progress bar utilities for CLI interview display.
+ * Progress bar utilities for CLI test display.
  */
 
 import cliProgress from 'cli-progress';
@@ -14,12 +14,14 @@ export interface ProgressBarOptions {
 }
 
 /**
- * Creates and manages a progress bar for interview progress.
+ * Creates and manages a progress bar for test progress.
  */
 export class InterviewProgressBar {
   private bar: cliProgress.SingleBar | null = null;
   private enabled: boolean;
   private started = false;
+  private totalWork = 0;
+  private toolWork = 0;
 
   constructor(options: ProgressBarOptions = {}) {
     const stream = options.stream ?? process.stderr;
@@ -30,7 +32,7 @@ export class InterviewProgressBar {
       this.bar = new cliProgress.SingleBar(
         {
           format:
-            '{bar} {percentage}% | {persona}: {tool} ({current}/{total}) | {questions} questions',
+            '{bar} {percentage}% | {phase}: {item} ({current}/{phaseTotal}) | {questions} questions',
           barCompleteChar: '\u2588',
           barIncompleteChar: '\u2591',
           hideCursor: true,
@@ -51,18 +53,21 @@ export class InterviewProgressBar {
   /**
    * Start the progress bar with initial values.
    */
-  start(totalTools: number, totalPersonas: number): void {
+  start(totalTools: number, totalPersonas: number, totalPrompts = 0, totalResources = 0): void {
     if (!this.enabled || !this.bar) return;
 
     // Suppress logging while progress bar is active to prevent interference
     suppressLogs();
 
-    const total = totalTools * totalPersonas;
-    this.bar.start(total, 0, {
-      persona: 'Starting',
-      tool: '...',
+    // Calculate total work across all phases
+    this.toolWork = totalTools * totalPersonas;
+    this.totalWork = this.toolWork + totalPrompts + totalResources;
+
+    this.bar.start(this.totalWork, 0, {
+      phase: 'Starting',
+      item: '...',
       current: 0,
-      total: totalTools,
+      phaseTotal: totalTools,
       questions: 0,
     });
     this.started = true;
@@ -77,23 +82,57 @@ export class InterviewProgressBar {
     // Handle workflow phase differently
     if (progress.phase === 'workflows' && progress.totalWorkflows) {
       this.bar.update(progress.workflowsCompleted ?? 0, {
-        persona: 'Workflows',
-        tool: progress.currentWorkflow ?? '...',
+        phase: 'Workflows',
+        item: progress.currentWorkflow ?? '...',
         current: (progress.workflowsCompleted ?? 0) + 1,
-        total: progress.totalWorkflows,
+        phaseTotal: progress.totalWorkflows,
         questions: progress.questionsAsked,
       });
       return;
     }
 
-    const current =
-      progress.personasCompleted * progress.totalTools + progress.toolsCompleted;
+    // Calculate completed work based on current phase
+    let completedWork: number;
+    let phaseLabel: string;
+    let currentItem: string;
+    let currentNum: number;
+    let totalNum: number;
 
-    this.bar.update(current, {
-      persona: progress.currentPersona ?? 'Interviewing',
-      tool: progress.currentTool ?? '...',
-      current: progress.toolsCompleted + 1,
-      total: progress.totalTools,
+    if (progress.phase === 'interviewing') {
+      // Tools phase: count completed tools across personas
+      completedWork = progress.personasCompleted * progress.totalTools + progress.toolsCompleted;
+      phaseLabel = progress.currentPersona ?? 'Interviewing';
+      currentItem = progress.currentTool ?? '...';
+      currentNum = progress.toolsCompleted + 1;
+      totalNum = progress.totalTools;
+    } else if (progress.phase === 'prompts') {
+      // Prompts phase: all tools done + prompts completed
+      completedWork = this.toolWork + (progress.promptsCompleted ?? 0);
+      phaseLabel = 'Prompts';
+      currentItem = progress.currentTool?.replace('prompt:', '') ?? '...';
+      currentNum = (progress.promptsCompleted ?? 0) + 1;
+      totalNum = progress.totalPrompts ?? 0;
+    } else if (progress.phase === 'resources') {
+      // Resources phase: all tools done + all prompts done + resources completed
+      completedWork = this.toolWork + (progress.totalPrompts ?? 0) + (progress.resourcesCompleted ?? 0);
+      phaseLabel = 'Resources';
+      currentItem = progress.currentTool?.replace('resource:', '') ?? '...';
+      currentNum = (progress.resourcesCompleted ?? 0) + 1;
+      totalNum = progress.totalResources ?? 0;
+    } else {
+      // Default/starting phase
+      completedWork = 0;
+      phaseLabel = 'Starting';
+      currentItem = '...';
+      currentNum = 0;
+      totalNum = progress.totalTools;
+    }
+
+    this.bar.update(completedWork, {
+      phase: phaseLabel,
+      item: currentItem,
+      current: currentNum,
+      phaseTotal: totalNum,
       questions: progress.questionsAsked,
     });
   }
@@ -146,7 +185,7 @@ export function formatStartupBanner(options: {
   const personaLabel = `${personaList} (${personas.length})`;
 
   const lines = [
-    'Bellwether - MCP Server Interviewer',
+    'Bellwether - MCP Server Tester',
     '',
     '\u250C' + '\u2500'.repeat(50) + '\u2510',
     `\u2502 Server:    ${displayCmd.padEnd(38)}\u2502`,
@@ -163,7 +202,7 @@ export function formatStartupBanner(options: {
   lines.push('\u2514' + '\u2500'.repeat(50) + '\u2518');
   lines.push('');
   lines.push(
-    'Tip: Use --quality for premium models, --security for security testing'
+    'Tip: Use --structural (or --ci) for free, deterministic drift detection'
   );
 
   return lines.join('\n');

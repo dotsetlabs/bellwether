@@ -7,6 +7,7 @@
 
 import type { Message, LLMClient, CompletionOptions, StreamingOptions, StreamingResult, ProviderInfo } from './client.js';
 import { createLogger } from '../logging/logger.js';
+import { MATH_FACTORS } from '../constants.js';
 
 const logger = createLogger({ name: 'token-budget' });
 
@@ -81,7 +82,7 @@ const DEFAULT_OPTIONS: Required<Omit<TokenBudgetOptions, 'onBudgetWarning' | 'on
   maxTotalTokens: 1_000_000, // 1M tokens default budget
   maxInputTokensPerRequest: 100_000,
   maxOutputTokensPerRequest: 8_000,
-  warningThreshold: 0.8,
+  warningThreshold: MATH_FACTORS.WORD_BOUNDARY_THRESHOLD,
   outputReserve: 4_000,
 };
 
@@ -134,7 +135,7 @@ export function estimateTokens(text: string): number {
   // Weighted estimate
   const baseTokens = chars / 4;
   const wordAdjustment = words * 0.3;
-  const specialAdjustment = specialChars * 0.5;
+  const specialAdjustment = specialChars * MATH_FACTORS.SPECIAL_CHAR_MULTIPLIER;
 
   return Math.ceil(baseTokens + wordAdjustment + specialAdjustment);
 }
@@ -266,12 +267,12 @@ export function truncateText(text: string, maxTokens: number): string {
 
   // Calculate approximate character limit
   const ratio = maxTokens / estimated;
-  const charLimit = Math.floor(text.length * ratio * 0.95); // 5% safety margin
+  const charLimit = Math.floor(text.length * ratio * MATH_FACTORS.TOKEN_SAFETY_MARGIN); // 5% safety margin
 
   // Try to truncate at word boundary
   let truncated = text.slice(0, charLimit);
   const lastSpace = truncated.lastIndexOf(' ');
-  if (lastSpace > charLimit * 0.8) {
+  if (lastSpace > charLimit * MATH_FACTORS.WORD_BOUNDARY_THRESHOLD) {
     truncated = truncated.slice(0, lastSpace);
   }
 

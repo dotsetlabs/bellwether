@@ -1,16 +1,11 @@
 /**
- * Baseline module - behavioral baseline and drift detection.
+ * Baseline module - structural drift detection.
  */
 
-// Types
 export type {
   ChangeSeverity,
   BehaviorAspect,
   ChangeSignificance,
-  ComparisonMethod,
-  ConfidenceFactor,
-  ChangeConfidence,
-  DiffConfidence,
   BehavioralAssertion,
   BehaviorChange,
   ToolDiff,
@@ -20,9 +15,9 @@ export type {
   BehavioralBaseline,
   WorkflowSignature,
   CompareOptions,
+  BaselineMode,
 } from './types.js';
 
-// Saver functions
 export {
   BASELINE_VERSION,
   createBaseline,
@@ -32,40 +27,14 @@ export {
   baselineExists,
 } from './saver.js';
 
-// Comparator functions
 export {
   compareWithBaseline,
   compareBaselines,
   hasBreakingChanges,
   hasSecurityChanges,
   filterByMinimumSeverity,
-  meetsConfidenceRequirements,
-  getLowConfidenceChanges,
-  separateByMethod,
 } from './comparator.js';
 
-// Confidence scoring functions
-export {
-  CONFIDENCE_WEIGHTS,
-  CONFIDENCE_THRESHOLDS,
-  STRUCTURAL_ASPECTS,
-  SEMANTIC_ASPECTS,
-  createStructuralConfidence,
-  calculateSemanticConfidence,
-  calculateKeywordOverlap,
-  calculateLengthSimilarity,
-  calculateSemanticIndicators,
-  getComparisonMethod,
-  isStructuralAspect,
-  aggregateToolConfidence,
-  aggregateDiffConfidence,
-  getConfidenceLabel,
-  formatConfidenceScore,
-  filterByConfidence,
-  meetsConfidenceThreshold,
-} from './confidence.js';
-
-// Diff formatting functions
 export {
   formatDiffText,
   formatDiffJson,
@@ -74,39 +43,11 @@ export {
   formatDiffMarkdown,
 } from './diff.js';
 
-// Converter functions (for cloud integration)
 export {
   convertToCloudBaseline,
   createCloudBaseline,
 } from './converter.js';
 
-// Semantic comparison utilities (for handling LLM non-determinism)
-export {
-  extractSecurityCategory,
-  extractLimitationCategory,
-  createFingerprint,
-  structureSecurityNotes,
-  structureLimitations,
-  securityFindingsMatch,
-  limitationsMatch,
-  assertionsMatch,
-  compareArraysSemantic,
-  securityFindingsMatchWithConfidence,
-  limitationsMatchWithConfidence,
-  assertionsMatchWithConfidence,
-  compareArraysSemanticWithConfidence,
-  calculateComparisonConfidence,
-  SECURITY_CATEGORIES,
-  LIMITATION_CATEGORIES,
-  type SecurityCategory,
-  type LimitationCategory,
-  type StructuredSecurityFinding,
-  type StructuredLimitation,
-  type NormalizedAssertion,
-  type SemanticComparisonResult,
-} from './semantic.js';
-
-// Schema comparison utilities
 export {
   computeSchemaHash,
   compareSchemas,
@@ -115,54 +56,3 @@ export {
   type SchemaChange,
   type SchemaComparisonResult,
 } from './schema-compare.js';
-
-// Calibration utilities
-export {
-  calibrateConfidence,
-  formatCalibratedConfidence,
-  getCalibratedConfidenceLabel,
-  meetsCalibratedThreshold,
-  updateCalibrationModel,
-  calculateCalibrationError,
-  DEFAULT_CALIBRATION_MODEL,
-  type CalibrationBucket,
-} from './calibration.js';
-
-// Telemetry and decision logging
-export {
-  DecisionLogger,
-  FeedbackManager,
-  getDecisionLogger,
-  getFeedbackManager,
-  resetTelemetry,
-  type ComparisonDecision,
-  type FeedbackReport,
-  type FeedbackAnalysis,
-  type CategoryMatch,
-} from './telemetry.js';
-
-// A/B testing framework
-export {
-  runABTest,
-  formatABTestReport,
-  createDefaultVariant,
-  compareAlgorithms,
-  type AlgorithmVariant,
-  type ABTestResult,
-  type VariantComparison,
-  type SignificanceAnalysis,
-} from './ab-testing.js';
-
-// Embedding support (optional)
-export {
-  OllamaEmbeddings,
-  EmbeddingEnhancedComparator,
-  cosineSimilarity,
-  compareWithEmbeddings,
-  checkOllamaEmbeddings,
-  createEmbeddingFactor,
-  DEFAULT_EMBEDDING_CONFIG,
-  type EmbeddingProvider,
-  type EmbeddingConfig,
-  type EmbeddingComparisonResult,
-} from './embeddings.js';

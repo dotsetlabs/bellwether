@@ -5,6 +5,7 @@
 
 import { createHash } from 'crypto';
 import { getLogger } from '../logging/logger.js';
+import { TIME_CONSTANTS, CACHE } from '../constants.js';
 
 const logger = getLogger('response-cache');
 
@@ -71,8 +72,8 @@ export class ResponseCache {
 
   constructor(config: CacheConfig = {}) {
     this.config = {
-      defaultTTLMs: config.defaultTTLMs ?? 3600000, // 1 hour
-      maxEntries: config.maxEntries ?? 1000,
+      defaultTTLMs: config.defaultTTLMs ?? TIME_CONSTANTS.DEFAULT_CACHE_TTL,
+      maxEntries: config.maxEntries ?? CACHE.MAX_ENTRIES,
       maxSizeBytes: config.maxSizeBytes ?? 50 * 1024 * 1024, // 50MB
       enabled: config.enabled ?? true,
     };

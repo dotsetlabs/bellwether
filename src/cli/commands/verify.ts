@@ -16,7 +16,7 @@ import { Interviewer, DEFAULT_CONFIG } from '../../interview/interviewer.js';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
 import { createLLMClient } from '../../llm/index.js';
-import { loadConfig } from '../../config/loader.js';
+import { loadConfigNew, ConfigNotFoundError } from '../../config/loader.js';
 import { BUILTIN_PERSONAS } from '../../persona/builtins.js';
 import type { Persona } from '../../persona/types.js';
 import { TIMEOUTS } from '../../constants.js';
@@ -62,10 +62,22 @@ async function handleVerify(
 ): Promise<void> {
   console.log(chalk.bold('\n🔒 Bellwether Verification\n'));
 
-  // Load config
-  const fileConfig = await loadConfig();
-  const provider = options.provider ?? fileConfig?.llm?.provider ?? 'openai';
-  const model = options.model ?? fileConfig?.llm?.model;
+  // Try to load config (optional - verify command doesn't require config file)
+  let configProvider: string | undefined;
+  let configModel: string | undefined;
+  try {
+    const config = loadConfigNew();
+    configProvider = config.llm.provider;
+    configModel = config.llm.model;
+  } catch (error) {
+    if (!(error instanceof ConfigNotFoundError)) {
+      throw error;
+    }
+    // No config file is OK - we'll use CLI options or defaults
+  }
+
+  const provider = options.provider ?? configProvider ?? 'openai';
+  const model = options.model ?? configModel;
 
   // Create LLM client
   let llm;
@@ -100,7 +112,7 @@ async function handleVerify(
     console.log('');
 
     // Run interview
-    console.log(chalk.bold('Running verification interview...'));
+    console.log(chalk.bold('Running verification test...'));
     const interviewer = new Interviewer(llm, {
       ...DEFAULT_CONFIG,
       personas,
@@ -113,7 +125,7 @@ async function handleVerify(
       }
     });
 
-    console.log(chalk.green('\n✓ Interview complete\n'));
+    console.log(chalk.green('\n✓ Test complete\n'));
 
     // Generate verification
     const serverId = options.serverId ?? `${discovery.serverInfo.name}`;

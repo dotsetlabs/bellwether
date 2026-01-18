@@ -5,35 +5,55 @@ All notable changes to Bellwether will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.0] - 2026-01-17
+
+### Breaking Changes
+
+- **Removed `interview` command** - Replaced with the new `test` command
+- **Removed `eval` command** - Baseline evaluation features have been simplified
+- **Removed `feedback` command** - User feedback collection removed
+- **Removed `profile` command** - Profile management removed
+- **Removed interactive mode** - CLI is now fully non-interactive
+- **Config file required** - `bellwether.yaml` is now required for running tests (use `bellwether init` to create one)
+- **Simplified baseline system** - Removed semantic matching, embeddings, calibration, and telemetry
 
 ### Added
 
-- **Drift Detection Evaluation** - Evaluate and improve drift detection accuracy
-  - New `bellwether eval` command to test drift detection against calibration datasets
-  - Filter by category (`--category`) or tags (`--tags`)
-  - Export and update calibration models (`--export-calibration`, `--update-calibration`)
-  - Check embedding support (`--check-embeddings`)
+#### New `test` Command
+- **Config-driven testing** - All settings read from `bellwether.yaml`
+- Replaces the `interview` command with a simpler interface
+- Optional server command argument (overrides config)
+- Single `-c, --config` flag for custom config path
 
-- **Drift Detection Feedback** - Submit feedback to improve accuracy
-  - New `bellwether feedback` command to report false positives/negatives
-  - List recent decisions (`--list`) for review
-  - View feedback statistics (`--stats`) and patterns (`--analyze`)
-  - Export decisions for analysis (`--export`)
+#### New `baseline` Command
+- **Unified baseline management** - Replaces scattered baseline operations
+- `bellwether baseline save [path]` - Save test results as baseline
+- `bellwether baseline compare <path>` - Compare test results against baseline
+- `bellwether baseline show [path]` - Display baseline contents
+- `bellwether baseline diff <path1> <path2>` - Compare two baseline files
+- Multiple output formats: text, json, markdown, compact
+- Integrity verification for baseline files
 
-- **Interview Profiles** - Save and reuse interview configurations
-  - New `bellwether profile` command with subcommands:
-    - `profile create <name>` - Create a new profile
-    - `profile list` - List all profiles
-    - `profile use <name>` - Set active profile
-    - `profile show [name]` - Show profile details
-    - `profile update <name>` - Update existing profile
-    - `profile delete <name>` - Delete a profile
-    - `profile export [name]` - Export profile as YAML
-    - `profile import <file>` - Import profile from YAML
+#### Configuration Improvements
+- **Config template generator** - `bellwether init` now generates fully documented YAML
+- **Config validator** - Validates config before running tests
+- **Preset support** - `bellwether init --preset ci|security|thorough|local`
 
-- **Resource Timeout** - Configurable timeout for resource reads
-  - New `--resource-timeout <ms>` flag for interview command (default: 10000ms)
+### Changed
+
+- **Simplified CLI structure** - Fewer commands, all settings in config file
+- **Deterministic by default** - Structural mode (no LLM) is the default
+- **Improved error messages** - Better diagnostics for common failures
+
+### Removed
+
+- `src/baseline/semantic.ts` - Semantic text matching
+- `src/baseline/embeddings.ts` - Embedding-based comparison
+- `src/baseline/calibration.ts` - Calibration system
+- `src/baseline/telemetry.ts` - Telemetry collection
+- `src/baseline/evaluation/` - Evaluation framework
+- `src/cli/interactive.ts` - Interactive mode
+- `src/utils/semantic.ts` - Semantic utilities
 
 ## [0.4.0] - 2026-01-17
 

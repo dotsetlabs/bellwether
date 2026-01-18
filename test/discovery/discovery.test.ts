@@ -279,7 +279,7 @@ describe('discovery', () => {
     it('should include server command in quick start', () => {
       const summary = summarizeDiscovery(mockResult);
 
-      expect(summary).toContain('bellwether interview test-server');
+      expect(summary).toContain('bellwether test test-server');
     });
   });
 });
