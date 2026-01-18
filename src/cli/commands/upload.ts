@@ -13,12 +13,13 @@ import { loadBaseline } from '../../baseline/saver.js';
 import { convertToCloudBaseline } from '../../baseline/converter.js';
 import { loadConfigNew } from '../../config/loader.js';
 import type { BellwetherBaseline } from '../../cloud/types.js';
+import { PATHS } from '../../constants.js';
 import * as output from '../output.js';
 
 /**
  * Default baseline file name.
  */
-const DEFAULT_BASELINE_FILE = 'bellwether-baseline.json';
+const DEFAULT_BASELINE_FILE = PATHS.DEFAULT_BASELINE_FILE;
 
 /**
  * Try to get output directory from config file.

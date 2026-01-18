@@ -23,15 +23,18 @@ import {
   verifyIntegrity,
 } from '../../baseline/index.js';
 import { createCloudBaseline } from '../../baseline/converter.js';
+import { BaselineVersionError } from '../../baseline/version.js';
+import { migrateCommand } from './baseline-migrate.js';
 import type { InterviewResult } from '../../interview/types.js';
 import { loadConfigNew, ConfigNotFoundError } from '../../config/loader.js';
+import { PATHS } from '../../constants.js';
 import * as output from '../output.js';
 
 /**
  * Default paths for baseline files.
  */
-const DEFAULT_BASELINE_PATH = 'bellwether-baseline.json';
-const DEFAULT_REPORT_PATH = 'bellwether-report.json';
+const DEFAULT_BASELINE_PATH = PATHS.DEFAULT_BASELINE_FILE;
+const DEFAULT_REPORT_PATH = PATHS.DEFAULT_REPORT_FILE;
 
 /**
  * Load interview result from JSON report.
@@ -87,8 +90,13 @@ Examples:
   $ bellwether baseline compare ./baseline.json # Compare test against baseline
   $ bellwether baseline show                    # Show current baseline
   $ bellwether baseline diff v1.json v2.json    # Compare two baselines
+  $ bellwether baseline migrate                 # Upgrade baseline to current format
+  $ bellwether baseline migrate --info          # Check if migration is needed
 `
   );
+
+// Add migrate subcommand
+baselineCommand.addCommand(migrateCommand);
 
 // ============================================================================
 // baseline save
@@ -169,6 +177,7 @@ baselineCommand
   .option('--report <path>', 'Path to test report JSON file')
   .option('--format <format>', 'Output format: text, json, markdown, compact', 'text')
   .option('--fail-on-drift', 'Exit with error if drift is detected')
+  .option('--ignore-version-mismatch', 'Force comparison even if format versions are incompatible')
   .action(async (baselinePath: string, options) => {
     const outputDir = getOutputDir(options.config);
 
@@ -202,7 +211,30 @@ baselineCommand
     const currentBaseline = createBaseline(result, serverCommand, mode);
 
     // Compare baselines
-    const diff = compareBaselines(previousBaseline, currentBaseline, {});
+    let diff;
+    try {
+      diff = compareBaselines(previousBaseline, currentBaseline, {
+        ignoreVersionMismatch: options.ignoreVersionMismatch,
+      });
+    } catch (error) {
+      if (error instanceof BaselineVersionError) {
+        output.error('Version Compatibility Error:');
+        output.error(error.message);
+        output.error(`\nBaseline version: ${error.sourceVersion}`);
+        output.error(`Current version: ${error.targetVersion}`);
+        output.error('\nTo fix this, either:');
+        output.error('  1. Run: bellwether baseline migrate <baseline-path>');
+        output.error('  2. Use: --ignore-version-mismatch (results may be incorrect)');
+        process.exit(1);
+      }
+      throw error;
+    }
+
+    // Show version compatibility warning if applicable
+    if (diff.versionCompatibility?.warning) {
+      output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+      output.newline();
+    }
 
     // Format and output
     switch (options.format) {
@@ -225,6 +257,9 @@ baselineCommand
     output.newline();
     output.info(`Changes: ${totalChanges} tools affected`);
     output.info(`Severity: ${diff.severity}`);
+    if (diff.versionCompatibility) {
+      output.info(`Format versions: ${diff.versionCompatibility.sourceVersion} -> ${diff.versionCompatibility.targetVersion}`);
+    }
 
     // Exit with error if drift detected and --fail-on-drift
     if (options.failOnDrift) {
@@ -281,6 +316,7 @@ baselineCommand
     // Formatted output
     output.info('=== Baseline ===');
     output.info(`File: ${fullPath}`);
+    output.info(`Format Version: ${baseline.version}`);
     output.info(`Created: ${baseline.createdAt instanceof Date ? baseline.createdAt.toISOString() : baseline.createdAt}`);
     output.info(`Mode: ${baseline.mode || 'full'}`);
     output.info(`Server Command: ${baseline.serverCommand}`);
@@ -367,6 +403,7 @@ baselineCommand
   .argument('<path1>', 'Path to first baseline file')
   .argument('<path2>', 'Path to second baseline file')
   .option('--format <format>', 'Output format: text, json, markdown, compact', 'text')
+  .option('--ignore-version-mismatch', 'Force comparison even if format versions are incompatible')
   .action(async (path1: string, path2: string, options) => {
     // Load both baselines
     if (!existsSync(path1)) {
@@ -388,13 +425,36 @@ baselineCommand
     }
 
     // Compare
-    const diff = compareBaselines(baseline1, baseline2, {});
+    let diff;
+    try {
+      diff = compareBaselines(baseline1, baseline2, {
+        ignoreVersionMismatch: options.ignoreVersionMismatch,
+      });
+    } catch (error) {
+      if (error instanceof BaselineVersionError) {
+        output.error('Version Compatibility Error:');
+        output.error(error.message);
+        output.error(`\nBaseline 1 version: ${error.sourceVersion}`);
+        output.error(`Baseline 2 version: ${error.targetVersion}`);
+        output.error('\nTo fix this, either:');
+        output.error('  1. Run: bellwether baseline migrate <baseline-path>');
+        output.error('  2. Use: --ignore-version-mismatch (results may be incorrect)');
+        process.exit(1);
+      }
+      throw error;
+    }
 
     // Header
     output.info(`Comparing baselines:`);
-    output.info(`  Old: ${basename(path1)} (${baseline1.createdAt instanceof Date ? baseline1.createdAt.toISOString().split('T')[0] : 'unknown'})`);
-    output.info(`  New: ${basename(path2)} (${baseline2.createdAt instanceof Date ? baseline2.createdAt.toISOString().split('T')[0] : 'unknown'})`);
+    output.info(`  Old: ${basename(path1)} (${baseline1.createdAt instanceof Date ? baseline1.createdAt.toISOString().split('T')[0] : 'unknown'}) [${baseline1.version}]`);
+    output.info(`  New: ${basename(path2)} (${baseline2.createdAt instanceof Date ? baseline2.createdAt.toISOString().split('T')[0] : 'unknown'}) [${baseline2.version}]`);
     output.newline();
+
+    // Show version compatibility warning if applicable
+    if (diff.versionCompatibility?.warning) {
+      output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+      output.newline();
+    }
 
     // Format and output
     switch (options.format) {
@@ -417,4 +477,7 @@ baselineCommand
     output.info(`Tools added: ${diff.toolsAdded.length}`);
     output.info(`Tools removed: ${diff.toolsRemoved.length}`);
     output.info(`Tools modified: ${diff.toolsModified.length}`);
+    if (diff.versionCompatibility) {
+      output.info(`Format versions: ${diff.versionCompatibility.sourceVersion} -> ${diff.versionCompatibility.targetVersion}`);
+    }
   });

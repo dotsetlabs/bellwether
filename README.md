@@ -171,6 +171,44 @@ bellwether baseline show ./baseline.json --json
 
 # Compare two baseline files
 bellwether baseline diff v1.json v2.json
+
+# Migrate baseline to current format version
+bellwether baseline migrate ./bellwether-baseline.json
+bellwether baseline migrate ./baseline.json --dry-run
+bellwether baseline migrate ./baseline.json --info
+```
+
+### Baseline Format Versioning
+
+Baselines use semantic versioning (e.g., `1.0.0`) for the format version:
+
+- **Major version** - Breaking structural changes (removed fields, type changes)
+- **Minor version** - New optional fields (backwards compatible)
+- **Patch version** - Bug fixes in baseline generation
+
+**Compatibility rules:**
+- Same major version = Compatible (can compare baselines)
+- Different major version = Incompatible (requires migration)
+
+When comparing baselines with incompatible versions, the CLI will show an error:
+
+```
+Cannot compare baselines with incompatible format versions: v1.0.0 vs v2.0.0.
+Use 'bellwether baseline migrate' to upgrade the older baseline,
+or use --ignore-version-mismatch to force comparison (results may be incorrect).
+```
+
+To upgrade older baselines:
+
+```bash
+# Check if migration is needed
+bellwether baseline migrate ./baseline.json --info
+
+# Preview changes without writing
+bellwether baseline migrate ./baseline.json --dry-run
+
+# Perform migration
+bellwether baseline migrate ./baseline.json
 ```
 
 ### Cloud Commands

@@ -46,8 +46,9 @@ export interface CloudAssertion {
 
 /**
  * Baseline format version for cloud compatibility.
+ * Uses semantic versioning: MAJOR.MINOR.PATCH
  */
-export const BASELINE_FORMAT_VERSION = '1.0' as const;
+export const BASELINE_FORMAT_VERSION = '1.0.0' as const;
 
 /**
  * Metadata about how the baseline was generated.
@@ -180,14 +181,14 @@ export interface CloudToolProfile {
 }
 
 /**
- * Cloud-ready baseline format v1.0.
+ * Cloud-ready baseline format v1.0.0.
  *
  * This is the format used for uploading to Bellwether Cloud.
  * It's a superset of the local BehavioralBaseline with additional metadata.
  */
 export interface BellwetherBaseline {
-  /** Format version - always '1.0' */
-  version: typeof BASELINE_FORMAT_VERSION;
+  /** Format version using semantic versioning (e.g., '1.0.0') */
+  version: string;
 
   /** Generation metadata */
   metadata: BaselineMetadata;

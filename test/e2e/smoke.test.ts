@@ -360,7 +360,7 @@ test:
 
       const baseline = createBaseline(result, serverCommand);
 
-      expect(baseline.version).toBe(1);
+      expect(baseline.version).toBe('1.0.0');
       expect(baseline.serverCommand).toBe(serverCommand);
       expect(baseline.server.name).toBe('test-server');
       expect(baseline.tools).toHaveLength(3);
@@ -446,8 +446,8 @@ test:
 
       const cloudBaseline = createCloudBaseline(result, serverCommand);
 
-      expect(cloudBaseline.version).toBe('1.0');
-      expect(cloudBaseline.metadata.formatVersion).toBe('1.0');
+      expect(cloudBaseline.version).toBe('1.0.0');
+      expect(cloudBaseline.metadata.formatVersion).toBe('1.0.0');
       expect(cloudBaseline.metadata.serverName).toBe('test-server');
       expect(cloudBaseline.capabilities.tools).toHaveLength(3);
       expect(cloudBaseline.assertions).toBeDefined();
@@ -478,7 +478,7 @@ test:
       expect(existsSync(baselinePath)).toBe(true);
 
       const loaded = JSON.parse(readFileSync(baselinePath, 'utf-8'));
-      expect(loaded.version).toBe('1.0');
+      expect(loaded.version).toBe('1.0.0');
       expect(loaded.capabilities.tools).toHaveLength(3);
     });
   });

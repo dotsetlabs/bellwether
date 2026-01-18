@@ -11,6 +11,7 @@ import {
   createTimingContext,
   type ErrorContext,
 } from './types.js';
+import { RETRY_STRATEGIES, CIRCUIT_BREAKER, MATH_FACTORS } from '../constants.js';
 
 /**
  * Retry options.
@@ -37,11 +38,11 @@ export interface RetryOptions {
 }
 
 const DEFAULT_OPTIONS: Required<Omit<RetryOptions, 'shouldRetry' | 'onRetry' | 'operation' | 'context'>> = {
-  maxAttempts: 3,
-  initialDelayMs: 1000,
-  maxDelayMs: 30000,
-  backoffMultiplier: 2,
-  jitter: true,
+  maxAttempts: RETRY_STRATEGIES.DEFAULT.maxAttempts,
+  initialDelayMs: RETRY_STRATEGIES.DEFAULT.initialDelayMs,
+  maxDelayMs: RETRY_STRATEGIES.DEFAULT.maxDelayMs,
+  backoffMultiplier: RETRY_STRATEGIES.DEFAULT.backoffMultiplier,
+  jitter: RETRY_STRATEGIES.DEFAULT.jitter,
 };
 
 /**
@@ -60,7 +61,7 @@ function calculateDelay(
 
   if (jitter) {
     // Add random jitter: ±25% of the delay
-    const jitterRange = clampedDelay * 0.25;
+    const jitterRange = clampedDelay * MATH_FACTORS.JITTER_RANGE;
     const jitterAmount = Math.random() * jitterRange * 2 - jitterRange;
     return Math.max(0, clampedDelay + jitterAmount);
   }
@@ -212,11 +213,11 @@ export function createRetryWrapper(
  * Retry options specifically tuned for LLM calls.
  */
 export const LLM_RETRY_OPTIONS: RetryOptions = {
-  maxAttempts: 3,
-  initialDelayMs: 2000, // LLM rate limits often need longer waits
-  maxDelayMs: 60000,
-  backoffMultiplier: 2,
-  jitter: true,
+  maxAttempts: RETRY_STRATEGIES.LLM.maxAttempts,
+  initialDelayMs: RETRY_STRATEGIES.LLM.initialDelayMs, // LLM rate limits often need longer waits
+  maxDelayMs: RETRY_STRATEGIES.LLM.maxDelayMs,
+  backoffMultiplier: RETRY_STRATEGIES.LLM.backoffMultiplier,
+  jitter: RETRY_STRATEGIES.LLM.jitter,
   shouldRetry: (error) => {
     // Check for known LLM error patterns
     const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
@@ -265,11 +266,11 @@ export const LLM_RETRY_OPTIONS: RetryOptions = {
  * Retry options for MCP transport operations.
  */
 export const TRANSPORT_RETRY_OPTIONS: RetryOptions = {
-  maxAttempts: 2, // Transport failures are often persistent
-  initialDelayMs: 500,
-  maxDelayMs: 5000,
-  backoffMultiplier: 2,
-  jitter: true,
+  maxAttempts: RETRY_STRATEGIES.TRANSPORT.maxAttempts, // Transport failures are often persistent
+  initialDelayMs: RETRY_STRATEGIES.TRANSPORT.initialDelayMs,
+  maxDelayMs: RETRY_STRATEGIES.TRANSPORT.maxDelayMs,
+  backoffMultiplier: RETRY_STRATEGIES.TRANSPORT.backoffMultiplier,
+  jitter: RETRY_STRATEGIES.TRANSPORT.jitter,
   shouldRetry: (error) => {
     const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
 
@@ -301,11 +302,11 @@ export const TRANSPORT_RETRY_OPTIONS: RetryOptions = {
  * Retry options for tool calls during interviews.
  */
 export const TOOL_CALL_RETRY_OPTIONS: RetryOptions = {
-  maxAttempts: 2, // Tool failures are often deterministic
-  initialDelayMs: 1000,
-  maxDelayMs: 10000,
-  backoffMultiplier: 2,
-  jitter: true,
+  maxAttempts: RETRY_STRATEGIES.TOOL_CALL.maxAttempts, // Tool failures are often deterministic
+  initialDelayMs: RETRY_STRATEGIES.TOOL_CALL.initialDelayMs,
+  maxDelayMs: RETRY_STRATEGIES.TOOL_CALL.maxDelayMs,
+  backoffMultiplier: RETRY_STRATEGIES.TOOL_CALL.backoffMultiplier,
+  jitter: RETRY_STRATEGIES.TOOL_CALL.jitter,
   shouldRetry: (error) => {
     const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
 
@@ -342,9 +343,9 @@ export interface CircuitBreakerOptions {
 }
 
 const DEFAULT_CIRCUIT_OPTIONS: Required<CircuitBreakerOptions> = {
-  failureThreshold: 5,
-  resetTimeMs: 30000,
-  failureWindowMs: 60000,
+  failureThreshold: CIRCUIT_BREAKER.FAILURE_THRESHOLD,
+  resetTimeMs: CIRCUIT_BREAKER.RESET_TIME_MS,
+  failureWindowMs: CIRCUIT_BREAKER.FAILURE_WINDOW_MS,
 };
 
 /**
