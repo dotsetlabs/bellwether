@@ -78,6 +78,28 @@ export BELLWETHER_SESSION=your-session-token
 bellwether upload --ci
 ```
 
+## Teams
+
+If you belong to multiple teams, you can switch between them:
+
+```bash
+# List your teams
+bellwether teams
+
+# Switch active team
+bellwether teams switch team_abc123
+
+# Show current team
+bellwether teams current
+```
+
+For CI/CD with multiple teams:
+
+```bash
+export BELLWETHER_TEAM_ID=team_abc123
+bellwether upload --ci
+```
+
 ## Projects
 
 Projects organize your baselines. Each project tracks a single MCP server.
@@ -165,6 +187,7 @@ See [CI/CD Integration](/guides/ci-cd) for complete examples.
 | Command | Description |
 |:--------|:------------|
 | [`login`](/cloud/login) | Authenticate with GitHub |
+| [`teams`](/cloud/teams) | Manage team selection |
 | [`link`](/cloud/link) | Link project to cloud |
 | [`projects`](/cloud/projects) | List your projects |
 | [`upload`](/cloud/upload) | Upload baseline |

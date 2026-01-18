@@ -10,7 +10,7 @@
 import type { BellwetherCloudClient, CloudConfig } from './types.js';
 import { MockCloudClient } from './mock-client.js';
 import { HttpCloudClient } from './http-client.js';
-import { getSessionToken, getBaseUrl, isMockSession } from './auth.js';
+import { getSessionToken, getBaseUrl, isMockSession, getTeamId } from './auth.js';
 
 /**
  * Create a cloud client with the given configuration.
@@ -34,7 +34,8 @@ export function createCloudClient(config?: Partial<CloudConfig>): BellwetherClou
   if (!sessionToken) {
     throw new Error('Session required for HTTP client. Run `bellwether login` first.');
   }
-  return new HttpCloudClient(baseUrl, sessionToken, timeout);
+  const teamId = getTeamId();
+  return new HttpCloudClient(baseUrl, sessionToken, timeout, teamId);
 }
 
 /**

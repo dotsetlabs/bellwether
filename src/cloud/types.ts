@@ -337,6 +337,24 @@ export interface ProjectLink {
   projectName: string;
   /** ISO timestamp when linked */
   linkedAt: string;
+  /** Team ID this project belongs to */
+  teamId?: string;
+  /** Team name (for display) */
+  teamName?: string;
+}
+
+/**
+ * Team information stored in session.
+ */
+export interface SessionTeam {
+  /** Team ID */
+  id: string;
+  /** Team name */
+  name: string;
+  /** Team plan */
+  plan: 'free' | 'solo' | 'team';
+  /** User's role in this team */
+  role: 'owner' | 'admin' | 'member';
 }
 
 /**
@@ -349,6 +367,10 @@ export interface StoredSession {
   user: CloudUser;
   /** ISO timestamp when session expires */
   expiresAt: string;
+  /** Currently active team ID for API requests */
+  activeTeamId?: string;
+  /** All teams the user belongs to */
+  teams?: SessionTeam[];
 }
 
 /**
@@ -379,6 +401,16 @@ export interface DevicePollResponse {
   session_token?: string;
   /** User info if authorized */
   user?: CloudUser;
+}
+
+/**
+ * Response from /auth/me endpoint.
+ */
+export interface AuthMeResponse {
+  /** User information */
+  user: CloudUser;
+  /** Teams the user belongs to */
+  teams: SessionTeam[];
 }
 
 /**

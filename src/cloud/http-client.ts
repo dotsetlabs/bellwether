@@ -52,15 +52,17 @@ function validateSecureUrl(url: string): void {
 export class HttpCloudClient implements BellwetherCloudClient {
   private baseUrl: string;
   private sessionToken: string;
+  private teamId?: string;
   private timeout: number;
 
-  constructor(baseUrl: string, sessionToken: string, timeout: number = 30000) {
+  constructor(baseUrl: string, sessionToken: string, timeout: number = 30000, teamId?: string) {
     // Validate HTTPS requirement
     validateSecureUrl(baseUrl);
 
     // Remove trailing slash
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.sessionToken = sessionToken;
+    this.teamId = teamId;
     this.timeout = timeout;
   }
 
@@ -76,14 +78,20 @@ export class HttpCloudClient implements BellwetherCloudClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
+    // Build headers, including X-Team-Id if available
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${this.sessionToken}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    if (this.teamId) {
+      headers['X-Team-Id'] = this.teamId;
+    }
+
     try {
       const response = await fetch(url, {
         method,
-        headers: {
-          'Authorization': `Bearer ${this.sessionToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        headers,
         body: body ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });

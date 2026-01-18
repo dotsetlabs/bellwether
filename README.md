@@ -181,6 +181,12 @@ bellwether login
 bellwether login --status
 bellwether login --logout
 
+# Manage team selection (for multi-team users)
+bellwether teams              # List your teams
+bellwether teams switch       # Interactive team selection
+bellwether teams switch <id>  # Switch to specific team
+bellwether teams current      # Show current active team
+
 # Link project to cloud
 bellwether link
 bellwether link --status
@@ -279,6 +285,7 @@ See [action/README.md](./action/README.md) for full documentation.
 | `OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
 | `BELLWETHER_SESSION` | Cloud session token for CI/CD |
 | `BELLWETHER_API_URL` | Cloud API URL (default: `https://api.bellwether.sh`) |
+| `BELLWETHER_TEAM_ID` | Override active team for cloud operations (multi-team CI/CD) |
 
 See [.env.example](./.env.example) for full documentation.
 

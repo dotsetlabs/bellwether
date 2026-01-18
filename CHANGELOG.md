@@ -5,6 +5,30 @@ All notable changes to Bellwether will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-01-18
+
+### Added
+
+#### Multi-Team Support
+- **`bellwether teams` command** - List and switch between teams for users with multiple team memberships
+  - `bellwether teams` - List all teams with current selection
+  - `bellwether teams switch [team-id]` - Switch to a different team
+  - `bellwether teams current` - Show the currently active team
+- **Team context in sessions** - Login now fetches and stores all user teams from `/auth/me`
+- **Team context in project links** - `.bellwether/link.json` now stores the team ID and name
+- **`BELLWETHER_TEAM_ID` environment variable** - Override active team for CI/CD scenarios
+
+#### Cloud Integration Improvements
+- **Team ID priority system** - Environment variable > project link > session active team
+- **Login status shows teams** - `bellwether login --status` displays all available teams
+- **Projects command respects team context** - Project operations use the active team
+
+### Changed
+
+- `StoredSession` now includes `activeTeamId` and `teams` array
+- `ProjectLink` now includes optional `teamId` and `teamName` fields
+- Login command fetches teams from `/auth/me` endpoint after OAuth
+
 ## [0.5.1] - 2026-01-18
 
 ### Added

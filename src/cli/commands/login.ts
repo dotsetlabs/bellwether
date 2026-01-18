@@ -14,7 +14,7 @@ import {
   CONFIG_DIR,
 } from '../../cloud/auth.js';
 import { generateMockSession } from '../../cloud/mock-client.js';
-import type { DeviceAuthorizationResponse, DevicePollResponse, StoredSession } from '../../cloud/types.js';
+import type { DeviceAuthorizationResponse, DevicePollResponse, StoredSession, AuthMeResponse, SessionTeam } from '../../cloud/types.js';
 import * as output from '../output.js';
 import { TIME_CONSTANTS } from '../../constants.js';
 
@@ -93,11 +93,21 @@ export const loginCommand = new Command('login')
         process.exit(1);
       }
 
-      // Step 3: Save session
+      // Step 3: Fetch teams from /auth/me
+      const authMe = await fetchAuthMe(result.session_token);
+      const teams: SessionTeam[] = authMe?.teams ?? [];
+
+      // Auto-select first team as active (usually personal team)
+      const activeTeamId = teams.length > 0 ? teams[0].id : undefined;
+      const activeTeam = teams.find(t => t.id === activeTeamId);
+
+      // Step 4: Save session with teams
       const session: StoredSession = {
         sessionToken: result.session_token,
         user: result.user,
         expiresAt: new Date(Date.now() + TIME_CONSTANTS.SESSION_EXPIRATION_MS).toISOString(), // 30 days
+        activeTeamId,
+        teams,
       };
       saveSession(session);
 
@@ -105,7 +115,12 @@ export const loginCommand = new Command('login')
       if (result.user.email) {
         output.info(`Email: ${result.user.email}`);
       }
-      output.info(`Plan: ${result.user.plan}`);
+      if (activeTeam) {
+        output.info(`Team: ${activeTeam.name} (${activeTeam.plan})`);
+        if (teams.length > 1) {
+          output.info(`\nYou have access to ${teams.length} teams. Use \`bellwether teams\` to switch.`);
+        }
+      }
       output.info(`\nSession saved to ${CONFIG_DIR}/session.json`);
     } catch (err) {
       output.error('Authentication failed: ' + (err instanceof Error ? err.message : String(err)));
@@ -200,6 +215,31 @@ async function pollForCompletion(
  */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Fetch user and teams from /auth/me endpoint.
+ */
+async function fetchAuthMe(sessionToken: string): Promise<AuthMeResponse | null> {
+  const baseUrl = getBaseUrl();
+
+  try {
+    const response = await fetch(`${baseUrl}/auth/me`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${sessionToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return response.json() as Promise<AuthMeResponse>;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -308,13 +348,28 @@ async function showStatus(): Promise<void> {
   if (session.user.email) {
     output.info(`Email:  ${session.user.email}`);
   }
-  output.info(`Plan:   ${session.user.plan}`);
   output.info(`Mode:   ${isMockSession(session.sessionToken) ? 'Mock (local storage)' : 'Cloud'}`);
+
+  // Show team information
+  if (session.teams && session.teams.length > 0) {
+    const activeTeam = session.teams.find(t => t.id === session.activeTeamId);
+    if (activeTeam) {
+      output.info(`Team:   ${activeTeam.name} (${activeTeam.plan})`);
+    }
+    if (session.teams.length > 1) {
+      output.info(`\nAvailable teams (${session.teams.length}):`);
+      for (const team of session.teams) {
+        const marker = team.id === session.activeTeamId ? ' (active)' : '';
+        output.info(`  - ${team.name} [${team.role}]${marker}`);
+      }
+      output.info('\nUse `bellwether teams switch` to change active team.');
+    }
+  }
 
   const expiresAt = new Date(session.expiresAt);
   const now = new Date();
   const daysRemaining = Math.ceil((expiresAt.getTime() - now.getTime()) / TIME_CONSTANTS.MS_PER_DAY);
-  output.info(`Session expires in ${daysRemaining} days`);
+  output.info(`\nSession expires in ${daysRemaining} days`);
 
   if (isMockSession(session.sessionToken)) {
     output.info('\nData is stored locally in ~/.bellwether/mock-cloud/');

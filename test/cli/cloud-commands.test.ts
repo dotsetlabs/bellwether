@@ -13,9 +13,15 @@ import {
   getLinkedProject,
   saveProjectLink,
   removeProjectLink,
+  getTeamId,
+  getActiveTeam,
+  getSessionTeams,
+  setActiveTeam,
+  getStoredSession,
+  TEAM_ID_ENV_VAR,
 } from '../../src/cloud/auth.js';
 import { generateMockSession } from '../../src/cloud/mock-client.js';
-import type { ProjectLink } from '../../src/cloud/types.js';
+import type { ProjectLink, SessionTeam, StoredSession } from '../../src/cloud/types.js';
 
 describe('cli/cloud-commands', () => {
   let testDir: string;
@@ -352,6 +358,235 @@ describe('cli/cloud-commands', () => {
         : 'Never';
 
       expect(displayDate).toBe('Never');
+    });
+  });
+
+  describe('team management', () => {
+    const mockTeams: SessionTeam[] = [
+      { id: 'team_personal', name: 'Personal', plan: 'free', role: 'owner' },
+      { id: 'team_work', name: 'Work Team', plan: 'team', role: 'member' },
+      { id: 'team_client', name: 'Client Project', plan: 'solo', role: 'admin' },
+    ];
+
+    const createSessionWithTeams = (teams: SessionTeam[], activeTeamId?: string): StoredSession => ({
+      sessionToken: 'sess_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+      user: {
+        id: 'usr_test',
+        email: 'test@example.com',
+        githubLogin: 'testuser',
+        githubAvatarUrl: null,
+        githubName: 'Test User',
+        plan: 'free',
+      },
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      activeTeamId,
+      teams,
+    });
+
+    describe('getSessionTeams', () => {
+      it('should return empty array when no session', () => {
+        clearSession();
+        const teams = getSessionTeams();
+        expect(teams).toEqual([]);
+      });
+
+      it('should return teams from session', () => {
+        const session = createSessionWithTeams(mockTeams, 'team_personal');
+        saveSession(session);
+
+        const teams = getSessionTeams();
+        expect(teams).toHaveLength(3);
+        expect(teams[0].name).toBe('Personal');
+        expect(teams[1].name).toBe('Work Team');
+      });
+
+      it('should return empty array when session has no teams', () => {
+        const session = generateMockSession('test');
+        saveSession(session);
+
+        const teams = getSessionTeams();
+        expect(teams).toEqual([]);
+      });
+    });
+
+    describe('getTeamId', () => {
+      let originalEnvTeamId: string | undefined;
+
+      beforeEach(() => {
+        originalEnvTeamId = process.env[TEAM_ID_ENV_VAR];
+        delete process.env[TEAM_ID_ENV_VAR];
+      });
+
+      afterEach(() => {
+        if (originalEnvTeamId !== undefined) {
+          process.env[TEAM_ID_ENV_VAR] = originalEnvTeamId;
+        } else {
+          delete process.env[TEAM_ID_ENV_VAR];
+        }
+      });
+
+      it('should return undefined when no session', () => {
+        clearSession();
+        const teamId = getTeamId();
+        expect(teamId).toBeUndefined();
+      });
+
+      it('should return activeTeamId from session', () => {
+        const session = createSessionWithTeams(mockTeams, 'team_work');
+        saveSession(session);
+
+        const teamId = getTeamId();
+        expect(teamId).toBe('team_work');
+      });
+
+      it('should prioritize environment variable over session', () => {
+        const session = createSessionWithTeams(mockTeams, 'team_personal');
+        saveSession(session);
+        process.env[TEAM_ID_ENV_VAR] = 'team_env_override';
+
+        const teamId = getTeamId();
+        expect(teamId).toBe('team_env_override');
+      });
+
+      it('should prioritize project link over session', () => {
+        const session = createSessionWithTeams(mockTeams, 'team_personal');
+        saveSession(session);
+
+        const link: ProjectLink = {
+          projectId: 'proj_123',
+          projectName: 'Test Project',
+          linkedAt: new Date().toISOString(),
+          teamId: 'team_project_link',
+        };
+        saveProjectLink(link);
+
+        const teamId = getTeamId();
+        expect(teamId).toBe('team_project_link');
+      });
+
+      it('should prioritize env var over project link', () => {
+        const session = createSessionWithTeams(mockTeams, 'team_personal');
+        saveSession(session);
+
+        const link: ProjectLink = {
+          projectId: 'proj_123',
+          projectName: 'Test Project',
+          linkedAt: new Date().toISOString(),
+          teamId: 'team_project_link',
+        };
+        saveProjectLink(link);
+        process.env[TEAM_ID_ENV_VAR] = 'team_env_override';
+
+        const teamId = getTeamId();
+        expect(teamId).toBe('team_env_override');
+      });
+    });
+
+    describe('getActiveTeam', () => {
+      it('should return undefined when no session', () => {
+        clearSession();
+        const team = getActiveTeam();
+        expect(team).toBeUndefined();
+      });
+
+      it('should return the active team details', () => {
+        const session = createSessionWithTeams(mockTeams, 'team_work');
+        saveSession(session);
+
+        const team = getActiveTeam();
+        expect(team).toBeDefined();
+        expect(team?.id).toBe('team_work');
+        expect(team?.name).toBe('Work Team');
+        expect(team?.plan).toBe('team');
+        expect(team?.role).toBe('member');
+      });
+
+      it('should return undefined when active team not in teams list', () => {
+        const session = createSessionWithTeams(mockTeams, 'team_nonexistent');
+        saveSession(session);
+
+        const team = getActiveTeam();
+        expect(team).toBeUndefined();
+      });
+    });
+
+    describe('setActiveTeam', () => {
+      it('should return false when no session', () => {
+        clearSession();
+        const result = setActiveTeam('team_work');
+        expect(result).toBe(false);
+      });
+
+      it('should return false when team not in session', () => {
+        const session = createSessionWithTeams(mockTeams, 'team_personal');
+        saveSession(session);
+
+        const result = setActiveTeam('team_nonexistent');
+        expect(result).toBe(false);
+
+        // Active team should remain unchanged
+        const stored = getStoredSession();
+        expect(stored?.activeTeamId).toBe('team_personal');
+      });
+
+      it('should switch to valid team', () => {
+        const session = createSessionWithTeams(mockTeams, 'team_personal');
+        saveSession(session);
+
+        const result = setActiveTeam('team_work');
+        expect(result).toBe(true);
+
+        const stored = getStoredSession();
+        expect(stored?.activeTeamId).toBe('team_work');
+      });
+
+      it('should persist team switch across session reads', () => {
+        const session = createSessionWithTeams(mockTeams, 'team_personal');
+        saveSession(session);
+
+        setActiveTeam('team_client');
+
+        // Clear any caching and re-read
+        const teams = getSessionTeams();
+        const activeTeam = getActiveTeam();
+
+        expect(teams).toHaveLength(3);
+        expect(activeTeam?.id).toBe('team_client');
+        expect(activeTeam?.name).toBe('Client Project');
+      });
+    });
+
+    describe('project link with team context', () => {
+      it('should store team context in project link', () => {
+        const link: ProjectLink = {
+          projectId: 'proj_123',
+          projectName: 'Test Project',
+          linkedAt: new Date().toISOString(),
+          teamId: 'team_work',
+          teamName: 'Work Team',
+        };
+
+        saveProjectLink(link);
+        const retrieved = getLinkedProject();
+
+        expect(retrieved?.teamId).toBe('team_work');
+        expect(retrieved?.teamName).toBe('Work Team');
+      });
+
+      it('should work without team context for backwards compatibility', () => {
+        const link: ProjectLink = {
+          projectId: 'proj_123',
+          projectName: 'Old Project',
+          linkedAt: new Date().toISOString(),
+        };
+
+        saveProjectLink(link);
+        const retrieved = getLinkedProject();
+
+        expect(retrieved?.projectId).toBe('proj_123');
+        expect(retrieved?.teamId).toBeUndefined();
+        expect(retrieved?.teamName).toBeUndefined();
+      });
     });
   });
 

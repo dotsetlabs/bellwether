@@ -9,6 +9,8 @@ import {
   getLinkedProject,
   saveProjectLink,
   removeProjectLink,
+  getActiveTeam,
+  getTeamId,
 } from '../../cloud/auth.js';
 import { createCloudClient } from '../../cloud/client.js';
 import type { ProjectLink } from '../../cloud/types.js';
@@ -83,17 +85,26 @@ export const linkCommand = new Command('link')
       }
     }
 
-    // Save link
+    // Get active team for the link
+    const activeTeam = getActiveTeam();
+    const teamId = getTeamId();
+
+    // Save link with team context
     const link: ProjectLink = {
       projectId: project.id,
       projectName: project.name,
       linkedAt: new Date().toISOString(),
+      teamId,
+      teamName: activeTeam?.name,
     };
 
     saveProjectLink(link);
 
     output.info(`\nLinked to project: ${project.name}`);
     output.info(`Project ID: ${project.id}`);
+    if (activeTeam) {
+      output.info(`Team: ${activeTeam.name}`);
+    }
     output.info(`Server command: ${project.serverCommand}`);
     output.info('\nSaved to .bellwether/link.json');
     output.info('\nYou can now run:');
@@ -124,6 +135,12 @@ function showLinkStatus(): void {
   output.info('───────────────────');
   output.info(`Project: ${link.projectName}`);
   output.info(`ID:      ${link.projectId}`);
+  if (link.teamName) {
+    output.info(`Team:    ${link.teamName}`);
+  }
+  if (link.teamId) {
+    output.info(`Team ID: ${link.teamId}`);
+  }
   output.info(`Linked:  ${new Date(link.linkedAt).toLocaleString()}`);
   output.info(`Config:  .bellwether/link.json`);
 }
