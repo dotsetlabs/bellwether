@@ -11,6 +11,7 @@ Structural drift detection for MCP servers in CI/CD. Free. Deterministic. Fast.
 - **Deterministic** - Same input = same output
 - **CI/CD Gating** - Block deployments when behavior drifts unexpectedly
 - **Config-Driven** - Uses `bellwether.yaml` for all settings
+- **Cloud Integration** - Optional upload to Bellwether Cloud for history tracking
 
 ## Quick Start
 
@@ -71,6 +72,26 @@ No secrets needed. Free. Runs in seconds.
     config-path: './configs/ci.yaml'
 ```
 
+### With Cloud Upload
+
+Upload baselines to Bellwether Cloud for history tracking and team visibility:
+
+```yaml
+- name: Test and Upload
+  uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx @mcp/your-server'
+    save-baseline: 'true'
+  env:
+    BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
+
+- name: Upload to Cloud
+  if: success()
+  run: npx @dotsetlabs/bellwether upload --ci
+  env:
+    BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
+```
+
 ### Full Mode with LLM (Optional)
 
 For comprehensive testing with LLM-generated scenarios, create a config with full mode:
@@ -91,6 +112,29 @@ llm:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 ```
 
+### With Server Environment Variables
+
+If your MCP server needs environment variables, use interpolation in your config:
+
+```yaml
+# bellwether.yaml
+server:
+  command: "npx @mcp/your-server"
+  env:
+    API_KEY: "${API_KEY}"
+    DATABASE_URL: "${DATABASE_URL}"
+```
+
+```yaml
+- name: Test with Secrets
+  uses: dotsetlabs/bellwether/action@v1
+  with:
+    server-command: 'npx @mcp/your-server'
+  env:
+    API_KEY: ${{ secrets.API_KEY }}
+    DATABASE_URL: ${{ secrets.DATABASE_URL }}
+```
+
 ## Inputs
 
 | Input | Description | Required | Default |
@@ -107,9 +151,9 @@ llm:
 
 | Output | Description |
 |--------|-------------|
-| `result` | Check result: passed or failed |
+| `result` | Check result: `passed` or `failed` |
 | `exit-code` | Exit code (0=pass, 1=fail, 2=error) |
-| `drift-detected` | Whether drift was detected |
+| `drift-detected` | Whether drift was detected (`true`/`false`) |
 | `tool-count` | Number of tools discovered |
 | `agents-md` | Path to generated AGENTS.md file |
 | `baseline-file` | Path to baseline file |
@@ -129,10 +173,10 @@ All test settings are configured in `bellwether.yaml`. If no config file exists,
 
 ```bash
 # CI-optimized (structural, fast, free)
-bellwether init --preset ci
+bellwether init --preset ci npx @mcp/your-server
 
 # Full mode with local Ollama
-bellwether init --preset local
+bellwether init --preset local npx @mcp/your-server
 
 # Commit the config
 git add bellwether.yaml
@@ -146,6 +190,9 @@ git commit -m "Add Bellwether config"
 server:
   command: "npx @mcp/your-server"
   timeout: 30000
+  env:
+    # Use interpolation for secrets
+    API_KEY: "${API_KEY}"
 
 mode: structural  # Free, fast, deterministic
 
@@ -157,6 +204,49 @@ baseline:
   failOnDrift: true
 ```
 
+## Complete Workflow Example
+
+```yaml
+name: MCP Server CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  bellwether:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test MCP Server
+        id: bellwether
+        uses: dotsetlabs/bellwether/action@v1
+        with:
+          server-command: 'npx @mcp/your-server'
+          fail-on-drift: 'true'
+
+      - name: Upload to Cloud (main only)
+        if: github.ref == 'refs/heads/main' && success()
+        run: |
+          npx @dotsetlabs/bellwether baseline save
+          npx @dotsetlabs/bellwether upload --ci
+        env:
+          BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && steps.bellwether.outputs.drift-detected == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ MCP behavioral drift detected. Review AGENTS.md for details.'
+            })
+```
+
 ## Exit Codes
 
 | Code | Meaning |
@@ -164,6 +254,14 @@ baseline:
 | `0` | Success - no drift detected |
 | `1` | Drift detected or test failed |
 | `2` | Configuration or connection error |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `OPENAI_API_KEY` | OpenAI API key (full mode only) |
+| `ANTHROPIC_API_KEY` | Anthropic API key (full mode only) |
+| `BELLWETHER_SESSION` | Cloud session token for uploads |
 
 ## Migration from v0.x
 
@@ -194,6 +292,27 @@ All settings now come from `bellwether.yaml`. The action auto-creates one if mis
 - Never commit API keys to your repository
 - Use GitHub Secrets to store sensitive values
 - For structural mode (default), no API keys are needed
+- Use environment variable interpolation in `bellwether.yaml` for server secrets
+
+## Troubleshooting
+
+### Config Not Found
+
+If you see "Config not found, creating with --preset ci", ensure your `bellwether.yaml` is committed or the action will auto-generate one.
+
+### Server Startup Timeout
+
+Increase the timeout in your config:
+
+```yaml
+server:
+  command: "npx @mcp/your-server"
+  timeout: 60000  # 60 seconds
+```
+
+### Drift on Every Run
+
+Ensure your server produces deterministic output. Non-deterministic tools (e.g., timestamps, random IDs) will cause constant drift.
 
 ## License
 

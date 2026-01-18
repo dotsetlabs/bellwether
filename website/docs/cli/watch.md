@@ -1,11 +1,11 @@
 ---
 title: watch
-sidebar_position: 5
+sidebar_position: 4
 ---
 
 # bellwether watch
 
-Automatically re-interview when files change.
+Automatically re-test when files change.
 
 ## Synopsis
 
@@ -15,7 +15,7 @@ bellwether watch [options] <command> [args...]
 
 ## Description
 
-Watch mode monitors your source files and automatically re-runs interviews when changes are detected. This is useful during development to continuously validate your MCP server's behavior.
+Watch mode monitors your source files and automatically re-runs tests when changes are detected. This is useful during development to continuously validate your MCP server's behavior.
 
 ## Arguments
 
@@ -64,10 +64,10 @@ bellwether watch npx your-server --on-change "npm test"
 
 ## Behavior
 
-1. **Initial interview** - Runs a full interview on startup and saves baseline
+1. **Initial test** - Runs a full test on startup and saves baseline
 2. **File monitoring** - Polls the watch directory at the specified interval
 3. **Change detection** - Detects changes to `.ts`, `.js`, `.json`, `.py`, `.go` files
-4. **Re-interview** - Runs interview and compares against previous baseline
+4. **Re-test** - Runs test and compares against previous baseline
 5. **Optional action** - Runs `--on-change` command if drift is detected
 6. **Repeat** - Continues monitoring
 
@@ -80,20 +80,20 @@ Watching: /path/to/project
 Baseline: /path/to/project/bellwether-baseline.json
 Poll interval: 5000ms
 
---- Running Interview ---
-[10:30:45] Starting interview...
+--- Running Test ---
+[10:30:45] Starting test...
 Found 5 tools
-Interviewing: 5/5 tools
-Interview complete.
+Testing: 5/5 tools
+Test complete.
 
 Watching for changes... (Press Ctrl+C to exit)
 
 File changed: src/tools/read.ts
 
---- Running Interview ---
-[10:31:02] Starting interview...
+--- Running Test ---
+[10:31:02] Starting test...
 Found 5 tools
-Interview complete.
+Test complete.
 
 --- Behavioral Drift Detected ---
   + read_file now handles symlinks
@@ -116,7 +116,7 @@ bellwether watch npx your-server
 
 # Terminal 2: Edit your server code
 vim src/tools/read.ts
-# Watch automatically re-interviews when you save
+# Watch automatically re-tests when you save
 ```
 
 ### CI Integration Trigger
@@ -141,5 +141,5 @@ Press `Ctrl+C` to stop watch mode.
 
 ## See Also
 
-- [interview](/cli/test) - Single interview command
+- [test](/cli/test) - Run a single test
 - [Drift Detection](/concepts/drift-detection) - Understanding changes

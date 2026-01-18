@@ -1,6 +1,6 @@
 ---
 title: history
-sidebar_position: 9
+sidebar_position: 6
 ---
 
 # bellwether history
@@ -97,6 +97,6 @@ bellwether test --compare-baseline v10.json --save-baseline v12.json npx your-se
 
 ## See Also
 
-- [upload](/cli/upload) - Upload new baselines
-- [link](/cli/link) - Link a project
+- [upload](/cloud/upload) - Upload new baselines
+- [link](/cloud/link) - Link a project
 - [Cloud Integration](/guides/cloud-integration) - Full cloud features

@@ -1,6 +1,6 @@
 ---
 title: Personas
-sidebar_position: 1
+sidebar_position: 4
 ---
 
 # Personas
@@ -168,5 +168,5 @@ For specialized testing needs, you can create custom personas. See the [Custom P
 ## See Also
 
 - [Custom Personas Guide](/guides/custom-personas) - Create your own personas
-- [interview](/cli/test) - Using personas in interviews
+- [test](/cli/test) - Using personas in tests
 - [Workflows](/concepts/workflows) - Multi-step testing

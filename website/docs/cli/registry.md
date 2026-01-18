@@ -1,6 +1,6 @@
 ---
 title: registry
-sidebar_position: 11
+sidebar_position: 8
 ---
 
 # bellwether registry
@@ -117,7 +117,7 @@ The default output shows:
 # Search for servers
 bellwether registry memory
 
-# Interview the found server
+# Test the found server
 bellwether test npx @modelcontextprotocol/server-memory
 ```
 
@@ -161,6 +161,6 @@ The registry includes servers from various package managers:
 
 ## See Also
 
-- [interview](/cli/test) - Interview an MCP server
+- [test](/cli/test) - Test an MCP server
 - [discover](/cli/discover) - Quick capability discovery
 - [MCP Registry](https://registry.modelcontextprotocol.io/) - Official registry website

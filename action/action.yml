@@ -70,7 +70,7 @@ runs:
         CONFIG_PATH="${{ inputs.config-path }}"
         if [ ! -f "$CONFIG_PATH" ]; then
           echo "::notice::Config not found, creating with --preset ci"
-          bellwether init --preset ci
+          bellwether init --preset ci ${{ inputs.server-command }} ${{ inputs.server-args }}
         fi
 
     - name: Run Bellwether Test
@@ -80,6 +80,9 @@ runs:
         BELLWETHER_CI: 'true'
         OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
         ANTHROPIC_API_KEY: ${{ env.ANTHROPIC_API_KEY }}
+        OLLAMA_BASE_URL: ${{ env.OLLAMA_BASE_URL }}
+        BELLWETHER_SESSION: ${{ env.BELLWETHER_SESSION }}
+        BELLWETHER_API_URL: ${{ env.BELLWETHER_API_URL }}
       run: |
         set +e
 

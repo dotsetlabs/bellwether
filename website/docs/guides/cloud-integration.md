@@ -221,9 +221,9 @@ Cloud adds:
 
 ## See Also
 
-- [badge](/cli/badge) - Documentation badges
-- [login](/cli/login) - Authentication
-- [link](/cli/link) - Project linking
-- [upload](/cli/upload) - Baseline uploads
-- [history](/cli/history) - View history
+- [badge](/cloud/badge) - Documentation badges
+- [login](/cloud/login) - Authentication
+- [link](/cloud/link) - Project linking
+- [upload](/cloud/upload) - Baseline uploads
+- [history](/cloud/history) - View history
 - [CI/CD Integration](/guides/ci-cd) - Pipeline setup

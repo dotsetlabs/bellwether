@@ -233,5 +233,5 @@ bellwether test -o ./docs npx your-server
 ## See Also
 
 - [CI/CD Integration](/guides/ci-cd) - Using outputs in pipelines
-- [interview](/cli/test) - Output options
+- [test](/cli/test) - Output options
 - [Drift Detection](/concepts/drift-detection) - Comparing outputs

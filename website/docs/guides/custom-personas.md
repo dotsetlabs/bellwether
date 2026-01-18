@@ -309,4 +309,4 @@ If persona isn't finding expected issues:
 
 - [Personas](/concepts/personas) - Built-in personas
 - [Configuration](/guides/configuration) - Using personas in config
-- [interview](/cli/test) - CLI options
+- [test](/cli/test) - CLI options

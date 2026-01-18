@@ -1,6 +1,6 @@
 ---
 title: login
-sidebar_position: 6
+sidebar_position: 2
 ---
 
 # bellwether login
@@ -140,6 +140,6 @@ Never commit session.json to version control.
 
 ## See Also
 
-- [link](/cli/link) - Link a project
-- [upload](/cli/upload) - Upload baselines
+- [link](/cloud/link) - Link a project
+- [upload](/cloud/upload) - Upload baselines
 - [Cloud Integration Guide](/guides/cloud-integration) - Full cloud setup

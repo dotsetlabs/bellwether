@@ -1,6 +1,6 @@
 ---
 title: link
-sidebar_position: 7
+sidebar_position: 3
 ---
 
 # bellwether link
@@ -110,6 +110,6 @@ After linking, add a badge to your README:
 
 ## See Also
 
-- [login](/cli/login) - Authenticate first
-- [upload](/cli/upload) - Upload baselines
-- [history](/cli/history) - View baseline history
+- [login](/cloud/login) - Authenticate first
+- [upload](/cloud/upload) - Upload baselines
+- [history](/cloud/history) - View baseline history

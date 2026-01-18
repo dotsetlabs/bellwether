@@ -1,6 +1,6 @@
 ---
 title: verify
-sidebar_position: 12
+sidebar_position: 6
 ---
 
 # bellwether verify
@@ -15,7 +15,7 @@ bellwether verify [options] <command> [args...]
 
 ## Description
 
-The `verify` command runs a comprehensive interview and generates a verification report that earns your MCP server a coverage badge. Verified servers receive a badge indicating their tier level and test coverage.
+The `verify` command runs a comprehensive test and generates a verification report that earns your MCP server a coverage badge. Verified servers receive a badge indicating their tier level and test coverage.
 
 ## Arguments
 
@@ -128,8 +128,8 @@ Connecting to npx your-server...
 Target tier: gold
 Using personas: Technical Writer, QA Engineer, Novice User
 
-Running verification interview...
-✓ Interview complete
+Running verification test...
+✓ Test complete
 
 ────────────────────────────────────────────────────────────
 Verification Result
@@ -222,10 +222,10 @@ Or with a link to your report:
 |:-----|:--------|
 | `0` | Success - verification passed |
 | `1` | Failure - target tier not achieved |
-| `2` | Error - interview failed |
+| `2` | Error - test failed |
 
 ## See Also
 
-- [interview](/cli/test) - Standard behavioral interview
-- [badge](/cli/badge) - Get embeddable badges
+- [test](/cli/test) - Standard behavioral testing
+- [badge](/cloud/badge) - Get embeddable badges
 - [CI/CD Integration](/guides/ci-cd) - Automate verification

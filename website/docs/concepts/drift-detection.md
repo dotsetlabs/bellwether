@@ -1,6 +1,6 @@
 ---
 title: Drift Detection
-sidebar_position: 4
+sidebar_position: 3
 ---
 
 # Drift Detection
@@ -291,7 +291,7 @@ When drift is unexpected:
 1. Review the diff output
 2. Identify the root cause
 3. Fix the regression
-4. Re-run interview to verify
+4. Re-run test to verify
 
 ## Exit Codes
 
@@ -299,7 +299,7 @@ When drift is unexpected:
 |:-----|:----------|
 | `0` | No drift, or info-only drift |
 | `1` | Breaking or warning drift detected |
-| `2` | Interview error (connection, LLM) |
+| `2` | Test error (connection, LLM) |
 
 ## Cloud Integration
 
@@ -328,4 +328,4 @@ Cloud provides:
 - [Baselines](/concepts/baselines) - Creating and managing baselines
 - [CI/CD Integration](/guides/ci-cd) - Automated drift checking
 - [Configuration](/guides/configuration) - Config file drift options
-- [interview](/cli/test) - Running drift detection
+- [test](/cli/test) - Running drift detection

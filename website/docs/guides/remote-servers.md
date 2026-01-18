@@ -226,6 +226,6 @@ When connecting to remote MCP servers:
 
 ## See Also
 
-- [interview](/cli/test) - CLI reference
+- [test](/cli/test) - CLI reference
 - [discover](/cli/discover) - Quick discovery
 - [CI/CD Integration](/guides/ci-cd) - Pipeline setup
