@@ -5,6 +5,33 @@ All notable changes to Bellwether will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-01-18
+
+### Changed
+
+#### Improved Test Output Messaging
+- **CLI test summary** - Changed from confusing `Tool calls: X (Y errors)` to clearer `Tools verified: N`
+- **AGENTS.md summary** - Structural mode now shows `{ServerName} provides N tool(s) for MCP integration` instead of misleading success rate percentages
+- **AGENTS.md footer** - Structural mode shows `Structural analysis completed in X.Xs` instead of error counts
+- **Full mode footer** - Shows `Interview completed in X.Xs with N tool interactions` (removed error counts)
+
+#### Cleaner Structural Mode Output
+- Removed misleading `Success rate: X%` and `Y call(s) returned errors` from structural mode output
+- Removed false "limitations" about test errors from tool/prompt/resource profiles
+- In structural mode, "errors" from placeholder inputs are expected and captured for drift detection, not failures
+
+### Fixed
+
+- **Return type inference** - Changed `unknown (all calls failed)` to just `unknown` to avoid implying failure
+
+### Why This Change
+
+Structural mode uses placeholder values to probe tools. Many tools return errors because they require specific valid inputs - this is expected behavior, not a failure. The previous messaging could mislead users into thinking:
+1. Something was broken with the CLI
+2. Their MCP server had bugs
+
+The new messaging focuses on **verification and coverage** rather than **success and failure**.
+
 ## [0.5.2] - 2026-01-18
 
 ### Added

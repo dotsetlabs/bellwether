@@ -480,12 +480,10 @@ export class Interviewer {
           // Skip LLM synthesis in scenarios-only mode and fast CI mode
           let personaProfile: { behavioralNotes: string[]; limitations: string[]; securityNotes: string[] };
           if (this.config.customScenariosOnly || this.config.structuralOnly) {
-            // In fast mode, generate simple profile from results (no LLM call)
-            const errors = personaInteractions.filter(i => i.error).map(i => i.error!);
-            const successes = personaInteractions.filter(i => !i.error);
+            // Structural mode: minimal profile, no misleading error counts
             personaProfile = {
-              behavioralNotes: [`Executed ${personaInteractions.length} test(s), ${successes.length} succeeded`],
-              limitations: errors.length > 0 ? [`${errors.length} test(s) returned errors`] : [],
+              behavioralNotes: [],
+              limitations: [],
               securityNotes: [],
             };
           } else {
@@ -632,14 +630,13 @@ export class Interviewer {
         // Skip LLM synthesis in scenarios-only mode and fast CI mode
         let profile: { name: string; description: string; arguments: Array<{ name: string; description?: string; required?: boolean }>; behavioralNotes: string[]; limitations: string[] };
         if (this.config.customScenariosOnly || this.config.structuralOnly) {
-          const errors = promptInteractions.filter(i => i.error).length;
-          const successes = promptInteractions.length - errors;
+          // Structural mode: minimal profile, no misleading error counts
           profile = {
             name: prompt.name,
             description: prompt.description || prompt.name,
             arguments: prompt.arguments || [],
-            behavioralNotes: [`Executed ${promptInteractions.length} test(s), ${successes} succeeded`],
-            limitations: errors > 0 ? [`${errors} test(s) returned errors`] : [],
+            behavioralNotes: [],
+            limitations: [],
           };
         } else {
           profile = await primaryOrchestrator.synthesizePromptProfile(
@@ -748,15 +745,14 @@ export class Interviewer {
         // Synthesize resource profile (skip LLM in fast CI mode)
         let profile;
         if (this.config.structuralOnly) {
-          const errors = resourceInteractions.filter(i => i.error).length;
-          const successes = resourceInteractions.length - errors;
+          // Structural mode: minimal profile, no misleading error counts
           profile = {
             name: resource.name,
             uri: resource.uri,
             description: resource.description || resource.name,
             mimeType: resource.mimeType,
-            behavioralNotes: [`Executed ${resourceInteractions.length} read(s), ${successes} succeeded`],
-            limitations: errors > 0 ? [`${errors} read(s) returned errors`] : [],
+            behavioralNotes: [],
+            limitations: [],
           };
         } else {
           profile = await primaryOrchestrator.synthesizeResourceProfile(
@@ -824,15 +820,11 @@ export class Interviewer {
 
     let overall: { summary: string; limitations: string[]; recommendations: string[] };
     if (this.config.customScenariosOnly || this.config.structuralOnly) {
-      // Fast mode: generate simple summary without LLM
-      const totalTests = toolProfiles.reduce((sum, p) => sum + p.interactions.length, 0);
-      const totalErrors = toolProfiles.reduce(
-        (sum, p) => sum + p.interactions.filter(i => i.error).length, 0
-      );
-      const successRate = totalTests > 0 ? Math.round((1 - totalErrors / totalTests) * 100) : 100;
+      // Structural mode: simple summary focused on verification, not pass/fail
+      const serverName = discovery.serverInfo.name || 'This MCP server';
       overall = {
-        summary: `Tested ${toolProfiles.length} tool(s) with ${totalTests} call(s). Success rate: ${successRate}%.${totalErrors > 0 ? ` ${totalErrors} call(s) returned errors.` : ''}`,
-        limitations: totalErrors > 0 ? ['Some tool calls returned errors - see individual tool sections for details.'] : [],
+        summary: `${serverName} provides ${toolProfiles.length} tool(s) for MCP integration.`,
+        limitations: [],
         recommendations: [],
       };
     } else {
@@ -1207,10 +1199,10 @@ export class Interviewer {
       // Synthesize this persona's findings for this tool
       let personaProfile: { behavioralNotes: string[]; limitations: string[]; securityNotes: string[] };
       if (this.config.customScenariosOnly) {
-        const errors = personaInteractions.filter(i => i.error).map(i => i.error!);
+        // Scenarios-only mode: minimal profile, no misleading error counts
         personaProfile = {
-          behavioralNotes: [`Executed ${personaInteractions.length} scenario(s)`],
-          limitations: errors.length > 0 ? [`${errors.length} scenario(s) returned errors`] : [],
+          behavioralNotes: [],
+          limitations: [],
           securityNotes: [],
         };
       } else {

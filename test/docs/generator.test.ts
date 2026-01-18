@@ -183,8 +183,7 @@ describe('docs/generator', () => {
       expect(md).toContain('---');
       expect(md).toContain('Interview completed in');
       expect(md).toContain('5.0s');
-      expect(md).toContain('10 tool calls');
-      expect(md).toContain('2 errors');
+      expect(md).toContain('10 tool interactions');
     });
 
     it('should handle empty tool profiles', () => {

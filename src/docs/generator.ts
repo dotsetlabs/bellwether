@@ -509,21 +509,31 @@ export function generateAgentsMd(result: InterviewResult): string {
   lines.push('---');
   lines.push('');
 
-  // Basic stats
-  let statsLine = `*Interview completed in ${formatDuration(metadata.durationMs)} with ${metadata.toolCallCount} tool calls (${metadata.errorCount} errors)`;
+  // Check if structural mode (no LLM, deterministic)
+  const isStructuralMode = metadata.model === 'structural';
 
-  // Add persona breakdown if multiple personas
-  if (metadata.personas && metadata.personas.length > 1) {
-    statsLine += '.*';
+  // Basic stats - simpler for structural mode
+  let statsLine: string;
+  if (isStructuralMode) {
+    statsLine = `*Structural analysis completed in ${formatDuration(metadata.durationMs)}.*`;
     lines.push(statsLine);
-    lines.push('');
-    lines.push('**Persona Breakdown:**');
-    for (const persona of metadata.personas) {
-      lines.push(`- ${persona.name}: ${persona.questionsAsked} questions, ${persona.toolCallCount} calls, ${persona.errorCount} errors`);
-    }
   } else {
-    statsLine += '.*';
-    lines.push(statsLine);
+    // Full mode: show more details
+    statsLine = `*Interview completed in ${formatDuration(metadata.durationMs)} with ${metadata.toolCallCount} tool interactions`;
+
+    // Add persona breakdown if multiple personas
+    if (metadata.personas && metadata.personas.length > 1) {
+      statsLine += '.*';
+      lines.push(statsLine);
+      lines.push('');
+      lines.push('**Persona Breakdown:**');
+      for (const persona of metadata.personas) {
+        lines.push(`- ${persona.name}: ${persona.questionsAsked} questions, ${persona.toolCallCount} calls`);
+      }
+    } else {
+      statsLine += '.*';
+      lines.push(statsLine);
+    }
   }
 
   return lines.join('\n');
@@ -662,12 +672,12 @@ function inferReturnTypeDetailed(profile: ToolProfile | undefined): string {
     return true;
   });
   if (!successful || !successful.response) {
-    // All calls had errors - try to infer from description
+    // No successful calls - try to infer from description
     const inferred = inferReturnTypeFromDescription(profile.description);
     if (inferred) {
       return inferred;
     }
-    return 'unknown (all calls failed)';
+    return 'unknown';
   }
 
   const content = successful.response.content;
