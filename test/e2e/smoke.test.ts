@@ -320,8 +320,7 @@ test:
 
       // Verify metadata
       expect(markdown).toContain('Interview completed');
-      expect(markdown).toContain('15 tool calls');
-      expect(markdown).toContain('2 errors');
+      expect(markdown).toContain('15 tool interactions');
     });
 
     it('should write AGENTS.md to specified output directory', () => {

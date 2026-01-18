@@ -479,7 +479,7 @@ export const testCommand = new Command('test')
 
       output.info('\nTest complete!');
       output.info(`Duration: ${(result.metadata.durationMs / 1000).toFixed(1)}s`);
-      output.info(`Tool calls: ${result.metadata.toolCallCount} (${result.metadata.errorCount} errors)`);
+      output.info(`Tools verified: ${result.toolProfiles.length}`);
 
       // Display scenario results
       if (result.scenarioResults && result.scenarioResults.length > 0) {
