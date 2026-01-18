@@ -14,6 +14,7 @@ bellwether baseline save [path]
 bellwether baseline compare <path>
 bellwether baseline show [path]
 bellwether baseline diff <path1> <path2>
+bellwether baseline migrate [path]
 ```
 
 ## Description
@@ -74,6 +75,7 @@ bellwether baseline compare <baseline-path>
 | `--report <path>` | Path to test report JSON file | `bellwether-report.json` |
 | `--format <format>` | Output format: `text`, `json`, `markdown`, `compact` | `text` |
 | `--fail-on-drift` | Exit with error if drift is detected | `false` |
+| `--ignore-version-mismatch` | Proceed even if format versions are incompatible | `false` |
 
 **Examples:**
 
@@ -136,6 +138,7 @@ bellwether baseline diff <path1> <path2>
 | `<path1>` | Path to first baseline file | Required |
 | `<path2>` | Path to second baseline file | Required |
 | `--format <format>` | Output format: `text`, `json`, `markdown`, `compact` | `text` |
+| `--ignore-version-mismatch` | Proceed even if format versions are incompatible | `false` |
 
 **Examples:**
 
@@ -149,6 +152,45 @@ bellwether baseline diff old.json new.json --format markdown
 # Output as JSON for parsing
 bellwether baseline diff old.json new.json --format json
 ```
+
+### migrate
+
+Migrate a baseline to the current format version.
+
+```bash
+bellwether baseline migrate [path]
+```
+
+| Option | Description | Default |
+|:-------|:------------|:--------|
+| `[path]` | Path to baseline file | `bellwether-baseline.json` |
+| `--dry-run` | Show what would change without writing | `false` |
+| `--info` | Show migration info without performing migration | `false` |
+| `-o, --output <path>` | Output path (default: overwrite input) | Input path |
+| `-f, --force` | Overwrite output file without prompting | `false` |
+
+**Examples:**
+
+```bash
+# Check if migration is needed
+bellwether baseline migrate ./baseline.json --info
+
+# Preview migration without writing
+bellwether baseline migrate ./baseline.json --dry-run
+
+# Migrate baseline (overwrites input file)
+bellwether baseline migrate ./baseline.json
+
+# Migrate to a new file
+bellwether baseline migrate ./old.json --output ./new.json
+
+# Force overwrite existing output file
+bellwether baseline migrate ./baseline.json --output ./other.json --force
+```
+
+:::info Format Version Compatibility
+Baselines with incompatible format versions (different major version) cannot be compared directly. Use `bellwether baseline migrate` to upgrade older baselines before comparing.
+:::
 
 ## Workflow
 
@@ -184,6 +226,46 @@ bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 # Compare baselines from different versions
 bellwether baseline diff ./baselines/v1.0.0.json ./baselines/v2.0.0.json
 ```
+
+## Format Versioning
+
+Baselines use semantic versioning for the format version (e.g., `1.0.0`):
+
+| Component | Description |
+|:----------|:------------|
+| **Major** | Breaking structural changes (removed fields, type changes) |
+| **Minor** | New optional fields (backwards compatible) |
+| **Patch** | Bug fixes in baseline generation |
+
+### Compatibility Rules
+
+- **Same major version** = Compatible (can compare baselines)
+- **Different major version** = Incompatible (requires migration)
+
+When comparing baselines with incompatible versions:
+
+```
+Cannot compare baselines with incompatible format versions: v1.0.0 vs v2.0.0.
+Use 'bellwether baseline migrate' to upgrade the older baseline,
+or use --ignore-version-mismatch to force comparison (results may be incorrect).
+```
+
+### Upgrading Baselines
+
+```bash
+# Check if migration is needed
+bellwether baseline migrate ./baseline.json --info
+
+# Preview changes
+bellwether baseline migrate ./baseline.json --dry-run
+
+# Perform migration
+bellwether baseline migrate ./baseline.json
+```
+
+:::warning Force Comparison
+Using `--ignore-version-mismatch` may produce incorrect results when comparing baselines with different major versions. Only use this flag if you understand the risks.
+:::
 
 ## Baseline Contents
 

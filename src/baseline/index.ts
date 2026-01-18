@@ -16,15 +16,17 @@ export type {
   WorkflowSignature,
   CompareOptions,
   BaselineMode,
+  VersionCompatibilityInfo,
 } from './types.js';
 
 export {
-  BASELINE_VERSION,
   createBaseline,
   saveBaseline,
   loadBaseline,
   verifyIntegrity,
   baselineExists,
+  recalculateIntegrityHash,
+  type LoadBaselineOptions,
 } from './saver.js';
 
 export {
@@ -33,6 +35,7 @@ export {
   hasBreakingChanges,
   hasSecurityChanges,
   filterByMinimumSeverity,
+  checkBaselineVersionCompatibility,
 } from './comparator.js';
 
 export {
@@ -56,3 +59,30 @@ export {
   type SchemaChange,
   type SchemaComparisonResult,
 } from './schema-compare.js';
+
+// Version utilities
+export {
+  BASELINE_FORMAT_VERSION,
+  parseVersion,
+  areVersionsCompatible,
+  compareVersions,
+  getCompatibilityWarning,
+  checkVersionCompatibility,
+  assertVersionCompatibility,
+  formatVersion,
+  isCurrentVersion,
+  isOlderVersion,
+  isNewerVersion,
+  BaselineVersionError,
+  type FormatVersion,
+  type VersionCompatibility,
+} from './version.js';
+
+// Migration utilities
+export {
+  migrateBaseline,
+  canMigrate,
+  getMigrationsToApply,
+  needsMigration,
+  getMigrationInfo,
+} from './migrations.js';

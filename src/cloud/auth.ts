@@ -9,18 +9,18 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, statSyn
 import { join } from 'path';
 import { homedir, platform } from 'os';
 import type { StoredSession, ProjectLink, SessionTeam } from './types.js';
-import { URLS } from '../constants.js';
+import { URLS, PATHS, PATTERNS, CLI_SECURITY } from '../constants.js';
 import * as output from '../cli/output.js';
 
 /**
  * Directory for bellwether configuration.
  */
-export const CONFIG_DIR = join(homedir(), '.bellwether');
+export const CONFIG_DIR = join(homedir(), PATHS.CONFIG_DIR);
 
 /**
  * Path to session file.
  */
-export const SESSION_FILE = join(CONFIG_DIR, 'session.json');
+export const SESSION_FILE = join(CONFIG_DIR, PATHS.SESSION_FILE);
 
 /**
  * Environment variable name for session token.
@@ -40,20 +40,20 @@ export const TEAM_ID_ENV_VAR = 'BELLWETHER_TEAM_ID';
 /**
  * Session token prefix for validation.
  */
-export const SESSION_PREFIX = 'sess_';
+export const SESSION_PREFIX = CLI_SECURITY.SESSION_PREFIX;
 
 /**
  * Mock session prefix for development.
  */
-export const MOCK_SESSION_PREFIX = 'sess_mock_';
+export const MOCK_SESSION_PREFIX = CLI_SECURITY.MOCK_SESSION_PREFIX;
 
 /**
  * Session token pattern: sess_ followed by 64 hex characters.
  * Mock sessions use sess_mock_ prefix with username and hex characters.
  * Format: sess_mock_<username>_<hex>
  */
-const SESSION_TOKEN_PATTERN = /^sess_[a-f0-9]{64}$/;
-const MOCK_SESSION_TOKEN_PATTERN = /^sess_mock_[a-zA-Z0-9]+_[a-f0-9]+$/;
+const SESSION_TOKEN_PATTERN = PATTERNS.SESSION_TOKEN;
+const MOCK_SESSION_TOKEN_PATTERN = PATTERNS.MOCK_SESSION_TOKEN;
 
 /**
  * Ensure the config directory exists.

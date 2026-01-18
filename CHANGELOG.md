@@ -5,6 +5,47 @@ All notable changes to Bellwether will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.4] - 2026-01-18
+
+### Added
+
+#### Baseline Format Versioning
+
+Baselines now use semantic versioning (e.g., `1.0.0`) for format compatibility:
+
+- **Format version tracking** - Each baseline includes a format version in its metadata
+- **Version compatibility checking** - CLI warns or errors when comparing incompatible baselines
+- **`bellwether baseline migrate` command** - Upgrade baselines to the current format version
+  - `--dry-run` - Preview changes without writing
+  - `--info` - Show migration information only
+  - `--output <path>` - Write to a different file
+  - `--force` - Overwrite output file without prompting
+- **`--ignore-version-mismatch` flag** - Force comparison of incompatible baselines
+- **Cloud format version tracking** - Dashboard shows format version for each baseline
+
+**Versioning rules:**
+- Same major version = Compatible (can compare baselines)
+- Different major version = Incompatible (requires migration or `--ignore-version-mismatch`)
+- Minor/patch differences show warnings but allow comparison
+
+**Example:**
+```bash
+# Check if migration is needed
+bellwether baseline migrate ./baseline.json --info
+
+# Migrate baseline
+bellwether baseline migrate ./baseline.json
+
+# Force compare incompatible versions
+bellwether baseline compare ./old-baseline.json --ignore-version-mismatch
+```
+
+### Changed
+
+- **Baseline version field** - Changed from numeric `1` to semver string `"1.0.0"`
+- **Cloud API** - Baseline uploads now include and validate format version
+- **Dashboard** - Shows format version badge for each baseline with migration hints
+
 ## [0.5.3] - 2026-01-18
 
 ### Changed

@@ -73,6 +73,22 @@ export interface BehavioralDiff {
   warningCount: number;
   infoCount: number;
   summary: string;
+  /** Version compatibility information for the compared baselines */
+  versionCompatibility?: VersionCompatibilityInfo;
+}
+
+/**
+ * Version compatibility information included in diff results.
+ */
+export interface VersionCompatibilityInfo {
+  /** Whether the versions are compatible for comparison */
+  compatible: boolean;
+  /** Warning message if versions differ */
+  warning: string | null;
+  /** Source baseline format version */
+  sourceVersion: string;
+  /** Target baseline format version */
+  targetVersion: string;
 }
 
 /**
@@ -108,7 +124,8 @@ export type BaselineMode = 'full' | 'structural';
  * Baseline for an MCP server.
  */
 export interface BehavioralBaseline {
-  version: number;
+  /** Format version using semantic versioning (e.g., "1.0.0") */
+  version: string;
   createdAt: Date;
   mode?: BaselineMode;
   serverCommand: string;
@@ -139,4 +156,6 @@ export interface CompareOptions {
   ignoreDescriptionChanges?: boolean;
   minimumSeverity?: ChangeSeverity;
   tools?: string[];
+  /** Force comparison even if baseline versions are incompatible */
+  ignoreVersionMismatch?: boolean;
 }

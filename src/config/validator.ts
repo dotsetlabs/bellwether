@@ -8,6 +8,12 @@
 import { z } from 'zod';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import {
+  TIMEOUTS,
+  LLM_DEFAULTS,
+  PATHS,
+  VALIDATION_BOUNDS,
+} from '../constants.js';
 
 /**
  * Server configuration schema.
@@ -18,7 +24,12 @@ export const serverConfigSchema = z.object({
   /** Arguments to pass to the server command */
   args: z.array(z.string()).default([]),
   /** Timeout for server startup and tool calls (ms) */
-  timeout: z.number().int().min(1000).max(600000).default(30000),
+  timeout: z
+    .number()
+    .int()
+    .min(VALIDATION_BOUNDS.TIMEOUT.MIN_MS)
+    .max(VALIDATION_BOUNDS.TIMEOUT.MAX_MS)
+    .default(TIMEOUTS.DEFAULT),
   /** Additional environment variables */
   env: z.record(z.string()).optional(),
 }).default({});
@@ -28,7 +39,7 @@ export const serverConfigSchema = z.object({
  */
 export const ollamaConfigSchema = z.object({
   /** Ollama server base URL */
-  baseUrl: z.string().url().default('http://localhost:11434'),
+  baseUrl: z.string().url().default(LLM_DEFAULTS.OLLAMA_BASE_URL),
 }).default({});
 
 /**
@@ -59,7 +70,12 @@ export const testConfigSchema = z.object({
     'novice_user',
   ])).default(['technical_writer']),
   /** Maximum questions per tool */
-  maxQuestionsPerTool: z.number().int().min(1).max(10).default(3),
+  maxQuestionsPerTool: z
+    .number()
+    .int()
+    .min(VALIDATION_BOUNDS.QUESTIONS_PER_TOOL.MIN)
+    .max(VALIDATION_BOUNDS.QUESTIONS_PER_TOOL.MAX)
+    .default(3),
   /** Run personas in parallel */
   parallelPersonas: z.boolean().default(false),
   /** Skip error/edge case testing */
@@ -109,9 +125,19 @@ export const baselineConfigSchema = z.object({
   /** Fail if drift is detected */
   failOnDrift: z.boolean().default(false),
   /** Minimum confidence to report (0-100) */
-  minConfidence: z.number().int().min(0).max(100).default(0),
+  minConfidence: z
+    .number()
+    .int()
+    .min(VALIDATION_BOUNDS.CONFIDENCE.MIN)
+    .max(VALIDATION_BOUNDS.CONFIDENCE.MAX)
+    .default(0),
   /** Confidence threshold for CI failure (0-100) */
-  confidenceThreshold: z.number().int().min(0).max(100).default(80),
+  confidenceThreshold: z
+    .number()
+    .int()
+    .min(VALIDATION_BOUNDS.CONFIDENCE.MIN)
+    .max(VALIDATION_BOUNDS.CONFIDENCE.MAX)
+    .default(80),
 }).default({});
 
 /**
@@ -246,12 +272,7 @@ export function findConfigFile(explicitPath?: string): string | null {
     return existsSync(explicitPath) ? explicitPath : null;
   }
 
-  const searchNames = [
-    'bellwether.yaml',
-    'bellwether.yml',
-    '.bellwether.yaml',
-    '.bellwether.yml',
-  ];
+  const searchNames = PATHS.CONFIG_FILENAMES;
 
   for (const name of searchNames) {
     const path = join(process.cwd(), name);

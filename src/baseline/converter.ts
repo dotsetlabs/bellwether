@@ -22,7 +22,7 @@ import type {
   CloudAssertionType,
   CloudAssertionSeverity,
 } from '../cloud/types.js';
-import { BASELINE_FORMAT_VERSION } from '../cloud/types.js';
+import { BASELINE_FORMAT_VERSION } from './version.js';
 import { VERSION } from '../version.js';
 
 /**

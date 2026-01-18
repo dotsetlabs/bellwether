@@ -2,6 +2,11 @@
  * LLM client interface for abstracting different providers.
  */
 
+import {
+  DEFAULT_MODELS as DEFAULT_MODELS_CONST,
+  PREMIUM_MODELS as PREMIUM_MODELS_CONST,
+} from '../constants.js';
+
 export interface Message {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -97,22 +102,16 @@ export interface LLMClient {
 /**
  * Default model configurations per provider.
  * Uses budget-friendly models by default for cost efficiency.
+ * @see constants.ts for the source values
  */
-export const DEFAULT_MODELS: Record<LLMProviderId, string> = {
-  openai: 'gpt-5-mini',
-  anthropic: 'claude-haiku-4-5',
-  ollama: 'llama3.2',
-};
+export const DEFAULT_MODELS: Record<LLMProviderId, string> = DEFAULT_MODELS_CONST;
 
 /**
  * Premium model configurations for --quality flag.
  * Higher quality output but more expensive.
+ * @see constants.ts for the source values
  */
-export const PREMIUM_MODELS: Record<LLMProviderId, string> = {
-  openai: 'gpt-5.2',
-  anthropic: 'claude-sonnet-4-5',
-  ollama: 'llama3.2:70b',
-};
+export const PREMIUM_MODELS: Record<LLMProviderId, string> = PREMIUM_MODELS_CONST;
 
 /**
  * Provider IDs.

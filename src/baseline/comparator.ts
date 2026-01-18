@@ -19,8 +19,16 @@ import type {
   CompareOptions,
   ChangeSeverity,
   ToolFingerprint,
+  VersionCompatibilityInfo,
 } from './types.js';
 import { createBaseline } from './saver.js';
+import {
+  checkVersionCompatibility,
+  BaselineVersionError,
+  parseVersion,
+  areVersionsCompatible,
+  getCompatibilityWarning,
+} from './version.js';
 
 /**
  * Compare current interview results against a baseline.
@@ -38,12 +46,39 @@ export function compareWithBaseline(
 /**
  * Compare two baselines directly.
  * All changes are structural and deterministic.
+ *
+ * @param previous - The baseline to compare against (source/old)
+ * @param current - The current baseline (target/new)
+ * @param options - Comparison options
+ * @returns Diff result including version compatibility information
+ * @throws BaselineVersionError if versions are incompatible and ignoreVersionMismatch is false
  */
 export function compareBaselines(
   previous: BehavioralBaseline,
   current: BehavioralBaseline,
   options: CompareOptions = {}
 ): BehavioralDiff {
+  // Check version compatibility
+  const v1 = parseVersion(previous.version);
+  const v2 = parseVersion(current.version);
+  const versionCompatibility: VersionCompatibilityInfo = {
+    compatible: areVersionsCompatible(v1, v2),
+    warning: getCompatibilityWarning(v1, v2),
+    sourceVersion: v1.raw,
+    targetVersion: v2.raw,
+  };
+
+  // Throw error if versions are incompatible (unless ignored)
+  if (!versionCompatibility.compatible && !options.ignoreVersionMismatch) {
+    throw new BaselineVersionError(
+      `Cannot compare baselines with incompatible format versions: v${v1.raw} vs v${v2.raw}. ` +
+        `Use 'bellwether baseline migrate' to upgrade the older baseline, ` +
+        `or use --ignore-version-mismatch to force comparison (results may be incorrect).`,
+      v1.raw,
+      v2.raw
+    );
+  }
+
   const previousToolMap = new Map(previous.tools.map((t) => [t.name, t]));
   const currentToolMap = new Map(current.tools.map((t) => [t.name, t]));
 
@@ -113,6 +148,7 @@ export function compareBaselines(
     warningCount,
     infoCount,
     summary,
+    versionCompatibility,
   };
 }
 
@@ -292,4 +328,24 @@ export function filterByMinimumSeverity(
       change.significance === 'medium' ? 'warning' : 'info';
     return severityOrder.indexOf(changeLevel) >= minIndex;
   });
+}
+
+/**
+ * Check if two baselines have compatible versions for comparison.
+ *
+ * @param baseline1 - First baseline
+ * @param baseline2 - Second baseline
+ * @returns Version compatibility information
+ */
+export function checkBaselineVersionCompatibility(
+  baseline1: BehavioralBaseline,
+  baseline2: BehavioralBaseline
+): VersionCompatibilityInfo {
+  const result = checkVersionCompatibility(baseline1.version, baseline2.version);
+  return {
+    compatible: result.compatible,
+    warning: result.warning,
+    sourceVersion: result.sourceVersion,
+    targetVersion: result.targetVersion,
+  };
 }

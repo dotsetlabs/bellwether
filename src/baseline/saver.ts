@@ -15,6 +15,12 @@ import type {
   WorkflowSignature,
 } from './types.js';
 import { computeConsensusSchemaHash } from './schema-compare.js';
+import {
+  BASELINE_FORMAT_VERSION,
+  parseVersion,
+  formatVersion,
+} from './version.js';
+import { migrateBaseline, needsMigration } from './migrations.js';
 
 /**
  * Zod schema for behavioral assertion validation.
@@ -63,11 +69,18 @@ const workflowSignatureSchema = z.object({
 /**
  * Zod schema for baseline validation.
  * Validates untrusted JSON to prevent injection attacks.
+ *
+ * Version can be:
+ * - A semver string like "1.0.0" (current format)
+ * - A legacy number like 1 (old format, will be migrated)
  */
 const baselineSchema = z.object({
-  version: z.number().int().positive(),
+  version: z.union([
+    z.string().regex(/^\d+\.\d+\.\d+$/, 'Version must be semver format (e.g., "1.0.0")'),
+    z.number().int().positive(), // Legacy format support
+  ]),
   createdAt: z.string().or(z.date()),
-  mode: z.enum(['full', 'structural']).optional(), // Optional for backwards compatibility
+  mode: z.enum(['full', 'structural']).optional(),
   serverCommand: z.string(),
   server: serverFingerprintSchema,
   tools: z.array(toolFingerprintSchema),
@@ -78,9 +91,24 @@ const baselineSchema = z.object({
 });
 
 /**
- * Current baseline format version.
+ * Options for loading a baseline.
  */
-export const BASELINE_VERSION = 1;
+export interface LoadBaselineOptions {
+  /**
+   * Automatically migrate old baseline formats to the current version.
+   * If false and the baseline is outdated, a warning will be logged but
+   * the baseline will still be loaded (with potential compatibility issues).
+   * @default true
+   */
+  migrate?: boolean;
+
+  /**
+   * Skip integrity hash verification.
+   * Use with caution - only for debugging or when you know the file was modified intentionally.
+   * @default false
+   */
+  skipIntegrityCheck?: boolean;
+}
 
 /**
  * Create a behavioral baseline from interview results.
@@ -96,7 +124,7 @@ export function createBaseline(
   const workflowSignatures = extractWorkflowSignatures(result);
 
   const baselineData: Omit<BehavioralBaseline, 'integrityHash'> = {
-    version: BASELINE_VERSION,
+    version: BASELINE_FORMAT_VERSION,
     createdAt: new Date(),
     mode,
     serverCommand,
@@ -127,8 +155,17 @@ export function saveBaseline(baseline: BehavioralBaseline, path: string): void {
 /**
  * Load baseline from a file.
  * Validates against Zod schema to prevent malicious JSON injection.
+ *
+ * @param path - Path to the baseline file
+ * @param options - Load options
+ * @returns Loaded baseline (migrated to current version if needed)
  */
-export function loadBaseline(path: string): BehavioralBaseline {
+export function loadBaseline(
+  path: string,
+  options: LoadBaselineOptions = {}
+): BehavioralBaseline {
+  const { migrate = true, skipIntegrityCheck = false } = options;
+
   if (!existsSync(path)) {
     throw new Error(`Baseline file not found: ${path}`);
   }
@@ -154,17 +191,38 @@ export function loadBaseline(path: string): BehavioralBaseline {
     throw new Error(`Invalid baseline format in ${path}:\n${issues.join('\n')}`);
   }
 
-  const baseline = result.data as BehavioralBaseline;
+  let baseline = result.data as unknown as Record<string, unknown>;
 
-  // Restore Date objects
-  baseline.createdAt = new Date(baseline.createdAt);
+  // Check if migration is needed
+  if (needsMigration(baseline)) {
+    const currentVersion = parseVersion(baseline.version as string | number);
 
-  // Verify integrity
-  if (!verifyIntegrity(baseline)) {
-    throw new Error('Baseline integrity check failed - file may have been modified');
+    if (migrate) {
+      // Automatically migrate to current version
+      baseline = migrateBaseline(baseline) as unknown as Record<string, unknown>;
+    } else {
+      // Log warning but continue with the old format
+      console.warn(
+        `Warning: Baseline uses older format ${formatVersion(currentVersion.raw)}. ` +
+          `Current format is ${formatVersion(BASELINE_FORMAT_VERSION)}. ` +
+          `Run 'bellwether baseline migrate' to upgrade.`
+      );
+    }
   }
 
-  return baseline;
+  const typedBaseline = baseline as unknown as BehavioralBaseline;
+
+  // Restore Date objects
+  typedBaseline.createdAt = new Date(typedBaseline.createdAt);
+
+  // Verify integrity (unless skipped or just migrated)
+  if (!skipIntegrityCheck && !needsMigration(result.data as unknown as Record<string, unknown>)) {
+    if (!verifyIntegrity(typedBaseline)) {
+      throw new Error('Baseline integrity check failed - file may have been modified');
+    }
+  }
+
+  return typedBaseline;
 }
 
 /**
@@ -174,6 +232,20 @@ export function verifyIntegrity(baseline: BehavioralBaseline): boolean {
   const { integrityHash, ...rest } = baseline;
   const expectedHash = calculateIntegrityHash(rest);
   return integrityHash === expectedHash;
+}
+
+/**
+ * Recalculate and update the integrity hash for a baseline.
+ * Useful after migration or manual modifications.
+ */
+export function recalculateIntegrityHash(
+  baseline: Omit<BehavioralBaseline, 'integrityHash'>
+): BehavioralBaseline {
+  const integrityHash = calculateIntegrityHash(baseline);
+  return {
+    ...baseline,
+    integrityHash,
+  };
 }
 
 /**

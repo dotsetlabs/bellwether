@@ -422,3 +422,242 @@ export const TIME_ESTIMATION = {
   /** Seconds per resource interview */
   SECONDS_PER_RESOURCE: 3,
 } as const;
+
+// ==================== Retry Strategies ====================
+
+/**
+ * Detailed retry configurations for different operation types.
+ * These provide more specific settings than the basic RETRY constants.
+ */
+export const RETRY_STRATEGIES = {
+  /** LLM API calls - more tolerant due to rate limiting */
+  LLM: {
+    maxAttempts: 3,
+    initialDelayMs: 2000,
+    maxDelayMs: 60000,
+    backoffMultiplier: 2,
+    jitter: true,
+  },
+  /** Transport/connection operations - faster retries */
+  TRANSPORT: {
+    maxAttempts: 2,
+    initialDelayMs: 500,
+    maxDelayMs: 5000,
+    backoffMultiplier: 2,
+    jitter: true,
+  },
+  /** Tool call operations */
+  TOOL_CALL: {
+    maxAttempts: 2,
+    initialDelayMs: 1000,
+    maxDelayMs: 10000,
+    backoffMultiplier: 2,
+    jitter: false,
+  },
+  /** Default strategy for general operations */
+  DEFAULT: {
+    maxAttempts: 3,
+    initialDelayMs: 1000,
+    maxDelayMs: 30000,
+    backoffMultiplier: 2,
+    jitter: true,
+  },
+} as const;
+
+// ==================== Circuit Breaker ====================
+
+/**
+ * Circuit breaker configuration for fault tolerance.
+ */
+export const CIRCUIT_BREAKER = {
+  /** Number of failures before circuit opens */
+  FAILURE_THRESHOLD: 5,
+  /** Time to wait before attempting to close circuit (ms) */
+  RESET_TIME_MS: 30000,
+  /** Window in which failures are counted (ms) */
+  FAILURE_WINDOW_MS: 60000,
+} as const;
+
+// ==================== Validation Bounds ====================
+
+/**
+ * Min/max validation boundaries for configuration values.
+ */
+export const VALIDATION_BOUNDS = {
+  /** Timeout bounds in milliseconds */
+  TIMEOUT: {
+    MIN_MS: 1000,
+    MAX_MS: 600000,
+  },
+  /** Questions per tool bounds */
+  QUESTIONS_PER_TOOL: {
+    MIN: 1,
+    MAX: 10,
+  },
+  /** Confidence score bounds */
+  CONFIDENCE: {
+    MIN: 0,
+    MAX: 100,
+  },
+  /** Persona concurrency bounds */
+  PERSONA_CONCURRENCY: {
+    MIN: 1,
+    MAX: 10,
+  },
+  /** Max workflows bounds */
+  MAX_WORKFLOWS: {
+    MIN: 1,
+    MAX: 20,
+  },
+} as const;
+
+// ==================== File Paths ====================
+
+/**
+ * Default file and directory paths used by the CLI.
+ */
+export const PATHS = {
+  /** User config directory name (under home) */
+  CONFIG_DIR: '.bellwether',
+  /** Session storage file name */
+  SESSION_FILE: 'session.json',
+  /** Mock data directory for testing */
+  MOCK_DATA_DIR: 'mock-cloud',
+  /** Possible config file names (in order of preference) */
+  CONFIG_FILENAMES: [
+    'bellwether.yaml',
+    'bellwether.yml',
+    '.bellwether.yaml',
+    '.bellwether.yml',
+  ],
+  /** Default baseline output file */
+  DEFAULT_BASELINE_FILE: 'bellwether-baseline.json',
+  /** Default test report file */
+  DEFAULT_REPORT_FILE: 'bellwether-report.json',
+  /** Default test scenarios file */
+  DEFAULT_SCENARIOS_FILE: 'bellwether-tests.yaml',
+  /** Default workflows file */
+  DEFAULT_WORKFLOWS_FILE: 'bellwether-workflows.yaml',
+  /** Default AGENTS.md output file */
+  DEFAULT_AGENTS_FILE: 'AGENTS.md',
+} as const;
+
+// ==================== Patterns ====================
+
+/**
+ * Regex patterns for validation and parsing.
+ */
+export const PATTERNS = {
+  /** Valid session token format (64 hex chars after prefix) */
+  SESSION_TOKEN: /^sess_[a-f0-9]{64}$/,
+  /** Mock session token format for testing */
+  MOCK_SESSION_TOKEN: /^sess_mock_[a-zA-Z0-9]+_[a-f0-9]+$/,
+  /** Semver version format */
+  SEMVER: /^\d+\.\d+\.\d+$/,
+  /** Partial semver (major.minor) */
+  SEMVER_PARTIAL: /^\d+\.\d+$/,
+  /** Major version only */
+  SEMVER_MAJOR: /^\d+$/,
+} as const;
+
+// ==================== Security ====================
+
+/**
+ * CLI_SECURITY: Security-related constants for CLI operations.
+ */
+export const CLI_SECURITY = {
+  /** Hostnames considered localhost (skip TLS verification) */
+  LOCALHOST_HOSTS: ['localhost', '127.0.0.1'],
+  /** Allowed domains for Bellwether Cloud */
+  ALLOWED_DOMAINS: ['bellwether.sh', 'api.bellwether.sh', 'dashboard.bellwether.sh'],
+  /** Session token prefix */
+  SESSION_PREFIX: 'sess_',
+  /** Mock session token prefix for testing */
+  MOCK_SESSION_PREFIX: 'sess_mock_',
+} as const;
+
+// ==================== External URLs ====================
+
+/**
+ * External service URLs.
+ */
+export const EXTERNAL_URLS = {
+  /** Bellwether dashboard base URL */
+  DASHBOARD: 'https://bellwether.sh',
+  /** Shields.io badge service */
+  SHIELDS_BADGE: 'https://img.shields.io/badge',
+} as const;
+
+// ==================== Token Estimation ====================
+
+/**
+ * Token estimation factors for cost prediction.
+ */
+export const TOKEN_ESTIMATION = {
+  /** Average input tokens per question */
+  AVG_INPUT_PER_QUESTION: 500,
+  /** Average output tokens per question */
+  AVG_OUTPUT_PER_QUESTION: 300,
+  /** Schema overhead tokens per tool */
+  SCHEMA_OVERHEAD_PER_TOOL: 200,
+  /** Character to token ratio (approximate) */
+  CHARS_PER_TOKEN: 4,
+  /** Word adjustment factor */
+  WORD_ADJUSTMENT: 0.3,
+  /** Role/message overhead tokens */
+  MESSAGE_OVERHEAD_TOKENS: 4,
+  /** Default context window when model unknown */
+  DEFAULT_CONTEXT_WINDOW: 16000,
+} as const;
+
+// ==================== Token Budget ====================
+
+/**
+ * Default token budget limits.
+ */
+export const TOKEN_BUDGET = {
+  /** Maximum total tokens for an interview */
+  MAX_TOTAL_TOKENS: 1000000,
+  /** Maximum input tokens per request */
+  MAX_INPUT_PER_REQUEST: 100000,
+  /** Maximum output tokens per request */
+  MAX_OUTPUT_PER_REQUEST: 8000,
+  /** Reserved tokens for output in context */
+  OUTPUT_RESERVE: 4000,
+} as const;
+
+// ==================== Metrics ====================
+
+/**
+ * Metrics collection configuration.
+ */
+export const METRICS_CONFIG = {
+  /** Maximum entries in metrics store */
+  MAX_ENTRIES: 10000,
+  /** Latency histogram buckets (ms) */
+  LATENCY_BUCKETS: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+  /** Metric name prefix */
+  PREFIX: 'bellwether_',
+} as const;
+
+// ==================== LLM Models ====================
+
+/**
+ * Default model configurations per provider.
+ * Uses budget-friendly models by default for cost efficiency.
+ */
+export const DEFAULT_MODELS = {
+  openai: 'gpt-5-mini',
+  anthropic: 'claude-haiku-4-5',
+  ollama: 'llama3.2',
+} as const;
+
+/**
+ * Premium model configurations for --quality flag.
+ * Higher quality output but more expensive.
+ */
+export const PREMIUM_MODELS = {
+  openai: 'gpt-5.2',
+  anthropic: 'claude-sonnet-4-5',
+  ollama: 'llama3.2:70b',
+} as const;

@@ -12,7 +12,7 @@ import {
   loadBaseline,
   verifyIntegrity,
   baselineExists,
-  BASELINE_VERSION,
+  BASELINE_FORMAT_VERSION,
   compareBaselines,
   compareWithBaseline,
   hasBreakingChanges,
@@ -108,7 +108,7 @@ describe('Baseline Module', () => {
       const result = createMockInterviewResult();
       const baseline = createBaseline(result, 'npx test-server');
 
-      expect(baseline.version).toBe(BASELINE_VERSION);
+      expect(baseline.version).toBe(BASELINE_FORMAT_VERSION);
       expect(baseline.serverCommand).toBe('npx test-server');
       expect(baseline.server.name).toBe('test-server');
       expect(baseline.server.version).toBe('1.0.0');
