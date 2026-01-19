@@ -57,8 +57,8 @@ import { authCommand } from './commands/auth.js';
 import { badgeCommand } from './commands/badge.js';
 import { teamsCommand } from './commands/teams.js';
 import { baselineCommand } from './commands/baseline.js';
-import { createRegistryCommand } from './commands/registry.js';
-import { createVerifyCommand } from './commands/verify.js';
+import { registryCommand } from './commands/registry.js';
+import { verifyCommand } from './commands/verify.js';
 import { configureLogger, type LogLevel } from '../logging/logger.js';
 import { VERSION } from '../version.js';
 
@@ -153,12 +153,12 @@ program.addCommand(
   )
 );
 program.addCommand(
-  createRegistryCommand().description(
+  registryCommand.description(
     'Search the MCP Registry for servers'
   )
 );
 program.addCommand(
-  createVerifyCommand().description(
+  verifyCommand.description(
     'Generate verification report for Verified by Bellwether program'
   )
 );

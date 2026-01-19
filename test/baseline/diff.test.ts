@@ -77,7 +77,7 @@ describe('Diff Formatting', () => {
             aspect: 'schema',
             before: 'old schema',
             after: 'new schema',
-            significance: 'high',
+            severity: 'breaking',
             description: 'Schema changed for modified_tool',
           },
         ],
@@ -238,7 +238,7 @@ describe('Diff Formatting', () => {
             aspect: 'schema',
             before: 'old',
             after: 'new',
-            significance: 'high',
+            severity: 'breaking',
             description: 'Schema changed',
           },
         ],
@@ -247,7 +247,7 @@ describe('Diff Formatting', () => {
 
       const output = formatDiffGitHubActions(diff);
 
-      expect(output).toContain('::error::');
+      expect(output).toContain('::error::Drift detected:');
       expect(output).toContain('Breaking changes detected');
     });
 
@@ -258,38 +258,38 @@ describe('Diff Formatting', () => {
           aspect: 'schema',
           before: '',
           after: '',
-          significance: 'high',
-          description: 'High change',
+          severity: 'breaking',
+          description: 'Breaking change',
         },
         {
           tool: 'b',
           aspect: 'description',
           before: '',
           after: '',
-          significance: 'medium',
-          description: 'Medium change',
+          severity: 'warning',
+          description: 'Warning change',
         },
         {
           tool: 'c',
           aspect: 'description',
           before: '',
           after: '',
-          significance: 'low',
-          description: 'Low change',
+          severity: 'info',
+          description: 'Info change',
         },
       ];
 
       const diff = createMockDiff({
-        severity: 'warning',
+        severity: 'breaking',
         behaviorChanges: changes,
         summary: 'Changes detected',
       });
 
       const output = formatDiffGitHubActions(diff);
 
-      expect(output).toContain('::error::a - High change');
-      expect(output).toContain('::warning::b - Medium change');
-      expect(output).toContain('::notice::c - Low change');
+      expect(output).toContain('::error::a - Breaking change');
+      expect(output).toContain('::warning::b - Warning change');
+      expect(output).toContain('::notice::c - Info change');
     });
 
     it('should annotate removed tools as errors', () => {
@@ -354,7 +354,7 @@ describe('Diff Formatting', () => {
             aspect: 'security',
             before: '',
             after: '',
-            significance: 'high',
+            severity: 'breaking',
             description: 'Security issue found',
           },
         ],
@@ -366,7 +366,7 @@ describe('Diff Formatting', () => {
       const output = formatDiffMarkdown(diff);
 
       expect(output).toContain('### Changes');
-      expect(output).toContain('| Tool | Aspect | Significance | Description |');
+      expect(output).toContain('| Tool | Aspect | Severity | Description |');
       expect(output).toContain('test_tool');
       expect(output).toContain('security');
     });

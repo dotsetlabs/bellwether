@@ -471,6 +471,36 @@ export function createStreamingCallback(prefix?: string): {
   };
 }
 
+// ==================== Diff Summary Utilities ====================
+
+/**
+ * Diff summary data used for displaying comparison results.
+ */
+export interface DiffSummary {
+  severity: string;
+  toolsAdded: number;
+  toolsRemoved: number;
+  toolsModified: number;
+  behaviorChanges: number;
+}
+
+/**
+ * Icon mapping for diff severity levels.
+ */
+const SEVERITY_ICONS: Record<string, string> = {
+  none: '✓',
+  info: 'ℹ',
+  warning: '⚠',
+  breaking: '✗',
+};
+
+/**
+ * Get the icon for a severity level.
+ */
+export function getSeverityIcon(severity: string): string {
+  return SEVERITY_ICONS[severity] ?? '?';
+}
+
 /**
  * Default export for convenient importing.
  */
@@ -496,4 +526,5 @@ export default {
   StreamingDisplay,
   createStreamingDisplay,
   createStreamingCallback,
+  getSeverityIcon,
 };

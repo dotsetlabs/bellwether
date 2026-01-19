@@ -27,7 +27,9 @@ describe('Orchestrator', () => {
 
   describe('generateQuestions', () => {
     it('should generate questions using LLM', async () => {
+      // Clear the handler and set defaultResponse directly
       mockLLM.setConfig({
+        handler: undefined,
         defaultResponse: JSON.stringify([
           { description: 'Test NYC weather', category: 'happy_path', args: { location: 'NYC' } },
           { description: 'Test edge case', category: 'edge_case', args: { location: '' } },
@@ -417,9 +419,11 @@ describe('Orchestrator', () => {
 
       const questions = await failingOrchestrator.generateQuestions(tool, 1);
 
-      expect(questions[0].args.count).toBe(1);
+      // Smart defaults use mid-range for numbers (default range 0-100 → 50)
+      expect(questions[0].args.count).toBe(50);
       expect(questions[0].args.enabled).toBe(true);
-      expect(questions[0].args.items).toEqual([]);
+      // Smart array defaults include a sample item
+      expect(questions[0].args.items).toEqual(['sample-item']);
       expect(questions[0].args.config).toEqual({});
     });
   });

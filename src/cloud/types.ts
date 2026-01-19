@@ -9,6 +9,11 @@
  */
 
 import type { WorkflowSignature } from '../baseline/types.js';
+import type {
+  ResponseFingerprint,
+  InferredSchema,
+  ErrorPattern,
+} from '../baseline/response-fingerprint.js';
 
 // ============================================================================
 // Cloud Assertion Format
@@ -98,6 +103,13 @@ export interface ToolCapability {
   inputSchema: Record<string, unknown>;
   /** Hash of the schema for change detection */
   schemaHash: string;
+  // Response fingerprinting (structural mode enhancement)
+  /** Fingerprint of the tool's response structure */
+  responseFingerprint?: ResponseFingerprint;
+  /** Inferred JSON schema of the tool's output */
+  inferredOutputSchema?: InferredSchema;
+  /** Normalized error patterns observed during testing */
+  errorPatterns?: ErrorPattern[];
 }
 
 /**

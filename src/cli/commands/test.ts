@@ -524,7 +524,6 @@ export const testCommand = new Command('test')
           process.exit(1);
         }
 
-        const fullServerCommand = `${serverCommand} ${args.join(' ')}`;
         const previousBaseline = loadBaseline(compareBaselinePath);
         const baselineMode = isStructuralMode ? 'structural' : 'full';
         const currentBaseline = createBaseline(result, fullServerCommand, baselineMode);

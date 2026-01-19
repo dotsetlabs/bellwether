@@ -70,8 +70,8 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
     for (const [tool, changes] of changesByTool) {
       lines.push(`  ${bold(tool)}:`);
       for (const change of changes) {
-        const sigColor = getSignificanceColor(change.significance, useColors);
-        lines.push(`    ${sigColor(`[${change.significance.toUpperCase()}]`)} ${change.aspect}`);
+        const sevColor = getSeverityColor(change.severity, useColors);
+        lines.push(`    ${sevColor(`[${change.severity.toUpperCase()}]`)} ${change.aspect}`);
         if (change.before) {
           lines.push(`      ${red('- ' + change.before)}`);
         }
@@ -138,8 +138,8 @@ export function formatDiffGitHubActions(diff: BehavioralDiff): string {
   }
 
   for (const change of diff.behaviorChanges) {
-    const level = change.significance === 'high' ? 'error' :
-                  change.significance === 'medium' ? 'warning' : 'notice';
+    const level = change.severity === 'breaking' ? 'error' :
+                  change.severity === 'warning' ? 'warning' : 'notice';
     lines.push(`::${level}::${change.tool} - ${change.description}`);
   }
 
@@ -193,13 +193,13 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
   if (diff.behaviorChanges.length > 0) {
     lines.push('### Changes');
     lines.push('');
-    lines.push('| Tool | Aspect | Significance | Description |');
-    lines.push('|------|--------|--------------|-------------|');
+    lines.push('| Tool | Aspect | Severity | Description |');
+    lines.push('|------|--------|----------|-------------|');
 
     for (const change of diff.behaviorChanges) {
-      const sigEmoji = change.significance === 'high' ? '🔴' :
-                       change.significance === 'medium' ? '🟡' : '🟢';
-      lines.push(`| ${change.tool} | ${change.aspect} | ${sigEmoji} ${change.significance} | ${change.description} |`);
+      const sevEmoji = change.severity === 'breaking' ? '🔴' :
+                       change.severity === 'warning' ? '🟡' : '🟢';
+      lines.push(`| ${change.tool} | ${change.aspect} | ${sevEmoji} ${change.severity} | ${change.description} |`);
     }
     lines.push('');
   }
@@ -262,30 +262,30 @@ function getSeverityEmoji(severity: ChangeSeverity): string {
 function getChangeIcon(change: BehaviorChange, useColors: boolean): string {
   const c = useColors ? colors : noColors;
 
-  switch (change.significance) {
-    case 'high':
+  switch (change.severity) {
+    case 'breaking':
       return c.red('●');
-    case 'medium':
+    case 'warning':
       return c.yellow('●');
-    case 'low':
+    case 'info':
       return c.cyan('●');
     default:
       return '○';
   }
 }
 
-function getSignificanceColor(
-  significance: string,
+function getSeverityColor(
+  severity: ChangeSeverity,
   useColors: boolean
 ): (s: string) => string {
   const c = useColors ? colors : noColors;
 
-  switch (significance) {
-    case 'high':
+  switch (severity) {
+    case 'breaking':
       return c.red;
-    case 'medium':
+    case 'warning':
       return c.yellow;
-    case 'low':
+    case 'info':
       return c.cyan;
     default:
       return (s: string) => s;

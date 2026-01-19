@@ -125,8 +125,21 @@ export function getStoredSession(): StoredSession | null {
     const content = readFileSync(SESSION_FILE, 'utf-8');
     const session = JSON.parse(content) as StoredSession;
 
-    // Check if session is expired
-    if (new Date(session.expiresAt) <= new Date()) {
+    // Validate and check if session is expired
+    if (!session.expiresAt) {
+      output.warn('Warning: Session file missing expiration date, clearing it.');
+      clearSession();
+      return null;
+    }
+
+    const expirationDate = new Date(session.expiresAt);
+    if (isNaN(expirationDate.getTime())) {
+      output.warn('Warning: Session file has invalid expiration date, clearing it.');
+      clearSession();
+      return null;
+    }
+
+    if (expirationDate <= new Date()) {
       // Session expired, clear it
       clearSession();
       return null;

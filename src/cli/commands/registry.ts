@@ -9,9 +9,14 @@ import {
   generateRunCommand,
 } from '../../registry/index.js';
 import type { RegistryServerEntry } from '../../registry/index.js';
+import * as output from '../output.js';
 
+/**
+ * Create a new registry command instance.
+ * Useful for testing where fresh command instances are needed.
+ */
 export function createRegistryCommand(): Command {
-  const registry = new Command('registry')
+  return new Command('registry')
     .alias('lookup')
     .description('Search the MCP Registry for servers')
     .argument('[query]', 'Search query (server name or keyword)')
@@ -20,9 +25,9 @@ export function createRegistryCommand(): Command {
     .action(async (query: string | undefined, options: { limit: string; json: boolean }) => {
       await handleRegistry(query, options);
     });
-
-  return registry;
 }
+
+export const registryCommand = createRegistryCommand();
 
 async function handleRegistry(
   query: string | undefined,
@@ -35,54 +40,54 @@ async function handleRegistry(
     let servers: RegistryServerEntry[];
 
     if (query) {
-      console.log(chalk.gray(`Searching for "${query}"...`));
+      output.info(chalk.gray(`Searching for "${query}"...`));
       servers = await client.searchServers(query, limit);
     } else {
-      console.log(chalk.gray('Fetching popular servers...'));
+      output.info(chalk.gray('Fetching popular servers...'));
       const response = await client.listServers({ limit });
       servers = response.servers;
     }
 
     if (options.json) {
-      console.log(JSON.stringify(servers, null, 2));
+      output.json(servers);
       return;
     }
 
     if (servers.length === 0) {
-      console.log(chalk.yellow('No servers found.'));
+      output.info(chalk.yellow('No servers found.'));
       if (query) {
-        console.log(chalk.gray(`Try a different search term or browse all servers with: bellwether registry`));
+        output.info(chalk.gray(`Try a different search term or browse all servers with: bellwether registry`));
       }
       return;
     }
 
     // Header
-    console.log('');
-    console.log(chalk.bold(`Found ${servers.length} server(s)`));
-    console.log('─'.repeat(60));
-    console.log('');
+    output.newline();
+    output.info(chalk.bold(`Found ${servers.length} server(s)`));
+    output.info('─'.repeat(60));
+    output.newline();
 
     // Display each server
     for (const entry of servers) {
       displayServer(entry);
-      console.log('');
+      output.newline();
     }
 
     // Footer with usage hint
-    console.log('─'.repeat(60));
-    console.log(chalk.gray('To test a server, run:'));
+    output.info('─'.repeat(60));
+    output.info(chalk.gray('To test a server, run:'));
     if (servers.length > 0) {
       const firstServer = servers[0].server;
       const runCmd = generateRunCommand(firstServer);
       if (runCmd) {
-        console.log(chalk.cyan(`  bellwether test ${runCmd}`));
+        output.info(chalk.cyan(`  bellwether test ${runCmd}`));
       }
     }
   } catch (error) {
     if (error instanceof Error) {
-      console.error(chalk.red(`Error: ${error.message}`));
+      output.error(chalk.red(`Error: ${error.message}`));
     } else {
-      console.error(chalk.red('An unexpected error occurred'));
+      output.error(chalk.red('An unexpected error occurred'));
     }
     process.exit(1);
   }
@@ -100,17 +105,17 @@ function displayServer(entry: RegistryServerEntry): void {
   if (meta?.status === 'active') {
     nameLine += chalk.green(' ✓');
   }
-  console.log(nameLine);
+  output.info(nameLine);
 
   // Description
   if (server.description) {
-    console.log(chalk.white(`  ${server.description}`));
+    output.info(chalk.white(`  ${server.description}`));
   }
 
   // Run command
   const runCmd = generateRunCommand(server);
   if (runCmd) {
-    console.log(chalk.gray('  Run: ') + chalk.cyan(runCmd));
+    output.info(chalk.gray('  Run: ') + chalk.cyan(runCmd));
   }
 
   // Transport and package info
@@ -126,22 +131,22 @@ function displayServer(entry: RegistryServerEntry): void {
     }
 
     if (details.length > 0) {
-      console.log(chalk.gray(`  [${details.join(', ')}]`));
+      output.info(chalk.gray(`  [${details.join(', ')}]`));
     }
 
     // Required arguments
     const requiredArgs = pkg.packageArguments?.filter(a => a.isRequired) ?? [];
     if (requiredArgs.length > 0) {
-      console.log(chalk.gray('  Required args:'));
+      output.info(chalk.gray('  Required args:'));
       for (const arg of requiredArgs) {
         const desc = arg.description ? ` - ${arg.description}` : '';
-        console.log(chalk.gray(`    --${arg.name}${desc}`));
+        output.info(chalk.gray(`    --${arg.name}${desc}`));
       }
     }
   }
 
   // Links
   if (server.repository?.url) {
-    console.log(chalk.gray(`  Repository: ${server.repository.url}`));
+    output.info(chalk.gray(`  Repository: ${server.repository.url}`));
   }
 }
