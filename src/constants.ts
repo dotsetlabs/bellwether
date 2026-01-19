@@ -571,6 +571,8 @@ export const PATHS = {
   DEFAULT_WORKFLOWS_FILE: 'bellwether-workflows.yaml',
   /** Default AGENTS.md output file */
   DEFAULT_AGENTS_FILE: 'AGENTS.md',
+  /** Default cache directory */
+  DEFAULT_CACHE_DIR: '.bellwether/cache',
 } as const;
 
 // ==================== Patterns ====================

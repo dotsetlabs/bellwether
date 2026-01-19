@@ -79,21 +79,46 @@ bellwether history --limit 50
 
 ## Comparing Versions
 
-Use the cloud dashboard to compare any two versions:
-
-```
-https://bellwether.sh/projects/proj_abc123/diff/10/12
-```
-
-Or use the CLI:
+Use the `bellwether diff` command to compare any two cloud versions:
 
 ```bash
-# Download baselines and compare locally
-curl -o v10.json https://bellwether.sh/api/projects/proj_abc123/baselines/10
-curl -o v12.json https://bellwether.sh/api/projects/proj_abc123/baselines/12
+# Compare version 10 to version 12
+bellwether diff 10 12
 
-bellwether baseline diff v10.json v12.json
+# Compare versions for a specific project
+bellwether diff 10 12 --project proj_abc123
 ```
+
+Output:
+```
+Comparing v10 → v12
+
+Severity: ⚠ WARNING
+
+Tools added:     +1
+Tools modified:  ~2
+Behavior changes: 3
+
+⚠️  Breaking changes detected!
+   Tools were removed or modified in incompatible ways.
+```
+
+### diff Options
+
+| Option | Description | Default |
+|:-------|:------------|:--------|
+| `-p, --project <id>` | Project ID | Linked project |
+| `--json` | Output as JSON | `false` |
+
+### Local File Comparison
+
+To compare two local baseline files (without cloud), use `bellwether baseline diff`:
+
+```bash
+bellwether baseline diff v1.0.0.json v1.1.0.json
+```
+
+See [baseline diff](/cli/baseline#diff) for local comparison options.
 
 ## See Also
 

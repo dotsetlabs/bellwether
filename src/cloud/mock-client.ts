@@ -442,14 +442,14 @@ export class MockCloudClient implements BellwetherCloudClient {
       status = 'unknown';
       statusText = 'No baseline';
     } else if (baselines.length === 1) {
-      status = 'passing';
+      status = 'verified';
       statusText = 'Verified';
     } else {
       // Check drift between last two versions
       const diff = await this.getLatestDiff(projectId);
       if (diff) {
         if (diff.severity === 'none' || diff.severity === 'info') {
-          status = 'passing';
+          status = 'verified';
           statusText = 'Stable';
         } else if (diff.severity === 'warning') {
           status = 'drift';
@@ -459,13 +459,13 @@ export class MockCloudClient implements BellwetherCloudClient {
           statusText = 'Breaking changes';
         }
       } else {
-        status = 'passing';
+        status = 'verified';
         statusText = 'Verified';
       }
     }
 
     // Badge URL - using shields.io format for mock
-    const color = status === 'passing' ? 'brightgreen' : status === 'drift' ? 'yellow' : status === 'failing' ? 'red' : 'lightgrey';
+    const color = status === 'verified' ? 'brightgreen' : status === 'drift' ? 'yellow' : status === 'failing' ? 'red' : 'lightgrey';
     const badgeUrl = `https://img.shields.io/badge/bellwether-${encodeURIComponent(statusText)}-${color}`;
 
     // Generate markdown

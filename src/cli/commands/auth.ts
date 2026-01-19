@@ -290,7 +290,7 @@ async function showStatus(): Promise<void> {
       output.info(`  Model:  ${DEFAULT_MODELS[s.provider]}`);
     } else {
       output.info(`  Status: \u2717 Not configured`);
-      output.info(`  Setup:  Run 'bellwether auth' or set ${info.envVar}`);
+      output.info(`  Setup:  Run \`bellwether auth\` or set ${info.envVar}`);
     }
     output.newline();
   }

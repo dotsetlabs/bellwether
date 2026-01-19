@@ -76,7 +76,7 @@ export function compareBaselines(
   if (!versionCompatibility.compatible && !options.ignoreVersionMismatch) {
     throw new BaselineVersionError(
       `Cannot compare baselines with incompatible format versions: v${v1.raw} vs v${v2.raw}. ` +
-        `Use 'bellwether baseline migrate' to upgrade the older baseline, ` +
+        `Use \`bellwether baseline migrate\` to upgrade the older baseline, ` +
         `or use --ignore-version-mismatch to force comparison (results may be incorrect).`,
       v1.raw,
       v2.raw

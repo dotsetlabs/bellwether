@@ -55,8 +55,8 @@ export { OpenAIClient, type OpenAIClientOptions } from './llm/openai.js';
 export { generateAgentsMd, generateJsonReport } from './docs/generator.js';
 
 // Config
-export { loadConfigNew, ConfigNotFoundError, CONFIG_NAMES } from './config/loader.js';
-export type { BellwetherConfigNew } from './config/loader.js';
+export { loadConfig, ConfigNotFoundError } from './config/loader.js';
+export type { BellwetherConfig } from './config/loader.js';
 export { validateConfig, findConfigFile } from './config/validator.js';
 export { generateConfigTemplate, generatePresetConfig, PRESETS } from './config/template.js';
 

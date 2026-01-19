@@ -7,6 +7,12 @@ sidebar_position: 2
 
 Authenticate with Bellwether Cloud.
 
+:::info Private Beta
+Bellwether Cloud is in private beta. You'll need a beta invitation code to log in.
+
+To request access, email [hello@dotsetlabs.com](mailto:hello@dotsetlabs.com).
+:::
+
 ## Synopsis
 
 ```bash
@@ -16,6 +22,8 @@ bellwether login [options]
 ## Description
 
 The `login` command authenticates you with Bellwether Cloud, enabling baseline syncing and history tracking.
+
+During beta, you'll be prompted for an invitation code if you don't already have beta access. Enter your code when prompted, then complete the GitHub OAuth flow.
 
 ## Options
 

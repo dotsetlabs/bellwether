@@ -11,6 +11,7 @@ import type { BellwetherCloudClient, CloudConfig } from './types.js';
 import { MockCloudClient } from './mock-client.js';
 import { HttpCloudClient } from './http-client.js';
 import { getSessionToken, getBaseUrl, isMockSession, getTeamId } from './auth.js';
+import { TIMEOUTS } from '../constants.js';
 
 /**
  * Create a cloud client with the given configuration.
@@ -21,7 +22,7 @@ import { getSessionToken, getBaseUrl, isMockSession, getTeamId } from './auth.js
 export function createCloudClient(config?: Partial<CloudConfig>): BellwetherCloudClient {
   const sessionToken = config?.sessionToken ?? getSessionToken();
   const baseUrl = config?.baseUrl ?? getBaseUrl();
-  const timeout = config?.timeout ?? 30000;
+  const timeout = config?.timeout ?? TIMEOUTS.CLOUD_API;
 
   // Determine which client to use
   const useMock = shouldUseMockClient(baseUrl, sessionToken);

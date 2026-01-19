@@ -51,7 +51,7 @@ See [Test Modes](/concepts/test-modes) for details.
 npm install -g @dotsetlabs/bellwether
 
 # Initialize (structural mode is free)
-bellwether init npx @modelcontextprotocol/server-filesystem /tmp
+bellwether init "npx @modelcontextprotocol/server-filesystem /tmp"
 
 # Run test
 bellwether test

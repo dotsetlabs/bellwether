@@ -44,7 +44,7 @@ describe('cli/badge', () => {
       const badge = await client.getBadgeInfo(project.id);
 
       expect(badge).not.toBeNull();
-      expect(badge!.status).toBe('passing');
+      expect(badge!.status).toBe('verified');
       expect(badge!.statusText).toBe('Verified');
       expect(badge!.latestVersion).toBe(1);
     });
@@ -60,7 +60,7 @@ describe('cli/badge', () => {
       const badge = await client.getBadgeInfo(project.id);
 
       expect(badge).not.toBeNull();
-      expect(badge!.status).toBe('passing');
+      expect(badge!.status).toBe('verified');
       expect(badge!.statusText).toBe('Stable');
       expect(badge!.latestVersion).toBe(2);
     });

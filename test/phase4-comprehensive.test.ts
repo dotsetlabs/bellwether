@@ -42,7 +42,7 @@ import { MetricsCollector } from '../src/metrics/collector.js';
 import { parseYamlSecure, parseYamlStrict } from '../src/utils/yaml-parser.js';
 
 // Config loader imports
-import { loadConfigNew } from '../src/config/loader.js';
+import { loadConfig } from '../src/config/loader.js';
 
 describe('Evaluator Edge Cases', () => {
   describe('getValueAtPath edge cases', () => {
@@ -476,7 +476,7 @@ describe('Malformed Input Tests', () => {
       writeFileSync(configPath, '');
 
       // Should not crash, applies defaults (empty YAML parses to null)
-      const config = loadConfigNew(configPath);
+      const config = loadConfig(configPath);
       expect(config).toBeDefined();
       expect(config.mode).toBe('structural');
     });
@@ -486,7 +486,7 @@ describe('Malformed Input Tests', () => {
       writeFileSync(configPath, '# Just a comment\n# Another comment');
 
       // Comments-only parses to null, applies defaults
-      const config = loadConfigNew(configPath);
+      const config = loadConfig(configPath);
       expect(config).toBeDefined();
       expect(config.mode).toBe('structural');
     });
@@ -511,7 +511,7 @@ output:
       );
 
       // Should load without crashing, ignoring unknown fields (passthrough)
-      const config = loadConfigNew(configPath);
+      const config = loadConfig(configPath);
       expect(config.llm?.provider).toBe('openai');
     });
 
@@ -526,8 +526,8 @@ llm:
 `
       );
 
-      // New loadConfigNew throws validation errors for invalid values
-      expect(() => loadConfigNew(configPath)).toThrow();
+      // New loadConfig throws validation errors for invalid values
+      expect(() => loadConfig(configPath)).toThrow();
     });
 
     it('should reject string numbers with clear error message', () => {
@@ -542,7 +542,7 @@ test:
       );
 
       // New config validation is strict about types - strings are not coerced
-      expect(() => loadConfigNew(configPath)).toThrow(/Expected number, received string/);
+      expect(() => loadConfig(configPath)).toThrow(/Expected number, received string/);
     });
   });
 

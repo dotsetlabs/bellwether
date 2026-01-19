@@ -42,6 +42,7 @@ const sidebars: SidebarsConfig = {
       },
       items: [
         'cloud/login',
+        'cloud/teams',
         'cloud/link',
         'cloud/projects',
         'cloud/upload',

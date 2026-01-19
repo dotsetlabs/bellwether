@@ -25,7 +25,7 @@ Testing locally allows you to:
 
 ```bash
 # 1. Initialize configuration
-bellwether init node ./src/mcp-server.js
+bellwether init "node ./src/mcp-server.js"
 
 # 2. Run test
 bellwether test
@@ -45,19 +45,19 @@ The most common way to test locally is using stdio transport, where Bellwether s
 
 ```bash
 # Node.js server
-bellwether init node ./src/mcp-server.js
+bellwether init "node ./src/mcp-server.js"
 bellwether test
 
 # Python server
-bellwether init python ./mcp_server.py
+bellwether init "python ./mcp_server.py"
 bellwether test
 
 # TypeScript (via ts-node or tsx)
-bellwether init npx tsx ./src/server.ts
+bellwether init "npx tsx ./src/server.ts"
 bellwether test
 
 # Any executable
-bellwether init ./my-server-binary --config ./config.json
+bellwether init "./my-server-binary --config ./config.json"
 bellwether test
 ```
 
@@ -89,10 +89,10 @@ First, create your configuration file:
 
 ```bash
 # Default structural mode (free, fast)
-bellwether init node ./src/mcp-server.js
+bellwether init "node ./src/mcp-server.js"
 
 # Or full LLM mode with Ollama (free)
-bellwether init --preset local node ./src/mcp-server.js
+bellwether init --preset local "node ./src/mcp-server.js"
 ```
 
 ### 2. Create Initial Baseline
@@ -188,7 +188,7 @@ ollama serve
 ollama pull llama3.2
 
 # Initialize with local preset
-bellwether init --preset local node ./src/mcp-server.js
+bellwether init --preset local "node ./src/mcp-server.js"
 
 # Run test (free!)
 bellwether test
@@ -287,7 +287,7 @@ Choose the right mode for your workflow:
 - **Use case**: CI/CD, quick checks, schema verification
 
 ```bash
-bellwether init node ./src/mcp-server.js  # Default structural
+bellwether init "node ./src/mcp-server.js"  # Default structural
 ```
 
 ### Full Mode
@@ -297,8 +297,8 @@ bellwether init node ./src/mcp-server.js  # Default structural
 - **Use case**: Thorough testing, documentation, security audits
 
 ```bash
-bellwether init --preset local node ./src/mcp-server.js   # Free with Ollama
-bellwether init --preset thorough node ./src/mcp-server.js  # Premium models
+bellwether init --preset local "node ./src/mcp-server.js"   # Free with Ollama
+bellwether init --preset thorough "node ./src/mcp-server.js"  # Premium models
 ```
 
 ## Environment Variables

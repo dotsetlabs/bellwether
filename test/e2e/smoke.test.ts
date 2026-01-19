@@ -11,7 +11,7 @@ import { tmpdir } from 'os';
 import { resetLogger, configureLogger } from '../../src/logging/logger.js';
 
 // Import core modules
-import { loadConfigNew, ConfigNotFoundError } from '../../src/config/loader.js';
+import { loadConfig, ConfigNotFoundError } from '../../src/config/loader.js';
 import { generateConfigTemplate } from '../../src/config/template.js';
 import { generateAgentsMd, generateJsonReport } from '../../src/docs/generator.js';
 import {
@@ -258,7 +258,7 @@ describe('e2e/smoke', () => {
       expect(existsSync(configPath)).toBe(true);
 
       // Load config
-      const config = loadConfigNew(configPath);
+      const config = loadConfig(configPath);
       expect(config.mode).toBeDefined();
       expect(config.llm.provider).toBeDefined();
       expect(config.test.maxQuestionsPerTool).toBeDefined();
@@ -266,7 +266,7 @@ describe('e2e/smoke', () => {
 
     it('should throw ConfigNotFoundError when no config exists', () => {
       // New system requires config file to exist
-      expect(() => loadConfigNew()).toThrow(ConfigNotFoundError);
+      expect(() => loadConfig()).toThrow(ConfigNotFoundError);
     });
 
     it('should merge CLI options with config', () => {
@@ -280,7 +280,7 @@ test:
   maxQuestionsPerTool: 3
 `);
 
-      const config = loadConfigNew(configPath);
+      const config = loadConfig(configPath);
 
       // CLI options would override config
       const cliOptions = { model: 'gpt-4-turbo', maxQuestions: '5' };
@@ -489,7 +489,7 @@ test:
       const configPath = join(testDir, 'bellwether.yaml');
       const configContent = generateConfigTemplate();
       writeFileSync(configPath, configContent);
-      const config = loadConfigNew(configPath);
+      const config = loadConfig(configPath);
       expect(config).toBeTruthy();
 
       // Step 2: Simulate discovery (would connect to MCP server)
@@ -620,7 +620,7 @@ test:
       writeFileSync(configPath, 'invalid: yaml: content: [[[');
 
       // Invalid YAML should throw an error
-      expect(() => loadConfigNew(configPath)).toThrow(/Invalid YAML/);
+      expect(() => loadConfig(configPath)).toThrow(/Invalid YAML/);
     });
 
     it('should handle missing baseline file', () => {

@@ -10,10 +10,17 @@ Create a `bellwether.yaml` configuration file for testing an MCP server.
 ## Synopsis
 
 ```bash
-bellwether init [server-command] [args...]
+bellwether init [server-command]
 bellwether init --preset <preset> [server-command]
 bellwether init --full [server-command]
 ```
+
+:::tip
+If your server command includes arguments, wrap the entire command in quotes:
+```bash
+bellwether init "npx @mcp/server /data"
+```
+:::
 
 ## Description
 
@@ -25,8 +32,9 @@ By default, Bellwether initializes for **structural mode** (free, fast, determin
 
 | Argument | Description |
 |:---------|:------------|
-| `[server-command]` | Command to start the MCP server (e.g., `npx @mcp/server`) |
-| `[args...]` | Arguments to pass to the server command |
+| `[server-command]` | Command to start the MCP server (e.g., `"npx @mcp/server /data"`) |
+
+If your server command includes arguments, wrap the entire string in quotes so they are parsed together.
 
 ## Options
 
@@ -54,8 +62,8 @@ Presets configure Bellwether for common use cases:
 ### Default Structural Mode (Free)
 
 ```bash
-# Initialize with server command
-bellwether init npx @modelcontextprotocol/server-filesystem /tmp
+# Initialize with server command (quote if it includes arguments)
+bellwether init "npx @modelcontextprotocol/server-filesystem /tmp"
 
 # Or just initialize, add server later
 bellwether init
@@ -66,7 +74,7 @@ Creates `bellwether.yaml` configured for structural mode - fast, free, and deter
 ### CI/CD Preset
 
 ```bash
-bellwether init --preset ci npx your-server
+bellwether init --preset ci "npx your-server"
 ```
 
 Optimized for CI/CD pipelines with `failOnDrift: true`.
@@ -74,7 +82,7 @@ Optimized for CI/CD pipelines with `failOnDrift: true`.
 ### Local LLM Testing (Free)
 
 ```bash
-bellwether init --preset local npx your-server
+bellwether init --preset local "npx your-server"
 ```
 
 Uses local Ollama for free LLM-powered testing. Requires Ollama running:
@@ -87,7 +95,7 @@ ollama pull llama3.2
 ### Security-Focused Testing
 
 ```bash
-bellwether init --preset security npx your-server
+bellwether init --preset security "npx your-server"
 ```
 
 Enables security persona with comprehensive vulnerability testing.
@@ -95,7 +103,7 @@ Enables security persona with comprehensive vulnerability testing.
 ### Comprehensive Testing
 
 ```bash
-bellwether init --preset thorough npx your-server
+bellwether init --preset thorough "npx your-server"
 ```
 
 All personas, workflow discovery, and maximum coverage.
@@ -103,14 +111,14 @@ All personas, workflow discovery, and maximum coverage.
 ### Full Mode with Specific Provider
 
 ```bash
-bellwether init --full --provider openai npx your-server
-bellwether init --full --provider anthropic npx your-server
+bellwether init --full --provider openai "npx your-server"
+bellwether init --full --provider anthropic "npx your-server"
 ```
 
 ### Overwrite Existing Config
 
 ```bash
-bellwether init --force npx your-server
+bellwether init --force "npx your-server"
 ```
 
 ## Generated Configuration

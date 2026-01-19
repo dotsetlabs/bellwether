@@ -7,9 +7,10 @@ import { join } from 'path';
 import { parseAllDocuments } from 'yaml';
 import type { Workflow, WorkflowStep, WorkflowYAML, Assertion } from './types.js';
 import { parseYamlSecure, YAML_SECURITY_LIMITS } from '../utils/yaml-parser.js';
+import { PATHS } from '../constants.js';
 
 /** Default file name for workflow definitions */
-export const DEFAULT_WORKFLOWS_FILE = 'bellwether-workflows.yaml';
+export const DEFAULT_WORKFLOWS_FILE = PATHS.DEFAULT_WORKFLOWS_FILE;
 
 /**
  * Load workflows from a YAML file.

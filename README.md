@@ -164,6 +164,7 @@ bellwether baseline save ./my-baseline.json
 # Compare test results against baseline
 bellwether baseline compare ./bellwether-baseline.json
 bellwether baseline compare ./baseline.json --fail-on-drift
+bellwether baseline compare ./baseline.json --ignore-version-mismatch  # Force compare incompatible versions
 
 # Show baseline contents
 bellwether baseline show
@@ -171,6 +172,7 @@ bellwether baseline show ./baseline.json --json
 
 # Compare two baseline files
 bellwether baseline diff v1.json v2.json
+bellwether baseline diff v1.json v2.json --ignore-version-mismatch  # Force compare incompatible versions
 
 # Migrate baseline to current format version
 bellwether baseline migrate ./bellwether-baseline.json
@@ -305,7 +307,7 @@ Use with: `bellwether init --preset <name> npx @mcp/server`
 
 ```yaml
 - name: Detect Behavioral Drift
-  uses: dotsetlabs/bellwether/action@v1
+  uses: dotsetlabs/bellwether/cli/action@v1
   with:
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'

@@ -14,7 +14,7 @@ import { createLLMClient, type LLMClient } from '../../llm/index.js';
 import { Interviewer } from '../../interview/interviewer.js';
 import type { ServerContext } from '../../interview/types.js';
 import { generateAgentsMd, generateJsonReport } from '../../docs/generator.js';
-import { loadConfigNew, ConfigNotFoundError, type BellwetherConfigNew } from '../../config/loader.js';
+import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
 import { validateConfigForTest } from '../../config/validator.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
 import {
@@ -117,9 +117,9 @@ export const testCommand = new Command('test')
   .option('-c, --config <path>', 'Path to config file (default: ./bellwether.yaml)')
   .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
     // Load configuration (required)
-    let config: BellwetherConfigNew;
+    let config: BellwetherConfig;
     try {
-      config = loadConfigNew(options.config);
+      config = loadConfig(options.config);
     } catch (error) {
       if (error instanceof ConfigNotFoundError) {
         output.error(error.message);

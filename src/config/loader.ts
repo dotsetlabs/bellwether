@@ -11,8 +11,9 @@ import { parseYamlSecure } from '../utils/yaml-parser.js';
 import {
   validateConfig,
   findConfigFile,
-  type BellwetherConfigNew,
+  type BellwetherConfig,
 } from './validator.js';
+import { PATHS } from '../constants.js';
 
 /**
  * Interpolate environment variables in a string.
@@ -69,18 +70,8 @@ function interpolateConfig<T>(obj: T): T {
   return obj;
 }
 
-// Re-export the new config type
-export type { BellwetherConfigNew };
-
-/**
- * Config file names to search for.
- */
-export const CONFIG_NAMES = [
-  'bellwether.yaml',
-  'bellwether.yml',
-  '.bellwether.yaml',
-  '.bellwether.yml',
-];
+// Re-export the config type
+export type { BellwetherConfig };
 
 /**
  * Error thrown when no config file is found.
@@ -103,7 +94,7 @@ export class ConfigNotFoundError extends Error {
  * @throws ConfigNotFoundError if no config file is found
  * @throws Error if config file is invalid
  */
-export function loadConfigNew(explicitPath?: string): BellwetherConfigNew {
+export function loadConfig(explicitPath?: string): BellwetherConfig {
   // Find config file
   const configPath = findConfigFile(explicitPath);
 
@@ -111,7 +102,7 @@ export function loadConfigNew(explicitPath?: string): BellwetherConfigNew {
     // Build list of searched paths for helpful error message
     const searchedPaths = explicitPath
       ? [explicitPath]
-      : CONFIG_NAMES.map((name) => join(process.cwd(), name));
+      : PATHS.CONFIG_FILENAMES.map((name) => join(process.cwd(), name));
     throw new ConfigNotFoundError(searchedPaths);
   }
 

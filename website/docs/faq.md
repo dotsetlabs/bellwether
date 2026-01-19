@@ -19,7 +19,19 @@ When you build an MCP server, you're creating capabilities that AI agents can ca
 
 ### Is Bellwether free?
 
-The CLI is free and open source (MIT license). Optional cloud features (baseline history, verification badges) have a free tier and paid plans.
+The CLI is free and open source (MIT license).
+
+Cloud features are **free during the private beta**. To request beta access, email [hello@dotsetlabs.com](mailto:hello@dotsetlabs.com). After beta ends, we'll introduce paid plans.
+
+### How do I get beta access?
+
+Bellwether Cloud is in private beta. To request access:
+
+1. Email [hello@dotsetlabs.com](mailto:hello@dotsetlabs.com)
+2. We'll review your request and send an invitation code
+3. Use the code when running `bellwether login`
+
+Once you have access, you can invite team members directly from the dashboard.
 
 ### What LLM providers are supported?
 
