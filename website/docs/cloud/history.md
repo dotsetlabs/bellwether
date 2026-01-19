@@ -88,11 +88,11 @@ https://bellwether.sh/projects/proj_abc123/diff/10/12
 Or use the CLI:
 
 ```bash
-# Download and compare locally
+# Download baselines and compare locally
 curl -o v10.json https://bellwether.sh/api/projects/proj_abc123/baselines/10
 curl -o v12.json https://bellwether.sh/api/projects/proj_abc123/baselines/12
 
-bellwether test --compare-baseline v10.json --save-baseline v12.json npx your-server
+bellwether baseline diff v10.json v12.json
 ```
 
 ## See Also

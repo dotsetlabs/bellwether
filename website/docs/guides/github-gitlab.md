@@ -89,21 +89,15 @@ jobs:
         run: npm install -g @dotsetlabs/bellwether
 
       - name: Run Test
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          bellwether test \
-            --preset ci \
-            --save-baseline ./baseline.json \
-            npx your-mcp-server
+          bellwether test npx your-mcp-server
+          bellwether baseline save
 
       - name: Upload to Cloud
         env:
           BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
         run: |
-          bellwether upload \
-            --ci \
-            --fail-on-drift
+          bellwether upload --ci --fail-on-drift
 ```
 
 #### Using the Official Action
@@ -142,20 +136,13 @@ jobs:
           mv baseline.json main-baseline.json
 
       - name: Generate PR baseline
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          npx @dotsetlabs/bellwether test \
-            --preset ci \
-            --save-baseline ./pr-baseline.json \
-            npx your-server
+          npx @dotsetlabs/bellwether test npx your-server
+          npx @dotsetlabs/bellwether baseline save ./pr-baseline.json
 
       - name: Compare baselines
         run: |
-          npx @dotsetlabs/bellwether compare \
-            --baseline main-baseline.json \
-            --current pr-baseline.json \
-            --fail-on-drift
+          npx @dotsetlabs/bellwether baseline diff main-baseline.json pr-baseline.json
 ```
 
 ### Getting Your Session Token
@@ -190,13 +177,10 @@ bellwether:
   image: node:20
   script:
     - npm install -g @dotsetlabs/bellwether
-    - bellwether test
-        --preset ci
-        --save-baseline ./baseline.json
-        npx your-mcp-server
+    - bellwether test npx your-mcp-server
+    - bellwether baseline save
     - bellwether upload --ci --fail-on-drift
   variables:
-    OPENAI_API_KEY: $OPENAI_API_KEY
     BELLWETHER_SESSION: $BELLWETHER_SESSION
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -212,21 +196,16 @@ bellwether:mr:
   script:
     # Fetch main branch baseline
     - git fetch origin $CI_DEFAULT_BRANCH
-    - git checkout origin/$CI_DEFAULT_BRANCH -- baseline.json || echo "{}" > baseline.json
-    - mv baseline.json main-baseline.json
+    - git checkout origin/$CI_DEFAULT_BRANCH -- bellwether-baseline.json || echo "{}" > bellwether-baseline.json
+    - mv bellwether-baseline.json main-baseline.json
 
     # Generate MR baseline
     - npm install -g @dotsetlabs/bellwether
-    - bellwether test
-        --preset ci
-        --save-baseline ./mr-baseline.json
-        npx your-server
+    - bellwether test npx your-server
+    - bellwether baseline save ./mr-baseline.json
 
     # Compare
-    - bellwether compare
-        --baseline main-baseline.json
-        --current mr-baseline.json
-        --fail-on-drift
+    - bellwether baseline diff main-baseline.json mr-baseline.json
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 ```
@@ -239,15 +218,13 @@ bellwether:commit:
   image: node:20
   script:
     - npm install -g @dotsetlabs/bellwether
-    - bellwether test
-        --preset ci
-        --save-baseline ./baseline.json
-        npx your-server
+    - bellwether test npx your-server
+    - bellwether baseline save
     - |
-      if ! git diff --quiet baseline.json; then
+      if ! git diff --quiet bellwether-baseline.json; then
         git config user.email "ci@bellwether.sh"
         git config user.name "Bellwether CI"
-        git add baseline.json
+        git add bellwether-baseline.json
         git commit -m "chore: update bellwether baseline [skip ci]"
         git push https://oauth2:${GITLAB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git HEAD:$CI_COMMIT_BRANCH
       fi
@@ -261,9 +238,9 @@ Add these CI/CD variables in GitLab:
 
 | Variable | Description |
 |:---------|:------------|
-| `OPENAI_API_KEY` | Your OpenAI API key (masked) |
 | `BELLWETHER_SESSION` | Bellwether cloud session token (masked) |
 | `GITLAB_TOKEN` | GitLab personal access token (for committing baselines) |
+| `OPENAI_API_KEY` | Your OpenAI API key (masked, only for full mode) |
 
 ---
 

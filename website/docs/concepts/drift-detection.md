@@ -63,9 +63,18 @@ Behavioral changes in responses use LLM analysis:
 
 For CI/CD pipelines requiring deterministic results:
 
+```yaml
+# bellwether.yaml - scenarios-only mode
+mode: structural
+scenarios:
+  path: "./bellwether-tests.yaml"
+  only: true
+```
+
 ```bash
-# Use scenarios-only mode with your own YAML test definitions
-bellwether test --scenarios-only --compare-baseline ./baseline.json npx your-server
+# Run tests then compare
+bellwether test npx your-server
+bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
 This mode:
@@ -97,44 +106,46 @@ This mode:
 ### Local Development
 
 ```bash
-# Save initial baseline
-bellwether test --save-baseline npx your-server
+# Run test and save initial baseline
+bellwether test npx your-server
+bellwether baseline save
 
 # Make changes to server...
 
 # Compare against baseline
-bellwether test --compare-baseline ./bellwether-baseline.json npx your-server
+bellwether test npx your-server
+bellwether baseline compare ./bellwether-baseline.json
 ```
 
 ### CI/CD Pipeline
 
 ```bash
-bellwether test \
-  --ci \
-  --compare-baseline ./bellwether-baseline.json \
-  --fail-on-drift \
-  npx your-server
+# Run test then compare with fail-on-drift
+bellwether test npx your-server
+bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
-### Strict Mode
+### Structural Mode (100% Deterministic)
 
-**Strict mode** (`--strict`) provides 100% deterministic drift detection by only reporting structural changes:
+**Structural mode** provides 100% deterministic drift detection by only comparing tool schemas:
+
+```yaml
+# bellwether.yaml
+mode: structural
+```
 
 ```bash
-bellwether test \
-  --compare-baseline ./baseline.json \
-  --fail-on-drift \
-  --strict \
-  npx your-server
+bellwether test npx your-server
+bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
-In strict mode:
+In structural mode:
 - Only structural changes are reported (tool presence, schema changes)
-- Semantic comparisons (LLM-based) are skipped entirely
+- No LLM calls required
 - Results are 100% reproducible across runs
-- All reported changes have 100% confidence
+- Free and fast
 
-Use strict mode for:
+Use structural mode for:
 - CI/CD deployment gates requiring determinism
 - Compliance environments with audit requirements
 - Detecting breaking API changes only
@@ -174,23 +185,29 @@ There are two threshold options with different purposes:
 
 **Filter example** - hide low-confidence changes from output:
 
+```yaml
+# bellwether.yaml
+baseline:
+  minConfidence: 80  # Only report changes with >80% confidence
+```
+
 ```bash
-# Only report changes with >80% confidence
-bellwether test \
-  --compare-baseline ./baseline.json \
-  --min-confidence 80 \
-  npx your-server
+bellwether test npx your-server
+bellwether baseline compare ./bellwether-baseline.json
 ```
 
 **CI gate example** - only fail when confident about breaking changes:
 
+```yaml
+# bellwether.yaml
+baseline:
+  confidenceThreshold: 90  # Only fail CI if breaking changes have 90%+ confidence
+  failOnDrift: true
+```
+
 ```bash
-# Only fail CI if breaking changes have 90%+ confidence
-bellwether test \
-  --compare-baseline ./baseline.json \
-  --fail-on-drift \
-  --confidence-threshold 90 \
-  npx your-server
+bellwether test npx your-server
+bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
 ### Confidence in Output
@@ -273,11 +290,12 @@ Changes affecting security:
 When drift is expected (new features, fixes):
 
 ```bash
-# Review the changes
-bellwether test --compare-baseline ./baseline.json npx your-server
+# Run test and review the changes
+bellwether test npx your-server
+bellwether baseline compare ./bellwether-baseline.json
 
 # Update baseline if changes are correct
-bellwether test --save-baseline npx your-server
+bellwether baseline save --force
 
 # Commit updated baseline
 git add bellwether-baseline.json
@@ -306,7 +324,9 @@ When drift is unexpected:
 Track drift history with Bellwether Cloud:
 
 ```bash
-# Upload baseline with drift info
+# Run test, save baseline, and upload
+bellwether test npx your-server
+bellwether baseline save
 bellwether upload --ci --fail-on-drift
 ```
 

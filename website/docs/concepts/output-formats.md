@@ -12,8 +12,8 @@ Bellwether generates output in multiple formats to support different use cases: 
 | Format | File | Use Case |
 |:-------|:-----|:---------|
 | Markdown | `AGENTS.md` | Human-readable documentation |
-| JSON | `bellwether-report.json` | Machine-readable data (with `--json` flag) |
-| Baseline | `bellwether-baseline.json` | Drift detection (with `--save-baseline` flag) |
+| JSON | `bellwether-report.json` | Machine-readable data (with `output.format: json` in config) |
+| Baseline | `bellwether-baseline.json` | Drift detection (with `bellwether baseline save`) |
 
 ## Markdown (Default)
 
@@ -180,34 +180,43 @@ The JSON report includes:
 Save a baseline for drift detection:
 
 ```bash
-bellwether test --save-baseline npx your-server
+bellwether test npx your-server
+bellwether baseline save
 # Output: bellwether-baseline.json
 ```
 
 The baseline captures the server's behavior at a point in time. Later, compare against it:
 
 ```bash
-bellwether test --compare-baseline ./bellwether-baseline.json npx your-server
+bellwether test npx your-server
+bellwether baseline compare ./bellwether-baseline.json
 ```
 
 ### Example Baseline
 
 ```json
 {
-  "schemaVersion": 1,
-  "hash": "a1b2c3d4e5f6...",
+  "formatVersion": "1.0.0",
   "createdAt": "2026-01-12T10:30:00Z",
+  "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
+  "mode": "structural",
+  "integrityHash": "a1b2c3d4e5f6...",
   "server": {
     "name": "@modelcontextprotocol/server-filesystem",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "protocolVersion": "2024-11-05",
+    "capabilities": ["tools"]
   },
-  "tools": {
-    "read_file": {
-      "observations": [...],
-      "errors": [...],
-      "security": [...]
+  "tools": [
+    {
+      "name": "read_file",
+      "description": "Read contents of a file",
+      "schemaHash": "def456...",
+      "securityNotes": [...],
+      "limitations": [...]
     }
-  }
+  ],
+  "assertions": [...]
 }
 ```
 

@@ -59,7 +59,7 @@ Drift detection has two modes:
 
 2. **Semantic comparison** (LLM-assisted): Behavioral changes in responses. This flags *potential* changes for human review; it doesn't auto-fail pipelines unless you configure it to.
 
-For maximum determinism, use `--scenarios-only` with your own YAML test files. This mode runs your predefined tests without any LLM involvement.
+For maximum determinism, use structural mode (the default) or set `scenarios.only: true` in your config with your own YAML test files. Structural mode runs without any LLM involvement.
 
 ### Is this project sustainable as a solo developer effort?
 
@@ -122,17 +122,16 @@ bellwether test --persona technical_writer,security_tester npx server
 ### How do I save a baseline?
 
 ```bash
-bellwether test --save-baseline npx your-server
+bellwether test npx your-server
+bellwether baseline save
 # Creates: bellwether-baseline.json
 ```
 
 ### How do I compare against a baseline?
 
 ```bash
-bellwether test \
-  --compare-baseline ./bellwether-baseline.json \
-  --fail-on-drift \
-  npx your-server
+bellwether test npx your-server
+bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
 ## CI/CD
@@ -140,16 +139,11 @@ bellwether test \
 ### How do I use Bellwether in CI?
 
 ```yaml
-# GitHub Actions
+# GitHub Actions (structural mode - free, no API key needed)
 - name: Run Bellwether
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   run: |
-    npx @dotsetlabs/bellwether test \
-      --ci \
-      --compare-baseline ./baseline.json \
-      --fail-on-drift \
-      npx your-server
+    npx @dotsetlabs/bellwether test npx your-server
+    npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
 ### What do exit codes mean?
