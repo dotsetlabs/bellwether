@@ -8,6 +8,7 @@ import { createHash } from 'crypto';
 import type { BehavioralBaseline, ToolFingerprint, BehavioralAssertion } from './types.js';
 import type { InterviewResult, ToolProfile } from '../interview/types.js';
 import type { DiscoveryResult } from '../discovery/types.js';
+import { analyzeResponses } from './response-fingerprint.js';
 import type {
   BellwetherBaseline,
   BaselineMetadata,
@@ -190,13 +191,19 @@ function buildCapabilities(
   prompts?: PromptCapability[];
 } {
   // Build tool capabilities
+  // Prefer discovery schema, fall back to stored inputSchema from baseline
+  // Include response fingerprinting data from baseline
   const tools: ToolCapability[] = baseline.tools.map((tool) => ({
     name: tool.name,
     description: tool.description,
     inputSchema: discovery
       ? getToolSchema(discovery, tool.name)
-      : {},
+      : (tool.inputSchema ?? {}),
     schemaHash: tool.schemaHash,
+    // Response fingerprinting (structural mode enhancement)
+    responseFingerprint: tool.responseFingerprint,
+    inferredOutputSchema: tool.inferredOutputSchema,
+    errorPatterns: tool.errorPatterns,
   }));
 
   // Build resource capabilities (from discovery if available)
@@ -459,13 +466,30 @@ export function createCloudBaseline(
     capabilities: buildCapabilityList(result.discovery),
   };
 
-  // Build capabilities
-  const tools: ToolCapability[] = result.discovery.tools.map((tool) => ({
-    name: tool.name,
-    description: tool.description ?? '',
-    inputSchema: tool.inputSchema ?? {},
-    schemaHash: hashString(JSON.stringify(tool.inputSchema ?? {})),
-  }));
+  // Build response fingerprint map from tool profiles
+  const fingerprintMap = new Map<string, ReturnType<typeof analyzeResponses>>();
+  for (const profile of result.toolProfiles) {
+    const responseData = profile.interactions.map(i => ({
+      response: i.response,
+      error: i.error,
+    }));
+    fingerprintMap.set(profile.name, analyzeResponses(responseData));
+  }
+
+  // Build capabilities (including response fingerprinting)
+  const tools: ToolCapability[] = result.discovery.tools.map((tool) => {
+    const analysis = fingerprintMap.get(tool.name);
+    return {
+      name: tool.name,
+      description: tool.description ?? '',
+      inputSchema: tool.inputSchema ?? {},
+      schemaHash: hashString(JSON.stringify(tool.inputSchema ?? {})),
+      // Response fingerprinting (structural mode enhancement)
+      responseFingerprint: analysis?.fingerprint,
+      inferredOutputSchema: analysis?.inferredSchema,
+      errorPatterns: analysis?.errorPatterns.length ? analysis.errorPatterns : undefined,
+    };
+  });
 
   const prompts: PromptCapability[] | undefined =
     result.discovery.prompts.length > 0

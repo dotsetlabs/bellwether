@@ -15,6 +15,7 @@ import { loadConfigNew } from '../../config/loader.js';
 import type { BellwetherBaseline } from '../../cloud/types.js';
 import { PATHS } from '../../constants.js';
 import * as output from '../output.js';
+import { getSeverityIcon, type DiffSummary } from '../output.js';
 
 /**
  * Default baseline file name.
@@ -204,23 +205,10 @@ export const uploadCommand = new Command('upload')
   });
 
 /**
- * Print a diff summary in human-readable format.
+ * Print a diff summary in human-readable format (verbose format).
  */
-function printDiffSummary(diff: {
-  severity: string;
-  toolsAdded: number;
-  toolsRemoved: number;
-  toolsModified: number;
-  behaviorChanges: number;
-}): void {
-  const severityIcon: Record<string, string> = {
-    none: '✓',
-    info: 'ℹ',
-    warning: '⚠',
-    breaking: '✗',
-  };
-
-  output.info(`  Severity: ${severityIcon[diff.severity] ?? '?'} ${diff.severity}`);
+function printDiffSummary(diff: DiffSummary): void {
+  output.info(`  Severity: ${getSeverityIcon(diff.severity)} ${diff.severity}`);
 
   if (diff.toolsAdded > 0) {
     output.info(`  Tools added: +${diff.toolsAdded}`);

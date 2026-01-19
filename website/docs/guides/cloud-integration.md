@@ -44,7 +44,8 @@ Follow the prompts to create or select a project.
 
 ```bash
 # Generate and upload
-bellwether test --save-baseline npx your-server
+bellwether test npx your-server
+bellwether baseline save
 bellwether upload
 ```
 
@@ -111,10 +112,10 @@ jobs:
 
       - name: Run Bellwether
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
         run: |
-          npx @dotsetlabs/bellwether test --save-baseline npx your-server
+          npx @dotsetlabs/bellwether test npx your-server
+          npx @dotsetlabs/bellwether baseline save
           npx @dotsetlabs/bellwether upload --ci --fail-on-drift
 ```
 
@@ -210,8 +211,8 @@ Visit [bellwether.sh/pricing](https://bellwether.sh/pricing) for details.
 ## Offline Usage
 
 Bellwether works fully offline. Cloud is optional for:
-- Local drift detection with `--compare-baseline`
-- Local baseline management with `--save-baseline`
+- Local drift detection with `bellwether baseline compare`
+- Local baseline management with `bellwether baseline save`
 - Local documentation generation
 
 Cloud adds:

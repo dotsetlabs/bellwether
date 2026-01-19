@@ -8,8 +8,8 @@ sidebar_position: 2
 ## Prerequisites
 
 - **Node.js 20 or later** - Required for running Bellwether
-- **An LLM API key** - OpenAI, Anthropic, or use Ollama locally (free)
 - **An MCP server to test** - Any server implementing the Model Context Protocol
+- **An LLM API key** (optional) - Only required for full mode; structural mode (default) is free and requires no API keys
 
 ## Install via npm
 
@@ -35,9 +35,13 @@ npx @dotsetlabs/bellwether test <server-command>
 
 This is useful for CI/CD pipelines or one-off usage.
 
-## LLM Provider Setup
+## LLM Provider Setup (Optional)
 
-Bellwether requires an LLM to generate test scenarios. Choose one of the following providers:
+:::tip Structural Mode is Free
+By default, Bellwether runs in **structural mode** which requires no LLM and no API keys. It's free, fast, and deterministic. Only set up an LLM provider if you want **full mode** with multi-persona testing and AGENTS.md documentation generation.
+:::
+
+For full mode testing, choose one of the following providers:
 
 ### OpenAI (Recommended)
 

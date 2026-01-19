@@ -20,12 +20,17 @@ import { loadConfigNew, ConfigNotFoundError } from '../../config/loader.js';
 import { BUILTIN_PERSONAS } from '../../persona/builtins.js';
 import type { Persona } from '../../persona/types.js';
 import { TIMEOUTS } from '../../constants.js';
+import * as output from '../output.js';
 
 // Convert BUILTIN_PERSONAS record to array
 const ALL_PERSONAS: Persona[] = Object.values(BUILTIN_PERSONAS);
 
+/**
+ * Create a new verify command instance.
+ * Useful for testing where fresh command instances are needed.
+ */
 export function createVerifyCommand(): Command {
-  const verify = new Command('verify')
+  return new Command('verify')
     .description('Generate a verification report for the Verified by Bellwether program')
     .argument('<command>', 'Command to start the MCP server')
     .argument('[args...]', 'Arguments for the server command')
@@ -41,9 +46,9 @@ export function createVerifyCommand(): Command {
     .action(async (command: string, args: string[], options) => {
       await handleVerify(command, args, options);
     });
-
-  return verify;
 }
+
+export const verifyCommand = createVerifyCommand();
 
 async function handleVerify(
   command: string,
@@ -60,7 +65,7 @@ async function handleVerify(
     model?: string;
   }
 ): Promise<void> {
-  console.log(chalk.bold('\n🔒 Bellwether Verification\n'));
+  output.info(chalk.bold('\n🔒 Bellwether Verification\n'));
 
   // Try to load config (optional - verify command doesn't require config file)
   let configProvider: string | undefined;
@@ -87,32 +92,32 @@ async function handleVerify(
       model,
     });
   } catch {
-    console.error(chalk.red('Error: Could not create LLM client. Check your API keys.'));
+    output.error(chalk.red('Error: Could not create LLM client. Check your API keys.'));
     process.exit(1);
   }
 
   // Connect to server
-  console.log(chalk.gray(`Connecting to ${command} ${args.join(' ')}...`));
+  output.info(chalk.gray(`Connecting to ${command} ${args.join(' ')}...`));
   const client = new MCPClient({ timeout: TIMEOUTS.DEFAULT });
 
   try {
     await client.connect(command, args);
     const discovery = await discover(client, command, args);
 
-    console.log(chalk.green(`✓ Connected to ${discovery.serverInfo.name} v${discovery.serverInfo.version}`));
-    console.log(chalk.gray(`  ${discovery.tools.length} tools, ${discovery.prompts.length} prompts, ${(discovery.resources ?? []).length} resources`));
-    console.log('');
+    output.info(chalk.green(`✓ Connected to ${discovery.serverInfo.name} v${discovery.serverInfo.version}`));
+    output.info(chalk.gray(`  ${discovery.tools.length} tools, ${discovery.prompts.length} prompts, ${(discovery.resources ?? []).length} resources`));
+    output.newline();
 
     // Determine personas based on tier and security option
     const targetTier = options.tier as VerificationTier;
     const personas = selectPersonasForTier(targetTier, options.security);
 
-    console.log(chalk.gray(`Target tier: ${targetTier}`));
-    console.log(chalk.gray(`Using personas: ${personas.map((p: Persona) => p.name).join(', ')}`));
-    console.log('');
+    output.info(chalk.gray(`Target tier: ${targetTier}`));
+    output.info(chalk.gray(`Using personas: ${personas.map((p: Persona) => p.name).join(', ')}`));
+    output.newline();
 
     // Run interview
-    console.log(chalk.bold('Running verification test...'));
+    output.info(chalk.bold('Running verification test...'));
     const interviewer = new Interviewer(llm, {
       ...DEFAULT_CONFIG,
       personas,
@@ -120,12 +125,12 @@ async function handleVerify(
     });
 
     const interview = await interviewer.interview(client, discovery, (progress) => {
-      if (progress.currentTool) {
+      if (progress.currentTool && !output.isQuiet()) {
         process.stdout.write(chalk.gray(`  Testing: ${progress.currentTool}...\r`));
       }
     });
 
-    console.log(chalk.green('\n✓ Test complete\n'));
+    output.info(chalk.green('\n✓ Test complete\n'));
 
     // Generate verification
     const serverId = options.serverId ?? `${discovery.serverInfo.name}`;
@@ -142,12 +147,12 @@ async function handleVerify(
 
     // Output results
     if (options.badgeOnly) {
-      console.log(generateBadgeUrl(result));
+      output.info(generateBadgeUrl(result));
       return;
     }
 
     if (options.json) {
-      console.log(JSON.stringify(report, null, 2));
+      output.json(report);
       return;
     }
 
@@ -157,21 +162,21 @@ async function handleVerify(
     // Save report
     const reportPath = join(options.output, 'bellwether-verification.json');
     await writeFile(reportPath, JSON.stringify(report, null, 2));
-    console.log(chalk.gray(`\nReport saved to: ${reportPath}`));
+    output.info(chalk.gray(`\nReport saved to: ${reportPath}`));
 
     // Display badge
-    console.log('\n' + chalk.bold('Badge:'));
-    console.log(chalk.cyan(generateBadgeUrl(result)));
-    console.log('');
-    console.log(chalk.bold('Markdown:'));
-    console.log(chalk.gray(generateBadgeMarkdown(result)));
+    output.info('\n' + chalk.bold('Badge:'));
+    output.info(chalk.cyan(generateBadgeUrl(result)));
+    output.newline();
+    output.info(chalk.bold('Markdown:'));
+    output.info(chalk.gray(generateBadgeMarkdown(result)));
 
     // Exit with appropriate code
     if (result.status !== 'verified') {
       process.exit(1);
     }
   } catch (error) {
-    console.error(chalk.red(`\nError: ${error instanceof Error ? error.message : 'Unknown error'}`));
+    output.error(chalk.red(`\nError: ${error instanceof Error ? error.message : 'Unknown error'}`));
     process.exit(1);
   } finally {
     await client.disconnect();
@@ -223,23 +228,23 @@ function displayVerificationResult(result: {
   const statusColor = result.status === 'verified' ? chalk.green : chalk.red;
   const tierColor = getTierChalk(result.tier);
 
-  console.log('─'.repeat(60));
-  console.log('');
-  console.log(chalk.bold('Verification Result'));
-  console.log('');
-  console.log(`  Server:     ${result.serverId} v${result.version}`);
-  console.log(`  Status:     ${statusColor(result.status.toUpperCase())}`);
+  output.info('─'.repeat(60));
+  output.newline();
+  output.info(chalk.bold('Verification Result'));
+  output.newline();
+  output.info(`  Server:     ${result.serverId} v${result.version}`);
+  output.info(`  Status:     ${statusColor(result.status.toUpperCase())}`);
   if (result.tier) {
-    console.log(`  Tier:       ${tierColor(result.tier.toUpperCase())}`);
+    output.info(`  Tier:       ${tierColor(result.tier.toUpperCase())}`);
   }
-  console.log('');
-  console.log(`  Pass Rate:  ${result.passRate}% (${result.testsPassed}/${result.testsTotal} tests)`);
-  console.log(`  Tools:      ${result.toolsVerified} verified`);
-  console.log('');
-  console.log(`  Verified:   ${new Date(result.verifiedAt).toLocaleDateString()}`);
-  console.log(`  Expires:    ${new Date(result.expiresAt).toLocaleDateString()}`);
-  console.log('');
-  console.log('─'.repeat(60));
+  output.newline();
+  output.info(`  Pass Rate:  ${result.passRate}% (${result.testsPassed}/${result.testsTotal} tests)`);
+  output.info(`  Tools:      ${result.toolsVerified} verified`);
+  output.newline();
+  output.info(`  Verified:   ${new Date(result.verifiedAt).toLocaleDateString()}`);
+  output.info(`  Expires:    ${new Date(result.expiresAt).toLocaleDateString()}`);
+  output.newline();
+  output.info('─'.repeat(60));
 }
 
 function getTierChalk(tier?: string): (text: string) => string {

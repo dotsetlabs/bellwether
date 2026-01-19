@@ -39,7 +39,8 @@ The `upload` command uploads your local baseline to Bellwether Cloud, enabling h
 
 ```bash
 # First, generate a baseline
-bellwether test --save-baseline npx your-server
+bellwether test npx your-server
+bellwether baseline save
 
 # Upload to cloud (uses linked project)
 bellwether upload
@@ -70,10 +71,10 @@ bellwether upload --ci --fail-on-drift
 ```yaml
 - name: Test and Upload
   env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
   run: |
-    bellwether test --save-baseline npx your-server
+    bellwether test npx your-server
+    bellwether baseline save
     bellwether upload --ci --fail-on-drift
 ```
 
@@ -82,10 +83,10 @@ bellwether upload --ci --fail-on-drift
 ```yaml
 bellwether:
   script:
-    - bellwether test --save-baseline npx your-server
+    - bellwether test npx your-server
+    - bellwether baseline save
     - bellwether upload --ci --fail-on-drift
   variables:
-    OPENAI_API_KEY: $OPENAI_API_KEY
     BELLWETHER_SESSION: $BELLWETHER_SESSION
 ```
 

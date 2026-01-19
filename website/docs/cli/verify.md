@@ -173,7 +173,7 @@ The generated `bellwether-verification.json` contains:
     "testsTotal": 30,
     "passRate": 87,
     "reportHash": "a1b2c3d4e5f6g7h8",
-    "bellwetherVersion": "0.2.0"
+    "bellwetherVersion": "0.5.4"
   },
   "serverInfo": {
     "name": "your-server",
@@ -191,7 +191,7 @@ The generated `bellwether-verification.json` contains:
   "environment": {
     "os": "linux",
     "nodeVersion": "v20.0.0",
-    "bellwetherVersion": "0.2.0"
+    "bellwetherVersion": "0.5.4"
   }
 }
 ```

@@ -33,12 +33,48 @@ import {
 } from '../prompts/templates.js';
 import { getLogger } from '../logging/logger.js';
 import { withTimeout, DEFAULT_TIMEOUTS, TimeoutError } from '../utils/timeout.js';
-import { RETRY, DISPLAY_LIMITS } from '../constants.js';
+import { RETRY, DISPLAY_LIMITS, ORCHESTRATOR } from '../constants.js';
 
 /**
  * Error categories for LLM operations.
  */
 type LLMErrorCategory = 'refusal' | 'rate_limit' | 'timeout' | 'auth' | 'network' | 'format_error' | 'unknown';
+
+/**
+ * Extended schema property type for structural test generation.
+ */
+interface StructuralPropertySchema {
+  type?: string | string[];
+  enum?: unknown[];
+  const?: unknown;
+  default?: unknown;
+  examples?: unknown[];
+  minimum?: number;
+  maximum?: number;
+  exclusiveMinimum?: number;
+  exclusiveMaximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  format?: string;
+  items?: StructuralPropertySchema;
+  properties?: Record<string, StructuralPropertySchema>;
+  required?: string[];
+  description?: string;
+  oneOf?: StructuralPropertySchema[];
+  anyOf?: StructuralPropertySchema[];
+}
+
+/**
+ * Extended input schema type for structural test generation.
+ */
+interface StructuralInputSchema {
+  type?: string;
+  properties?: Record<string, StructuralPropertySchema>;
+  required?: string[];
+  examples?: unknown[];
+  default?: unknown;
+}
 
 /**
  * Categorize an error from LLM operations.
@@ -414,7 +450,7 @@ export class Orchestrator {
     );
 
     // Slice fallback questions to respect maxQuestions limit
-    return this.generateFallbackQuestionsInternal(tool, skipErrorTests).slice(0, maxQuestions);
+    return this.generateStructuralTestCases(tool, skipErrorTests).slice(0, maxQuestions);
   }
 
   /**
@@ -459,8 +495,12 @@ export class Orchestrator {
       }
 
       return analysis;
-    } catch {
+    } catch (llmError) {
       // Graceful fallback if LLM refuses or fails
+      this.logger.debug({
+        tool: tool.name,
+        error: llmError instanceof Error ? llmError.message : String(llmError),
+      }, 'LLM analysis failed, using fallback');
       if (error) {
         return `Tool returned an error: ${error}`;
       }
@@ -554,127 +594,687 @@ export class Orchestrator {
 
   /**
    * Get fallback questions without LLM call (for fast CI mode).
+   * Enhanced to generate comprehensive test cases from schema analysis.
    */
   getFallbackQuestions(tool: MCPTool, skipErrorTests: boolean): InterviewQuestion[] {
-    return this.generateFallbackQuestionsInternal(tool, skipErrorTests);
+    return this.generateStructuralTestCases(tool, skipErrorTests);
   }
 
-  /**
-   * Fallback questions when LLM fails.
-   */
-  private generateFallbackQuestionsInternal(tool: MCPTool, skipErrorTests: boolean): InterviewQuestion[] {
-    const questions: InterviewQuestion[] = [];
-    const schema = tool.inputSchema as { properties?: Record<string, unknown>; required?: string[] } | undefined;
+  // ===========================================================================
+  // Enhanced Structural Test Generation
+  // ===========================================================================
 
-    // Generate a basic happy path test with required params
-    const args: Record<string, unknown> = {};
-    if (schema?.required) {
-      for (const param of schema.required) {
-        args[param] = this.generateDefaultValue(param, schema.properties?.[param]);
+  /**
+   * Generate comprehensive test cases for structural mode.
+   * Analyzes schema to create meaningful tests without LLM.
+   *
+   * Returns a balanced mix of test categories:
+   * - Happy path tests (examples, defaults, smart values)
+   * - Edge case/boundary tests
+   * - Error handling tests (unless skipped)
+   */
+  private generateStructuralTestCases(tool: MCPTool, skipErrorTests: boolean): InterviewQuestion[] {
+    const happyPathTests: InterviewQuestion[] = [];
+    const edgeCaseTests: InterviewQuestion[] = [];
+    const errorTests: InterviewQuestion[] = [];
+    const schema = tool.inputSchema as StructuralInputSchema | undefined;
+    const seenArgsHashes = new Set<string>();
+
+    // Helper to avoid duplicate test cases
+    const addQuestion = (q: InterviewQuestion, list: InterviewQuestion[]): boolean => {
+      const hash = JSON.stringify(q.args);
+      if (seenArgsHashes.has(hash)) return false;
+      seenArgsHashes.add(hash);
+      list.push(q);
+      return true;
+    };
+
+    // 1. Schema-level examples (highest priority - author-provided)
+    if (schema?.examples && Array.isArray(schema.examples)) {
+      for (const example of schema.examples.slice(0, ORCHESTRATOR.MAX_SCHEMA_EXAMPLES)) {
+        if (example && typeof example === 'object') {
+          addQuestion({
+            description: 'Test with schema-provided example',
+            category: 'happy_path',
+            args: example as Record<string, unknown>,
+          }, happyPathTests);
+        }
       }
     }
 
-    questions.push({
+    // 2. Schema-level default
+    if (schema?.default && typeof schema.default === 'object') {
+      addQuestion({
+        description: 'Test with schema default values',
+        category: 'happy_path',
+        args: schema.default as Record<string, unknown>,
+      }, happyPathTests);
+    }
+
+    // 3. Build args from property defaults and examples
+    const defaultArgs = this.buildArgsFromDefaults(schema);
+    if (Object.keys(defaultArgs).length > 0) {
+      addQuestion({
+        description: 'Test with property default values',
+        category: 'happy_path',
+        args: defaultArgs,
+      }, happyPathTests);
+    }
+
+    // 4. Build args from property examples
+    const exampleArgs = this.buildArgsFromExamples(schema);
+    if (Object.keys(exampleArgs).length > 0) {
+      addQuestion({
+        description: 'Test with property example values',
+        category: 'happy_path',
+        args: exampleArgs,
+      }, happyPathTests);
+    }
+
+    // 5. Standard happy path with smart defaults
+    const smartArgs = this.buildSmartDefaultArgs(schema);
+    addQuestion({
       description: 'Basic functionality test with required parameters',
       category: 'happy_path',
-      args,
-    });
+      args: smartArgs,
+    }, happyPathTests);
 
+    // 6. Enum coverage - test different enum values
+    const enumTests = this.generateEnumTests(schema, smartArgs);
+    for (const test of enumTests.slice(0, ORCHESTRATOR.MAX_ENUM_TESTS)) {
+      addQuestion(test, happyPathTests);
+    }
+
+    // 7. Boundary tests for numeric parameters
+    const boundaryTests = this.generateBoundaryTests(schema, smartArgs);
+    for (const test of boundaryTests.slice(0, ORCHESTRATOR.MAX_BOUNDARY_TESTS)) {
+      addQuestion(test, edgeCaseTests);
+    }
+
+    // 8. Optional parameter tests
+    const optionalTests = this.generateOptionalParamTests(schema);
+    for (const test of optionalTests.slice(0, ORCHESTRATOR.MAX_OPTIONAL_TESTS)) {
+      addQuestion(test, happyPathTests);
+    }
+
+    // 9. Error handling tests
     if (!skipErrorTests) {
-      questions.push({
+      // Empty args (missing required)
+      addQuestion({
         description: 'Test with empty/missing parameters',
         category: 'error_handling',
         args: {},
-      });
+      }, errorTests);
+
+      // Invalid type tests
+      const invalidTests = this.generateInvalidTypeTests(schema);
+      for (const test of invalidTests.slice(0, ORCHESTRATOR.MAX_INVALID_TYPE_TESTS)) {
+        addQuestion(test, errorTests);
+      }
+    }
+
+    // Combine tests, ensuring a balanced mix:
+    // - At least 1 error handling test if not skipped (put early to ensure inclusion when sliced)
+    // - Then happy path tests
+    // - Then edge case tests
+    // - Then remaining error tests
+    const questions: InterviewQuestion[] = [];
+
+    // Add first happy path test (if any)
+    if (happyPathTests.length > 0) {
+      questions.push(happyPathTests[0]);
+    }
+
+    // Add first error handling test (if any and not skipped)
+    if (errorTests.length > 0) {
+      questions.push(errorTests[0]);
+    }
+
+    // Add remaining happy path tests
+    for (let i = 1; i < happyPathTests.length; i++) {
+      questions.push(happyPathTests[i]);
+    }
+
+    // Add edge case tests
+    for (const test of edgeCaseTests) {
+      questions.push(test);
+    }
+
+    // Add remaining error tests
+    for (let i = 1; i < errorTests.length; i++) {
+      questions.push(errorTests[i]);
     }
 
     return questions;
   }
 
   /**
-   * Generate a sensible default value for a parameter.
-   * Uses server context to generate valid paths within allowed directories.
+   * Build args from property-level default values.
+   * Also includes required parameters with smart defaults.
    */
-  private generateDefaultValue(paramName: string, schema: unknown): unknown {
-    const propSchema = schema as { type?: string; enum?: unknown[] } | undefined;
+  private buildArgsFromDefaults(schema: StructuralInputSchema | undefined): Record<string, unknown> {
+    const args: Record<string, unknown> = {};
+    if (!schema?.properties) return args;
 
-    if (propSchema?.enum && propSchema.enum.length > 0) {
-      return propSchema.enum[0];
+    const required = schema.required ?? [];
+    let hasDefaults = false;
+
+    // First, collect all defaults
+    for (const [name, prop] of Object.entries(schema.properties)) {
+      if (prop.default !== undefined) {
+        args[name] = prop.default;
+        hasDefaults = true;
+      }
     }
 
-    const lowerName = paramName.toLowerCase();
+    // If we have any defaults, also fill in required params that don't have defaults
+    if (hasDefaults) {
+      for (const param of required) {
+        if (args[param] === undefined && schema.properties[param]) {
+          args[param] = this.generateSmartValue(param, schema.properties[param]);
+        }
+      }
+    }
 
-    switch (propSchema?.type) {
+    return args;
+  }
+
+  /**
+   * Build args from property-level example values.
+   * Also includes required parameters with smart defaults.
+   */
+  private buildArgsFromExamples(schema: StructuralInputSchema | undefined): Record<string, unknown> {
+    const args: Record<string, unknown> = {};
+    if (!schema?.properties) return args;
+
+    const required = schema.required ?? [];
+    let hasExamples = false;
+
+    // First, collect all examples
+    for (const [name, prop] of Object.entries(schema.properties)) {
+      if (prop.examples && prop.examples.length > 0) {
+        args[name] = prop.examples[0];
+        hasExamples = true;
+      }
+    }
+
+    // If we have any examples, also fill in required params that don't have examples
+    if (hasExamples) {
+      for (const param of required) {
+        if (args[param] === undefined && schema.properties[param]) {
+          args[param] = this.generateSmartValue(param, schema.properties[param]);
+        }
+      }
+    }
+
+    return args;
+  }
+
+  /**
+   * Build smart default args based on parameter analysis.
+   */
+  private buildSmartDefaultArgs(schema: StructuralInputSchema | undefined): Record<string, unknown> {
+    const args: Record<string, unknown> = {};
+    if (!schema?.properties) return args;
+
+    const required = schema.required ?? [];
+
+    // First, fill required parameters
+    for (const param of required) {
+      const prop = schema.properties[param];
+      if (prop) {
+        args[param] = this.generateSmartValue(param, prop);
+      }
+    }
+
+    return args;
+  }
+
+  /**
+   * Generate a smart value for a parameter based on comprehensive schema analysis.
+   * @param depth - Current recursion depth for circular schema protection
+   */
+  private generateSmartValue(paramName: string, schema: StructuralPropertySchema, depth: number = 0): unknown {
+    // Prevent infinite recursion with circular schemas
+    if (depth > ORCHESTRATOR.MAX_SCHEMA_RECURSION_DEPTH) {
+      this.logger.debug({ paramName, depth }, 'Max schema recursion depth reached');
+      return null;
+    }
+
+    // 1. Use const if specified
+    if (schema.const !== undefined) {
+      return schema.const;
+    }
+
+    // 2. Use default if specified
+    if (schema.default !== undefined) {
+      return schema.default;
+    }
+
+    // 3. Use first example if specified
+    if (schema.examples && schema.examples.length > 0) {
+      return schema.examples[0];
+    }
+
+    // 4. Use first enum value if specified
+    if (schema.enum && schema.enum.length > 0) {
+      return schema.enum[0];
+    }
+
+    // 5. Handle oneOf/anyOf
+    if (schema.oneOf && schema.oneOf.length > 0) {
+      return this.generateSmartValue(paramName, schema.oneOf[0], depth + 1);
+    }
+    if (schema.anyOf && schema.anyOf.length > 0) {
+      return this.generateSmartValue(paramName, schema.anyOf[0], depth + 1);
+    }
+
+    // 6. Generate based on type
+    const type = this.getSchemaType(schema.type);
+
+    switch (type) {
       case 'string':
-        // Use allowed directories for path parameters
-        if (lowerName.includes('path') || lowerName.includes('file') || lowerName.includes('dir')) {
-          const baseDir = this.serverContext?.allowedDirectories?.[0] ?? '/tmp';
-          if (lowerName.includes('dir') || lowerName.includes('directory')) {
-            return baseDir;
-          }
-          return `${baseDir}/test.txt`;
-        }
-        if (lowerName.includes('url')) {
-          const host = this.serverContext?.allowedHosts?.[0] ?? 'https://example.com';
-          return host;
-        }
-        if (lowerName.includes('pattern')) return '*.txt';
-        if (lowerName.includes('content')) return 'test content';
-        if (lowerName.includes('text')) return 'sample text';
-        return 'test';
+        return this.generateSmartString(paramName, schema);
       case 'number':
+        return this.generateSmartNumber(schema, false);
       case 'integer':
-        return 1;
+        return this.generateSmartNumber(schema, true);
       case 'boolean':
         return true;
-      case 'array': {
-        // For paths array, include an example path
-        if (lowerName.includes('path')) {
-          const baseDir = this.serverContext?.allowedDirectories?.[0] ?? '/tmp';
-          return [`${baseDir}/file1.txt`];
-        }
-        // Try to generate a sample item if the array has an items schema
-        const arraySchema = schema as { items?: { type?: string; properties?: Record<string, unknown>; required?: string[] } };
-        if (arraySchema?.items?.type === 'object' && arraySchema.items.properties) {
-          const sampleItem: Record<string, unknown> = {};
-          const itemProps = arraySchema.items.properties;
-          const itemRequired = arraySchema.items.required ?? Object.keys(itemProps);
-          for (const prop of itemRequired) {
-            if (itemProps[prop]) {
-              sampleItem[prop] = this.generateDefaultValue(prop, itemProps[prop]);
-            }
-          }
-          // Only return non-empty sample if we generated something
-          if (Object.keys(sampleItem).length > 0) {
-            return [sampleItem];
-          }
-        }
-        // For string arrays, include a sample string
-        if (arraySchema?.items?.type === 'string') {
-          return ['sample-item'];
-        }
-        return [];
-      }
-      case 'object': {
-        // Try to generate sample properties if schema has properties defined
-        const objSchema = schema as { properties?: Record<string, unknown>; required?: string[] };
-        if (objSchema?.properties) {
-          const sampleObj: Record<string, unknown> = {};
-          const required = objSchema.required ?? [];
-          for (const prop of required) {
-            if (objSchema.properties[prop]) {
-              sampleObj[prop] = this.generateDefaultValue(prop, objSchema.properties[prop]);
-            }
-          }
-          if (Object.keys(sampleObj).length > 0) {
-            return sampleObj;
-          }
-        }
-        return {};
-      }
+      case 'array':
+        return this.generateSmartArray(paramName, schema, depth + 1);
+      case 'object':
+        return this.generateSmartObject(schema, depth + 1);
+      case 'null':
+        return null;
       default:
-        return 'test';
+        // Infer from parameter name
+        return this.inferValueFromName(paramName);
     }
+  }
+
+  /**
+   * Generate a smart string value based on format, pattern, and name hints.
+   * Works with or without a schema - when schema is absent, uses name-based inference only.
+   */
+  private generateSmartString(paramName: string, schema?: StructuralPropertySchema): string {
+    const lowerName = paramName.toLowerCase();
+    const description = (schema?.description ?? '').toLowerCase();
+
+    // Check format first (if schema provided)
+    if (schema?.format) {
+      switch (schema.format) {
+        case 'date':
+          return '2024-01-15';
+        case 'date-time':
+          return '2024-01-15T10:30:00Z';
+        case 'time':
+          return '10:30:00';
+        case 'email':
+          return 'test@example.com';
+        case 'uri':
+        case 'url':
+          return this.serverContext?.allowedHosts?.[0] ?? 'https://example.com';
+        case 'uuid':
+          return '550e8400-e29b-41d4-a716-446655440000';
+        case 'hostname':
+          return 'example.com';
+        case 'ipv4':
+          return '127.0.0.1';
+        case 'ipv6':
+          return '::1';
+      }
+    }
+
+    // Check name-based hints
+    if (lowerName.includes('path') || lowerName.includes('file')) {
+      const baseDir = this.serverContext?.allowedDirectories?.[0] ?? '/tmp';
+      if (lowerName.includes('dir') || lowerName.includes('directory') || lowerName.includes('folder')) {
+        return baseDir;
+      }
+      return `${baseDir}/test.txt`;
+    }
+
+    if (lowerName.includes('url') || lowerName.includes('uri') || lowerName.includes('endpoint')) {
+      return this.serverContext?.allowedHosts?.[0] ?? 'https://example.com/api';
+    }
+
+    if (lowerName.includes('email')) {
+      return 'test@example.com';
+    }
+
+    if (lowerName.includes('phone') || lowerName.includes('tel')) {
+      return '+1-555-123-4567';
+    }
+
+    if (lowerName.includes('id') || lowerName.includes('key') || lowerName.includes('token')) {
+      return 'test-id-12345';
+    }
+
+    if (lowerName.includes('name')) {
+      if (lowerName.includes('user') || lowerName.includes('author')) {
+        return 'Test User';
+      }
+      return 'test-name';
+    }
+
+    if (lowerName.includes('query') || lowerName.includes('search') || lowerName.includes('filter')) {
+      // Use a more realistic search term based on description
+      if (description.includes('movie') || description.includes('film')) {
+        return 'The Matrix';
+      }
+      if (description.includes('music') || description.includes('song') || description.includes('artist')) {
+        return 'Beatles';
+      }
+      if (description.includes('book') || description.includes('author')) {
+        return 'Tolkien';
+      }
+      return 'example query';
+    }
+
+    if (lowerName.includes('title')) {
+      return 'Test Title';
+    }
+
+    if (lowerName.includes('description') || lowerName.includes('summary') || lowerName.includes('text')) {
+      return 'This is a test description for validation purposes.';
+    }
+
+    if (lowerName.includes('content') || lowerName.includes('body') || lowerName.includes('message')) {
+      return 'Test content for the operation.';
+    }
+
+    if (lowerName.includes('comment')) {
+      return 'This is a test comment.';
+    }
+
+    if (lowerName.includes('code') || lowerName.includes('snippet')) {
+      return 'function example() { return "Hello"; }';
+    }
+
+    if (lowerName.includes('pattern') || lowerName.includes('glob') || lowerName.includes('regex')) {
+      return '*.txt';
+    }
+
+    if (lowerName.includes('format') || lowerName.includes('type')) {
+      return 'json';
+    }
+
+    if (lowerName.includes('lang') || lowerName.includes('locale')) {
+      return 'en-US';
+    }
+
+    if (lowerName.includes('date')) {
+      return '2024-01-15';
+    }
+
+    if (lowerName.includes('time')) {
+      return '10:30:00';
+    }
+
+    // Respect minLength/maxLength if specified in schema
+    let value = 'test-value';
+    if (schema?.minLength && value.length < schema.minLength) {
+      value = value.padEnd(schema.minLength, '-');
+    }
+    if (schema?.maxLength && value.length > schema.maxLength) {
+      value = value.slice(0, schema.maxLength);
+    }
+
+    return value;
+  }
+
+  /**
+   * Generate a smart number value respecting constraints.
+   */
+  private generateSmartNumber(schema: StructuralPropertySchema, isInteger: boolean): number {
+    let min = schema.minimum ?? schema.exclusiveMinimum ?? ORCHESTRATOR.DEFAULT_NUMBER_MIN;
+    let max = schema.maximum ?? schema.exclusiveMaximum ?? ORCHESTRATOR.DEFAULT_NUMBER_MAX;
+
+    // Adjust for exclusive bounds
+    if (schema.exclusiveMinimum !== undefined) {
+      min = isInteger ? Math.floor(min) + 1 : min + 0.1;
+    }
+    if (schema.exclusiveMaximum !== undefined) {
+      max = isInteger ? Math.ceil(max) - 1 : max - 0.1;
+    }
+
+    // Pick a sensible middle value
+    const value = (min + max) / 2;
+    return isInteger ? Math.round(value) : value;
+  }
+
+  /**
+   * Generate a smart array value.
+   * @param depth - Current recursion depth for circular schema protection
+   */
+  private generateSmartArray(paramName: string, schema: StructuralPropertySchema, depth: number = 0): unknown[] {
+    const lowerName = paramName.toLowerCase();
+
+    // Handle path arrays
+    if (lowerName.includes('path')) {
+      const baseDir = this.serverContext?.allowedDirectories?.[0] ?? '/tmp';
+      return [`${baseDir}/file1.txt`];
+    }
+
+    // Generate items based on items schema
+    if (schema.items) {
+      const item = this.generateSmartValue('item', schema.items, depth);
+      return [item];
+    }
+
+    return ['sample-item'];
+  }
+
+  /**
+   * Generate a smart object value.
+   * @param depth - Current recursion depth for circular schema protection
+   */
+  private generateSmartObject(schema: StructuralPropertySchema, depth: number = 0): Record<string, unknown> {
+    const obj: Record<string, unknown> = {};
+
+    if (schema.properties) {
+      const required = schema.required ?? [];
+      // Fill required properties
+      for (const prop of required) {
+        if (schema.properties[prop]) {
+          obj[prop] = this.generateSmartValue(prop, schema.properties[prop], depth);
+        }
+      }
+    }
+
+    return obj;
+  }
+
+  /**
+   * Infer value from parameter name when no type info available.
+   */
+  private inferValueFromName(paramName: string): unknown {
+    const lowerName = paramName.toLowerCase();
+
+    if (lowerName.includes('count') || lowerName.includes('limit') || lowerName.includes('num')) {
+      return 10;
+    }
+    if (lowerName.includes('enabled') || lowerName.includes('active') || lowerName.includes('flag')) {
+      return true;
+    }
+    if (lowerName.includes('list') || lowerName.includes('items') || lowerName.includes('array')) {
+      return [];
+    }
+    if (lowerName.includes('config') || lowerName.includes('options') || lowerName.includes('settings')) {
+      return {};
+    }
+
+    return 'test';
+  }
+
+  /**
+   * Get the primary type from a schema type definition.
+   * Handles both single type strings and type arrays (e.g., ['string', 'null']).
+   */
+  private getSchemaType(typeValue: string | string[] | undefined): string | undefined {
+    if (!typeValue) return undefined;
+    return Array.isArray(typeValue) ? typeValue[0] : typeValue;
+  }
+
+  /**
+   * Generate test cases for enum parameters.
+   */
+  private generateEnumTests(
+    schema: StructuralInputSchema | undefined,
+    baseArgs: Record<string, unknown>
+  ): InterviewQuestion[] {
+    const tests: InterviewQuestion[] = [];
+    if (!schema?.properties) return tests;
+
+    for (const [name, prop] of Object.entries(schema.properties)) {
+      if (prop.enum && prop.enum.length > 1) {
+        // Test with different enum values (skip first which is already in baseArgs)
+        for (const enumValue of prop.enum.slice(1, 4)) {
+          tests.push({
+            description: `Test ${name} with enum value: ${JSON.stringify(enumValue)}`,
+            category: 'happy_path',
+            args: { ...baseArgs, [name]: enumValue },
+          });
+        }
+      }
+    }
+
+    return tests;
+  }
+
+  /**
+   * Generate boundary tests for numeric parameters.
+   */
+  private generateBoundaryTests(
+    schema: StructuralInputSchema | undefined,
+    baseArgs: Record<string, unknown>
+  ): InterviewQuestion[] {
+    const tests: InterviewQuestion[] = [];
+    if (!schema?.properties) return tests;
+
+    for (const [name, prop] of Object.entries(schema.properties)) {
+      const type = this.getSchemaType(prop.type);
+
+      if (type === 'number' || type === 'integer') {
+        // Test minimum
+        if (prop.minimum !== undefined) {
+          tests.push({
+            description: `Test ${name} at minimum value (${prop.minimum})`,
+            category: 'edge_case',
+            args: { ...baseArgs, [name]: prop.minimum },
+          });
+        }
+
+        // Test maximum
+        if (prop.maximum !== undefined) {
+          tests.push({
+            description: `Test ${name} at maximum value (${prop.maximum})`,
+            category: 'edge_case',
+            args: { ...baseArgs, [name]: prop.maximum },
+          });
+        }
+
+        // Test zero if in valid range
+        const min = prop.minimum ?? Number.NEGATIVE_INFINITY;
+        const max = prop.maximum ?? Number.POSITIVE_INFINITY;
+        if (min <= 0 && max >= 0) {
+          tests.push({
+            description: `Test ${name} with zero`,
+            category: 'edge_case',
+            args: { ...baseArgs, [name]: 0 },
+          });
+        }
+      }
+    }
+
+    return tests;
+  }
+
+  /**
+   * Generate tests for optional parameters.
+   */
+  private generateOptionalParamTests(schema: StructuralInputSchema | undefined): InterviewQuestion[] {
+    const tests: InterviewQuestion[] = [];
+    if (!schema?.properties) return tests;
+
+    const required = new Set(schema.required ?? []);
+    const optionalParams = Object.entries(schema.properties)
+      .filter(([name]) => !required.has(name));
+
+    if (optionalParams.length === 0) return tests;
+
+    // Test with all optional params included
+    const allArgs: Record<string, unknown> = {};
+
+    // First, fill required params
+    for (const param of required) {
+      const prop = schema.properties![param];
+      if (prop) {
+        allArgs[param] = this.generateSmartValue(param, prop);
+      }
+    }
+
+    // Then add optional params
+    for (const [name, prop] of optionalParams) {
+      allArgs[name] = this.generateSmartValue(name, prop);
+    }
+
+    tests.push({
+      description: 'Test with all optional parameters included',
+      category: 'happy_path',
+      args: allArgs,
+    });
+
+    return tests;
+  }
+
+  /**
+   * Generate tests with invalid types to check error handling.
+   */
+  private generateInvalidTypeTests(schema: StructuralInputSchema | undefined): InterviewQuestion[] {
+    const tests: InterviewQuestion[] = [];
+    if (!schema?.properties) return tests;
+
+    const required = schema.required ?? [];
+    if (required.length === 0) return tests;
+
+    // Pick a required parameter and give it wrong type
+    const param = required[0];
+    const prop = schema.properties[param];
+    if (!prop) return tests;
+
+    const type = this.getSchemaType(prop.type);
+    let invalidValue: unknown;
+
+    switch (type) {
+      case 'string':
+        invalidValue = 12345; // Number instead of string
+        break;
+      case 'number':
+      case 'integer':
+        invalidValue = 'not-a-number';
+        break;
+      case 'boolean':
+        invalidValue = 'not-a-boolean';
+        break;
+      case 'array':
+        invalidValue = 'not-an-array';
+        break;
+      case 'object':
+        invalidValue = 'not-an-object';
+        break;
+      default:
+        return tests;
+    }
+
+    tests.push({
+      description: `Test ${param} with invalid type (${typeof invalidValue} instead of ${type})`,
+      category: 'error_handling',
+      args: { [param]: invalidValue },
+    });
+
+    return tests;
   }
 
   // ===========================================================================
@@ -701,7 +1301,11 @@ export class Orchestrator {
 
       const questions = this.llm.parseJSON<PromptQuestion[]>(response);
       return questions.slice(0, maxQuestions);
-    } catch {
+    } catch (llmError) {
+      this.logger.debug({
+        prompt: prompt.name,
+        error: llmError instanceof Error ? llmError.message : String(llmError),
+      }, 'LLM prompt question generation failed, using fallback');
       // Fallback to basic questions (slice to respect maxQuestions limit)
       return this.generateFallbackPromptQuestions(prompt).slice(0, maxQuestions);
     }
@@ -728,8 +1332,12 @@ export class Orchestrator {
         ...COMPLETION_OPTIONS.promptResponseAnalysis,
         systemPrompt: this.getSystemPrompt(),
       }, `analyze-prompt:${prompt.name}`);
-    } catch {
+    } catch (llmError) {
       // Graceful fallback
+      this.logger.debug({
+        prompt: prompt.name,
+        error: llmError instanceof Error ? llmError.message : String(llmError),
+      }, 'LLM prompt analysis failed, using fallback');
       if (error) {
         return `Prompt returned an error: ${error}`;
       }
@@ -783,7 +1391,11 @@ export class Orchestrator {
         limitations: result.limitations ?? [],
         exampleOutput,
       };
-    } catch {
+    } catch (llmError) {
+      this.logger.debug({
+        prompt: prompt.name,
+        error: llmError instanceof Error ? llmError.message : String(llmError),
+      }, 'LLM prompt profile synthesis failed, using fallback');
       return {
         name: prompt.name,
         description: prompt.description ?? 'No description provided',
@@ -805,7 +1417,7 @@ export class Orchestrator {
     if (prompt.arguments) {
       for (const arg of prompt.arguments) {
         if (arg.required) {
-          args[arg.name] = this.generateDefaultStringValue(arg.name);
+          args[arg.name] = this.generateSmartString(arg.name);
         }
       }
     }
@@ -820,7 +1432,7 @@ export class Orchestrator {
     if (optionalArgs.length > 0) {
       const allArgs = { ...args };
       for (const arg of optionalArgs) {
-        allArgs[arg.name] = this.generateDefaultStringValue(arg.name);
+        allArgs[arg.name] = this.generateSmartString(arg.name);
       }
       questions.push({
         description: 'Usage with all arguments',
@@ -829,56 +1441,6 @@ export class Orchestrator {
     }
 
     return questions;
-  }
-
-  /**
-   * Generate a sensible default string value for a prompt argument.
-   * Values are designed to be realistic and context-appropriate.
-   */
-  private generateDefaultStringValue(argName: string): string {
-    const lowerName = argName.toLowerCase();
-
-    // Names and identifiers
-    if (lowerName.includes('name')) return 'example-resource';
-    if (lowerName.includes('title')) return 'Example Document Title';
-    if (lowerName.includes('id')) return 'res_12345';
-
-    // Content and text
-    if (lowerName.includes('description')) return 'A brief description of the resource for documentation purposes.';
-    if (lowerName.includes('content')) return 'This is sample content for testing. It includes multiple sentences to simulate realistic input.';
-    if (lowerName.includes('text')) return 'Sample text content for processing.';
-    if (lowerName.includes('message')) return 'Hello, this is a test message.';
-    if (lowerName.includes('comment')) return 'This is a code review comment.';
-
-    // Code-related
-    if (lowerName.includes('code') || lowerName.includes('snippet')) {
-      return 'function example() {\n  return "Hello, World!";\n}';
-    }
-    if (lowerName.includes('language') || lowerName.includes('lang')) return 'javascript';
-    if (lowerName.includes('syntax')) return 'typescript';
-
-    // Queries and search
-    if (lowerName.includes('query') || lowerName.includes('search')) return 'how to implement authentication';
-    if (lowerName.includes('keyword')) return 'authentication';
-    if (lowerName.includes('filter')) return 'status:active';
-
-    // URLs and paths
-    if (lowerName.includes('url') || lowerName.includes('link')) return 'https://example.com/api/v1/resource';
-    if (lowerName.includes('path') || lowerName.includes('file')) {
-      const baseDir = this.serverContext?.allowedDirectories?.[0] ?? '/tmp';
-      return `${baseDir}/example.txt`;
-    }
-
-    // Dates and times
-    if (lowerName.includes('date')) return new Date().toISOString().split('T')[0];
-    if (lowerName.includes('time')) return new Date().toISOString();
-
-    // Formats
-    if (lowerName.includes('format')) return 'json';
-    if (lowerName.includes('type')) return 'document';
-
-    // Default fallback
-    return 'example-value';
   }
 
   // ===========================================================================
@@ -923,7 +1485,11 @@ Return ONLY valid JSON, no explanation.`;
 
       const questions = this.llm.parseJSON<ResourceQuestion[]>(response);
       return questions.slice(0, maxQuestions);
-    } catch {
+    } catch (llmError) {
+      this.logger.debug({
+        resource: resource.name,
+        error: llmError instanceof Error ? llmError.message : String(llmError),
+      }, 'LLM resource question generation failed, using fallback');
       // Fallback to basic questions (slice to respect maxQuestions limit)
       return this.generateFallbackResourceQuestions(resource).slice(0, maxQuestions);
     }
@@ -960,8 +1526,12 @@ Provide a brief analysis (1-2 sentences) of:
         ...COMPLETION_OPTIONS.responseAnalysis,
         systemPrompt: this.getSystemPrompt(),
       }, `analyze-resource:${resource.name}`);
-    } catch {
+    } catch (llmError) {
       // Graceful fallback
+      this.logger.debug({
+        resource: resource.name,
+        error: llmError instanceof Error ? llmError.message : String(llmError),
+      }, 'LLM resource analysis failed, using fallback');
       if (error) {
         return `Resource read failed: ${error}`;
       }
@@ -1024,7 +1594,11 @@ Return ONLY valid JSON, no explanation.`;
         behavioralNotes: result.behavioralNotes ?? [],
         limitations: result.limitations ?? [],
       };
-    } catch {
+    } catch (llmError) {
+      this.logger.debug({
+        resource: resource.name,
+        error: llmError instanceof Error ? llmError.message : String(llmError),
+      }, 'LLM resource profile synthesis failed, using fallback');
       return {
         uri: resource.uri,
         name: resource.name,

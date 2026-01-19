@@ -125,6 +125,31 @@ export class Interviewer {
   }
 
   /**
+   * Generate simple analysis for structural/fast mode.
+   * Avoids LLM calls by providing basic success/error messages.
+   */
+  private generateSimpleAnalysis(
+    error: string | null,
+    hasResponse: boolean,
+    successMessage: string
+  ): string {
+    if (error) {
+      return `Error: ${error}`;
+    }
+    if (hasResponse) {
+      return successMessage;
+    }
+    return 'No response received.';
+  }
+
+  /**
+   * Check if we're in fast/structural mode (no LLM calls).
+   */
+  private isStructuralMode(): boolean {
+    return this.config.customScenariosOnly || this.config.structuralOnly || false;
+  }
+
+  /**
    * Extract server context by probing discovery tools.
    * Looks for tools like list_allowed_directories to understand constraints.
    */
@@ -134,18 +159,13 @@ export class Interviewer {
   ): Promise<ServerContext> {
     const context: ServerContext = {
       allowedDirectories: [],
+      allowedHosts: [],
       constraints: [],
       hints: [],
     };
 
     // Look for tools that reveal server constraints
-    const constraintTools = [
-      'list_allowed_directories',
-      'get_allowed_paths',
-      'list_permissions',
-    ];
-
-    for (const toolName of constraintTools) {
+    for (const toolName of INTERVIEW.CONSTRAINT_DISCOVERY_TOOLS) {
       const tool = discovery.tools.find(t => t.name === toolName);
       if (tool) {
         try {
@@ -162,13 +182,16 @@ export class Interviewer {
               }
             }
           }
-        } catch {
-          // Tool probe failed, continue
+        } catch (error) {
+          this.logger.debug({
+            toolName,
+            error: error instanceof Error ? error.message : String(error),
+          }, 'Tool probe failed during context extraction');
         }
       }
     }
 
-    // Extract hints from tool descriptions
+    // Extract hints and hosts from tool descriptions
     for (const tool of discovery.tools) {
       if (tool.description) {
         const desc = tool.description.toLowerCase();
@@ -180,6 +203,21 @@ export class Interviewer {
           const match = tool.description.match(/only works within (.+?)(?:\.|$)/i);
           if (match) {
             context.hints?.push(`${tool.name}: ${match[0]}`);
+          }
+        }
+        // Extract allowed hosts/URLs from descriptions
+        const urlMatch = tool.description.match(/https?:\/\/[^\s"'<>]+/gi);
+        if (urlMatch) {
+          for (const url of urlMatch) {
+            try {
+              const parsed = new URL(url);
+              const baseUrl = `${parsed.protocol}//${parsed.host}`;
+              if (!context.allowedHosts?.includes(baseUrl)) {
+                context.allowedHosts?.push(baseUrl);
+              }
+            } catch {
+              // Invalid URL, skip
+            }
           }
         }
       }
@@ -207,8 +245,11 @@ export class Interviewer {
       if (Array.isArray(parsed)) {
         return parsed.filter(d => typeof d === 'string' && d.startsWith('/'));
       }
-    } catch {
-      // Not JSON, try line-by-line parsing
+    } catch (error) {
+      this.logger.debug({
+        error: error instanceof Error ? error.message : String(error),
+        textPreview: text.substring(0, 100),
+      }, 'Directory list not JSON, trying line-by-line parsing');
     }
 
     // Parse line by line looking for paths
@@ -596,14 +637,8 @@ export class Interviewer {
 
           // Skip LLM analysis in scenarios-only mode and fast CI mode
           let analysis: string;
-          if (this.config.customScenariosOnly || this.config.structuralOnly) {
-            if (error) {
-              analysis = `Error: ${error}`;
-            } else if (response) {
-              analysis = 'Prompt call succeeded.';
-            } else {
-              analysis = 'No response received.';
-            }
+          if (this.isStructuralMode()) {
+            analysis = this.generateSimpleAnalysis(error, !!response, 'Prompt call succeeded.');
           } else {
             analysis = await primaryOrchestrator.analyzePromptResponse(
               prompt,
@@ -711,14 +746,8 @@ export class Interviewer {
 
           // Skip LLM analysis in fast CI mode
           let analysis: string;
-          if (this.config.structuralOnly) {
-            if (error) {
-              analysis = `Error: ${error}`;
-            } else if (response) {
-              analysis = 'Resource read succeeded.';
-            } else {
-              analysis = 'No response received.';
-            }
+          if (this.isStructuralMode()) {
+            analysis = this.generateSimpleAnalysis(error, !!response, 'Resource read succeeded.');
           } else {
             analysis = await primaryOrchestrator.analyzeResourceResponse(
               resource,
@@ -1003,15 +1032,9 @@ export class Interviewer {
     // Skip LLM analysis in scenarios-only mode and fast CI mode
     let analysis: string;
     const llmAnalysisStart = Date.now();
-    if (this.config.customScenariosOnly || this.config.structuralOnly) {
+    if (this.isStructuralMode()) {
       // In fast mode, generate simple analysis (no LLM call)
-      if (error) {
-        analysis = `Error: ${error}`;
-      } else if (response) {
-        analysis = 'Tool call succeeded.';
-      } else {
-        analysis = 'No response received.';
-      }
+      analysis = this.generateSimpleAnalysis(error, !!response, 'Tool call succeeded.');
       llmAnalysisMs = 0; // No LLM call in fast mode
     } else {
       const tool: MCPTool = { name: toolName, description: '' };

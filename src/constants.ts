@@ -99,6 +99,37 @@ export const INTERVIEW = {
   MAX_PERSONA_CONCURRENCY: 10,
   /** Default resource read timeout in ms */
   RESOURCE_TIMEOUT: 15000,
+  /** Tool names that reveal server constraints (directories, permissions, etc.) */
+  CONSTRAINT_DISCOVERY_TOOLS: [
+    'list_allowed_directories',
+    'get_allowed_paths',
+    'list_permissions',
+  ] as readonly string[],
+} as const;
+
+// ==================== Orchestrator Configuration ====================
+
+/**
+ * Orchestrator test generation configuration.
+ * Controls limits for structural test case generation.
+ */
+export const ORCHESTRATOR = {
+  /** Maximum schema-level examples to use for test generation */
+  MAX_SCHEMA_EXAMPLES: 2,
+  /** Maximum enum value tests to generate per parameter */
+  MAX_ENUM_TESTS: 3,
+  /** Maximum boundary tests (min/max/zero) to generate */
+  MAX_BOUNDARY_TESTS: 2,
+  /** Maximum optional parameter combination tests */
+  MAX_OPTIONAL_TESTS: 2,
+  /** Maximum invalid type tests for error handling */
+  MAX_INVALID_TYPE_TESTS: 2,
+  /** Maximum recursion depth for schema traversal (prevents infinite loops) */
+  MAX_SCHEMA_RECURSION_DEPTH: 10,
+  /** Default numeric range minimum when not specified in schema */
+  DEFAULT_NUMBER_MIN: 0,
+  /** Default numeric range maximum when not specified in schema */
+  DEFAULT_NUMBER_MAX: 100,
 } as const;
 
 // ==================== Workflow Configuration ====================
@@ -660,4 +691,248 @@ export const PREMIUM_MODELS = {
   openai: 'gpt-5.2',
   anthropic: 'claude-sonnet-4-5',
   ollama: 'llama3.2:70b',
+} as const;
+
+// ==================== Phase 1: Advanced Analysis ====================
+
+/**
+ * Change impact analysis configuration.
+ * Used by change-impact-analyzer.ts for semantic breaking change detection.
+ */
+export const CHANGE_IMPACT = {
+  /** Risk weights for different schema change types (0-100 scale) */
+  RISK_WEIGHTS: {
+    parameter_removed: 100,
+    parameter_required_added: 90,
+    parameter_type_changed: 85,
+    enum_value_removed: 80,
+    constraint_tightened: 60,
+    format_changed: 50,
+    constraint_added: 40,
+    default_changed: 30,
+    constraint_removed: 20,
+    parameter_required_removed: 15,
+    enum_value_added: 10,
+    parameter_added: 10,
+    description_changed: 5,
+    constraint_relaxed: 5,
+  },
+  /** Migration complexity thresholds (number of breaking changes) */
+  COMPLEXITY_THRESHOLDS: {
+    /** 0-1 breaking changes = trivial migration */
+    trivial: 1,
+    /** 2-3 breaking changes = simple migration */
+    simple: 3,
+    /** 4-6 breaking changes = moderate migration */
+    moderate: 6,
+    // 7+ breaking changes = complex migration
+  },
+  /** Risk score thresholds for severity classification */
+  SEVERITY_THRESHOLDS: {
+    info: 20,
+    warning: 50,
+    breaking: 70,
+  },
+} as const;
+
+/**
+ * Performance tracking configuration.
+ * Used by performance-tracker.ts for latency regression detection.
+ */
+export const PERFORMANCE_TRACKING = {
+  /** Default regression threshold (10% = tool is 10% slower) */
+  DEFAULT_REGRESSION_THRESHOLD: 0.10,
+  /** Warning threshold for minor regressions (5%) */
+  WARNING_THRESHOLD: 0.05,
+  /** Minimum samples required for reliable metrics */
+  MIN_SAMPLES: 3,
+  /** Trend detection thresholds */
+  TREND_THRESHOLDS: {
+    /** Performance is "improving" if p50 is at least 5% faster */
+    improving: -0.05,
+    /** Performance is "degrading" if p50 is at least 5% slower */
+    degrading: 0.05,
+  },
+  /** Percentiles to calculate for latency analysis */
+  PERCENTILES: [50, 95, 99] as readonly number[],
+} as const;
+
+/**
+ * Deprecation lifecycle configuration.
+ * Used by deprecation-tracker.ts for tool deprecation management.
+ */
+export const DEPRECATION = {
+  /** Default configuration values */
+  DEFAULTS: {
+    /** Warn when using deprecated tools */
+    warnOnUsage: true,
+    /** Fail when using tools past their removal date */
+    failOnExpired: true,
+    /** Default grace period in days after removal date */
+    gracePeriodDays: 90,
+  },
+  /** Days thresholds for warning levels */
+  THRESHOLDS: {
+    /** Warn about upcoming removal within this many days */
+    upcomingRemovalDays: 30,
+    /** Critical warning within this many days */
+    criticalRemovalDays: 7,
+  },
+} as const;
+
+/**
+ * Health scoring configuration.
+ * Used by health-scorer.ts for comprehensive server health assessment.
+ */
+export const HEALTH_SCORING = {
+  /** Component weights (should sum to 1.0) */
+  WEIGHTS: {
+    testCoverage: 0.25,
+    errorRate: 0.25,
+    performanceScore: 0.15,
+    deprecationScore: 0.10,
+    breakingChangeScore: 0.15,
+    documentationScore: 0.10,
+  },
+  /** Grade thresholds (minimum score for each grade) */
+  GRADE_THRESHOLDS: {
+    A: 90,
+    B: 80,
+    C: 70,
+    D: 60,
+    F: 0,
+  },
+  /** Severity thresholds (minimum score for each severity level) */
+  SEVERITY_THRESHOLDS: {
+    none: 90,
+    info: 70,
+    warning: 50,
+    breaking: 0,
+  },
+  /** Penalty values for various issues (deducted from 100) */
+  PENALTIES: {
+    /** Penalty per deprecated tool */
+    deprecatedTool: 10,
+    /** Penalty per tool past removal date */
+    expiredTool: 25,
+    /** Penalty per breaking change */
+    breakingChange: 15,
+    /** Penalty per warning-level change */
+    warningChange: 5,
+    /** Penalty for tools without descriptions */
+    missingDescription: 5,
+    /** Penalty for short descriptions (<20 chars) */
+    shortDescription: 2,
+    /** Penalty per performance regression */
+    performanceRegression: 10,
+  },
+  /** Minimum description length to avoid shortDescription penalty */
+  MIN_DESCRIPTION_LENGTH: 20,
+  /** Trend detection thresholds */
+  TREND_THRESHOLD: 5,
+  /** Maximum action items to display */
+  MAX_ACTION_ITEMS_DISPLAY: 5,
+} as const;
+
+/**
+ * Schema evolution tracking configuration.
+ * Used by schema-evolution.ts for timeline tracking.
+ */
+export const SCHEMA_EVOLUTION = {
+  /** Default maximum versions to keep per tool */
+  DEFAULT_MAX_VERSIONS_PER_TOOL: 50,
+  /** Default limit for "most active tools" queries */
+  DEFAULT_ACTIVE_TOOLS_LIMIT: 10,
+  /** Default number of versions to display in formatted output */
+  DEFAULT_DISPLAY_VERSIONS: 10,
+  /** Default number of changes to display per version */
+  DEFAULT_DISPLAY_CHANGES: 5,
+  /** Default width for visual timeline */
+  DEFAULT_VISUAL_TIMELINE_WIDTH: 80,
+  /** Maximum versions to show in visual timeline */
+  MAX_VISUAL_TIMELINE_VERSIONS: 20,
+} as const;
+
+/**
+ * Migration guide generation configuration.
+ * Used by migration-generator.ts for auto-generating migration guides.
+ */
+export const MIGRATION_GUIDE = {
+  /** Maximum code examples per migration step */
+  MAX_CODE_EXAMPLES_PER_STEP: 3,
+  /** Maximum steps in a migration guide */
+  MAX_MIGRATION_STEPS: 20,
+  /** Minimum changes required to generate a guide */
+  MIN_CHANGES_FOR_GUIDE: 1,
+  /** Effort estimation thresholds (number of breaking changes) */
+  EFFORT_THRESHOLDS: {
+    /** 0-1 breaking changes = trivial */
+    trivial: 1,
+    /** 2-3 breaking changes = minor */
+    minor: 3,
+    /** 4-6 breaking changes = moderate */
+    moderate: 6,
+    // 7+ breaking changes = major
+  },
+} as const;
+
+/**
+ * Auto-generated test scenario configuration.
+ * Used by scenario-generator.ts for generating test scenarios.
+ */
+export const SCENARIO_GENERATION = {
+  /** Maximum happy path scenarios per tool */
+  MAX_HAPPY_PATH_SCENARIOS: 5,
+  /** Maximum edge case scenarios per tool */
+  MAX_EDGE_CASE_SCENARIOS: 10,
+  /** Maximum error case scenarios per tool */
+  MAX_ERROR_CASE_SCENARIOS: 5,
+  /** Maximum security test scenarios per tool */
+  MAX_SECURITY_SCENARIOS: 5,
+  /** Default minimum coverage percentage */
+  DEFAULT_MIN_COVERAGE: 80,
+  /** Common SQL injection payloads for testing */
+  SQL_INJECTION_PAYLOADS: [
+    "'; DROP TABLE users; --",
+    "1' OR '1'='1",
+    "1; SELECT * FROM users",
+  ] as readonly string[],
+  /** Common XSS payloads for testing */
+  XSS_PAYLOADS: [
+    '<script>alert("xss")</script>',
+    '"><img src=x onerror=alert(1)>',
+    "javascript:alert('xss')",
+  ] as readonly string[],
+  /** Common path traversal payloads for testing */
+  PATH_TRAVERSAL_PAYLOADS: [
+    '../../../etc/passwd',
+    '..\\..\\..\\windows\\system32\\config\\sam',
+    '/etc/passwd',
+  ] as readonly string[],
+  /** Categories of test scenarios */
+  CATEGORIES: ['happy_path', 'edge_cases', 'error_handling', 'security'] as readonly string[],
+} as const;
+
+/**
+ * PR comment formatting configuration.
+ * Used by pr-comment-generator.ts for generating GitHub PR comments.
+ */
+export const PR_COMMENTS = {
+  /** Maximum tools to show in detailed section */
+  MAX_DETAILED_TOOLS: 10,
+  /** Maximum changes to show per tool */
+  MAX_CHANGES_PER_TOOL: 5,
+  /** Maximum workflows to show in affected section */
+  MAX_AFFECTED_WORKFLOWS: 5,
+  /** Maximum code examples in migration section */
+  MAX_MIGRATION_EXAMPLES: 3,
+  /** Truncation length for long values */
+  VALUE_TRUNCATE_LENGTH: 50,
+  /** Badge colors for different severity levels */
+  BADGE_COLORS: {
+    breaking: 'red',
+    warning: 'orange',
+    info: 'blue',
+    none: 'green',
+  } as const,
 } as const;

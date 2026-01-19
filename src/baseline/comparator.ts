@@ -23,6 +23,10 @@ import type {
 } from './types.js';
 import { createBaseline } from './saver.js';
 import {
+  compareFingerprints,
+  compareErrorPatterns,
+} from './response-fingerprint.js';
+import {
   checkVersionCompatibility,
   BaselineVersionError,
   parseVersion,
@@ -160,7 +164,10 @@ function compareTool(
   const changes: BehaviorChange[] = [];
   let schemaChanged = false;
   let descriptionChanged = false;
+  let responseStructureChanged = false;
+  let errorPatternsChanged = false;
 
+  // Compare input schema
   if (previous.schemaHash !== current.schemaHash && !options.ignoreSchemaChanges) {
     schemaChanged = true;
     changes.push({
@@ -168,11 +175,12 @@ function compareTool(
       aspect: 'schema',
       before: `Schema hash: ${previous.schemaHash}`,
       after: `Schema hash: ${current.schemaHash}`,
-      significance: 'high',
+      severity: 'breaking',
       description: `Schema for ${current.name} has changed`,
     });
   }
 
+  // Compare description
   if (previous.description !== current.description && !options.ignoreDescriptionChanges) {
     descriptionChanged = true;
     changes.push({
@@ -180,9 +188,66 @@ function compareTool(
       aspect: 'description',
       before: previous.description,
       after: current.description,
-      significance: 'low',
+      severity: 'info',
       description: `Description for ${current.name} has changed`,
     });
+  }
+
+  // Compare response structure fingerprints (structural mode enhancement)
+  if (!options.ignoreResponseStructureChanges) {
+    const fingerprintDiff = compareFingerprints(
+      previous.responseFingerprint,
+      current.responseFingerprint
+    );
+
+    if (!fingerprintDiff.identical) {
+      responseStructureChanged = true;
+
+      for (const change of fingerprintDiff.changes) {
+        changes.push({
+          tool: current.name,
+          aspect: 'response_structure',
+          before: change.before,
+          after: change.after,
+          severity: change.breaking ? 'breaking' : 'warning',
+          description: change.description,
+        });
+      }
+    }
+  }
+
+  // Compare error patterns (structural mode enhancement)
+  if (!options.ignoreErrorPatternChanges) {
+    const errorDiff = compareErrorPatterns(
+      previous.errorPatterns,
+      current.errorPatterns
+    );
+
+    if (errorDiff.behaviorChanged) {
+      errorPatternsChanged = true;
+
+      for (const added of errorDiff.added) {
+        changes.push({
+          tool: current.name,
+          aspect: 'error_pattern',
+          before: 'none',
+          after: `${added.category}: ${added.example.slice(0, 50)}...`,
+          severity: 'warning',
+          description: `New error pattern detected: ${added.category}`,
+        });
+      }
+
+      for (const removed of errorDiff.removed) {
+        changes.push({
+          tool: current.name,
+          aspect: 'error_pattern',
+          before: `${removed.category}: ${removed.example.slice(0, 50)}...`,
+          after: 'none',
+          severity: 'info',
+          description: `Error pattern no longer occurs: ${removed.category}`,
+        });
+      }
+    }
   }
 
   return {
@@ -190,6 +255,8 @@ function compareTool(
     changes,
     schemaChanged,
     descriptionChanged,
+    responseStructureChanged,
+    errorPatternsChanged,
   };
 }
 
@@ -212,7 +279,7 @@ function compareWorkflows(
           aspect: 'error_handling',
           before: 'succeeded',
           after: 'failed',
-          significance: 'high',
+          severity: 'breaking',
           description: `Workflow "${currWorkflow.name}" now fails (previously succeeded)`,
         });
       } else if (!prevWorkflow.succeeded && currWorkflow.succeeded) {
@@ -221,7 +288,7 @@ function compareWorkflows(
           aspect: 'error_handling',
           before: 'failed',
           after: 'succeeded',
-          significance: 'low',
+          severity: 'info',
           description: `Workflow "${currWorkflow.name}" now succeeds (previously failed)`,
         });
       }
@@ -246,14 +313,14 @@ function calculateSeverity(
   let infoCount = toolsAdded.length;
 
   for (const change of changes) {
-    switch (change.significance) {
-      case 'high':
+    switch (change.severity) {
+      case 'breaking':
         breakingCount++;
         break;
-      case 'medium':
+      case 'warning':
         warningCount++;
         break;
-      case 'low':
+      case 'info':
         infoCount++;
         break;
     }
@@ -294,14 +361,14 @@ function generateSummary(
     parts.push(`${toolsModified.length} tool(s) modified`);
   }
 
-  const highChanges = changes.filter((c) => c.significance === 'high').length;
-  const mediumChanges = changes.filter((c) => c.significance === 'medium').length;
+  const breakingChanges = changes.filter((c) => c.severity === 'breaking').length;
+  const warningChanges = changes.filter((c) => c.severity === 'warning').length;
 
-  if (highChanges > 0) {
-    parts.push(`${highChanges} breaking change(s)`);
+  if (breakingChanges > 0) {
+    parts.push(`${breakingChanges} breaking change(s)`);
   }
-  if (mediumChanges > 0) {
-    parts.push(`${mediumChanges} warning(s)`);
+  if (warningChanges > 0) {
+    parts.push(`${warningChanges} warning(s)`);
   }
 
   return parts.join('. ') + '.';
@@ -323,10 +390,8 @@ export function filterByMinimumSeverity(
   const minIndex = severityOrder.indexOf(minSeverity);
 
   return diff.behaviorChanges.filter((change) => {
-    const changeLevel =
-      change.significance === 'high' ? 'breaking' :
-      change.significance === 'medium' ? 'warning' : 'info';
-    return severityOrder.indexOf(changeLevel) >= minIndex;
+    // BehaviorChange.severity is already a ChangeSeverity, so no mapping needed
+    return severityOrder.indexOf(change.severity) >= minIndex;
   });
 }
 

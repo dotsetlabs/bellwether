@@ -21,16 +21,65 @@ import {
   formatVersion,
 } from './version.js';
 import { migrateBaseline, needsMigration } from './migrations.js';
+import { analyzeResponses, type InferredSchema } from './response-fingerprint.js';
+import { PATTERNS } from '../constants.js';
 
 /**
  * Zod schema for behavioral assertion validation.
  */
 const behavioralAssertionSchema = z.object({
   tool: z.string(),
-  aspect: z.enum(['response_format', 'error_handling', 'security', 'performance', 'schema', 'description']),
+  aspect: z.enum([
+    'response_format',
+    'response_structure',
+    'error_handling',
+    'error_pattern',
+    'security',
+    'performance',
+    'schema',
+    'description',
+  ]),
   assertion: z.string(),
   evidence: z.string().optional(),
   isPositive: z.boolean(),
+});
+
+/**
+ * Zod schema for response fingerprint validation.
+ */
+const responseFingerprintSchema = z.object({
+  structureHash: z.string(),
+  contentType: z.enum(['text', 'object', 'array', 'primitive', 'empty', 'error', 'mixed']),
+  fields: z.array(z.string()).optional(),
+  arrayItemStructure: z.string().optional(),
+  size: z.enum(['tiny', 'small', 'medium', 'large']),
+  isEmpty: z.boolean(),
+  sampleCount: z.number(),
+  confidence: z.number(),
+});
+
+/**
+ * Zod schema for inferred schema validation (recursive).
+ */
+const inferredSchemaSchema: z.ZodType<InferredSchema> = z.lazy(() =>
+  z.object({
+    type: z.string(),
+    properties: z.record(inferredSchemaSchema).optional(),
+    items: inferredSchemaSchema.optional(),
+    required: z.array(z.string()).optional(),
+    nullable: z.boolean().optional(),
+    enum: z.array(z.unknown()).optional(),
+  })
+);
+
+/**
+ * Zod schema for error pattern validation.
+ */
+const errorPatternSchema = z.object({
+  category: z.enum(['validation', 'not_found', 'permission', 'timeout', 'internal', 'unknown']),
+  patternHash: z.string(),
+  example: z.string(),
+  count: z.number(),
 });
 
 /**
@@ -40,9 +89,14 @@ const toolFingerprintSchema = z.object({
   name: z.string(),
   description: z.string(),
   schemaHash: z.string(),
+  inputSchema: z.record(z.unknown()).optional(),
   assertions: z.array(behavioralAssertionSchema),
   securityNotes: z.array(z.string()),
   limitations: z.array(z.string()),
+  // Response fingerprinting fields (structural mode enhancement)
+  responseFingerprint: responseFingerprintSchema.optional(),
+  inferredOutputSchema: inferredSchemaSchema.optional(),
+  errorPatterns: z.array(errorPatternSchema).optional(),
 });
 
 /**
@@ -76,7 +130,7 @@ const workflowSignatureSchema = z.object({
  */
 const baselineSchema = z.object({
   version: z.union([
-    z.string().regex(/^\d+\.\d+\.\d+$/, 'Version must be semver format (e.g., "1.0.0")'),
+    z.string().regex(PATTERNS.SEMVER, 'Version must be semver format (e.g., "1.0.0")'),
     z.number().int().positive(), // Legacy format support
   ]),
   createdAt: z.string().or(z.date()),
@@ -119,7 +173,16 @@ export function createBaseline(
   mode: BaselineMode = 'full'
 ): BehavioralBaseline {
   const server = createServerFingerprint(result);
-  const tools = result.toolProfiles.map(createToolFingerprint);
+  // Create a map of tool name -> inputSchema from discovery
+  const schemaMap = new Map<string, Record<string, unknown>>();
+  for (const tool of result.discovery.tools) {
+    if (tool.inputSchema) {
+      schemaMap.set(tool.name, tool.inputSchema as Record<string, unknown>);
+    }
+  }
+  const tools = result.toolProfiles.map(profile =>
+    createToolFingerprint(profile, schemaMap.get(profile.name))
+  );
   const assertions = extractAssertions(result);
   const workflowSignatures = extractWorkflowSignatures(result);
 
@@ -270,8 +333,12 @@ function createServerFingerprint(result: InterviewResult): ServerFingerprint {
 
 /**
  * Create tool fingerprint from tool profile.
+ * Includes response fingerprinting for enhanced structural drift detection.
  */
-function createToolFingerprint(profile: ToolProfile): ToolFingerprint {
+function createToolFingerprint(
+  profile: ToolProfile,
+  inputSchema?: Record<string, unknown>
+): ToolFingerprint {
   const assertions = extractToolAssertions(profile);
 
   // Compute schema hash from all interactions (not just first)
@@ -279,13 +346,27 @@ function createToolFingerprint(profile: ToolProfile): ToolFingerprint {
   const interactions = profile.interactions.map(i => ({ args: i.question.args }));
   const { hash: schemaHash } = computeConsensusSchemaHash(interactions);
 
+  // Analyze responses to create fingerprint (structural mode enhancement)
+  const responseData = profile.interactions.map(i => ({
+    response: i.response,
+    error: i.error,
+  }));
+  const responseAnalysis = analyzeResponses(responseData);
+
   return {
     name: profile.name,
     description: profile.description,
     schemaHash,
+    inputSchema,
     assertions,
     securityNotes: [...profile.securityNotes],
     limitations: [...profile.limitations],
+    // Response fingerprinting
+    responseFingerprint: responseAnalysis.fingerprint,
+    inferredOutputSchema: responseAnalysis.inferredSchema,
+    errorPatterns: responseAnalysis.errorPatterns.length > 0
+      ? responseAnalysis.errorPatterns
+      : undefined,
   };
 }
 

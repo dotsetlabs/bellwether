@@ -18,43 +18,44 @@ A baseline is a JSON file containing:
 ## Creating a Baseline
 
 ```bash
-bellwether test --save-baseline npx your-server
+# Run test first
+bellwether test npx your-server
+
+# Then save baseline
+bellwether baseline save
 ```
 
 This generates `bellwether-baseline.json`:
 
 ```json
 {
-  "version": 1,
-  "timestamp": "2026-01-12T10:30:00Z",
+  "formatVersion": "1.0.0",
+  "createdAt": "2026-01-12T10:30:00Z",
+  "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
+  "mode": "structural",
+  "integrityHash": "abc123...",
   "server": {
     "name": "@modelcontextprotocol/server-filesystem",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "protocolVersion": "2024-11-05",
+    "capabilities": ["tools"]
   },
   "tools": [
     {
       "name": "read_file",
-      "schema": {
-        "type": "object",
-        "properties": {
-          "path": { "type": "string" }
-        },
-        "required": ["path"]
-      },
-      "behavior": {
-        "observations": [
-          "Returns UTF-8 text for text files",
-          "Returns base64 for binary files",
-          "Maximum file size: 10MB"
-        ],
-        "errors": [
-          "ENOENT for missing files",
-          "EACCES for permission denied"
-        ],
-        "security": [
-          "Path traversal normalized within root"
-        ]
-      }
+      "description": "Read contents of a file",
+      "schemaHash": "def456...",
+      "securityNotes": ["Path traversal normalized within root"],
+      "limitations": ["Maximum file size: 10MB"]
+    }
+  ],
+  "assertions": [
+    {
+      "tool": "read_file",
+      "aspect": "behavior",
+      "assertion": "Returns UTF-8 text for text files",
+      "isPositive": true,
+      "confidence": 90
     }
   ]
 }
@@ -64,10 +65,12 @@ This generates `bellwether-baseline.json`:
 
 ```bash
 # Save to specific path
-bellwether test --save-baseline ./baselines/v1.json npx your-server
+bellwether test npx your-server
+bellwether baseline save ./baselines/v1.json
 
 # Compare against specific baseline
-bellwether test --compare-baseline ./baselines/v1.json npx your-server
+bellwether test npx your-server
+bellwether baseline compare ./baselines/v1.json
 ```
 
 ## Baseline in CI/CD
@@ -76,7 +79,8 @@ bellwether test --compare-baseline ./baselines/v1.json npx your-server
 
 ```bash
 # Create baseline
-bellwether test --save-baseline npx your-server
+bellwether test npx your-server
+bellwether baseline save
 
 # Commit
 git add bellwether-baseline.json
@@ -89,10 +93,8 @@ git commit -m "Update behavioral baseline"
 # GitHub Actions
 - name: Check Behavioral Drift
   run: |
-    bellwether test \
-      --compare-baseline ./bellwether-baseline.json \
-      --fail-on-drift \
-      npx your-server
+    npx @dotsetlabs/bellwether test npx your-server
+    npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
 ## Updating Baselines
@@ -100,11 +102,12 @@ git commit -m "Update behavioral baseline"
 When intentional changes are made:
 
 ```bash
-# Review changes
-bellwether test --compare-baseline ./baseline.json npx your-server
+# Run test and review changes
+bellwether test npx your-server
+bellwether baseline compare ./bellwether-baseline.json
 
-# Update baseline
-bellwether test --save-baseline npx your-server
+# Update baseline if changes are intentional
+bellwether baseline save --force
 
 # Commit
 git add bellwether-baseline.json
@@ -124,16 +127,33 @@ bellwether link
 bellwether upload
 ```
 
+## Baseline Format Versioning
+
+Baselines use semantic versioning for the format version (e.g., `1.0.0`):
+
+| Component | Description |
+|:----------|:------------|
+| **Major** | Breaking structural changes (removed fields, type changes) |
+| **Minor** | New optional fields (backwards compatible) |
+| **Patch** | Bug fixes in baseline generation |
+
+### Compatibility Rules
+
+- **Same major version** = Compatible (can compare baselines)
+- **Different major version** = Incompatible (requires migration)
+
+When comparing baselines with incompatible versions, use `bellwether baseline migrate` to upgrade older baselines first.
+
 ## What's Captured
 
 | Category | Content |
 |:---------|:--------|
-| **Capabilities** | Tools, prompts, resources available |
-| **Schemas** | Parameter types, required fields |
-| **Behavior** | Observed responses, return values |
-| **Errors** | Error types, messages, conditions |
-| **Security** | Vulnerabilities, attack surface |
-| **Metadata** | Timestamp, model used, personas |
+| **Server Info** | Name, version, protocol version, capabilities |
+| **Tools** | Name, description, schema hash, security notes, limitations |
+| **Assertions** | Behavioral assertions with confidence scores |
+| **Workflows** | Workflow signatures and results |
+| **Integrity** | Hash for detecting file tampering |
+| **Metadata** | Timestamp, mode, server command |
 
 ## Baseline Comparison
 

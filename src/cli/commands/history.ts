@@ -7,6 +7,7 @@ import { getSessionToken, getLinkedProject } from '../../cloud/auth.js';
 import { createCloudClient } from '../../cloud/client.js';
 import { formatDateLocale } from '../../utils/index.js';
 import * as output from '../output.js';
+import { getSeverityIcon, type DiffSummary } from '../output.js';
 
 export const historyCommand = new Command('history')
   .description('View baseline history for a project')
@@ -108,15 +109,9 @@ export const historyCommand = new Command('history')
 
 
 /**
- * Print a diff summary.
+ * Print a diff summary (compact format).
  */
-function printDiffSummary(diff: {
-  severity: string;
-  toolsAdded: number;
-  toolsRemoved: number;
-  toolsModified: number;
-  behaviorChanges: number;
-}): void {
+function printDiffSummary(diff: DiffSummary): void {
   const parts: string[] = [];
 
   if (diff.toolsAdded > 0) {
@@ -135,13 +130,7 @@ function printDiffSummary(diff: {
   if (parts.length === 0) {
     output.info('  No changes from previous version');
   } else {
-    const severityIcon: Record<string, string> = {
-      none: '✓',
-      info: 'ℹ',
-      warning: '⚠',
-      breaking: '✗',
-    };
-    const icon = severityIcon[diff.severity] ?? '?';
+    const icon = getSeverityIcon(diff.severity);
     output.info(`  ${icon} ${diff.severity}: ${parts.join(', ')}`);
   }
 }

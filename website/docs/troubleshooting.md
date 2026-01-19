@@ -223,7 +223,8 @@ Error: Baseline file not found: ./bellwether-baseline.json
 **Solution:** Create a baseline first:
 
 ```bash
-bellwether test --save-baseline npx server
+bellwether test npx server
+bellwether baseline save
 ```
 
 ### Unexpected Drift
@@ -236,7 +237,8 @@ If you're seeing drift you don't expect:
 
 3. **Update baseline if changes are intentional:**
    ```bash
-   bellwether test --save-baseline npx server
+   bellwether test npx server
+   bellwether baseline save --force
    git add bellwether-baseline.json
    git commit -m "Update baseline"
    ```

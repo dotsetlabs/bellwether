@@ -40,11 +40,30 @@ bellwether baseline migrate ./baseline.json
 bellwether baseline compare ./old-baseline.json --ignore-version-mismatch
 ```
 
+#### Shared CLI Utilities
+
+- **`DiffSummary` type** - Shared type for diff summary display
+- **`getSeverityIcon()` function** - Centralized severity icon mapping
+
 ### Changed
 
 - **Baseline version field** - Changed from numeric `1` to semver string `"1.0.0"`
 - **Cloud API** - Baseline uploads now include and validate format version
 - **Dashboard** - Shows format version badge for each baseline with migration hints
+- **Command export consistency** - `registry` and `verify` commands now use same export pattern as other commands
+
+### Fixed
+
+#### Production Release Audit
+
+Comprehensive code quality audit and fixes for production release:
+
+- **`extractPerformanceBaselines()` stub** - Now properly extracts baseline data from tool fingerprints (p50, p95, success rate) instead of returning empty map
+- **Scenario generator thread-safety** - Replaced global counter with `CounterState` interface passed through all generator functions to prevent race conditions
+- **Console usage in commands** - `registry` and `verify` commands now use `output` module instead of direct `console.log/error` calls for proper quiet mode support
+- **Duplicate variable computation** - Removed duplicate `fullServerCommand` computation in `test.ts`
+- **DRY code improvement** - Extracted shared `printDiffSummary` logic from `upload.ts` and `history.ts` into shared utilities
+- **Session date validation** - Added validation for `session.expiresAt` in `cloud/auth.ts` to handle missing or invalid date strings gracefully
 
 ## [0.5.3] - 2026-01-18
 
