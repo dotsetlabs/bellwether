@@ -252,7 +252,8 @@ export function markAsDeprecated(
  * Clear deprecation status from a tool.
  */
 export function clearDeprecation(tool: ToolFingerprint): ToolFingerprint {
-  const { deprecated, deprecatedAt, deprecationNotice, removalDate, replacementTool, ...rest } = tool;
+  const { deprecated: _, deprecatedAt: _1, deprecationNotice: _2, removalDate: _3, replacementTool: _4, ...rest } = tool;
+  void [_, _1, _2, _3, _4]; // Explicitly discard unused variables
   return rest as ToolFingerprint;
 }
 

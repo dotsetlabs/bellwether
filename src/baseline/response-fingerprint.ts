@@ -695,7 +695,7 @@ function categorizeError(
  */
 function hashErrorPattern(message: string): string {
   // Normalize the error message
-  let normalized = message
+  const normalized = message
     // Remove UUIDs
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<UUID>')
     // Remove file paths
