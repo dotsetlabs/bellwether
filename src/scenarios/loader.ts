@@ -5,6 +5,7 @@
 import { readFileSync, existsSync } from 'fs';
 import type { QuestionCategory } from '../persona/types.js';
 import { parseYamlSecure } from '../utils/yaml-parser.js';
+import { PATHS } from '../constants.js';
 import type {
   TestScenario,
   PromptScenario,
@@ -18,7 +19,7 @@ import type {
 } from './types.js';
 
 /** Default file name for test scenarios */
-export const DEFAULT_SCENARIOS_FILE = 'bellwether-tests.yaml';
+export const DEFAULT_SCENARIOS_FILE = PATHS.DEFAULT_SCENARIOS_FILE;
 
 /** Valid question categories */
 const VALID_CATEGORIES: QuestionCategory[] = [

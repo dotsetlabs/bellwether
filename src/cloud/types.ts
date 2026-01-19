@@ -424,12 +424,17 @@ export interface AuthMeResponse {
   user: CloudUser;
   /** Teams the user belongs to */
   teams: SessionTeam[];
+  /** Whether user has beta access (optional) */
+  hasBetaAccess?: boolean;
+  /** Whether user is an admin (optional) */
+  isAdmin?: boolean;
 }
 
 /**
  * Badge status for a project.
+ * Matches platform badge service status values.
  */
-export type BadgeStatus = 'passing' | 'failing' | 'drift' | 'unknown';
+export type BadgeStatus = 'verified' | 'failing' | 'drift' | 'unknown';
 
 /**
  * Badge information for a project.

@@ -16,7 +16,7 @@ import { Interviewer, DEFAULT_CONFIG } from '../../interview/interviewer.js';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
 import { createLLMClient } from '../../llm/index.js';
-import { loadConfigNew, ConfigNotFoundError } from '../../config/loader.js';
+import { loadConfig, ConfigNotFoundError } from '../../config/loader.js';
 import { BUILTIN_PERSONAS } from '../../persona/builtins.js';
 import type { Persona } from '../../persona/types.js';
 import { TIMEOUTS } from '../../constants.js';
@@ -71,7 +71,7 @@ async function handleVerify(
   let configProvider: string | undefined;
   let configModel: string | undefined;
   try {
-    const config = loadConfigNew();
+    const config = loadConfig();
     configProvider = config.llm.provider;
     configModel = config.llm.model;
   } catch (error) {

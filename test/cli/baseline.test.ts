@@ -132,7 +132,7 @@ describe('baseline command', () => {
 
     // Mock config loader
     vi.doMock('../../src/config/loader.js', () => ({
-      loadConfigNew: vi.fn().mockReturnValue({
+      loadConfig: vi.fn().mockReturnValue({
         server: { command: '', args: [], timeout: 30000, env: {} },
         mode: 'structural',
         llm: { provider: 'ollama', model: '', ollama: { baseUrl: 'http://localhost:11434' } },

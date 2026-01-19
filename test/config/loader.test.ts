@@ -3,9 +3,8 @@ import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import {
-  loadConfigNew,
+  loadConfig,
   ConfigNotFoundError,
-  CONFIG_NAMES,
 } from '../../src/config/loader.js';
 
 describe('config/loader', () => {
@@ -29,9 +28,9 @@ describe('config/loader', () => {
     }
   });
 
-  describe('loadConfigNew', () => {
+  describe('loadConfig', () => {
     it('should throw ConfigNotFoundError when no config file exists', () => {
-      expect(() => loadConfigNew()).toThrow(ConfigNotFoundError);
+      expect(() => loadConfig()).toThrow(ConfigNotFoundError);
     });
 
     it('should load config from explicit path', () => {
@@ -48,7 +47,7 @@ test:
 `
       );
 
-      const config = loadConfigNew(configPath);
+      const config = loadConfig(configPath);
 
       expect(config.llm.model).toBe('gpt-4-turbo');
       expect(config.test.maxQuestionsPerTool).toBe(5);
@@ -56,7 +55,7 @@ test:
     });
 
     it('should throw error for non-existent explicit path', () => {
-      expect(() => loadConfigNew('/nonexistent/path/config.yaml')).toThrow(
+      expect(() => loadConfig('/nonexistent/path/config.yaml')).toThrow(
         ConfigNotFoundError
       );
     });
@@ -72,7 +71,7 @@ llm:
 `
       );
 
-      const config = loadConfigNew();
+      const config = loadConfig();
       expect(config.llm.model).toBe('claude-haiku-4-5');
       expect(config.llm.provider).toBe('anthropic');
     });
@@ -87,7 +86,7 @@ server:
 `
       );
 
-      const config = loadConfigNew();
+      const config = loadConfig();
       expect(config.server.timeout).toBe(60000);
     });
 
@@ -101,7 +100,7 @@ output:
 `
       );
 
-      const config = loadConfigNew();
+      const config = loadConfig();
       expect(config.output.format).toBe('json');
     });
 
@@ -123,7 +122,7 @@ llm:
 `
       );
 
-      const config = loadConfigNew();
+      const config = loadConfig();
       expect(config.llm.model).toBe('preferred-model');
     });
 
@@ -137,7 +136,7 @@ test:
 `
       );
 
-      const config = loadConfigNew();
+      const config = loadConfig();
 
       // Specified value
       expect(config.test.maxQuestionsPerTool).toBe(10);
@@ -151,7 +150,7 @@ test:
       writeFileSync(join(testDir, 'bellwether.yaml'), '');
 
       // Empty YAML parses to null, loader should apply defaults
-      const config = loadConfigNew();
+      const config = loadConfig();
       expect(config.mode).toBe('structural');
       expect(config.llm.provider).toBe('ollama');
     });
@@ -159,7 +158,7 @@ test:
     it('should handle config with only mode', () => {
       writeFileSync(join(testDir, 'bellwether.yaml'), 'mode: full');
 
-      const config = loadConfigNew();
+      const config = loadConfig();
       expect(config.mode).toBe('full');
       expect(config.llm.provider).toBe('ollama');
     });
@@ -177,7 +176,7 @@ output:
 `
         );
 
-        const config = loadConfigNew();
+        const config = loadConfig();
         expect(config.output.format).toBe(format);
       }
     });
@@ -195,7 +194,7 @@ server:
 `
       );
 
-      const config = loadConfigNew();
+      const config = loadConfig();
       expect(config.server.command).toBe('npx @mcp/my-server');
       expect(config.server.args).toEqual(['--verbose']);
       expect(config.server.timeout).toBe(45000);
@@ -213,7 +212,7 @@ baseline:
 `
       );
 
-      const config = loadConfigNew();
+      const config = loadConfig();
       expect(config.baseline.failOnDrift).toBe(true);
       expect(config.baseline.minConfidence).toBe(50);
       expect(config.baseline.confidenceThreshold).toBe(90);
@@ -229,7 +228,7 @@ test:
 `
       );
 
-      const config = loadConfigNew();
+      const config = loadConfig();
       expect(config.test.skipErrorTests).toBe(true);
     });
 
@@ -244,7 +243,7 @@ llm:
 `
       );
 
-      expect(() => loadConfigNew()).toThrow(/Security Error.*API key/);
+      expect(() => loadConfig()).toThrow(/Security Error.*API key/);
     });
 
     it('should parse personas as array', () => {
@@ -259,7 +258,7 @@ test:
 `
       );
 
-      const config = loadConfigNew();
+      const config = loadConfig();
       expect(config.test.personas).toEqual(['technical_writer', 'security_tester']);
     });
 
@@ -274,7 +273,7 @@ cache:
 `
       );
 
-      const config = loadConfigNew();
+      const config = loadConfig();
       expect(config.cache.enabled).toBe(false);
       expect(config.cache.dir).toBe('.custom-cache');
     });
@@ -290,7 +289,7 @@ logging:
 `
       );
 
-      const config = loadConfigNew();
+      const config = loadConfig();
       expect(config.logging.level).toBe('debug');
       expect(config.logging.verbose).toBe(true);
     });
@@ -303,7 +302,7 @@ mode: invalid-mode
 `
       );
 
-      expect(() => loadConfigNew()).toThrow();
+      expect(() => loadConfig()).toThrow();
     });
 
     it('should validate provider values', () => {
@@ -316,16 +315,7 @@ llm:
 `
       );
 
-      expect(() => loadConfigNew()).toThrow();
-    });
-  });
-
-  describe('CONFIG_NAMES', () => {
-    it('should include expected config file names', () => {
-      expect(CONFIG_NAMES).toContain('bellwether.yaml');
-      expect(CONFIG_NAMES).toContain('bellwether.yml');
-      expect(CONFIG_NAMES).toContain('.bellwether.yaml');
-      expect(CONFIG_NAMES).toContain('.bellwether.yml');
+      expect(() => loadConfig()).toThrow();
     });
   });
 

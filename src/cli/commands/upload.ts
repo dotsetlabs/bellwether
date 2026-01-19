@@ -11,7 +11,7 @@ import { getSessionToken, getLinkedProject } from '../../cloud/auth.js';
 import { createCloudClient } from '../../cloud/client.js';
 import { loadBaseline } from '../../baseline/saver.js';
 import { convertToCloudBaseline } from '../../baseline/converter.js';
-import { loadConfigNew } from '../../config/loader.js';
+import { loadConfig } from '../../config/loader.js';
 import type { BellwetherBaseline } from '../../cloud/types.js';
 import { PATHS } from '../../constants.js';
 import * as output from '../output.js';
@@ -27,7 +27,7 @@ const DEFAULT_BASELINE_FILE = PATHS.DEFAULT_BASELINE_FILE;
  */
 function getOutputDirFromConfig(configPath?: string): string {
   try {
-    const config = loadConfigNew(configPath);
+    const config = loadConfig(configPath);
     return config.output.dir;
   } catch {
     return '.';

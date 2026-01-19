@@ -29,10 +29,10 @@ Structural mode compares tool schemas, parameter types, and descriptions without
 
 ```bash
 # Initialize with structural mode (default)
-bellwether init npx @mcp/server
+bellwether init "npx @mcp/server"
 
 # Or explicitly with CI preset
-bellwether init --preset ci npx @mcp/server
+bellwether init --preset ci "npx @mcp/server"
 ```
 
 ### What Structural Mode Detects
@@ -60,10 +60,10 @@ Full mode uses an LLM to generate intelligent test scenarios and analyze behavio
 
 ```bash
 # Initialize with full mode using local Ollama (free)
-bellwether init --preset local npx @mcp/server
+bellwether init --preset local "npx @mcp/server"
 
 # Or with OpenAI/Anthropic
-bellwether init --full --provider openai npx @mcp/server
+bellwether init --full --provider openai "npx @mcp/server"
 ```
 
 ### What Full Mode Provides

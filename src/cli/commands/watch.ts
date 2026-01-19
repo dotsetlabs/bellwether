@@ -12,7 +12,7 @@ import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
 import { createLLMClient, type LLMClient } from '../../llm/index.js';
 import { Interviewer } from '../../interview/interviewer.js';
-import { loadConfigNew, ConfigNotFoundError, type BellwetherConfigNew } from '../../config/loader.js';
+import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
 import { validateConfigForTest } from '../../config/validator.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
 import {
@@ -37,9 +37,9 @@ export const watchCommand = new Command('watch')
   .option('--debug', 'Show debug output for file scanning')
   .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
     // Load configuration (required)
-    let config: BellwetherConfigNew;
+    let config: BellwetherConfig;
     try {
-      config = loadConfigNew(options.config);
+      config = loadConfig(options.config);
     } catch (error) {
       if (error instanceof ConfigNotFoundError) {
         output.error(error.message);

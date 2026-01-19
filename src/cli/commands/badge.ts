@@ -69,7 +69,9 @@ export const badgeCommand = new Command('badge')
       output.info('');
       output.info('Or with HTML:');
       output.info('');
-      output.info(`  <a href="https://bellwether.sh/projects/${projectId}"><img src="${badge.badgeUrl}" alt="Bellwether"></a>`);
+      // Extract base URL from badge URL for consistency
+      const baseUrl = badge.badgeUrl.replace(/\/badge\/.*$/, '');
+      output.info(`  <a href="${baseUrl}/projects/${projectId}"><img src="${badge.badgeUrl}" alt="Bellwether"></a>`);
       output.info('');
     } catch (error) {
       output.error('Failed to get badge info: ' + (error instanceof Error ? error.message : String(error)));

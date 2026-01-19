@@ -69,7 +69,7 @@ server:
   command: "${serverCommand}"
   # Arguments to pass to the server command${serverArgsYaml}
 
-  # Timeout for server startup and tool calls (milliseconds)
+  # Timeout for server startup and tool calls (milliseconds, default: 30000)
   timeout: 30000
 
   # Additional environment variables for the server process
@@ -96,10 +96,10 @@ llm:
   provider: ${provider}
 
   # Model to use. Leave empty for provider default.
-  # Defaults: ollama=llama3.2, openai=gpt-4o-mini, anthropic=claude-haiku-4-5
+  # Defaults: ollama=llama3.2, openai=gpt-5-mini, anthropic=claude-haiku-4-5
   model: ""
 
-  # Ollama settings (for local LLM)
+  # Ollama settings (for local LLM, default baseUrl: http://localhost:11434)
   ollama:
     baseUrl: "http://localhost:11434"
 
@@ -125,7 +125,7 @@ test:
   # - novice_user: Usability, confusing behavior, missing guidance
   personas: ${isStructural ? '[]  # Add personas for full mode' : '\n    - technical_writer'}
 
-  # Maximum questions to ask per tool (1-10)
+  # Maximum questions to ask per tool (1-10, default: 3)
   # Lower = faster/cheaper, Higher = more thorough
   maxQuestionsPerTool: 3
 
@@ -200,7 +200,7 @@ baseline:
   # Changes below this threshold are filtered out
   minConfidence: 0
 
-  # Confidence threshold (0-100) for CI failure
+  # Confidence threshold (0-100, default: 80) for CI failure
   # Breaking changes below this may be LLM non-determinism
   confidenceThreshold: 80
 
@@ -271,9 +271,16 @@ export const PRESETS: Record<string, ConfigTemplateOptions> = {
 };
 
 /**
- * Get preset-specific overrides for the config template.
+ * Get preset-specific YAML overrides for documentation purposes.
+ *
+ * Note: This function is intentionally kept for potential future use
+ * in generating preset documentation or config file diffs.
+ * Currently not called in production code.
+ *
+ * @param presetName - Name of the preset (ci, security, thorough, local)
+ * @returns YAML string with preset-specific settings or null if preset not found
  */
-export function getPresetOverrides(presetName: string): Partial<string> | null {
+export function getPresetOverrides(presetName: string): string | null {
   const preset = PRESETS[presetName];
   if (!preset) return null;
 

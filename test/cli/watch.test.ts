@@ -90,7 +90,7 @@ describe('watch command', () => {
     }));
 
     vi.doMock('../../src/config/loader.js', () => ({
-      loadConfigNew: vi.fn().mockReturnValue({
+      loadConfig: vi.fn().mockReturnValue({
         server: {
           command: '',
           args: [],

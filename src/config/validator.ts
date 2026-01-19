@@ -13,6 +13,7 @@ import {
   LLM_DEFAULTS,
   PATHS,
   VALIDATION_BOUNDS,
+  CONFIDENCE,
 } from '../constants.js';
 
 /**
@@ -137,7 +138,7 @@ export const baselineConfigSchema = z.object({
     .int()
     .min(VALIDATION_BOUNDS.CONFIDENCE.MIN)
     .max(VALIDATION_BOUNDS.CONFIDENCE.MAX)
-    .default(80),
+    .default(CONFIDENCE.CI_FAILURE_THRESHOLD),
 }).default({});
 
 /**
@@ -147,7 +148,7 @@ export const cacheConfigSchema = z.object({
   /** Enable response caching */
   enabled: z.boolean().default(true),
   /** Cache directory */
-  dir: z.string().default('.bellwether/cache'),
+  dir: z.string().default(PATHS.DEFAULT_CACHE_DIR),
 }).default({});
 
 /**
@@ -189,13 +190,13 @@ export const bellwetherConfigSchema = z.object({
 /**
  * Inferred TypeScript type from the schema.
  */
-export type BellwetherConfigNew = z.infer<typeof bellwetherConfigSchema>;
+export type BellwetherConfig = z.infer<typeof bellwetherConfigSchema>;
 
 /**
  * Validate a configuration object.
  * Returns the validated config with defaults applied, or throws with helpful errors.
  */
-export function validateConfig(config: unknown, filePath?: string): BellwetherConfigNew {
+export function validateConfig(config: unknown, filePath?: string): BellwetherConfig {
   const result = bellwetherConfigSchema.safeParse(config);
 
   if (!result.success) {
@@ -213,7 +214,7 @@ export function validateConfig(config: unknown, filePath?: string): BellwetherCo
 /**
  * Validate that required fields are present for running tests.
  */
-export function validateConfigForTest(config: BellwetherConfigNew, serverCommand?: string): void {
+export function validateConfigForTest(config: BellwetherConfig, serverCommand?: string): void {
   // Server command must be provided either in config or as argument
   const effectiveCommand = serverCommand || config.server.command;
   if (!effectiveCommand) {

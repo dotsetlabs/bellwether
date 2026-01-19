@@ -8,6 +8,12 @@ slug: /cloud
 
 Bellwether Cloud provides baseline version history, drift alerts, and embeddable verification badges for your MCP servers.
 
+:::info Private Beta
+Bellwether Cloud is currently in **private beta**. All features are free during the beta period.
+
+To request access, email [hello@dotsetlabs.com](mailto:hello@dotsetlabs.com). Once you have access, you can invite team members directly from the dashboard.
+:::
+
 ## What Cloud Offers
 
 | Feature | Description |

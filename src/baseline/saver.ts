@@ -268,7 +268,7 @@ export function loadBaseline(
       console.warn(
         `Warning: Baseline uses older format ${formatVersion(currentVersion.raw)}. ` +
           `Current format is ${formatVersion(BASELINE_FORMAT_VERSION)}. ` +
-          `Run 'bellwether baseline migrate' to upgrade.`
+          `Run \`bellwether baseline migrate\` to upgrade.`
       );
     }
   }

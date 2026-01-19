@@ -26,7 +26,7 @@ import { createCloudBaseline } from '../../baseline/converter.js';
 import { BaselineVersionError } from '../../baseline/version.js';
 import { migrateCommand } from './baseline-migrate.js';
 import type { InterviewResult } from '../../interview/types.js';
-import { loadConfigNew, ConfigNotFoundError } from '../../config/loader.js';
+import { loadConfig, ConfigNotFoundError } from '../../config/loader.js';
 import { PATHS } from '../../constants.js';
 import * as output from '../output.js';
 
@@ -65,7 +65,7 @@ function loadInterviewResult(reportPath: string): InterviewResult {
  */
 function getOutputDir(configPath?: string): string {
   try {
-    const config = loadConfigNew(configPath);
+    const config = loadConfig(configPath);
     return config.output.dir;
   } catch (error) {
     if (error instanceof ConfigNotFoundError) {

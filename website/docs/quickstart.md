@@ -19,7 +19,7 @@ Create a config file for your MCP server:
 
 ```bash
 # Default: structural mode (free, fast, deterministic)
-bellwether init npx @modelcontextprotocol/server-filesystem /tmp
+bellwether init "npx @modelcontextprotocol/server-filesystem /tmp"
 ```
 
 This creates `bellwether.yaml` with your server command and settings.
@@ -88,7 +88,7 @@ bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ### Local Development
 
 ```bash
-bellwether init node ./src/server.js
+bellwether init "node ./src/server.js"
 bellwether test
 bellwether baseline save
 bellwether watch --watch-path ./src    # Re-test on file changes
@@ -104,7 +104,7 @@ bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ### Security Audit
 
 ```bash
-bellwether init --preset security npx your-server
+bellwether init --preset security "npx your-server"
 bellwether test
 ```
 

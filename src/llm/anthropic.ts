@@ -5,6 +5,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { LLMClient, Message, CompletionOptions, ProviderInfo, StreamingOptions, StreamingResult } from './client.js';
 import { DEFAULT_MODELS, parseJSONResponse } from './client.js';
+import { LLM_DEFAULTS } from '../constants.js';
 import { withRetry, LLM_RETRY_OPTIONS } from '../errors/retry.js';
 import {
   LLMAuthError,
@@ -101,7 +102,7 @@ export class AnthropicClient implements LLMClient {
         try {
           const response = await this.client.messages.create({
             model,
-            max_tokens: options?.maxTokens ?? 4096,
+            max_tokens: options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS,
             system: system,
             messages: normalizedMessages,
           });
@@ -333,7 +334,7 @@ export class AnthropicClient implements LLMClient {
         try {
           const stream = await this.client.messages.stream({
             model,
-            max_tokens: options?.maxTokens ?? 4096,
+            max_tokens: options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS,
             system: system,
             messages: normalizedMessages,
           });

@@ -24,7 +24,7 @@ vi.mock('../../../src/config/loader.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/config/loader.js')>();
   return {
     ...actual,
-    loadConfigNew: vi.fn().mockImplementation(() => {
+    loadConfig: vi.fn().mockImplementation(() => {
       throw new actual.ConfigNotFoundError();
     }),
   };

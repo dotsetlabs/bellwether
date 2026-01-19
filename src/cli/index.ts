@@ -89,7 +89,7 @@ Examples:
     $ bellwether registry filesystem
 
   Cloud workflow:
-    $ bellwether login                    # Authenticate
+    $ bellwether login                    # Authenticate with Bellwether Cloud
     $ bellwether teams                    # List your teams
     $ bellwether teams switch <team-id>   # Switch active team
     $ bellwether link my-project          # Link to cloud project

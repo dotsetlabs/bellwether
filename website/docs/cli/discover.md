@@ -11,14 +11,11 @@ Quick discovery of MCP server capabilities without running tests.
 
 ```bash
 bellwether discover [options] <command> [args...]
-bellwether summary [options] <command> [args...]  # alias
 ```
 
 ## Description
 
 The `discover` command connects to an MCP server and lists its capabilities (tools, prompts, and resources) without conducting a full test. This is useful for quick reconnaissance or verifying server connectivity.
-
-The `summary` command is an alias for `discover` - both commands work identically.
 
 ## Arguments
 

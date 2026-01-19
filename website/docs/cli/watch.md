@@ -34,7 +34,6 @@ Watch mode monitors your source files and automatically re-runs tests when chang
 | `--on-change <command>` | Command to run after detecting drift | - |
 | `--debug` | Show debug output for file scanning errors | `false` |
 | `-c, --config <path>` | Path to config file | - |
-| `--max-questions <n>` | Max questions per tool | Config value |
 
 ## Examples
 

@@ -20,9 +20,9 @@ import * as output from '../output.js';
 import { TIME_CONSTANTS } from '../../constants.js';
 
 /**
- * Header name for beta password.
+ * Header name for beta invite token (for pre-OAuth flow).
  */
-const BETA_PASSWORD_HEADER = 'x-beta-password';
+const BETA_INVITE_TOKEN_HEADER = 'x-beta-invite-token';
 
 export const loginCommand = new Command('login')
   .description('Authenticate with Bellwether Cloud via GitHub')
@@ -74,25 +74,47 @@ export const loginCommand = new Command('login')
     output.info('Signing in with GitHub...\n');
 
     try {
-      // Step 0: Check if beta mode is enabled and get password if needed
-      let betaPassword: string | undefined;
+      // Step 0: Check if beta mode is enabled and get invite code if needed
+      let inviteToken: string | undefined;
       const betaStatus = await checkBetaStatus();
 
       if (betaStatus.betaMode) {
-        output.info('Bellwether Cloud is currently in beta.\n');
-        betaPassword = await promptForBetaPassword();
+        output.info('Bellwether Cloud is currently in private beta.\n');
 
-        // Verify the beta password
-        const isValid = await verifyBetaPassword(betaPassword);
-        if (!isValid) {
-          output.error('Invalid beta password.');
-          process.exit(1);
+        const rl = createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+
+        const hasInvite = await new Promise<string>((resolve) => {
+          rl.question('Do you have a beta invitation code? (y/n): ', resolve);
+        });
+
+        if (hasInvite.toLowerCase() === 'y' || hasInvite.toLowerCase() === 'yes') {
+          const code = await new Promise<string>((resolve) => {
+            rl.question('Enter your invitation code (XXXX-XXXX): ', resolve);
+          });
+          rl.close();
+
+          // Verify the invite code
+          const verifyResult = await verifyBetaInvite(code.trim());
+          if (!verifyResult.valid) {
+            output.error('Invalid or expired invitation code.');
+            output.info('\nJoin the waitlist at https://bellwether.sh');
+            process.exit(1);
+          }
+          output.info('Invitation verified! Proceeding with login...\n');
+          inviteToken = verifyResult.token;
+        } else {
+          rl.close();
+          output.info('\nTo request beta access, visit https://bellwether.sh');
+          output.info('Join the waitlist and we\'ll send you an invitation.');
+          process.exit(0);
         }
-        output.info('Beta access verified.\n');
       }
 
       // Step 1: Start device flow
-      const deviceAuth = await startDeviceFlow(betaPassword);
+      const deviceAuth = await startDeviceFlow(inviteToken);
 
       output.info('To authenticate, visit:\n');
       output.info(`  ${deviceAuth.verification_uri}\n`);
@@ -109,7 +131,7 @@ export const loginCommand = new Command('login')
         deviceAuth.device_code,
         deviceAuth.interval,
         deviceAuth.expires_in,
-        betaPassword
+        inviteToken
       );
 
       if (!result.session_token || !result.user) {
@@ -178,60 +200,53 @@ async function checkBetaStatus(): Promise<{ betaMode: boolean }> {
 }
 
 /**
- * Prompt user for beta password.
+ * Verify a beta invite code with the server.
+ * Returns the token for use in subsequent requests if valid.
  */
-async function promptForBetaPassword(): Promise<string> {
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    rl.question('Enter beta password: ', (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-}
-
-/**
- * Verify beta password with the server.
- */
-async function verifyBetaPassword(password: string): Promise<boolean> {
+async function verifyBetaInvite(code: string): Promise<{ valid: boolean; token?: string }> {
   const baseUrl = getBaseUrl();
 
   try {
-    const response = await fetch(`${baseUrl}/beta/verify`, {
+    const response = await fetch(`${baseUrl}/beta/verify-invite`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        [BETA_PASSWORD_HEADER]: password,
       },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ code }),
     });
 
     if (!response.ok) {
-      return false;
+      return { valid: false };
     }
 
-    const result = await response.json() as { valid: boolean };
-    return result.valid;
+    const result = await response.json() as {
+      valid: boolean;
+      invite?: { id: string; email: string; expiresAt: string };
+    };
+
+    if (result.valid && result.invite) {
+      // The invite ID can be used as a token for the beta middleware
+      // We'll use the code itself as the token since it's verified
+      return { valid: true, token: code };
+    }
+
+    return { valid: false };
   } catch {
-    return false;
+    return { valid: false };
   }
 }
 
 /**
  * Start OAuth device flow.
  */
-async function startDeviceFlow(betaPassword?: string): Promise<DeviceAuthorizationResponse> {
+async function startDeviceFlow(inviteToken?: string): Promise<DeviceAuthorizationResponse> {
   const baseUrl = getBaseUrl();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
-  if (betaPassword) {
-    headers[BETA_PASSWORD_HEADER] = betaPassword;
+  if (inviteToken) {
+    headers[BETA_INVITE_TOKEN_HEADER] = inviteToken;
   }
 
   const response = await fetch(`${baseUrl}/auth/github/device`, {
@@ -255,7 +270,7 @@ async function pollForCompletion(
   deviceCode: string,
   intervalSec: number,
   expiresInSec: number,
-  betaPassword?: string
+  inviteToken?: string
 ): Promise<DevicePollResponse> {
   const baseUrl = getBaseUrl();
   const deadline = Date.now() + expiresInSec * 1000;
@@ -265,8 +280,8 @@ async function pollForCompletion(
     'Content-Type': 'application/json',
   };
 
-  if (betaPassword) {
-    headers[BETA_PASSWORD_HEADER] = betaPassword;
+  if (inviteToken) {
+    headers[BETA_INVITE_TOKEN_HEADER] = inviteToken;
   }
 
   while (Date.now() < deadline) {
@@ -472,6 +487,17 @@ async function showStatus(): Promise<void> {
     }
   }
 
+  // Check beta access status if in cloud mode
+  if (!isMockSession(session.sessionToken)) {
+    const betaAccess = await checkBetaAccess(session.sessionToken);
+    if (betaAccess !== null) {
+      output.info(`Beta:   ${betaAccess.hasBetaAccess ? 'Yes' : 'No'}`);
+      if (betaAccess.isAdmin) {
+        output.info(`Admin:  Yes`);
+      }
+    }
+  }
+
   const expiresAt = new Date(session.expiresAt);
   const now = new Date();
   const daysRemaining = Math.ceil((expiresAt.getTime() - now.getTime()) / TIME_CONSTANTS.MS_PER_DAY);
@@ -479,5 +505,30 @@ async function showStatus(): Promise<void> {
 
   if (isMockSession(session.sessionToken)) {
     output.info('\nData is stored locally in ~/.bellwether/mock-cloud/');
+  }
+}
+
+/**
+ * Check if current user has beta access.
+ */
+async function checkBetaAccess(sessionToken: string): Promise<{ hasBetaAccess: boolean; isAdmin: boolean } | null> {
+  const baseUrl = getBaseUrl();
+
+  try {
+    const response = await fetch(`${baseUrl}/beta/access`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${sessionToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return response.json() as Promise<{ hasBetaAccess: boolean; isAdmin: boolean }>;
+  } catch {
+    return null;
   }
 }

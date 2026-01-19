@@ -7,6 +7,12 @@ sidebar_position: 3
 
 Bellwether Cloud provides baseline history, webhooks, and documentation badges for your MCP servers.
 
+:::info Private Beta
+Bellwether Cloud is currently in **private beta**. All features are free during the beta period.
+
+To request access, email [hello@dotsetlabs.com](mailto:hello@dotsetlabs.com). Once you have access, you can invite team members directly from the dashboard.
+:::
+
 ## Features
 
 | Feature | Description |
@@ -184,23 +190,21 @@ Send events to external services:
 }
 ```
 
-## Pricing
+## Beta Access
 
-| Tier | Price | Features |
-|:-----|:------|:---------|
-| Free | $0 | 1 project, 30 uploads/month, 14-day history |
-| Solo | $12/mo | 5 projects, unlimited uploads, 90-day history, unlimited webhooks, GitHub OR GitLab integration, API access |
-| Team | $29/mo | Unlimited projects, unlimited uploads, 365-day history, unlimited webhooks, GitHub & GitLab, Slack & Discord notifications, 3 team seats included (+$5/seat/month for additional) |
+During the private beta, all cloud features are **completely free**:
 
-Visit [bellwether.sh/pricing](https://bellwether.sh/pricing) for details.
+- Unlimited cloud projects
+- Unlimited baseline uploads
+- Full version history
+- GitHub & GitLab integration
+- Slack & Discord notifications
+- Team collaboration
+- API access
 
-## Data Retention
+To request access, email [hello@dotsetlabs.com](mailto:hello@dotsetlabs.com).
 
-| Tier | Baseline History |
-|:-----|:-----------------|
-| Free | 14 days |
-| Solo | 90 days |
-| Team | 365 days |
+After the beta period ends, we'll introduce paid plans. The CLI will always remain free and open source.
 
 ## Security
 
