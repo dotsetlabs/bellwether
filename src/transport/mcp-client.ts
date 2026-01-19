@@ -247,11 +247,6 @@ export class MCPClient {
       this.cleanup();
     });
 
-    // Capture stderr for debugging (but don't use it for ready detection)
-    // Relying on stderr for ready detection is unreliable since:
-    // 1. Some servers don't output to stderr at all
-    // 2. stderr output timing varies significantly
-    // 3. The actual "ready" state is when initialization succeeds
     this.process.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString().trim();
       if (msg) {
@@ -259,8 +254,6 @@ export class MCPClient {
       }
     });
 
-    // Wait for minimum startup delay to allow server to fully start
-    // The actual "ready" state is confirmed by successful initialization
     this.readyPromise = this.waitForStartup();
     this.logger.debug('Startup delay complete, connection established');
   }

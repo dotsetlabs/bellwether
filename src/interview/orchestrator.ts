@@ -600,18 +600,9 @@ export class Orchestrator {
     return this.generateStructuralTestCases(tool, skipErrorTests);
   }
 
-  // ===========================================================================
-  // Enhanced Structural Test Generation
-  // ===========================================================================
-
   /**
    * Generate comprehensive test cases for structural mode.
    * Analyzes schema to create meaningful tests without LLM.
-   *
-   * Returns a balanced mix of test categories:
-   * - Happy path tests (examples, defaults, smart values)
-   * - Edge case/boundary tests
-   * - Error handling tests (unless skipped)
    */
   private generateStructuralTestCases(tool: MCPTool, skipErrorTests: boolean): InterviewQuestion[] {
     const happyPathTests: InterviewQuestion[] = [];
@@ -629,7 +620,7 @@ export class Orchestrator {
       return true;
     };
 
-    // 1. Schema-level examples (highest priority - author-provided)
+    // Schema-level examples take highest priority (author-provided)
     if (schema?.examples && Array.isArray(schema.examples)) {
       for (const example of schema.examples.slice(0, ORCHESTRATOR.MAX_SCHEMA_EXAMPLES)) {
         if (example && typeof example === 'object') {
@@ -642,7 +633,6 @@ export class Orchestrator {
       }
     }
 
-    // 2. Schema-level default
     if (schema?.default && typeof schema.default === 'object') {
       addQuestion({
         description: 'Test with schema default values',
@@ -651,7 +641,6 @@ export class Orchestrator {
       }, happyPathTests);
     }
 
-    // 3. Build args from property defaults and examples
     const defaultArgs = this.buildArgsFromDefaults(schema);
     if (Object.keys(defaultArgs).length > 0) {
       addQuestion({
@@ -661,7 +650,6 @@ export class Orchestrator {
       }, happyPathTests);
     }
 
-    // 4. Build args from property examples
     const exampleArgs = this.buildArgsFromExamples(schema);
     if (Object.keys(exampleArgs).length > 0) {
       addQuestion({
@@ -671,7 +659,6 @@ export class Orchestrator {
       }, happyPathTests);
     }
 
-    // 5. Standard happy path with smart defaults
     const smartArgs = this.buildSmartDefaultArgs(schema);
     addQuestion({
       description: 'Basic functionality test with required parameters',
@@ -679,25 +666,21 @@ export class Orchestrator {
       args: smartArgs,
     }, happyPathTests);
 
-    // 6. Enum coverage - test different enum values
     const enumTests = this.generateEnumTests(schema, smartArgs);
     for (const test of enumTests.slice(0, ORCHESTRATOR.MAX_ENUM_TESTS)) {
       addQuestion(test, happyPathTests);
     }
 
-    // 7. Boundary tests for numeric parameters
     const boundaryTests = this.generateBoundaryTests(schema, smartArgs);
     for (const test of boundaryTests.slice(0, ORCHESTRATOR.MAX_BOUNDARY_TESTS)) {
       addQuestion(test, edgeCaseTests);
     }
 
-    // 8. Optional parameter tests
     const optionalTests = this.generateOptionalParamTests(schema);
     for (const test of optionalTests.slice(0, ORCHESTRATOR.MAX_OPTIONAL_TESTS)) {
       addQuestion(test, happyPathTests);
     }
 
-    // 9. Error handling tests
     if (!skipErrorTests) {
       // Empty args (missing required)
       addQuestion({
@@ -759,7 +742,6 @@ export class Orchestrator {
     const required = schema.required ?? [];
     let hasDefaults = false;
 
-    // First, collect all defaults
     for (const [name, prop] of Object.entries(schema.properties)) {
       if (prop.default !== undefined) {
         args[name] = prop.default;
@@ -767,7 +749,6 @@ export class Orchestrator {
       }
     }
 
-    // If we have any defaults, also fill in required params that don't have defaults
     if (hasDefaults) {
       for (const param of required) {
         if (args[param] === undefined && schema.properties[param]) {
@@ -790,7 +771,6 @@ export class Orchestrator {
     const required = schema.required ?? [];
     let hasExamples = false;
 
-    // First, collect all examples
     for (const [name, prop] of Object.entries(schema.properties)) {
       if (prop.examples && prop.examples.length > 0) {
         args[name] = prop.examples[0];
@@ -798,7 +778,6 @@ export class Orchestrator {
       }
     }
 
-    // If we have any examples, also fill in required params that don't have examples
     if (hasExamples) {
       for (const param of required) {
         if (args[param] === undefined && schema.properties[param]) {
@@ -819,7 +798,6 @@ export class Orchestrator {
 
     const required = schema.required ?? [];
 
-    // First, fill required parameters
     for (const param of required) {
       const prop = schema.properties[param];
       if (prop) {
@@ -841,27 +819,12 @@ export class Orchestrator {
       return null;
     }
 
-    // 1. Use const if specified
-    if (schema.const !== undefined) {
-      return schema.const;
-    }
+    // Priority: const > default > examples > enum > oneOf/anyOf > type-based generation
+    if (schema.const !== undefined) return schema.const;
+    if (schema.default !== undefined) return schema.default;
+    if (schema.examples && schema.examples.length > 0) return schema.examples[0];
+    if (schema.enum && schema.enum.length > 0) return schema.enum[0];
 
-    // 2. Use default if specified
-    if (schema.default !== undefined) {
-      return schema.default;
-    }
-
-    // 3. Use first example if specified
-    if (schema.examples && schema.examples.length > 0) {
-      return schema.examples[0];
-    }
-
-    // 4. Use first enum value if specified
-    if (schema.enum && schema.enum.length > 0) {
-      return schema.enum[0];
-    }
-
-    // 5. Handle oneOf/anyOf
     if (schema.oneOf && schema.oneOf.length > 0) {
       return this.generateSmartValue(paramName, schema.oneOf[0], depth + 1);
     }
@@ -869,7 +832,6 @@ export class Orchestrator {
       return this.generateSmartValue(paramName, schema.anyOf[0], depth + 1);
     }
 
-    // 6. Generate based on type
     const type = this.getSchemaType(schema.type);
 
     switch (type) {
@@ -1204,10 +1166,8 @@ export class Orchestrator {
 
     if (optionalParams.length === 0) return tests;
 
-    // Test with all optional params included
     const allArgs: Record<string, unknown> = {};
 
-    // First, fill required params
     for (const param of required) {
       const prop = schema.properties![param];
       if (prop) {
@@ -1215,7 +1175,6 @@ export class Orchestrator {
       }
     }
 
-    // Then add optional params
     for (const [name, prop] of optionalParams) {
       allArgs[name] = this.generateSmartValue(name, prop);
     }
@@ -1276,10 +1235,6 @@ export class Orchestrator {
 
     return tests;
   }
-
-  // ===========================================================================
-  // Prompt Interview Methods
-  // ===========================================================================
 
   /**
    * Generate interview questions for an MCP prompt.
@@ -1442,10 +1397,6 @@ export class Orchestrator {
 
     return questions;
   }
-
-  // ===========================================================================
-  // Resource Interview Methods
-  // ===========================================================================
 
   /**
    * Generate interview questions for an MCP resource.

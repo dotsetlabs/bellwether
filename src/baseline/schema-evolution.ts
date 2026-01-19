@@ -14,9 +14,6 @@ import {
   type SchemaChangeDetail,
 } from './change-impact-analyzer.js';
 import { SCHEMA_EVOLUTION } from '../constants.js';
-
-// ==================== Types ====================
-
 /**
  * Event type for schema lifecycle events.
  */
@@ -147,9 +144,6 @@ export interface TimelineBuildOptions {
   /** Include removed tools in timeline */
   includeRemovedTools?: boolean;
 }
-
-// ==================== Core Functions ====================
-
 /**
  * Build a server timeline from multiple baselines.
  * Baselines should be provided in chronological order (oldest first).
@@ -415,9 +409,6 @@ function calculateTimelineStats(toolTimelines: Map<string, SchemaTimeline>): Tim
     avgVersionsPerTool: totalTools > 0 ? totalVersions / totalTools : 0,
   };
 }
-
-// ==================== Query Functions ====================
-
 /**
  * Get all breaking changes for a tool.
  */
@@ -490,9 +481,6 @@ export function getMostBreakingTools(
     .filter(t => t.totalBreakingChanges > 0)
     .slice(0, limit);
 }
-
-// ==================== Formatting Functions ====================
-
 /**
  * Format a timeline for console display.
  */
@@ -622,9 +610,6 @@ export function generateVisualTimeline(
 
   return lines.join('\n');
 }
-
-// ==================== Serialization ====================
-
 /**
  * Convert timeline to JSON-serializable format.
  */

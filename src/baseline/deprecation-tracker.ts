@@ -7,9 +7,6 @@
 
 import type { ToolFingerprint, BehavioralBaseline, ChangeSeverity } from './types.js';
 import { DEPRECATION } from '../constants.js';
-
-// ==================== Types ====================
-
 /**
  * Deprecation status for a tool.
  */
@@ -78,9 +75,6 @@ export interface DeprecationConfig {
   /** Severity for tools past removal date */
   expiredSeverity: ChangeSeverity;
 }
-
-// ==================== Constants ====================
-
 // Re-export centralized constant for backwards compatibility
 export { DEPRECATION } from '../constants.js';
 
@@ -106,9 +100,6 @@ export const DEPRECATION_THRESHOLDS = {
   /** Critical warning within this many days */
   CRITICAL_REMOVAL_DAYS: DEPRECATION.THRESHOLDS.criticalRemovalDays,
 } as const;
-
-// ==================== Core Functions ====================
-
 /**
  * Check all tools in a baseline for deprecation issues.
  */
@@ -256,9 +247,6 @@ export function clearDeprecation(tool: ToolFingerprint): ToolFingerprint {
   void [_, _1, _2, _3, _4]; // Explicitly discard unused variables
   return rest as ToolFingerprint;
 }
-
-// ==================== Helper Functions ====================
-
 /**
  * Generate deprecation message for a tool.
  */
@@ -374,9 +362,6 @@ function generateDeprecationSummary(
 
   return parts.join(', ') + '.';
 }
-
-// ==================== Utility Functions ====================
-
 /**
  * Get all deprecated tools from a baseline.
  */

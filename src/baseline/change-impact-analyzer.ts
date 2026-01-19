@@ -14,9 +14,6 @@ import type {
   WorkflowSignature,
 } from './types.js';
 import { CHANGE_IMPACT } from '../constants.js';
-
-// ==================== Types ====================
-
 /**
  * Type of schema change detected.
  */
@@ -107,9 +104,6 @@ export interface ActionItem {
 
 // Re-export the centralized CHANGE_IMPACT constant for backwards compatibility
 export { CHANGE_IMPACT } from '../constants.js';
-
-// ==================== Core Analysis Functions ====================
-
 /**
  * Analyze the impact of changes between two tool fingerprints.
  */
@@ -293,9 +287,6 @@ export function analyzeDiffImpact(
     actionItems,
   };
 }
-
-// ==================== Schema Analysis ====================
-
 /**
  * Analyze changes between two schemas and return detailed change information.
  */
@@ -569,9 +560,6 @@ function isConstraintTightening(
       return false;
   }
 }
-
-// ==================== Scoring Functions ====================
-
 /**
  * Calculate risk score based on schema changes.
  */
@@ -662,9 +650,6 @@ function generateMigrationSuggestion(changes: SchemaChangeDetail[], toolName: st
 
   return suggestions.join('\n');
 }
-
-// ==================== Overall Analysis Functions ====================
-
 /**
  * Determine overall severity from all tool impacts.
  */
@@ -751,9 +736,6 @@ function generateImpactSummary(
 
   return parts.length > 0 ? parts.join('. ') + '.' : 'No changes detected.';
 }
-
-// ==================== Utility Functions ====================
-
 /**
  * Check if a behavior change is actually breaking based on semantic analysis.
  * This enhances the simple hash-based comparison with semantic understanding.

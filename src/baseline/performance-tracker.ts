@@ -7,9 +7,6 @@
 
 import type { BehavioralBaseline, ChangeSeverity } from './types.js';
 import { PERFORMANCE_TRACKING } from '../constants.js';
-
-// ==================== Types ====================
-
 /**
  * Latency trend direction.
  */
@@ -121,9 +118,6 @@ export interface LatencySample {
 
 // Re-export centralized constant for backwards compatibility
 export { PERFORMANCE_TRACKING as PERFORMANCE } from '../constants.js';
-
-// ==================== Metric Collection ====================
-
 /**
  * Calculate performance metrics from raw latency samples.
  */
@@ -205,9 +199,6 @@ function calculatePercentile(sortedValues: number[], percentile: number): number
   const fraction = index - lower;
   return sortedValues[lower] + fraction * (sortedValues[upper] - sortedValues[lower]);
 }
-
-// ==================== Baseline Management ====================
-
 /**
  * Create a performance baseline from metrics.
  */
@@ -253,9 +244,6 @@ export function extractPerformanceBaselines(
 
   return baselines;
 }
-
-// ==================== Comparison Functions ====================
-
 /**
  * Compare current metrics against baseline.
  */
@@ -414,9 +402,6 @@ function generateComparisonSummary(
 
   return `"${toolName}" performance stable: p50 ${p50Percent}% change`;
 }
-
-// ==================== Report Generation ====================
-
 /**
  * Generate a complete performance report comparing current and baseline.
  */
@@ -500,9 +485,6 @@ function generateReportSummary(
 
   return parts.join(', ') + '.';
 }
-
-// ==================== Utility Functions ====================
-
 /**
  * Format performance metrics for display.
  */

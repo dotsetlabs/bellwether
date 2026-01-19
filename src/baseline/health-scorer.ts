@@ -14,9 +14,6 @@ import type { PerformanceReport } from './performance-tracker.js';
 import type { DeprecationReport } from './deprecation-tracker.js';
 import type { DiffImpactAnalysis } from './change-impact-analyzer.js';
 import { HEALTH_SCORING } from '../constants.js';
-
-// ==================== Types ====================
-
 /**
  * Health trend direction.
  */
@@ -116,9 +113,6 @@ export interface HealthInput {
   /** Test results (tool name -> passed/failed) */
   testResults?: Map<string, { passed: number; failed: number }>;
 }
-
-// ==================== Constants ====================
-
 // Re-export centralized constant for backwards compatibility
 export { HEALTH_SCORING } from '../constants.js';
 
@@ -145,9 +139,6 @@ export const SEVERITY_THRESHOLDS = HEALTH_SCORING.SEVERITY_THRESHOLDS;
  * Uses values from centralized constants.
  */
 export const HEALTH_PENALTIES = HEALTH_SCORING.PENALTIES;
-
-// ==================== Core Functions ====================
-
 /**
  * Calculate comprehensive health score for an MCP server.
  */
@@ -200,9 +191,6 @@ function calculateOverallScore(components: HealthComponents): number {
 
   return Math.round(Math.max(0, Math.min(100, weighted)));
 }
-
-// ==================== Component Calculators ====================
-
 /**
  * Calculate test coverage score.
  */
@@ -358,9 +346,6 @@ function calculateDocumentationScore(input: HealthInput): number {
 
   return Math.round(Math.max(0, Math.min(100, score)));
 }
-
-// ==================== Grade & Severity ====================
-
 /**
  * Calculate letter grade from score.
  */
@@ -403,9 +388,6 @@ function calculateTrend(current: number, history?: HealthHistory[]): HealthTrend
   if (diff < -HEALTH_SCORING.TREND_THRESHOLD) return 'degrading';
   return 'stable';
 }
-
-// ==================== Action Items ====================
-
 /**
  * Generate prioritized action items for improving health.
  */
@@ -520,9 +502,6 @@ function generateActionItems(input: HealthInput, components: HealthComponents): 
 
   return items;
 }
-
-// ==================== Summary Generation ====================
-
 /**
  * Generate human-readable health summary.
  */
@@ -557,9 +536,6 @@ function generateHealthSummary(
 
   return parts.join('. ');
 }
-
-// ==================== Utility Functions ====================
-
 /**
  * Format health score for console output.
  */

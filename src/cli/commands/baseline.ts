@@ -74,11 +74,6 @@ function getOutputDir(configPath?: string): string {
     throw error;
   }
 }
-
-// ============================================================================
-// Main baseline command with subcommands
-// ============================================================================
-
 export const baselineCommand = new Command('baseline')
   .description('Manage baselines for drift detection')
   .addHelpText(
@@ -95,12 +90,9 @@ Examples:
 `
   );
 
-// Add migrate subcommand
 baselineCommand.addCommand(migrateCommand);
 
-// ============================================================================
 // baseline save
-// ============================================================================
 
 baselineCommand
   .command('save')
@@ -165,9 +157,7 @@ baselineCommand
     output.info(`  Assertions: ${assertionCount}`);
   });
 
-// ============================================================================
 // baseline compare
-// ============================================================================
 
 baselineCommand
   .command('compare')
@@ -273,9 +263,7 @@ baselineCommand
     }
   });
 
-// ============================================================================
 // baseline show
-// ============================================================================
 
 baselineCommand
   .command('show')
@@ -393,9 +381,7 @@ baselineCommand
     }
   });
 
-// ============================================================================
 // baseline diff
-// ============================================================================
 
 baselineCommand
   .command('diff')

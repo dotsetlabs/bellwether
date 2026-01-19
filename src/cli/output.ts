@@ -470,9 +470,6 @@ export function createStreamingCallback(prefix?: string): {
     },
   };
 }
-
-// ==================== Diff Summary Utilities ====================
-
 /**
  * Diff summary data used for displaying comparison results.
  */

@@ -238,11 +238,6 @@ export interface WorkflowDiscoveryOptions {
   /** Maximum steps per workflow */
   maxSteps?: number;
 }
-
-// =============================================================================
-// State Tracking Types
-// =============================================================================
-
 /**
  * Role of a tool in state management.
  */

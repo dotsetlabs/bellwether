@@ -324,11 +324,6 @@ export function setActiveTeam(teamId: string): boolean {
   saveSession(session);
   return true;
 }
-
-// ============================================================================
-// Project Link Management
-// ============================================================================
-
 /**
  * Directory name for per-project bellwether config.
  */
