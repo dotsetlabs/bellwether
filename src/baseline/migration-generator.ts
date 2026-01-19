@@ -16,9 +16,6 @@ import {
   type SchemaChangeType,
 } from './change-impact-analyzer.js';
 import { MIGRATION_GUIDE } from '../constants.js';
-
-// ==================== Types ====================
-
 /**
  * Estimated effort level for migration.
  */
@@ -142,9 +139,6 @@ export interface MigrationStats {
   /** Breakdown by change type */
   changesByType: Record<SchemaChangeType, number>;
 }
-
-// ==================== Core Functions ====================
-
 /**
  * Generate a migration guide from two baselines.
  */
@@ -287,9 +281,6 @@ export function generateMigrationGuide(
     warnings,
   };
 }
-
-// ==================== Helper Functions ====================
-
 /**
  * Find tools that were removed.
  */
@@ -476,9 +467,6 @@ function generateSummary(
 
   return parts.join(' ');
 }
-
-// ==================== Code Example Generators ====================
-
 /**
  * Generate examples for tool removal.
  */
@@ -631,9 +619,6 @@ function generateGeneralExamples(breakingChanges: BreakingChange[]): CodeExample
 
   return examples;
 }
-
-// ==================== Formatting Functions ====================
-
 /**
  * Format migration guide as markdown.
  */

@@ -59,7 +59,6 @@ export {
   type SchemaComparisonResult,
 } from './schema-compare.js';
 
-// Version utilities
 export {
   BASELINE_FORMAT_VERSION,
   parseVersion,
@@ -77,7 +76,6 @@ export {
   type VersionCompatibility,
 } from './version.js';
 
-// Migration utilities
 export {
   migrateBaseline,
   canMigrate,
@@ -86,7 +84,6 @@ export {
   getMigrationInfo,
 } from './migrations.js';
 
-// Response fingerprinting
 export {
   analyzeResponses,
   inferSchemaFromValue,

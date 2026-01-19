@@ -1,16 +1,6 @@
 /**
  * Credential resolution - unified API key retrieval from multiple sources.
- *
- * Resolution order (first match wins):
- * 1. Direct API key passed in config (programmatic use)
- * 2. Environment variable (explicit override, highest priority for CLI)
- * 3. System keychain (secure storage)
- * 4. .env files (already loaded into process.env by dotenv)
- *
- * This ensures that:
- * - CI/CD can use env vars without touching keychain
- * - Local dev can use keychain for convenience
- * - Project .env files work as expected
+ * Resolution order: config > env var > keychain
  */
 
 import type { LLMProviderId, LLMConfig } from '../llm/client.js';
@@ -43,12 +33,10 @@ export interface CredentialResult {
 export async function resolveCredentials(
   config: Pick<LLMConfig, 'provider' | 'apiKey' | 'apiKeyEnvVar'>
 ): Promise<CredentialResult> {
-  // 1. Direct API key in config takes precedence
   if (config.apiKey) {
     return { apiKey: config.apiKey, source: 'config' };
   }
 
-  // 2. Check specified env var
   if (config.apiKeyEnvVar) {
     const key = process.env[config.apiKeyEnvVar];
     if (key) {
@@ -56,7 +44,6 @@ export async function resolveCredentials(
     }
   }
 
-  // 3. Check default env var for provider
   const defaultEnvVar = DEFAULT_ENV_VARS[config.provider];
   if (defaultEnvVar) {
     const key = process.env[defaultEnvVar];
@@ -65,7 +52,6 @@ export async function resolveCredentials(
     }
   }
 
-  // 4. Check keychain (for providers that use API keys)
   if (config.provider !== 'ollama') {
     try {
       const keychain = getKeychainService();
@@ -74,11 +60,10 @@ export async function resolveCredentials(
         return { apiKey: key, source: 'keychain' };
       }
     } catch {
-      // Keychain not available - continue without it
+      // Keychain not available
     }
   }
 
-  // No credentials found
   return { apiKey: undefined, source: 'none' };
 }
 
@@ -89,20 +74,15 @@ export async function resolveCredentials(
 export function resolveApiKeySync(
   config: Pick<LLMConfig, 'provider' | 'apiKey' | 'apiKeyEnvVar'>
 ): string | undefined {
-  // 1. Direct API key
   if (config.apiKey) {
     return config.apiKey;
   }
 
-  // 2. Specified env var
   if (config.apiKeyEnvVar) {
     const key = process.env[config.apiKeyEnvVar];
-    if (key) {
-      return key;
-    }
+    if (key) return key;
   }
 
-  // 3. Default env var
   const defaultEnvVar = DEFAULT_ENV_VARS[config.provider];
   if (defaultEnvVar) {
     return process.env[defaultEnvVar];

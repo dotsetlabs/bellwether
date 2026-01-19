@@ -7,9 +7,6 @@
 
 import { SCENARIO_GENERATION, ORCHESTRATOR } from '../constants.js';
 import type { ToolFingerprint, BehavioralBaseline } from './types.js';
-
-// ==================== Types ====================
-
 /**
  * Category of test scenario.
  */
@@ -127,9 +124,6 @@ export interface ScenarioGenerationConfig {
   /** Include security payloads for injection testing */
   includeSecurityPayloads?: boolean;
 }
-
-// ==================== Schema Analysis ====================
-
 interface SchemaProperty {
   name: string;
   type: string;
@@ -328,9 +322,6 @@ function generateBoundaryValues(prop: SchemaProperty): unknown[] {
 
   return values;
 }
-
-// ==================== Scenario Generators ====================
-
 /**
  * Counter state for scenario ID generation.
  * Using an object to pass by reference through generator functions.
@@ -818,9 +809,6 @@ function generateSecurityScenarios(
 
   return scenarios.slice(0, maxScenarios);
 }
-
-// ==================== Main Generation Functions ====================
-
 /**
  * Generate test scenarios for a single tool.
  */
@@ -993,9 +981,6 @@ export function generateBaselineScenarios(
     },
   };
 }
-
-// ==================== Formatting Functions ====================
-
 /**
  * Format scenarios as YAML for test execution.
  */

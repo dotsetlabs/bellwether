@@ -199,22 +199,13 @@ export function evaluateAssertion(
 
 /**
  * Evaluate all assertions for a response.
- *
- * Automatically extracts and parses JSON content from MCP tool call results.
- * This allows assertions to check paths like 'success', 'note.id' directly
- * rather than needing to navigate through 'content[0].text'.
- *
- * When isError is true and response is null/undefined (MCP threw an exception),
- * creates an error object to allow assertions like { path: 'error', condition: 'exists' }
- * to pass for error handling test cases.
+ * Extracts JSON content from MCP results for direct path access.
  */
 export function evaluateAssertions(
   assertions: ScenarioAssertion[],
   response: unknown,
   isError: boolean
 ): AssertionResult[] {
-  // Handle the case where MCP threw an exception (response is null but isError is true)
-  // This allows error handling test cases to verify that errors occur
   if (isError && (response === null || response === undefined)) {
     const errorResponse = {
       error: true,

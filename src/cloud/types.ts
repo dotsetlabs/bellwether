@@ -14,11 +14,6 @@ import type {
   InferredSchema,
   ErrorPattern,
 } from '../baseline/response-fingerprint.js';
-
-// ============================================================================
-// Cloud Assertion Format
-// ============================================================================
-
 /**
  * Assertion type for cloud API.
  * Maps to: expects (positive), requires (critical), warns (negative), notes (informational)
@@ -45,9 +40,7 @@ export interface CloudAssertion {
   severity?: CloudAssertionSeverity;
 }
 
-// ============================================================================
 // Baseline Format v1.0
-// ============================================================================
 
 /**
  * Baseline format version for cloud compatibility.
@@ -233,11 +226,6 @@ export interface BellwetherBaseline {
   /** SHA-256 hash of content (first 16 chars) for integrity */
   hash: string;
 }
-
-// ============================================================================
-// Cloud API Types
-// ============================================================================
-
 /**
  * Configuration for the cloud client.
  */
@@ -457,11 +445,6 @@ export interface BadgeInfo {
   /** Latest version number */
   latestVersion?: number;
 }
-
-// ============================================================================
-// Cloud Client Interface
-// ============================================================================
-
 /**
  * Interface for Bellwether Cloud client implementations.
  *

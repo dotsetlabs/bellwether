@@ -125,11 +125,6 @@ export class BellwetherError extends Error {
     };
   }
 }
-
-// =============================================================================
-// Transport Errors
-// =============================================================================
-
 /**
  * Base class for transport-related errors.
  */
@@ -257,11 +252,6 @@ export class BufferOverflowError extends TransportError {
     this.maxSize = maxSize;
   }
 }
-
-// =============================================================================
-// LLM Errors
-// =============================================================================
-
 /**
  * Base class for LLM-related errors.
  */
@@ -451,11 +441,6 @@ export class LLMConnectionError extends LLMError {
     this.name = 'LLMConnectionError';
   }
 }
-
-// =============================================================================
-// Interview Errors
-// =============================================================================
-
 /**
  * Base class for interview-related errors.
  */
@@ -555,11 +540,6 @@ export class AnalysisError extends InterviewError {
     this.name = 'AnalysisError';
   }
 }
-
-// =============================================================================
-// Workflow Errors
-// =============================================================================
-
 /**
  * Base class for workflow-related errors.
  */
@@ -701,11 +681,6 @@ export class AssertionError extends WorkflowError {
     this.actualValue = actualValue;
   }
 }
-
-// =============================================================================
-// Configuration Errors
-// =============================================================================
-
 /**
  * Configuration-related error.
  */
@@ -755,11 +730,6 @@ export class ConfigValidationError extends ConfigError {
     this.validationErrors = errors;
   }
 }
-
-// =============================================================================
-// Utility Functions
-// =============================================================================
-
 /**
  * Check if an error is a BellwetherError.
  */

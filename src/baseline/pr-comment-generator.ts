@@ -13,9 +13,6 @@ import type {
   ChangeSeverity,
 } from './types.js';
 import type { MigrationGuide } from './migration-generator.js';
-
-// ==================== Types ====================
-
 /**
  * Severity badge configuration.
  */
@@ -88,9 +85,6 @@ export interface PRCommentConfig {
   /** Head branch name */
   headBranch?: string;
 }
-
-// ==================== Badge Generation ====================
-
 /**
  * Get badge color for severity level.
  */
@@ -114,9 +108,6 @@ export function generateBadgeMarkdown(label: string, message: string, color: Bad
   const url = generateBadgeUrl(label, message, color);
   return `![${label}](${url})`;
 }
-
-// ==================== Section Generators ====================
-
 /**
  * Generate the summary section.
  */
@@ -423,9 +414,6 @@ function generateActionItems(diff: BehavioralDiff): string[] {
 
   return items;
 }
-
-// ==================== Helper Functions ====================
-
 /**
  * Format a behavior aspect for display.
  */
@@ -468,9 +456,6 @@ function generateFooter(config: PRCommentConfig): string {
 
   return lines.join('\n');
 }
-
-// ==================== Main Generation Functions ====================
-
 /**
  * Generate a complete PR comment for a behavioral diff.
  */

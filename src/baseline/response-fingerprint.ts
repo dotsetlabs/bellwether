@@ -101,10 +101,6 @@ export interface ResponseAnalysis {
   isConsistent: boolean;
 }
 
-// =============================================================================
-// Core Fingerprinting Functions
-// =============================================================================
-
 /**
  * Analyze multiple tool responses to create a comprehensive fingerprint.
  */
@@ -434,10 +430,6 @@ function checkIsEmpty(content: unknown): boolean {
   return false;
 }
 
-// =============================================================================
-// Schema Inference
-// =============================================================================
-
 /**
  * Infer a JSON schema from a sample value.
  */
@@ -588,10 +580,6 @@ function mergeSchemas(schemas: InferredSchema[]): InferredSchema {
   return { type: 'mixed' };
 }
 
-// =============================================================================
-// Error Pattern Analysis
-// =============================================================================
-
 /**
  * Analyze error responses to extract patterns.
  */
@@ -712,10 +700,6 @@ function hashErrorPattern(message: string): string {
 
   return createHash('sha256').update(normalized).digest('hex').slice(0, 12);
 }
-
-// =============================================================================
-// Comparison Functions
-// =============================================================================
 
 /**
  * Compare two response fingerprints and return differences.
