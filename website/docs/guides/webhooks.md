@@ -98,7 +98,7 @@ All webhook payloads follow this structure:
     "hash": "a1b2c3d4",
     "toolCount": 5,
     "serverName": "my-server",
-    "cliVersion": "0.5.4"
+    "cliVersion": "0.6.0"
   }
 }
 ```

@@ -97,13 +97,12 @@ describe('watch command', () => {
           timeout: 30000,
           env: {},
         },
-        mode: 'structural',
         llm: {
           provider: 'ollama',
           model: '',
           ollama: { baseUrl: 'http://localhost:11434' },
         },
-        test: {
+        explore: {
           personas: [],
           maxQuestionsPerTool: 3,
           parallelPersonas: false,
@@ -125,7 +124,7 @@ describe('watch command', () => {
     }));
 
     vi.doMock('../../src/config/validator.js', () => ({
-      validateConfigForTest: vi.fn(),
+      validateConfigForCheck: vi.fn(),
     }));
 
     vi.doMock('../../src/persona/builtins.js', () => {

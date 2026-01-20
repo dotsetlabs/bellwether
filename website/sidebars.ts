@@ -23,7 +23,8 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'cli/init',
-        'cli/test',
+        'cli/check',
+        'cli/explore',
         'cli/baseline',
         'cli/watch',
         'cli/discover',

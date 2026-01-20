@@ -12,6 +12,7 @@ import { analyzeResponses } from './response-fingerprint.js';
 import type {
   BellwetherBaseline,
   BaselineMetadata,
+  BaselineMode,
   CloudServerFingerprint,
   ToolCapability,
   ResourceCapability,
@@ -23,7 +24,7 @@ import type {
   CloudAssertionType,
   CloudAssertionSeverity,
 } from '../cloud/types.js';
-import { BASELINE_FORMAT_VERSION } from './version.js';
+import { getBaselineVersion } from './version.js';
 import { VERSION } from '../version.js';
 
 /**
@@ -99,6 +100,24 @@ function convertAssertions(assertions: BehavioralAssertion[]): CloudAssertion[] 
 }
 
 /**
+ * Derive baseline mode from local mode or result metadata.
+ * Maps 'contract' -> 'check', 'document' -> 'explore'
+ */
+function deriveCloudMode(
+  localMode?: 'contract' | 'document',
+  resultModel?: string
+): BaselineMode {
+  // If we have a local mode, map it to cloud mode
+  if (localMode === 'contract') return 'check';
+  if (localMode === 'document') return 'explore';
+
+  // Otherwise derive from result metadata
+  if (resultModel === 'check' || resultModel === 'contract') return 'check';
+
+  return 'explore';
+}
+
+/**
  * Convert a BehavioralBaseline to cloud BellwetherBaseline format.
  */
 export function convertToCloudBaseline(
@@ -106,9 +125,12 @@ export function convertToCloudBaseline(
   discovery?: DiscoveryResult,
   interviewResult?: InterviewResult
 ): BellwetherBaseline {
+  // Derive mode from baseline or result
+  const mode = deriveCloudMode(baseline.mode, interviewResult?.metadata.model);
+
   // Build metadata
   const metadata: BaselineMetadata = {
-    formatVersion: BASELINE_FORMAT_VERSION,
+    mode,
     generatedAt: baseline.createdAt.toISOString(),
     cliVersion: VERSION,
     serverCommand: baseline.serverCommand,
@@ -155,7 +177,7 @@ export function convertToCloudBaseline(
   const hash = hashString(contentForHash);
 
   return {
-    version: BASELINE_FORMAT_VERSION,
+    version: getBaselineVersion(),
     metadata,
     server,
     capabilities,
@@ -200,7 +222,7 @@ function buildCapabilities(
       ? getToolSchema(discovery, tool.name)
       : (tool.inputSchema ?? {}),
     schemaHash: tool.schemaHash,
-    // Response fingerprinting (structural mode enhancement)
+    // Response fingerprinting (contract mode enhancement)
     responseFingerprint: tool.responseFingerprint,
     inferredOutputSchema: tool.inferredOutputSchema,
     errorPatterns: tool.errorPatterns,
@@ -446,9 +468,12 @@ export function createCloudBaseline(
   result: InterviewResult,
   serverCommand: string
 ): BellwetherBaseline {
+  // Derive mode from result metadata
+  const mode = deriveCloudMode(undefined, result.metadata.model);
+
   // Build metadata
   const metadata: BaselineMetadata = {
-    formatVersion: BASELINE_FORMAT_VERSION,
+    mode,
     generatedAt: new Date().toISOString(),
     cliVersion: VERSION,
     serverCommand,
@@ -484,7 +509,7 @@ export function createCloudBaseline(
       description: tool.description ?? '',
       inputSchema: tool.inputSchema ?? {},
       schemaHash: hashString(JSON.stringify(tool.inputSchema ?? {})),
-      // Response fingerprinting (structural mode enhancement)
+      // Response fingerprinting (contract mode enhancement)
       responseFingerprint: analysis?.fingerprint,
       inferredOutputSchema: analysis?.inferredSchema,
       errorPatterns: analysis?.errorPatterns.length ? analysis.errorPatterns : undefined,
@@ -548,7 +573,7 @@ export function createCloudBaseline(
   const hash = hashString(contentForHash);
 
   return {
-    version: BASELINE_FORMAT_VERSION,
+    version: getBaselineVersion(),
     metadata,
     server,
     capabilities: { tools, prompts },

@@ -36,7 +36,7 @@ EACCES: permission denied
 
 ```bash
 # Option 1: Use npx (no install needed)
-npx @dotsetlabs/bellwether test npx server
+npx @dotsetlabs/bellwether check npx server
 
 # Option 2: Fix npm permissions
 sudo chown -R $(whoami) ~/.npm
@@ -44,6 +44,8 @@ npm install -g @dotsetlabs/bellwether
 ```
 
 ## LLM Provider Issues
+
+These issues only apply to `bellwether explore`. The `bellwether check` command doesn't use LLMs.
 
 ### API Key Not Found
 
@@ -87,7 +89,7 @@ Error: 429 Too Many Requests
 
 **Solution:**
 - Wait and retry
-- Use `--max-questions 1` to reduce API calls
+- Reduce `explore.maxQuestionsPerTool` in bellwether.yaml
 - Consider upgrading your API plan
 
 ### Ollama Connection Refused
@@ -127,9 +129,10 @@ Error: Failed to connect to MCP server
    npm install
    ```
 
-3. **Increase timeout:**
-   ```bash
-   bellwether test --timeout 60000 npx server
+3. **Increase timeout in bellwether.yaml:**
+   ```yaml
+   server:
+     timeout: 60000
    ```
 
 ### Server Crashes
@@ -140,9 +143,9 @@ Error: Server process exited unexpectedly
 
 **Solutions:**
 
-1. **Check server logs:**
+1. **Enable debug logging:**
    ```bash
-   bellwether test --debug npx server
+   bellwether check --log-level debug npx server
    ```
 
 2. **Test server independently:**
@@ -164,18 +167,19 @@ Error: Tool 'my_tool' not found
 bellwether discover npx server
 ```
 
-## Test Issues
+## Check Mode Issues
 
-### Timeout During Test
+### Timeout During Check
 
 ```
 Error: Tool call timed out
 ```
 
-**Solution:** Increase timeout:
+**Solution:** Increase timeout in bellwether.yaml:
 
-```bash
-bellwether test --timeout 120000 npx server
+```yaml
+server:
+  timeout: 120000
 ```
 
 ### Empty Results
@@ -193,23 +197,32 @@ Warning: No tools discovered
 
 2. **Verify server implementation** returns tools in `tools/list`
 
+## Explore Mode Issues
+
 ### Poor Quality Results
 
 **Solutions:**
 
-1. **Use a better model:**
-   ```bash
-   bellwether test --model gpt-4o npx server
+1. **Use a better model in bellwether.yaml:**
+   ```yaml
+   llm:
+     model: gpt-5.2
    ```
 
 2. **Increase questions:**
-   ```bash
-   bellwether test --max-questions 5 npx server
+   ```yaml
+   explore:
+     maxQuestionsPerTool: 5
    ```
 
 3. **Use multiple personas:**
-   ```bash
-   bellwether test --persona technical_writer,security_tester npx server
+   ```yaml
+   explore:
+     personas:
+       - technical_writer
+       - security_tester
+       - qa_engineer
+       - novice_user
    ```
 
 ## Drift Detection Issues
@@ -223,7 +236,7 @@ Error: Baseline file not found: ./bellwether-baseline.json
 **Solution:** Create a baseline first:
 
 ```bash
-bellwether test npx server
+bellwether check npx server
 bellwether baseline save
 ```
 
@@ -233,22 +246,40 @@ If you're seeing drift you don't expect:
 
 1. **Review the diff output** to understand what changed
 
-2. **Check if behavior actually changed** vs. LLM interpretation variance
+2. **Check if schemas actually changed** in the server
 
 3. **Update baseline if changes are intentional:**
    ```bash
-   bellwether test npx server
+   bellwether check npx server
    bellwether baseline save --force
    git add bellwether-baseline.json
    git commit -m "Update baseline"
    ```
+
+### Version Mismatch Error
+
+```
+Error: Version Compatibility Error
+```
+
+**Solution:** Migrate your baseline to the current format:
+
+```bash
+bellwether baseline migrate ./bellwether-baseline.json
+```
+
+Or force comparison (results may be less accurate):
+
+```bash
+bellwether baseline compare ./old-baseline.json --ignore-version-mismatch
+```
 
 ## CI/CD Issues
 
 ### Exit Code 1 in CI
 
 ```
-Error: Behavioral drift detected
+Error: Drift detected
 ```
 
 This is expected when drift is found. Options:
@@ -257,30 +288,29 @@ This is expected when drift is found. Options:
 2. **Update the baseline if changes are intentional**
 3. **Remove `--fail-on-drift` to allow drift**
 
-### Exit Code 2 in CI
-
-```
-Error: Test failed
-```
+### API Key Not Found in CI
 
 **Solutions:**
 
-1. **Check API key is set in CI secrets**
+1. **For check mode:** No API key needed! Make sure you're using `bellwether check`, not `bellwether explore`.
 
-2. **Enable debug logging:**
+2. **For explore mode:** Set the secret in your CI configuration:
+
+   GitHub Actions:
+   ```yaml
+   env:
+     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+   ```
+
+3. **Enable debug logging:**
    ```yaml
    - run: |
-       bellwether test --debug --log-file debug.log npx server
+       bellwether check --log-level debug --log-file debug.log
    - uses: actions/upload-artifact@v4
      if: failure()
      with:
        name: debug-logs
        path: debug.log
-   ```
-
-3. **Test locally first:**
-   ```bash
-   bellwether test --ci npx server
    ```
 
 ## Cloud Issues
@@ -295,11 +325,26 @@ Error: Authentication failed
 
 1. **Try logging in again:**
    ```bash
-   bellwether login --logout
    bellwether login
    ```
 
 2. **Check your account at** [bellwether.sh](https://bellwether.sh)
+
+### Beta Email Mismatch
+
+```
+Error: Email mismatch: This invitation was sent to user@example.com, but you signed in with a GitHub account using other@example.com.
+```
+
+This error occurs when your beta invitation code was issued to a different email than your GitHub account's email.
+
+**Solutions:**
+
+1. **Use the correct GitHub account** - Sign in with a GitHub account that has the same email address as your invitation.
+
+2. **Check your GitHub email settings** at [github.com/settings/emails](https://github.com/settings/emails) to see which email is primary.
+
+3. **Request a new invitation** if you need to use a different email address.
 
 ### Upload Failed
 
@@ -311,7 +356,7 @@ Error: Failed to upload baseline
 
 1. **Check you're logged in:**
    ```bash
-   bellwether login --status
+   bellwether login
    ```
 
 2. **Verify project is linked:**
@@ -321,7 +366,7 @@ Error: Failed to upload baseline
 
 3. **Re-link if needed:**
    ```bash
-   bellwether link
+   bellwether link my-project
    ```
 
 ## Debug Mode
@@ -329,8 +374,7 @@ Error: Failed to upload baseline
 For detailed troubleshooting, enable debug mode:
 
 ```bash
-bellwether test \
-  --debug \
+bellwether check \
   --log-level debug \
   --log-file ./debug.log \
   npx server
@@ -338,9 +382,19 @@ bellwether test \
 
 This logs:
 - MCP protocol messages
-- LLM requests and responses
 - Tool call details
 - Timing information
+
+For explore mode:
+```bash
+bellwether explore \
+  --log-level debug \
+  --log-file ./debug.log \
+  npx server
+```
+
+This also logs:
+- LLM requests and responses
 
 ## Getting Help
 

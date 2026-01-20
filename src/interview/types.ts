@@ -5,7 +5,8 @@ import type {
   MCPResourceReadResult,
 } from '../transport/types.js';
 import type { Persona, QuestionCategory } from '../persona/types.js';
-import type { Workflow, WorkflowResult
+import type {
+  Workflow, WorkflowResult
 } from '../workflow/types.js';
 import type { LoadedScenarios, ScenarioResult } from '../scenarios/types.js';
 import type { ToolResponseCache } from '../cache/response-cache.js';
@@ -91,7 +92,7 @@ export interface InterviewConfig {
   /** Workflow testing configuration */
   workflowConfig?: WorkflowConfig;
   /** Skip LLM analysis for fast CI runs (uses fallback questions, skips synthesis) */
-  structuralOnly?: boolean;
+  contractOnly?: boolean;
   /** Server command (for metadata tracking) */
   serverCommand?: string;
 }

@@ -65,9 +65,9 @@ export interface ToolDiff {
   changes: BehaviorChange[];
   schemaChanged: boolean;
   descriptionChanged: boolean;
-  /** Whether response structure changed (structural mode) */
+  /** Whether response structure changed (contract mode) */
   responseStructureChanged: boolean;
-  /** Whether error patterns changed (structural mode) */
+  /** Whether error patterns changed (contract mode) */
   errorPatternsChanged: boolean;
   previous?: ToolProfile;
   current?: ToolProfile;
@@ -117,7 +117,7 @@ export interface ToolFingerprint {
   securityNotes: string[];
   limitations: string[];
 
-  // Response fingerprinting (structural mode enhancement)
+  // Response fingerprinting (contract mode enhancement)
   /** Fingerprint of the tool's response structure */
   responseFingerprint?: ResponseFingerprint;
   /** Inferred JSON schema of the tool's output */
@@ -158,10 +158,10 @@ export interface ServerFingerprint {
 
 /**
  * Mode used to create the baseline.
- * - full: Created with LLM analysis (rich behavioral data)
- * - structural: Created without LLM (CI mode, structural data only)
+ * - document: Created with LLM analysis (rich behavioral data)
+ * - contract: Created without LLM (CI mode, contract data only)
  */
-export type BaselineMode = 'full' | 'structural';
+export type BaselineMode = 'document' | 'contract';
 
 /**
  * Baseline for an MCP server.

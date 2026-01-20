@@ -6,9 +6,9 @@ sidebar_position: 1
 
 # Bellwether
 
-> **Test your MCP servers. Catch drift. Get documentation for free.**
+> **Catch drift in your MCP servers. Generate documentation for free.**
 
-Bellwether is a CLI tool for **behavioral drift detection** in MCP servers. It catches regressions before deployment and generates AGENTS.md documentation as a byproduct.
+Bellwether is a CLI tool for **structural drift detection** in MCP servers. It catches breaking changes before deployment and generates CONTRACT.md documentation as a byproduct—all without requiring an LLM.
 
 ## What is MCP?
 
@@ -22,25 +22,23 @@ Your AI Assistant (Claude, GPT, Cursor, etc.)
 Your MCP Server (tools, data, capabilities)
 ```
 
-**Already familiar with MCP?** Skip to [Quick Start](/quickstart).
-
 ---
 
 ## Why Bellwether?
 
 | Problem | Solution |
 |:--------|:---------|
-| Breaking changes slip into production | **Drift detection** catches regressions before deployment |
-| Manual testing misses edge cases | **Multi-persona testing** covers technical, security, QA, and novice perspectives |
+| Breaking changes slip into production | **Drift detection** catches schema changes before deployment |
+| Manual testing misses edge cases | **LLM-powered exploration** covers technical, security, QA, and novice perspectives |
 | Security vulnerabilities go unnoticed | **Security persona** tests for path traversal, injection, info disclosure |
-| Documentation gets stale | **AGENTS.md** is generated from actual behavior |
+| Documentation gets stale | **CONTRACT.md / AGENTS.md** generated from actual behavior |
 
-## Two Testing Modes
+## Two Commands
 
-| Mode | Cost | Best For |
-|:-----|:-----|:---------|
-| **Structural** (default) | Free | CI/CD, fast checks, schema validation |
-| **Full** | ~$0.01-0.15 | Deep testing, documentation, security audits |
+| Command | Cost | Best For |
+|:--------|:-----|:---------|
+| **`bellwether check`** | Free | CI/CD, fast checks, schema validation, drift detection |
+| **`bellwether explore`** | ~$0.01-0.15 | Deep testing, documentation, security audits (requires LLM) |
 
 See [Test Modes](/concepts/test-modes) for details.
 
@@ -50,28 +48,34 @@ See [Test Modes](/concepts/test-modes) for details.
 # Install
 npm install -g @dotsetlabs/bellwether
 
-# Initialize (structural mode is free)
-bellwether init "npx @modelcontextprotocol/server-filesystem /tmp"
+# Initialize configuration
+bellwether init
 
-# Run test
-bellwether test
+# Run check (free, fast, deterministic)
+bellwether check
 
 # Save baseline for drift detection
 bellwether baseline save
+
+# Detect drift in CI
+bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
 ```
 
 ## What You Get
 
-After running a test, Bellwether generates:
-
-- **AGENTS.md** - Documentation of tool behavior, parameters, error handling
-- **bellwether-report.json** - Machine-readable test results
+### From `bellwether check` (free, no LLM):
+- **CONTRACT.md** - Structural documentation of tool schemas and parameters
+- **bellwether-check.json** - Machine-readable validation results
 - **bellwether-baseline.json** - Baseline for future drift comparison
+
+### From `bellwether explore` (requires LLM):
+- **AGENTS.md** - Behavioral documentation from multi-persona exploration
+- **bellwether-explore.json** - Detailed exploration results
 
 ## Next Steps
 
 - [Installation](/installation) - Install and configure Bellwether
-- [Quick Start](/quickstart) - Run your first test
-- [Test Modes](/concepts/test-modes) - Choose between structural and full modes
-- [CLI Reference](/cli/init) - Full command documentation
+- [Quick Start](/quickstart) - Run your first check
+- [Test Modes](/concepts/test-modes) - Understand check vs explore
+- [CLI Reference](/cli/check) - Full command documentation
 - [Cloud](/cloud) - Baseline history and verification badges

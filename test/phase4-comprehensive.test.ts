@@ -478,7 +478,7 @@ describe('Malformed Input Tests', () => {
       // Should not crash, applies defaults (empty YAML parses to null)
       const config = loadConfig(configPath);
       expect(config).toBeDefined();
-      expect(config.mode).toBe('structural');
+      expect(config.llm.provider).toBe('ollama');
     });
 
     it('should handle config with only comments', () => {
@@ -488,7 +488,7 @@ describe('Malformed Input Tests', () => {
       // Comments-only parses to null, applies defaults
       const config = loadConfig(configPath);
       expect(config).toBeDefined();
-      expect(config.mode).toBe('structural');
+      expect(config.llm.provider).toBe('ollama');
     });
 
     it('should handle config with unknown fields', () => {
@@ -496,14 +496,13 @@ describe('Malformed Input Tests', () => {
       writeFileSync(
         configPath,
         `
-mode: structural
 unknownField: true
 anotherUnknown:
   nested: value
 llm:
   provider: openai
   model: gpt-4
-test:
+explore:
   maxQuestionsPerTool: 3
 output:
   format: agents.md
@@ -520,7 +519,6 @@ output:
       writeFileSync(
         configPath,
         `
-mode: structural
 llm:
   provider: invalid_provider
 `
@@ -535,8 +533,7 @@ llm:
       writeFileSync(
         configPath,
         `
-mode: structural
-test:
+explore:
   maxQuestionsPerTool: "5"
 `
       );

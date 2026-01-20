@@ -70,15 +70,12 @@ describe('cli/init', () => {
       expect(content).toContain('command:');
       expect(content).toContain('timeout:');
 
-      // Mode
-      expect(content).toContain('mode: structural');
-
       // LLM section
       expect(content).toContain('llm:');
       expect(content).toContain('provider: ollama');
 
-      // Test settings
-      expect(content).toContain('test:');
+      // Explore settings
+      expect(content).toContain('explore:');
       expect(content).toContain('maxQuestionsPerTool:');
 
       // Output section
@@ -105,7 +102,6 @@ describe('cli/init', () => {
       // Should validate without throwing
       const validated = validateConfig(parsed);
       expect(validated).toBeDefined();
-      expect(validated.mode).toBe('structural');
       expect(validated.llm.provider).toBe('ollama');
     });
 
@@ -128,12 +124,12 @@ describe('cli/init', () => {
       expect(content).toContain('/data');
     });
 
-    it('should set full mode when requested', () => {
+    it('should set provider when requested', () => {
       const content = generateConfigTemplate({
-        mode: 'full',
+        provider: 'openai',
       });
 
-      expect(content).toContain('mode: full');
+      expect(content).toContain('provider: openai');
     });
 
     it('should set different LLM providers', () => {
@@ -161,9 +157,7 @@ describe('cli/init', () => {
       const parsed = parseYamlSecure(content);
       const validated = validateConfig(parsed);
 
-      // CI preset uses structural mode (fast, free, deterministic)
-      expect(validated.mode).toBe('structural');
-      // Structural mode sets failOnDrift to true by default
+      // CI preset optimized for fast, free, deterministic check
       expect(validated.baseline.failOnDrift).toBe(true);
     });
 
@@ -172,12 +166,10 @@ describe('cli/init', () => {
       const parsed = parseYamlSecure(content);
       const validated = validateConfig(parsed);
 
-      // Security preset uses full mode with openai
-      expect(validated.mode).toBe('full');
+      // Security preset uses openai for exploration
       expect(validated.llm.provider).toBe('openai');
-      // The base template includes technical_writer by default in full mode
-      // Additional personas from getPresetOverrides would be added separately
-      expect(validated.test.personas).toContain('technical_writer');
+      // Base template includes technical_writer; additional personas can be added via getPresetOverrides
+      expect(validated.explore.personas).toBeDefined();
     });
 
     it('should generate thorough preset config', () => {
@@ -185,11 +177,10 @@ describe('cli/init', () => {
       const parsed = parseYamlSecure(content);
       const validated = validateConfig(parsed);
 
-      // Thorough preset uses full mode with openai
-      expect(validated.mode).toBe('full');
+      // Thorough preset uses openai
       expect(validated.llm.provider).toBe('openai');
-      // Base template defaults - overrides would add more settings
-      expect(validated.test.personas).toContain('technical_writer');
+      // Base template has personas defined
+      expect(validated.explore.personas).toBeDefined();
     });
 
     it('should generate local preset config', () => {
@@ -197,8 +188,7 @@ describe('cli/init', () => {
       const parsed = parseYamlSecure(content);
       const validated = validateConfig(parsed);
 
-      // Local preset uses full mode with ollama
-      expect(validated.mode).toBe('full');
+      // Local preset uses ollama for free local exploration
       expect(validated.llm.provider).toBe('ollama');
     });
 
@@ -222,7 +212,6 @@ describe('cli/init', () => {
       expect(existsSync(configPath)).toBe(true);
 
       const fileContent = readFileSync(configPath, 'utf-8');
-      expect(fileContent).toContain('mode: structural');
       expect(fileContent).toContain('provider: ollama');
     });
 
@@ -250,7 +239,7 @@ describe('cli/init', () => {
       writeFileSync(configPath, content);
 
       const fileContent = readFileSync(configPath, 'utf-8');
-      expect(fileContent).toContain('mode: structural');
+      expect(fileContent).toContain('provider: ollama');
       expect(fileContent).not.toContain('existing: content');
     });
   });

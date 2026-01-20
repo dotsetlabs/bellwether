@@ -39,8 +39,6 @@ export type {
   StoredSession,
 } from './types.js';
 
-export { BASELINE_FORMAT_VERSION } from './types.js';
-
 // Client factory
 export { createCloudClient, createCloudClientWithSession } from './client.js';
 

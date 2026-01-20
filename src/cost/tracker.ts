@@ -263,12 +263,12 @@ export function estimateInterviewTime(
   provider: string = 'openai',
   promptCount: number = 0,
   resourceCount: number = 0,
-  structuralOnly: boolean = false
+  contractOnly: boolean = false
 ): InterviewTimeEstimate {
   const isLocal = isLocalProvider(provider);
 
   // Fast CI mode: skips all LLM calls, only executes tool calls
-  if (structuralOnly) {
+  if (contractOnly) {
     // Just tool execution + network overhead
     const totalItems = toolCount + promptCount + resourceCount;
     const executionTime = totalItems * 0.5; // ~0.5s per item for direct calls

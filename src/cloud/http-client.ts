@@ -2,6 +2,8 @@
  * HTTP cloud client for production API.
  *
  * Makes real HTTP requests to the Bellwether Cloud API.
+ * Handles automatic session token rotation when the server returns
+ * a new token via the X-Rotated-Session-Token header.
  */
 
 import type {
@@ -14,6 +16,12 @@ import type {
   BellwetherBaseline,
   BadgeInfo,
 } from './types.js';
+import { updateSessionToken } from './auth.js';
+
+/**
+ * Header name for receiving rotated session token from server.
+ */
+const ROTATED_TOKEN_HEADER = 'x-rotated-session-token';
 
 /**
  * API error response.
@@ -68,6 +76,8 @@ export class HttpCloudClient implements BellwetherCloudClient {
 
   /**
    * Make an authenticated request.
+   * Handles automatic session token rotation when the server returns
+   * a new token via the X-Rotated-Session-Token header.
    */
   private async request<T>(
     method: string,
@@ -97,6 +107,18 @@ export class HttpCloudClient implements BellwetherCloudClient {
       });
 
       clearTimeout(timeoutId);
+
+      // Check for rotated session token
+      const rotatedToken = response.headers.get(ROTATED_TOKEN_HEADER);
+      if (rotatedToken) {
+        // Update stored session with new token (non-blocking)
+        updateSessionToken(rotatedToken).catch(() => {
+          // Silently ignore errors - rotation is best-effort
+          // The old token will still work during grace period
+        });
+        // Update this client's token for subsequent requests
+        this.sessionToken = rotatedToken;
+      }
 
       if (!response.ok) {
         let errorData: ApiError;

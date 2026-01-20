@@ -3,9 +3,13 @@
  *
  * This module defines types for:
  * - Cloud API communication
- * - BellwetherBaseline v1.0 format (cloud-ready)
+ * - BellwetherBaseline format (cloud-ready)
  * - Project and baseline management
  * - Authentication
+ *
+ * Baseline versioning uses CLI package version:
+ * - Same CLI major version = compatible baselines
+ * - Different CLI major version = requires migration
  */
 
 import type { WorkflowSignature } from '../baseline/types.js';
@@ -14,6 +18,7 @@ import type {
   InferredSchema,
   ErrorPattern,
 } from '../baseline/response-fingerprint.js';
+
 /**
  * Assertion type for cloud API.
  * Maps to: expects (positive), requires (critical), warns (negative), notes (informational)
@@ -40,23 +45,22 @@ export interface CloudAssertion {
   severity?: CloudAssertionSeverity;
 }
 
-// Baseline Format v1.0
-
 /**
- * Baseline format version for cloud compatibility.
- * Uses semantic versioning: MAJOR.MINOR.PATCH
+ * Baseline mode indicating how the baseline was generated.
+ * - 'check': Deterministic structural testing (no LLM required)
+ * - 'explore': LLM-powered behavioral exploration
  */
-export const BASELINE_FORMAT_VERSION = '1.0.0' as const;
+export type BaselineMode = 'check' | 'explore';
 
 /**
  * Metadata about how the baseline was generated.
  */
 export interface BaselineMetadata {
-  /** Format version for compatibility */
-  formatVersion: typeof BASELINE_FORMAT_VERSION;
+  /** Baseline mode: 'check' = deterministic, 'explore' = LLM-powered */
+  mode: BaselineMode;
   /** ISO timestamp when generated */
   generatedAt: string;
-  /** CLI version that generated this */
+  /** CLI version that generated this baseline */
   cliVersion: string;
   /** Command used to start the server */
   serverCommand: string;
@@ -64,9 +68,9 @@ export interface BaselineMetadata {
   serverName?: string;
   /** Interview duration in milliseconds */
   durationMs: number;
-  /** Personas used during interview */
+  /** Personas used during interview (empty for check mode) */
   personas: string[];
-  /** LLM model used */
+  /** LLM model used ('none' for check mode) */
   model: string;
 }
 
@@ -96,7 +100,7 @@ export interface ToolCapability {
   inputSchema: Record<string, unknown>;
   /** Hash of the schema for change detection */
   schemaHash: string;
-  // Response fingerprinting (structural mode enhancement)
+  // Response fingerprinting (contract mode enhancement)
   /** Fingerprint of the tool's response structure */
   responseFingerprint?: ResponseFingerprint;
   /** Inferred JSON schema of the tool's output */
@@ -186,13 +190,16 @@ export interface CloudToolProfile {
 }
 
 /**
- * Cloud-ready baseline format v1.0.0.
+ * Cloud-ready baseline format.
  *
  * This is the format used for uploading to Bellwether Cloud.
  * It's a superset of the local BehavioralBaseline with additional metadata.
+ *
+ * Versioning: Uses CLI package version for compatibility checking.
+ * Baselines with the same CLI major version are compatible.
  */
 export interface BellwetherBaseline {
-  /** Format version using semantic versioning (e.g., '1.0.0') */
+  /** CLI version that generated this baseline (e.g., '0.6.0') */
   version: string;
 
   /** Generation metadata */
@@ -268,6 +275,8 @@ export interface BaselineVersion {
   projectId: string;
   /** Version number (auto-incrementing per project) */
   version: number;
+  /** Baseline mode: 'check' or 'explore' */
+  mode: BaselineMode;
   /** ISO timestamp when uploaded */
   uploadedAt: string;
   /** CLI version that generated this baseline */
@@ -372,6 +381,8 @@ export interface StoredSession {
   activeTeamId?: string;
   /** All teams the user belongs to */
   teams?: SessionTeam[];
+  /** ISO timestamp when the session token was last rotated */
+  tokenRotatedAt?: string;
 }
 
 /**

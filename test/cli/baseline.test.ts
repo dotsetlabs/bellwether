@@ -57,7 +57,7 @@ describe('baseline command', () => {
       startTime: new Date().toISOString(),
       endTime: new Date().toISOString(),
       duration: 1000,
-      mode: 'structural',
+      mode: 'contract',
       provider: 'ollama',
       model: 'llama3.2',
       serverCommand: 'npx @mcp/test-server',
@@ -76,7 +76,7 @@ describe('baseline command', () => {
     version: '1.0.0',
     createdAt: new Date().toISOString(),
     serverCommand: 'npx @mcp/test-server',
-    mode: 'structural',
+    mode: 'contract',
     integrityHash: 'abc123def456',
     server: {
       name: 'test-server',
@@ -124,7 +124,7 @@ describe('baseline command', () => {
     });
 
     originalExit = process.exit;
-    vi.spyOn(process, 'exit').mockImplementation((code?: number) => {
+    vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
       throw new Error(`Process exit: ${code}`);
     });
 
@@ -134,7 +134,7 @@ describe('baseline command', () => {
     vi.doMock('../../src/config/loader.js', () => ({
       loadConfig: vi.fn().mockReturnValue({
         server: { command: '', args: [], timeout: 30000, env: {} },
-        mode: 'structural',
+        mode: 'contract',
         llm: { provider: 'ollama', model: '', ollama: { baseUrl: 'http://localhost:11434' } },
         test: { personas: [], maxQuestionsPerTool: 3, parallelPersonas: false, skipErrorTests: false },
         output: { dir: '.', format: 'agents.md', cloudFormat: false },
@@ -252,11 +252,11 @@ describe('baseline command', () => {
       expect(cloudOpt).toBeDefined();
     });
 
-    it('should have structural option', async () => {
+    it('should have contract option', async () => {
       const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
       const saveCmd = baselineCommand.commands.find(c => c.name() === 'save');
-      const structuralOpt = saveCmd?.options.find(o => o.long === '--structural');
-      expect(structuralOpt).toBeDefined();
+      const contractOpt = saveCmd?.options.find(o => o.long === '--contract');
+      expect(contractOpt).toBeDefined();
     });
 
     it('should have force option', async () => {

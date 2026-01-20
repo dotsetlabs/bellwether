@@ -1,5 +1,5 @@
-name: 'Bellwether MCP Test'
-description: 'Behavioral testing and drift detection for MCP servers'
+name: 'Bellwether MCP Check'
+description: 'Schema validation and drift detection for MCP servers'
 author: 'Dotset Labs LLC'
 
 branding:
@@ -8,7 +8,7 @@ branding:
 
 inputs:
   server-command:
-    description: 'MCP server command to test (e.g., "npx @mcp/your-server")'
+    description: 'MCP server command to check (e.g., "npx @mcp/your-server")'
     required: true
   server-args:
     description: 'Arguments to pass to the server command'
@@ -23,10 +23,10 @@ inputs:
     required: false
     default: 'bellwether-baseline.json'
   fail-on-drift:
-    description: 'Fail the action if behavioral drift is detected'
+    description: 'Fail the action if schema drift is detected'
     default: 'true'
   save-baseline:
-    description: 'Save baseline after test'
+    description: 'Save baseline after check'
     default: 'false'
   output-dir:
     description: 'Directory for output files'
@@ -40,14 +40,14 @@ outputs:
     description: 'Exit code (0=pass, 1=drift/fail, 2=error)'
     value: ${{ steps.test.outputs.exit-code }}
   drift-detected:
-    description: 'Whether behavioral drift was detected (true/false)'
+    description: 'Whether schema drift was detected (true/false)'
     value: ${{ steps.test.outputs.drift-detected }}
   tool-count:
     description: 'Number of tools discovered'
     value: ${{ steps.test.outputs.tool-count }}
-  agents-md:
-    description: 'Path to generated AGENTS.md file'
-    value: ${{ steps.test.outputs.agents-md }}
+  contract-md:
+    description: 'Path to generated CONTRACT.md file'
+    value: ${{ steps.test.outputs.contract-md }}
   baseline-file:
     description: 'Path to baseline file'
     value: ${{ steps.test.outputs.baseline-file }}
@@ -73,14 +73,11 @@ runs:
           bellwether init --preset ci ${{ inputs.server-command }} ${{ inputs.server-args }}
         fi
 
-    - name: Run Bellwether Test
+    - name: Run Bellwether Check
       shell: bash
       id: test
       env:
         BELLWETHER_CI: 'true'
-        OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
-        ANTHROPIC_API_KEY: ${{ env.ANTHROPIC_API_KEY }}
-        OLLAMA_BASE_URL: ${{ env.OLLAMA_BASE_URL }}
         BELLWETHER_SESSION: ${{ env.BELLWETHER_SESSION }}
         BELLWETHER_API_URL: ${{ env.BELLWETHER_API_URL }}
       run: |
@@ -90,89 +87,67 @@ runs:
         OUTPUT_DIR="${{ inputs.output-dir }}"
         BASELINE_PATH="${{ inputs.baseline-path }}"
 
-        # Run test
-        echo "Running: bellwether test --config $CONFIG_PATH ${{ inputs.server-command }} ${{ inputs.server-args }}"
-        TEST_OUTPUT=$(bellwether test --config "$CONFIG_PATH" ${{ inputs.server-command }} ${{ inputs.server-args }} 2>&1)
-        TEST_EXIT=$?
+        # Build check command flags
+        CHECK_FLAGS="--config $CONFIG_PATH"
+        if [ -f "$BASELINE_PATH" ] && [ "${{ inputs.save-baseline }}" != "true" ]; then
+          CHECK_FLAGS="$CHECK_FLAGS --baseline $BASELINE_PATH"
+        fi
+        if [ "${{ inputs.fail-on-drift }}" = "true" ]; then
+          CHECK_FLAGS="$CHECK_FLAGS --fail-on-drift"
+        fi
+        if [ "${{ inputs.save-baseline }}" = "true" ]; then
+          CHECK_FLAGS="$CHECK_FLAGS --save-baseline $BASELINE_PATH"
+        fi
 
-        echo "$TEST_OUTPUT"
+        # Run check
+        echo "Running: bellwether check $CHECK_FLAGS ${{ inputs.server-command }} ${{ inputs.server-args }}"
+        CHECK_OUTPUT=$(bellwether check $CHECK_FLAGS ${{ inputs.server-command }} ${{ inputs.server-args }} 2>&1)
+        CHECK_EXIT=$?
+
+        echo "$CHECK_OUTPUT"
 
         # Extract tool count from output
-        TOOL_COUNT=$(echo "$TEST_OUTPUT" | grep -oP 'Discovered \K\d+(?= tools)' || echo "0")
+        TOOL_COUNT=$(echo "$CHECK_OUTPUT" | grep -oP 'Found \K\d+(?= tools)' || echo "0")
         echo "tool-count=$TOOL_COUNT" >> $GITHUB_OUTPUT
 
-        # Check for AGENTS.md
-        AGENTS_MD="${OUTPUT_DIR}/AGENTS.md"
-        if [ -f "$AGENTS_MD" ]; then
-          echo "agents-md=$AGENTS_MD" >> $GITHUB_OUTPUT
+        # Check for CONTRACT.md
+        CONTRACT_MD="${OUTPUT_DIR}/CONTRACT.md"
+        if [ -f "$CONTRACT_MD" ]; then
+          echo "contract-md=$CONTRACT_MD" >> $GITHUB_OUTPUT
         fi
 
-        # If test failed, exit early
-        if [ $TEST_EXIT -ne 0 ]; then
-          echo "exit-code=$TEST_EXIT" >> $GITHUB_OUTPUT
-          echo "result=failed" >> $GITHUB_OUTPUT
-          echo "drift-detected=false" >> $GITHUB_OUTPUT
-          echo "::error::Bellwether test failed with exit code $TEST_EXIT"
-          exit $TEST_EXIT
-        fi
+        # Set baseline file output
+        echo "baseline-file=$BASELINE_PATH" >> $GITHUB_OUTPUT
 
-        # Save baseline if requested
-        if [ "${{ inputs.save-baseline }}" = "true" ]; then
-          echo "Saving baseline..."
-          bellwether baseline save "$BASELINE_PATH" --force
-          echo "baseline-file=$BASELINE_PATH" >> $GITHUB_OUTPUT
-        fi
-
-        # Compare baseline if it exists
-        DRIFT_EXIT=0
-        if [ -f "$BASELINE_PATH" ] && [ "${{ inputs.save-baseline }}" != "true" ]; then
-          echo "Comparing against baseline: $BASELINE_PATH"
-
-          COMPARE_FLAGS=""
-          if [ "${{ inputs.fail-on-drift }}" = "true" ]; then
-            COMPARE_FLAGS="--fail-on-drift"
-          fi
-
-          COMPARE_OUTPUT=$(bellwether baseline compare "$BASELINE_PATH" $COMPARE_FLAGS 2>&1)
-          DRIFT_EXIT=$?
-
-          echo "$COMPARE_OUTPUT"
-
-          if [ $DRIFT_EXIT -ne 0 ]; then
-            echo "drift-detected=true" >> $GITHUB_OUTPUT
-            echo "::warning::Behavioral drift detected"
-          else
-            echo "drift-detected=false" >> $GITHUB_OUTPUT
-          fi
+        # Determine drift status from output
+        if echo "$CHECK_OUTPUT" | grep -q "drift detected\|Breaking changes\|Warning-level changes"; then
+          echo "drift-detected=true" >> $GITHUB_OUTPUT
         else
           echo "drift-detected=false" >> $GITHUB_OUTPUT
-          echo "baseline-file=$BASELINE_PATH" >> $GITHUB_OUTPUT
         fi
 
         # Set final result
-        FINAL_EXIT=$DRIFT_EXIT
-        echo "exit-code=$FINAL_EXIT" >> $GITHUB_OUTPUT
+        echo "exit-code=$CHECK_EXIT" >> $GITHUB_OUTPUT
 
-        if [ $FINAL_EXIT -eq 0 ]; then
+        if [ $CHECK_EXIT -eq 0 ]; then
           echo "result=passed" >> $GITHUB_OUTPUT
-          echo "::notice::Bellwether test passed"
+          echo "::notice::Bellwether check passed"
         else
           echo "result=failed" >> $GITHUB_OUTPUT
           echo "::error::Bellwether check failed. Review the output above for details."
           echo ""
           echo "If drift was detected and changes are intentional, update your baseline:"
-          echo "  bellwether test ${{ inputs.server-command }}"
-          echo "  bellwether baseline save"
+          echo "  bellwether check ${{ inputs.server-command }} --save-baseline"
         fi
 
-        exit $FINAL_EXIT
+        exit $CHECK_EXIT
 
-    - name: Upload AGENTS.md artifact
+    - name: Upload CONTRACT.md artifact
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: bellwether-docs
-        path: ${{ inputs.output-dir }}/AGENTS.md
+        path: ${{ inputs.output-dir }}/CONTRACT.md
         if-no-files-found: ignore
 
     - name: Upload baseline artifact
@@ -188,5 +163,5 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: bellwether-report
-        path: ${{ inputs.output-dir }}/bellwether-report.json
+        path: ${{ inputs.output-dir }}/bellwether-check.json
         if-no-files-found: ignore

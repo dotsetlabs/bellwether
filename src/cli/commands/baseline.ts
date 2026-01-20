@@ -43,10 +43,10 @@ function loadInterviewResult(reportPath: string): InterviewResult {
   if (!existsSync(reportPath)) {
     throw new Error(
       `Test report not found: ${reportPath}\n\n` +
-        'Run `bellwether test` first with JSON output enabled.\n' +
-        'Configure in bellwether.yaml:\n' +
-        '  output:\n' +
-        '    format: json  # or "both" for JSON + markdown'
+      'Run `bellwether check` first with JSON output enabled.\n' +
+      'Configure in bellwether.yaml:\n' +
+      '  output:\n' +
+      '    format: json  # or "both" for JSON + markdown'
     );
   }
 
@@ -101,7 +101,7 @@ baselineCommand
   .option('-c, --config <path>', 'Path to config file')
   .option('--report <path>', 'Path to test report JSON file')
   .option('--cloud', 'Save in cloud-compatible format')
-  .option('--structural', 'Create structural-only baseline (no LLM assertions)')
+  .option('--contract', 'Create contract-only baseline (no LLM assertions)')
   .option('-f, --force', 'Overwrite existing baseline without prompting')
   .action(async (baselinePath: string, options) => {
     const outputDir = getOutputDir(options.config);
@@ -131,7 +131,7 @@ baselineCommand
     }
 
     // Determine mode
-    const mode = options.structural ? 'structural' : 'full';
+    const mode = options.contract ? 'contract' : 'document';
 
     // Extract server command from result metadata
     const serverCommand = result.metadata.serverCommand || 'unknown';
@@ -197,7 +197,7 @@ baselineCommand
 
     // Create current baseline for comparison
     const serverCommand = result.metadata.serverCommand || 'unknown';
-    const mode = previousBaseline.mode || 'full';
+    const mode = previousBaseline.mode || 'document';
     const currentBaseline = createBaseline(result, serverCommand, mode);
 
     // Compare baselines
@@ -306,7 +306,7 @@ baselineCommand
     output.info(`File: ${fullPath}`);
     output.info(`Format Version: ${baseline.version}`);
     output.info(`Created: ${baseline.createdAt instanceof Date ? baseline.createdAt.toISOString() : baseline.createdAt}`);
-    output.info(`Mode: ${baseline.mode || 'full'}`);
+    output.info(`Mode: ${baseline.mode || 'document'}`);
     output.info(`Server Command: ${baseline.serverCommand}`);
     output.newline();
 

@@ -90,7 +90,7 @@ jobs:
 
       - name: Run Test
         run: |
-          bellwether test npx your-mcp-server
+          bellwether check npx your-mcp-server
           bellwether baseline save
 
       - name: Upload to Cloud
@@ -137,7 +137,7 @@ jobs:
 
       - name: Generate PR baseline
         run: |
-          npx @dotsetlabs/bellwether test npx your-server
+          npx @dotsetlabs/bellwether check npx your-server
           npx @dotsetlabs/bellwether baseline save ./pr-baseline.json
 
       - name: Compare baselines
@@ -177,7 +177,7 @@ bellwether:
   image: node:20
   script:
     - npm install -g @dotsetlabs/bellwether
-    - bellwether test npx your-mcp-server
+    - bellwether check npx your-mcp-server
     - bellwether baseline save
     - bellwether upload --ci --fail-on-drift
   variables:
@@ -201,7 +201,7 @@ bellwether:mr:
 
     # Generate MR baseline
     - npm install -g @dotsetlabs/bellwether
-    - bellwether test npx your-server
+    - bellwether check npx your-server
     - bellwether baseline save ./mr-baseline.json
 
     # Compare
@@ -218,7 +218,7 @@ bellwether:commit:
   image: node:20
   script:
     - npm install -g @dotsetlabs/bellwether
-    - bellwether test npx your-server
+    - bellwether check npx your-server
     - bellwether baseline save
     - |
       if ! git diff --quiet bellwether-baseline.json; then
@@ -240,7 +240,7 @@ Add these CI/CD variables in GitLab:
 |:---------|:------------|
 | `BELLWETHER_SESSION` | Bellwether cloud session token (masked) |
 | `GITLAB_TOKEN` | GitLab personal access token (for committing baselines) |
-| `OPENAI_API_KEY` | Your OpenAI API key (masked, only for full mode) |
+| `OPENAI_API_KEY` | Your OpenAI API key (masked, only for document mode) |
 
 ---
 
@@ -251,7 +251,7 @@ Add these CI/CD variables in GitLab:
 The `--preset ci` option is optimized for fast, low-cost CI runs:
 
 ```bash
-bellwether test --preset ci npx your-server
+bellwether check --preset ci npx your-server
 ```
 
 ### 2. Cache Dependencies

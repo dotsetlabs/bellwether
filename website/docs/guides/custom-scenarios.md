@@ -16,12 +16,12 @@ Define your own test scenarios in YAML to complement LLM-generated tests. Custom
 
 ```bash
 # Generate a sample scenarios file
-bellwether test --init-scenarios
+bellwether check --init-scenarios
 
 # Edit bellwether-tests.yaml with your scenarios
 
 # Run test with custom scenarios
-bellwether test npx your-server
+bellwether check npx your-server
 ```
 
 ## File Format
@@ -185,7 +185,7 @@ path: messages[0].content.text
 By default, custom scenarios run alongside LLM-generated tests:
 
 ```bash
-bellwether test --scenarios ./bellwether-tests.yaml npx your-server
+bellwether check --scenarios ./bellwether-tests.yaml npx your-server
 ```
 
 ### Custom Scenarios Only
@@ -193,7 +193,7 @@ bellwether test --scenarios ./bellwether-tests.yaml npx your-server
 Skip LLM generation entirely (faster, no API costs):
 
 ```bash
-bellwether test --scenarios-only npx your-server
+bellwether check --scenarios-only npx your-server
 ```
 
 ### Auto-Detection
@@ -202,7 +202,7 @@ If `bellwether-tests.yaml` exists in the output directory, it's automatically lo
 
 ```bash
 # Automatically loads ./bellwether-tests.yaml if it exists
-bellwether test npx your-server
+bellwether check npx your-server
 ```
 
 ## Best Practices
@@ -300,7 +300,7 @@ jobs:
 
       - name: Run custom scenarios
         run: |
-          npx @dotsetlabs/bellwether test \
+          npx @dotsetlabs/bellwether check \
             --scenarios ./bellwether-tests.yaml \
             --scenarios-only \
             npx your-server
@@ -330,6 +330,6 @@ Scenario results are also included in:
 
 ## See Also
 
-- [test](/cli/test) - CLI reference
+- [check](/cli/check) - CLI reference
 - [CI/CD Integration](/guides/ci-cd) - Pipeline setup
 - [Personas](/concepts/personas) - LLM-based testing personas

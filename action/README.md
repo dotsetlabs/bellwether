@@ -7,7 +7,7 @@ Structural drift detection for MCP servers in CI/CD. Free. Deterministic. Fast.
 ## Features
 
 - **Structural Drift Detection** - Catch tool additions, removals, schema changes
-- **Zero LLM Required** - No API keys, no token costs (in structural mode)
+- **Zero LLM Required** - No API keys, no token costs
 - **Deterministic** - Same input = same output
 - **CI/CD Gating** - Block deployments when behavior drifts unexpectedly
 - **Config-Driven** - Uses `bellwether.yaml` for all settings
@@ -92,25 +92,6 @@ Upload baselines to Bellwether Cloud for history tracking and team visibility:
     BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
 ```
 
-### Full Mode with LLM (Optional)
-
-For comprehensive testing with LLM-generated scenarios, create a config with full mode:
-
-```yaml
-# bellwether.yaml
-mode: full
-llm:
-  provider: openai
-```
-
-```yaml
-- name: Full Test
-  uses: dotsetlabs/bellwether/action@v1
-  with:
-    server-command: 'npx @mcp/your-server'
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-```
 
 ### With Server Environment Variables
 
@@ -155,28 +136,25 @@ server:
 | `exit-code` | Exit code (0=pass, 1=fail, 2=error) |
 | `drift-detected` | Whether drift was detected (`true`/`false`) |
 | `tool-count` | Number of tools discovered |
-| `agents-md` | Path to generated AGENTS.md file |
+| `contract-md` | Path to generated CONTRACT.md file |
 | `baseline-file` | Path to baseline file |
 
 ## Artifacts
 
 The action automatically uploads:
-- `bellwether-docs`: The generated AGENTS.md file
+- `bellwether-docs`: The generated CONTRACT.md file
 - `bellwether-baseline`: The baseline file (if saved)
 - `bellwether-report`: The JSON report
 
 ## Configuration
 
-All test settings are configured in `bellwether.yaml`. If no config file exists, the action automatically creates one with `--preset ci` (structural mode, optimized for CI).
+All settings are configured in `bellwether.yaml`. If no config file exists, the action automatically creates one with `--preset ci` (optimized for CI).
 
 ### Create Config Locally
 
 ```bash
-# CI-optimized (structural, fast, free)
+# CI-optimized (fast, free)
 bellwether init --preset ci npx @mcp/your-server
-
-# Full mode with local Ollama
-bellwether init --preset local npx @mcp/your-server
 
 # Commit the config
 git add bellwether.yaml
@@ -194,11 +172,8 @@ server:
     # Use interpolation for secrets
     API_KEY: "${API_KEY}"
 
-mode: structural  # Free, fast, deterministic
-
 output:
   dir: "."
-  format: both  # Generate JSON for baseline comparison
 
 baseline:
   failOnDrift: true
@@ -219,7 +194,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Test MCP Server
+      - name: Check MCP Server
         id: bellwether
         uses: dotsetlabs/bellwether/action@v1
         with:
@@ -229,7 +204,6 @@ jobs:
       - name: Upload to Cloud (main only)
         if: github.ref == 'refs/heads/main' && success()
         run: |
-          npx @dotsetlabs/bellwether baseline save
           npx @dotsetlabs/bellwether upload --ci
         env:
           BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
@@ -243,7 +217,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '⚠️ MCP behavioral drift detected. Review AGENTS.md for details.'
+              body: '⚠️ MCP schema drift detected. Review CONTRACT.md for details.'
             })
 ```
 
@@ -259,8 +233,6 @@ jobs:
 
 | Variable | Description |
 |----------|-------------|
-| `OPENAI_API_KEY` | OpenAI API key (full mode only) |
-| `ANTHROPIC_API_KEY` | Anthropic API key (full mode only) |
 | `BELLWETHER_SESSION` | Cloud session token for uploads |
 
 ## Migration from v0.x
@@ -275,7 +247,7 @@ If you were using the old flag-based inputs:
     preset: 'ci'
     max-questions: '3'
     personas: 'technical_writer'
-    structural-only: 'true'
+    contract-only: 'true'
 ```
 
 **After:**
@@ -291,7 +263,7 @@ All settings now come from `bellwether.yaml`. The action auto-creates one if mis
 
 - Never commit API keys to your repository
 - Use GitHub Secrets to store sensitive values
-- For structural mode (default), no API keys are needed
+- No LLM API keys are needed for check (the default)
 - Use environment variable interpolation in `bellwether.yaml` for server secrets
 
 ## Troubleshooting

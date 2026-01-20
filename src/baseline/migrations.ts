@@ -1,23 +1,19 @@
 /**
  * Baseline format migrations.
  *
- * This module handles upgrading baselines from older formats to the current format.
- * Each migration function transforms a baseline from one version to the next.
+ * This module handles upgrading baselines from older CLI versions to the current version.
+ * Migrations are triggered when the CLI major version changes.
  *
  * Migration Strategy:
- * - Migrations are keyed by their TARGET version
- * - Each migration upgrades from the immediately previous version
+ * - Migrations are keyed by their TARGET major version
+ * - Each migration upgrades from the previous major version
  * - Migrations are applied sequentially in version order
  * - Downgrading is not supported
  */
 
+import { VERSION } from '../version.js';
 import type { BehavioralBaseline } from './types.js';
-import {
-  BASELINE_FORMAT_VERSION,
-  parseVersion,
-  compareVersions,
-  type FormatVersion,
-} from './version.js';
+import { parseVersion, compareVersions } from './version.js';
 
 /**
  * A migration function that transforms a baseline from one version to the next.
@@ -27,16 +23,15 @@ import {
 type MigrationFn = (baseline: Record<string, unknown>) => Record<string, unknown>;
 
 /**
- * Registry of migrations keyed by target version.
+ * Registry of migrations keyed by target major version.
  *
- * When adding a new migration:
- * 1. Add an entry with the target version as the key
- * 2. Implement the migration function to transform from previous version
- * 3. Update BASELINE_FORMAT_VERSION in version.ts
+ * When adding a new migration for CLI v2.0.0:
+ * 1. Add an entry with '2' as the key (major version)
+ * 2. Implement the migration function to transform from v1.x to v2.x format
  *
- * Example for future migration from 1.x to 2.0.0:
+ * Example for future migration from v1.x to v2.0.0:
  *
- * '2.0.0': (baseline) => {
+ * '2': (baseline) => {
  *   return {
  *     ...baseline,
  *     version: '2.0.0',
@@ -49,185 +44,177 @@ type MigrationFn = (baseline: Record<string, unknown>) => Record<string, unknown
  * },
  */
 const MIGRATIONS: Record<string, MigrationFn> = {
-  // Migration from legacy numeric version (1) to semver (1.0.0)
-  '1.0.0': (baseline) => {
+  // Migration from legacy format version "1.0.0" to CLI version format
+  // This handles baselines created before the versioning simplification
+  '0': (baseline) => {
     const version = baseline.version;
 
-    // Already at 1.0.0 or newer semver format
-    if (typeof version === 'string' && version.includes('.')) {
-      return baseline;
+    // If version looks like old format version (1.0.0), convert to CLI version
+    if (version === '1.0.0' || version === '1.0' || version === 1) {
+      return {
+        ...baseline,
+        version: VERSION, // Use current CLI version
+      };
     }
 
-    // Migrate from legacy numeric version
-    return {
-      ...baseline,
-      version: '1.0.0',
-    };
+    return baseline;
   },
 
-  // Future migrations would be added here:
-  // '2.0.0': (baseline) => { ... },
-  // '2.1.0': (baseline) => { ... },
+  // Future migrations would be added here when CLI major version changes:
+  // '1': (baseline) => { ... }, // Migrates v0.x baselines to v1.x format
+  // '2': (baseline) => { ... }, // Migrates v1.x baselines to v2.x format
 };
 
 /**
- * Get all migration versions in sorted order.
+ * Get the current CLI major version.
  */
-function getMigrationVersions(): FormatVersion[] {
-  return Object.keys(MIGRATIONS)
-    .map(parseVersion)
-    .sort(compareVersions);
+function getCurrentMajorVersion(): number {
+  return parseVersion(VERSION).major;
 }
 
 /**
- * Check if a baseline can be migrated to the target version.
+ * Check if a version is the legacy format version (before CLI version was used).
+ * Legacy format versions were "1.0.0", "1.0", or numeric 1.
+ * These need special handling because they're not CLI versions.
+ */
+function isLegacyFormatVersion(version: string | number | undefined): boolean {
+  return version === '1.0.0' || version === '1.0' || version === 1;
+}
+
+/**
+ * Check if a baseline can be migrated to the current CLI version.
  *
  * Migration is possible if:
- * - Source version is older than target version
- * - All intermediate migrations exist
+ * - Source version has a different major version than current
+ * - A migration path exists
  *
  * @param fromVersion - Source version (string, number, or undefined)
- * @param toVersion - Target version (defaults to current format version)
  * @returns true if migration is possible
  */
-export function canMigrate(
-  fromVersion: string | number | undefined,
-  toVersion: string = BASELINE_FORMAT_VERSION
-): boolean {
+export function canMigrate(fromVersion: string | number | undefined): boolean {
   const from = parseVersion(fromVersion);
-  const to = parseVersion(toVersion);
+  const currentMajor = getCurrentMajorVersion();
 
-  // Cannot migrate to older or same version
-  if (compareVersions(from, to) >= 0) {
-    return false;
+  // Same major version - no migration needed
+  if (from.major === currentMajor) {
+    return true;
   }
 
-  // Check that we have migrations for all required major version jumps
-  const migrations = getMigrationVersions();
-
-  for (const migration of migrations) {
-    // Skip migrations older than or equal to source
-    if (compareVersions(migration, from) <= 0) {
-      continue;
-    }
-
-    // Stop if we've passed the target
-    if (compareVersions(migration, to) > 0) {
-      break;
-    }
-
-    // Check migration exists for this major version
-    if (migration.major > from.major && !MIGRATIONS[migration.raw]) {
-      return false;
-    }
-  }
-
-  return true;
+  // Check if we have a migration for the current major version
+  return MIGRATIONS[String(currentMajor)] !== undefined;
 }
 
 /**
  * Get the list of migrations that would be applied.
  *
  * @param fromVersion - Source version
- * @param toVersion - Target version (defaults to current format version)
- * @returns Array of version strings for migrations that would be applied
+ * @returns Array of major version strings for migrations that would be applied
  */
-export function getMigrationsToApply(
-  fromVersion: string | number | undefined,
-  toVersion: string = BASELINE_FORMAT_VERSION
-): string[] {
+export function getMigrationsToApply(fromVersion: string | number | undefined): string[] {
+  const currentMajor = getCurrentMajorVersion();
+
+  // Legacy format version needs the '0' migration
+  if (isLegacyFormatVersion(fromVersion)) {
+    return MIGRATIONS['0'] ? ['0'] : [];
+  }
+
   const from = parseVersion(fromVersion);
-  const to = parseVersion(toVersion);
 
-  const migrations = getMigrationVersions();
+  // Same major version - no migrations needed
+  if (from.major === currentMajor) {
+    return [];
+  }
+
+  // Return migrations from source major to current major
   const toApply: string[] = [];
-
-  for (const migration of migrations) {
-    // Skip migrations older than or equal to source
-    if (compareVersions(migration, from) <= 0) {
-      continue;
+  for (let major = from.major; major <= currentMajor; major++) {
+    if (MIGRATIONS[String(major)]) {
+      toApply.push(String(major));
     }
-
-    // Stop if we've passed the target
-    if (compareVersions(migration, to) > 0) {
-      break;
-    }
-
-    toApply.push(migration.raw);
   }
 
   return toApply;
 }
 
 /**
- * Migrate a baseline to the target version.
- *
- * Applies all necessary migrations in sequence from the source version
- * to the target version.
+ * Migrate a baseline to the current CLI version format.
  *
  * @param baseline - The baseline object to migrate (can be any version)
- * @param targetVersion - Target version (defaults to current format version)
  * @returns Migrated baseline conforming to BehavioralBaseline interface
  * @throws Error if migration is not possible (e.g., downgrade attempt)
  */
-export function migrateBaseline(
-  baseline: Record<string, unknown>,
-  targetVersion: string = BASELINE_FORMAT_VERSION
-): BehavioralBaseline {
+export function migrateBaseline(baseline: Record<string, unknown>): BehavioralBaseline {
   const sourceVersion = baseline.version as string | number | undefined;
-  const from = parseVersion(sourceVersion);
-  const to = parseVersion(targetVersion);
+  const current = parseVersion(VERSION);
 
-  // Already at target version - but still normalize if version format differs
-  // (e.g., numeric 1 should become string '1.0.0')
-  if (compareVersions(from, to) === 0) {
-    // Check if version needs normalization
-    if (baseline.version !== to.raw) {
-      return {
-        ...baseline,
-        version: to.raw,
-      } as unknown as BehavioralBaseline;
+  // Handle legacy format version specially (not a real CLI version)
+  if (isLegacyFormatVersion(sourceVersion)) {
+    let migrated = { ...baseline };
+    const migration = MIGRATIONS['0'];
+    if (migration) {
+      migrated = migration(migrated);
     }
+    migrated.version = VERSION;
+    return migrated as unknown as BehavioralBaseline;
+  }
+
+  const from = parseVersion(sourceVersion);
+
+  // Already at current version
+  if (compareVersions(from, current) === 0) {
     return baseline as unknown as BehavioralBaseline;
   }
 
-  // Cannot downgrade
-  if (compareVersions(from, to) > 0) {
+  // Same major version - just update the version string
+  if (from.major === current.major) {
+    return {
+      ...baseline,
+      version: VERSION,
+    } as unknown as BehavioralBaseline;
+  }
+
+  // Cannot downgrade (only applies to actual CLI versions, not legacy format)
+  if (from.major > current.major) {
     throw new Error(
-      `Cannot downgrade baseline from v${from.raw} to v${to.raw}. ` +
+      `Cannot downgrade baseline from v${from.raw} to v${current.raw}. ` +
         `Downgrading baselines is not supported.`
     );
   }
 
-  // Apply migrations in sequence
-  let current = { ...baseline };
-  const migrationsToApply = getMigrationsToApply(sourceVersion, targetVersion);
+  // Apply migrations
+  let migrated = { ...baseline };
+  const migrationsToApply = getMigrationsToApply(sourceVersion);
 
-  for (const version of migrationsToApply) {
-    const migration = MIGRATIONS[version];
+  for (const majorVersion of migrationsToApply) {
+    const migration = MIGRATIONS[majorVersion];
     if (migration) {
-      current = migration(current);
+      migrated = migration(migrated);
     }
   }
 
-  // Ensure version is set to target
-  current.version = to.raw;
+  // Ensure version is set to current CLI version
+  migrated.version = VERSION;
 
-  return current as unknown as BehavioralBaseline;
+  return migrated as unknown as BehavioralBaseline;
 }
 
 /**
  * Check if a baseline needs migration.
  *
  * @param baseline - The baseline to check
- * @returns true if the baseline version is older than the current format version
+ * @returns true if the baseline major version differs from current CLI major version
  */
 export function needsMigration(baseline: Record<string, unknown>): boolean {
   const version = baseline.version as string | number | undefined;
   const from = parseVersion(version);
-  const current = parseVersion(BASELINE_FORMAT_VERSION);
+  const currentMajor = getCurrentMajorVersion();
 
-  return compareVersions(from, current) < 0;
+  // Check for legacy format version (1.0.0) which needs migration to CLI version
+  if (version === '1.0.0' || version === '1.0' || version === 1) {
+    return true;
+  }
+
+  return from.major !== currentMajor;
 }
 
 /**
@@ -245,13 +232,12 @@ export function getMigrationInfo(baseline: Record<string, unknown>): {
 } {
   const version = baseline.version as string | number | undefined;
   const from = parseVersion(version);
-  const to = parseVersion(BASELINE_FORMAT_VERSION);
 
   return {
     currentVersion: from.raw,
-    targetVersion: to.raw,
-    needsMigration: compareVersions(from, to) < 0,
-    migrationsToApply: getMigrationsToApply(version, BASELINE_FORMAT_VERSION),
-    canMigrate: canMigrate(version, BASELINE_FORMAT_VERSION),
+    targetVersion: VERSION,
+    needsMigration: needsMigration(baseline),
+    migrationsToApply: getMigrationsToApply(version),
+    canMigrate: canMigrate(version),
   };
 }

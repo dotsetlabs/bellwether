@@ -20,6 +20,7 @@ import {
   loadBaseline,
   compareBaselines,
   formatDiffText,
+  getBaselineVersion,
 } from '../../src/baseline/index.js';
 import { createCloudBaseline } from '../../src/baseline/converter.js';
 import type { InterviewResult } from '../../src/interview/types.js';
@@ -248,9 +249,8 @@ describe('e2e/smoke', () => {
       // Generate default config
       const configContent = generateConfigTemplate();
       expect(configContent).toBeTruthy();
-      expect(configContent).toContain('mode:');
       expect(configContent).toContain('llm:');
-      expect(configContent).toContain('test:');
+      expect(configContent).toContain('explore:');
 
       // Write config file
       const configPath = join(testDir, 'bellwether.yaml');
@@ -259,9 +259,8 @@ describe('e2e/smoke', () => {
 
       // Load config
       const config = loadConfig(configPath);
-      expect(config.mode).toBeDefined();
       expect(config.llm.provider).toBeDefined();
-      expect(config.test.maxQuestionsPerTool).toBeDefined();
+      expect(config.explore.maxQuestionsPerTool).toBeDefined();
     });
 
     it('should throw ConfigNotFoundError when no config exists', () => {
@@ -272,11 +271,10 @@ describe('e2e/smoke', () => {
     it('should merge CLI options with config', () => {
       const configPath = join(testDir, 'bellwether.yaml');
       writeFileSync(configPath, `
-mode: full
 llm:
   provider: openai
   model: gpt-4o
-test:
+explore:
   maxQuestionsPerTool: 3
 `);
 
@@ -287,7 +285,7 @@ test:
       const finalModel = cliOptions.model ?? config.llm.model;
       const finalMaxQuestions = cliOptions.maxQuestions
         ? parseInt(cliOptions.maxQuestions, 10)
-        : config.test.maxQuestionsPerTool;
+        : config.explore.maxQuestionsPerTool;
 
       expect(finalModel).toBe('gpt-4-turbo');
       expect(finalMaxQuestions).toBe(5);
@@ -360,7 +358,7 @@ test:
 
       const baseline = createBaseline(result, serverCommand);
 
-      expect(baseline.version).toBe('1.0.0');
+      expect(baseline.version).toBe(getBaselineVersion());
       expect(baseline.serverCommand).toBe(serverCommand);
       expect(baseline.server.name).toBe('test-server');
       expect(baseline.tools).toHaveLength(3);
@@ -446,8 +444,7 @@ test:
 
       const cloudBaseline = createCloudBaseline(result, serverCommand);
 
-      expect(cloudBaseline.version).toBe('1.0.0');
-      expect(cloudBaseline.metadata.formatVersion).toBe('1.0.0');
+      expect(cloudBaseline.version).toBe(getBaselineVersion());
       expect(cloudBaseline.metadata.serverName).toBe('test-server');
       expect(cloudBaseline.capabilities.tools).toHaveLength(3);
       expect(cloudBaseline.assertions).toBeDefined();
@@ -478,7 +475,7 @@ test:
       expect(existsSync(baselinePath)).toBe(true);
 
       const loaded = JSON.parse(readFileSync(baselinePath, 'utf-8'));
-      expect(loaded.version).toBe('1.0.0');
+      expect(loaded.version).toBe(getBaselineVersion());
       expect(loaded.capabilities.tools).toHaveLength(3);
     });
   });

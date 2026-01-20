@@ -1,6 +1,6 @@
 ---
 title: registry
-sidebar_position: 8
+sidebar_position: 9
 ---
 
 # bellwether registry
@@ -118,7 +118,7 @@ The default output shows:
 bellwether registry memory
 
 # Test the found server
-bellwether test npx @modelcontextprotocol/server-memory
+bellwether check npx @modelcontextprotocol/server-memory
 ```
 
 ### Explore the Ecosystem
@@ -138,7 +138,7 @@ bellwether registry "api"
 ```bash
 # Get server info programmatically
 SERVER=$(bellwether registry --json --limit 1 filesystem | jq -r '.[0].server.packages[0].identifier')
-bellwether test npx $SERVER /tmp
+bellwether check npx $SERVER /tmp
 ```
 
 ## Supported Package Types
@@ -161,6 +161,6 @@ The registry includes servers from various package managers:
 
 ## See Also
 
-- [test](/cli/test) - Test an MCP server
+- [check](/cli/check) - Check an MCP server
 - [discover](/cli/discover) - Quick capability discovery
 - [MCP Registry](https://registry.modelcontextprotocol.io/) - Official registry website

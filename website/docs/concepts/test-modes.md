@@ -1,72 +1,72 @@
 ---
-title: Test Modes
+title: Check vs Explore
 sidebar_position: 1
 ---
 
-# Test Modes
+# Check vs Explore
 
-Bellwether offers two testing modes to fit different workflows and budgets.
+Bellwether offers two commands to fit different workflows and budgets.
 
 ## Quick Comparison
 
-| | Structural Mode | Full Mode |
-|:--|:----------------|:----------|
-| **Cost** | Free | ~$0.01-0.15 per test |
+| | `bellwether check` | `bellwether explore` |
+|:--|:-------------------|:---------------------|
+| **Cost** | Free | ~$0.01-0.15 per run |
 | **Speed** | Seconds | Minutes |
 | **LLM Required** | No | Yes |
 | **Deterministic** | 100% | No (LLM variation) |
-| **What it tests** | Schema, types, descriptions | Behavior, edge cases, security |
-| **Documentation** | Basic | Comprehensive |
+| **What it does** | Schema validation, drift detection | Behavioral analysis, edge cases, security |
+| **Output** | `CONTRACT.md` | `AGENTS.md` |
 
-## Structural Mode (Default)
+## bellwether check (Free)
 
-Structural mode compares tool schemas, parameter types, and descriptions without making any LLM calls. It's:
+The check command validates tool schemas, parameter types, and descriptions without making any LLM calls. It's:
 
 - **Free** - No API costs
 - **Fast** - Completes in seconds
 - **Deterministic** - Same input always produces same output
 - **CI/CD friendly** - No API keys required
+- **Output** - Generates `CONTRACT.md`
 
 ```bash
-# Initialize with structural mode (default)
-bellwether init "npx @mcp/server"
+# Run check
+bellwether check npx @mcp/server
 
-# Or explicitly with CI preset
-bellwether init --preset ci "npx @mcp/server"
+# With baseline comparison
+bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
 ```
 
-### What Structural Mode Detects
+### What Check Detects
 
 - Tools added or removed
 - Parameter changes (name, type, required status)
 - Description changes
 - Schema hash changes
-- Response structure changes
 
-### When to Use Structural Mode
+### When to Use Check
 
 - **CI/CD pipelines** - Fast, free, deterministic
 - **PR checks** - Quick validation before merge
 - **Schema validation** - Ensure API contracts are maintained
 - **Cost-sensitive environments** - No API costs
 
-## Full Mode
+## bellwether explore (Requires LLM)
 
-Full mode uses an LLM to generate intelligent test scenarios and analyze behavior. It's:
+The explore command uses an LLM to intelligently probe your server from multiple perspectives. It's:
 
 - **Comprehensive** - Tests edge cases, error handling, security
 - **Multi-persona** - Technical writer, security tester, QA engineer, novice user perspectives
-- **Rich documentation** - Generates detailed AGENTS.md with observed behavior
+- **Rich documentation** - Generates detailed `AGENTS.md` with observed behavior
 
 ```bash
-# Initialize with full mode using local Ollama (free)
-bellwether init --preset local "npx @mcp/server"
+# Run explore with Ollama (free)
+bellwether explore npx @mcp/server
 
 # Or with OpenAI/Anthropic
-bellwether init --full --provider openai "npx @mcp/server"
+bellwether explore --provider openai npx @mcp/server
 ```
 
-### What Full Mode Provides
+### What Explore Provides
 
 - Behavioral observations (how tools actually behave)
 - Edge case testing
@@ -76,71 +76,82 @@ bellwether init --full --provider openai "npx @mcp/server"
 - Limitations discovery
 - Multi-persona perspectives
 
-### When to Use Full Mode
+### When to Use Explore
 
 - **Local development** - Deep understanding of server behavior
 - **Security audits** - Comprehensive vulnerability testing
-- **Documentation generation** - Rich AGENTS.md output
+- **Documentation generation** - Rich `AGENTS.md` output
 - **Pre-release testing** - Thorough validation before deployment
 
 ## Cost Comparison
 
-Typical costs for testing a server with 10 tools:
+Typical costs for exploring a server with 10 tools:
 
 | Provider/Model | Cost | Notes |
 |:---------------|:-----|:------|
-| Structural | $0.00 | Free, deterministic |
+| `bellwether check` | $0.00 | Free, deterministic |
 | Ollama (local) | $0.00 | Free, requires local setup |
-| gpt-4o-mini | ~$0.02 | Good balance of cost/quality |
+| gpt-5-mini | ~$0.02 | Good balance of cost/quality |
 | claude-haiku-4-5 | ~$0.04 | Good balance of cost/quality |
-| gpt-4o | ~$0.12 | Best quality |
+| gpt-5.2 | ~$0.12 | Best quality |
 | claude-sonnet-4-5 | ~$0.13 | Best quality |
 
-## Combining Modes
+## Combining Check and Explore
 
-A common pattern is to use both modes:
+A common pattern is to use both commands:
 
-1. **CI/CD**: Structural mode for fast, free drift detection
-2. **Local dev**: Full mode for comprehensive testing and documentation
+1. **CI/CD**: `bellwether check` for fast, free drift detection
+2. **Local dev**: `bellwether explore` for comprehensive testing and documentation
 
-```yaml
-# bellwether.yaml for local development
-mode: full
-llm:
-  provider: ollama  # Free local LLM
+```bash
+# CI/CD pipeline
+bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
 
-# Create a separate config for CI
-# bellwether-ci.yaml
-mode: structural
+# Local development
+bellwether explore  # Uses config from bellwether.yaml
 ```
 
 ## Configuration
 
-Set the mode in `bellwether.yaml`:
+Both commands use settings from `bellwether.yaml`:
 
 ```yaml
-# Structural mode (default)
-mode: structural
+server:
+  command: "npx @mcp/server"
+  timeout: 30000
 
-# Full mode
-mode: full
+# LLM settings (for explore command)
 llm:
   provider: openai  # or anthropic, ollama
-  model: gpt-4o-mini  # optional, uses provider default
+  model: gpt-5-mini  # optional, uses provider default
+
+# Explore settings
+explore:
+  personas:
+    - technical_writer
+    - security_tester
+  maxQuestionsPerTool: 3
+
+# Baseline settings (for check command)
+baseline:
+  comparePath: "./bellwether-baseline.json"
+  failOnDrift: false
 ```
 
 Or use presets when initializing:
 
 ```bash
-bellwether init --preset ci      # Structural mode
-bellwether init --preset local   # Full mode with Ollama
-bellwether init --preset security  # Full mode with security focus
-bellwether init --preset thorough  # Full mode with all personas
+bellwether init --preset ci        # Optimized for check in CI/CD
+bellwether init --preset local     # Explore with Ollama
+bellwether init --preset security  # Explore with security focus
+bellwether init --preset thorough  # Explore with all personas
 ```
 
 ## See Also
 
+- [check](/cli/check) - Check command reference
+- [explore](/cli/explore) - Explore command reference
 - [Configuration](/guides/configuration) - Full configuration reference
-- [CI/CD Integration](/guides/ci-cd) - Using structural mode in pipelines
-- [Personas](/concepts/personas) - Multi-persona testing in full mode
-- [Drift Detection](/concepts/drift-detection) - How drift detection works in both modes
+- [CI/CD Integration](/guides/ci-cd) - Using check in pipelines
+- [Personas](/concepts/personas) - Multi-persona testing in explore
+- [Drift Detection](/concepts/drift-detection) - How drift detection works

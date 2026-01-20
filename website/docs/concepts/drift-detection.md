@@ -65,7 +65,7 @@ For CI/CD pipelines requiring deterministic results:
 
 ```yaml
 # bellwether.yaml - scenarios-only mode
-mode: structural
+mode: contract
 scenarios:
   path: "./bellwether-tests.yaml"
   only: true
@@ -73,7 +73,7 @@ scenarios:
 
 ```bash
 # Run tests then compare
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
@@ -107,13 +107,13 @@ This mode:
 
 ```bash
 # Run test and save initial baseline
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline save
 
 # Make changes to server...
 
 # Compare against baseline
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline compare ./bellwether-baseline.json
 ```
 
@@ -121,31 +121,31 @@ bellwether baseline compare ./bellwether-baseline.json
 
 ```bash
 # Run test then compare with fail-on-drift
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
-### Structural Mode (100% Deterministic)
+### Contract Mode (100% Deterministic)
 
-**Structural mode** provides 100% deterministic drift detection by only comparing tool schemas:
+**Contract mode** provides 100% deterministic drift detection by only comparing tool schemas:
 
 ```yaml
 # bellwether.yaml
-mode: structural
+mode: contract
 ```
 
 ```bash
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
-In structural mode:
-- Only structural changes are reported (tool presence, schema changes)
+In contract mode:
+- Only contract changes are reported (tool presence, schema changes)
 - No LLM calls required
 - Results are 100% reproducible across runs
 - Free and fast
 
-Use structural mode for:
+Use contract mode for:
 - CI/CD deployment gates requiring determinism
 - Compliance environments with audit requirements
 - Detecting breaking API changes only
@@ -192,7 +192,7 @@ baseline:
 ```
 
 ```bash
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline compare ./bellwether-baseline.json
 ```
 
@@ -206,7 +206,7 @@ baseline:
 ```
 
 ```bash
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
@@ -291,7 +291,7 @@ When drift is expected (new features, fixes):
 
 ```bash
 # Run test and review the changes
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline compare ./bellwether-baseline.json
 
 # Update baseline if changes are correct
@@ -325,7 +325,7 @@ Track drift history with Bellwether Cloud:
 
 ```bash
 # Run test, save baseline, and upload
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline save
 bellwether upload --ci --fail-on-drift
 ```
@@ -348,4 +348,4 @@ Cloud provides:
 - [Baselines](/concepts/baselines) - Creating and managing baselines
 - [CI/CD Integration](/guides/ci-cd) - Automated drift checking
 - [Configuration](/guides/configuration) - Config file drift options
-- [test](/cli/test) - Running drift detection
+- [check](/cli/check) - Running drift detection

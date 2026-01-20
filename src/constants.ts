@@ -569,8 +569,10 @@ export const PATHS = {
   DEFAULT_SCENARIOS_FILE: 'bellwether-tests.yaml',
   /** Default workflows file */
   DEFAULT_WORKFLOWS_FILE: 'bellwether-workflows.yaml',
-  /** Default AGENTS.md output file */
+  /** Default AGENTS.md output file (explore command) */
   DEFAULT_AGENTS_FILE: 'AGENTS.md',
+  /** Default CONTRACT.md output file (check command) */
+  DEFAULT_CONTRACT_FILE: 'CONTRACT.md',
   /** Default cache directory */
   DEFAULT_CACHE_DIR: '.bellwether/cache',
 } as const;

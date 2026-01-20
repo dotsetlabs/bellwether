@@ -303,6 +303,7 @@ export class MockCloudClient implements BellwetherCloudClient {
       id: baselineId,
       projectId,
       version,
+      mode: baseline.metadata.mode,
       uploadedAt: new Date().toISOString(),
       cliVersion: baseline.metadata.cliVersion,
       hash: baseline.hash,

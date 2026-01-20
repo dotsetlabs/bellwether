@@ -12,11 +12,11 @@ Bellwether uses a config-first approach where all settings are defined in `bellw
 Create a configuration file with `bellwether init`:
 
 ```bash
-bellwether init                    # Default structural mode (free, fast)
+bellwether init                    # Default contract mode (free, fast)
 bellwether init --preset ci        # Optimized for CI/CD
 bellwether init --preset security  # Security-focused testing
 bellwether init --preset thorough  # Comprehensive testing
-bellwether init --preset local     # Full mode with local Ollama
+bellwether init --preset local     # Document mode with local Ollama
 ```
 
 The generated file includes all options with helpful comments.
@@ -30,7 +30,7 @@ Bellwether looks for configuration in this order:
 3. `./bellwether.json` (alternative format)
 
 :::info Config Required
-A `bellwether.yaml` config file is required for `bellwether test`. Run `bellwether init` to create one.
+A `bellwether.yaml` config file is required for `bellwether check`. Run `bellwether init` to create one.
 :::
 
 ## Full Configuration Reference
@@ -43,8 +43,8 @@ A `bellwether.yaml` config file is required for `bellwether test`. Run `bellweth
 # =============================================================================
 # SERVER
 # =============================================================================
-# The MCP server to test. Required for bellwether test.
-# Can also be passed as: bellwether test <command> [args...]
+# The MCP server to test. Required for bellwether check.
+# Can also be passed as: bellwether check <command> [args...]
 
 server:
   # Command to start the MCP server
@@ -67,22 +67,22 @@ server:
 # =============================================================================
 # TEST MODE
 # =============================================================================
-# structural: Fast, free, deterministic - compares tool schemas only (recommended)
-# full: Uses LLM to generate intelligent test scenarios (requires API key)
+# contract: Fast, free, deterministic - compares tool schemas only (recommended)
+# document: Uses LLM to generate intelligent test scenarios (requires API key)
 
-mode: structural
+mode: contract
 
 # =============================================================================
 # LLM SETTINGS
 # =============================================================================
-# Only used when mode is "full". Ignored in structural mode.
+# Only used when mode is "document". Ignored in contract mode.
 
 llm:
   # Provider: ollama (local, free), openai, or anthropic
   provider: ollama
 
   # Model to use. Leave empty for provider default.
-  # Defaults: ollama=llama3.2, openai=gpt-4o-mini, anthropic=claude-haiku-4-5
+  # Defaults: ollama=llama3.2, openai=gpt-5-mini, anthropic=claude-haiku-4-5
   model: ""
 
   # Ollama settings (for local LLM)
@@ -101,7 +101,7 @@ llm:
 # =============================================================================
 # TEST SETTINGS
 # =============================================================================
-# Only used when mode is "full". Ignored in structural mode.
+# Only used when mode is "document". Ignored in contract mode.
 
 test:
   # Personas provide different testing perspectives:
@@ -140,7 +140,7 @@ scenarios:
 # =============================================================================
 # WORKFLOWS
 # =============================================================================
-# Multi-step workflow testing (requires mode: full).
+# Multi-step workflow testing (requires mode: document).
 
 workflows:
   # Path to workflow definitions YAML file
@@ -221,11 +221,11 @@ Presets provide pre-configured settings for common use cases:
 
 | Preset | Mode | Description |
 |:-------|:-----|:------------|
-| (default) | structural | Zero LLM, free, deterministic |
-| `ci` | structural | Optimized for CI/CD, fails on drift |
-| `security` | full | Security + technical personas, OpenAI |
-| `thorough` | full | All 4 personas, workflow discovery |
-| `local` | full | Local Ollama, free, private |
+| (default) | contract | Zero LLM, free, deterministic |
+| `ci` | contract | Optimized for CI/CD, fails on drift |
+| `security` | document | Security + technical personas, OpenAI |
+| `thorough` | document | All 4 personas, workflow discovery |
+| `local` | document | Local Ollama, free, private |
 
 Use presets with `bellwether init`:
 
@@ -238,7 +238,7 @@ bellwether init --preset ci
 ### Ollama (Local, Free)
 
 ```yaml
-mode: full
+mode: document
 
 llm:
   provider: ollama
@@ -252,11 +252,11 @@ No API key required. Make sure Ollama is running locally.
 ### OpenAI
 
 ```yaml
-mode: full
+mode: document
 
 llm:
   provider: openai
-  model: gpt-4o-mini  # or gpt-4o, gpt-4-turbo
+  model: gpt-5-mini  # or gpt-5.2, gpt-4-turbo
 ```
 
 Set API key via environment or `bellwether auth`:
@@ -270,7 +270,7 @@ bellwether auth
 ### Anthropic
 
 ```yaml
-mode: full
+mode: document
 
 llm:
   provider: anthropic
@@ -287,7 +287,7 @@ bellwether auth
 
 ## Mode Comparison
 
-| Feature | Structural Mode | Full Mode |
+| Feature | Contract Mode | Document Mode |
 |:--------|:----------------|:----------|
 | Cost | Free | API costs apply |
 | Speed | Fast (seconds) | Slower (minutes) |
@@ -300,14 +300,14 @@ bellwether auth
 
 ### When to Use Each Mode
 
-**Structural Mode (Default)**
+**Contract Mode (Default)**
 - CI/CD pipelines
 - PR checks
 - Automated testing
 - When you need deterministic results
 - When you want to avoid API costs
 
-**Full Mode**
+**Document Mode**
 - Local development
 - Deep exploration of server capabilities
 - Security audits
@@ -361,7 +361,7 @@ export PLEX_TOKEN="your-token-here"
 # PLEX_TOKEN=your-token-here
 
 # Run bellwether - it will interpolate the values
-bellwether test
+bellwether check
 ```
 
 :::tip Commit-Safe Configuration
@@ -408,7 +408,7 @@ bellwether init --preset ci
 mv bellwether.yaml configs/ci.yaml
 
 # Use specific config
-bellwether test --config configs/ci.yaml npx your-server
+bellwether check --config configs/ci.yaml npx your-server
 ```
 
 ## Configuration Validation
@@ -417,7 +417,7 @@ Bellwether validates your config on startup and shows helpful errors:
 
 ```
 Invalid configuration:
-  - mode: Must be "structural" or "full"
+  - mode: Must be "contract" or "document"
   - llm.provider: Must be one of: ollama, openai, anthropic
   - test.maxQuestionsPerTool: Must be between 1 and 10
 ```
@@ -425,7 +425,7 @@ Invalid configuration:
 ## Best Practices
 
 1. **Version control your config** - Commit `bellwether.yaml` to your repo
-2. **Use structural mode for CI** - Deterministic, free, fast
+2. **Use contract mode for CI** - Deterministic, free, fast
 3. **Never commit API keys** - Use environment variables or `bellwether auth`
 4. **Use presets as starting points** - Customize from there
 5. **Enable JSON output for baselines** - Set `output.format: both` or `json`
@@ -433,7 +433,7 @@ Invalid configuration:
 ## See Also
 
 - [init](/cli/init) - Generate configuration
-- [test](/cli/test) - Run tests using configuration
+- [check](/cli/check) - Run tests using configuration
 - [baseline](/cli/baseline) - Manage baselines
 - [Custom Scenarios](/guides/custom-scenarios) - YAML-defined test cases
 - [CI/CD Integration](/guides/ci-cd) - Pipeline configurations

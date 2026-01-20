@@ -601,7 +601,7 @@ export class Orchestrator {
   }
 
   /**
-   * Generate comprehensive test cases for structural mode.
+   * Generate comprehensive test cases for contract mode.
    * Analyzes schema to create meaningful tests without LLM.
    */
   private generateStructuralTestCases(tool: MCPTool, skipErrorTests: boolean): InterviewQuestion[] {

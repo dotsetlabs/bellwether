@@ -38,11 +38,10 @@ describe('config/loader', () => {
       writeFileSync(
         configPath,
         `
-mode: structural
 llm:
   provider: openai
   model: gpt-4-turbo
-test:
+explore:
   maxQuestionsPerTool: 5
 `
       );
@@ -50,8 +49,7 @@ test:
       const config = loadConfig(configPath);
 
       expect(config.llm.model).toBe('gpt-4-turbo');
-      expect(config.test.maxQuestionsPerTool).toBe(5);
-      expect(config.mode).toBe('structural');
+      expect(config.explore.maxQuestionsPerTool).toBe(5);
     });
 
     it('should throw error for non-existent explicit path', () => {
@@ -64,7 +62,6 @@ test:
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-mode: full
 llm:
   provider: anthropic
   model: claude-haiku-4-5
@@ -80,7 +77,6 @@ llm:
       writeFileSync(
         join(testDir, 'bellwether.yml'),
         `
-mode: structural
 server:
   timeout: 60000
 `
@@ -94,7 +90,6 @@ server:
       writeFileSync(
         join(testDir, '.bellwether.yaml'),
         `
-mode: structural
 output:
   format: json
 `
@@ -108,7 +103,6 @@ output:
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-mode: structural
 llm:
   model: preferred-model
 `
@@ -116,7 +110,6 @@ llm:
       writeFileSync(
         join(testDir, 'bellwether.yml'),
         `
-mode: structural
 llm:
   model: other-model
 `
@@ -130,8 +123,7 @@ llm:
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-mode: full
-test:
+explore:
   maxQuestionsPerTool: 10
 `
       );
@@ -139,7 +131,7 @@ test:
       const config = loadConfig();
 
       // Specified value
-      expect(config.test.maxQuestionsPerTool).toBe(10);
+      expect(config.explore.maxQuestionsPerTool).toBe(10);
       // Defaults for unspecified values
       expect(config.server.timeout).toBe(30000);
       expect(config.llm.provider).toBe('ollama');
@@ -151,16 +143,14 @@ test:
 
       // Empty YAML parses to null, loader should apply defaults
       const config = loadConfig();
-      expect(config.mode).toBe('structural');
       expect(config.llm.provider).toBe('ollama');
     });
 
-    it('should handle config with only mode', () => {
-      writeFileSync(join(testDir, 'bellwether.yaml'), 'mode: full');
+    it('should handle config with defaults', () => {
+      writeFileSync(join(testDir, 'bellwether.yaml'), 'llm:\n  provider: openai');
 
       const config = loadConfig();
-      expect(config.mode).toBe('full');
-      expect(config.llm.provider).toBe('ollama');
+      expect(config.llm.provider).toBe('openai');
     });
 
     it('should handle output format variations', () => {
@@ -170,7 +160,6 @@ test:
         writeFileSync(
           join(testDir, 'bellwether.yaml'),
           `
-mode: structural
 output:
   format: ${format}
 `
@@ -185,7 +174,6 @@ output:
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-mode: structural
 server:
   command: npx @mcp/my-server
   args:
@@ -204,7 +192,6 @@ server:
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-mode: structural
 baseline:
   failOnDrift: true
   minConfidence: 50
@@ -222,21 +209,19 @@ baseline:
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-mode: full
-test:
+explore:
   skipErrorTests: true
 `
       );
 
       const config = loadConfig();
-      expect(config.test.skipErrorTests).toBe(true);
+      expect(config.explore.skipErrorTests).toBe(true);
     });
 
     it('should reject config with API keys stored directly', () => {
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-mode: full
 llm:
   provider: openai
   apiKey: sk-secret-key
@@ -250,8 +235,7 @@ llm:
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-mode: full
-test:
+explore:
   personas:
     - technical_writer
     - security_tester
@@ -259,14 +243,13 @@ test:
       );
 
       const config = loadConfig();
-      expect(config.test.personas).toEqual(['technical_writer', 'security_tester']);
+      expect(config.explore.personas).toEqual(['technical_writer', 'security_tester']);
     });
 
     it('should parse cache configuration', () => {
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-mode: structural
 cache:
   enabled: false
   dir: .custom-cache
@@ -282,7 +265,6 @@ cache:
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-mode: structural
 logging:
   level: debug
   verbose: true
@@ -294,22 +276,10 @@ logging:
       expect(config.logging.verbose).toBe(true);
     });
 
-    it('should validate mode values', () => {
-      writeFileSync(
-        join(testDir, 'bellwether.yaml'),
-        `
-mode: invalid-mode
-`
-      );
-
-      expect(() => loadConfig()).toThrow();
-    });
-
     it('should validate provider values', () => {
       writeFileSync(
         join(testDir, 'bellwether.yaml'),
         `
-mode: full
 llm:
   provider: invalid-provider
 `

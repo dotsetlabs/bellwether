@@ -181,13 +181,12 @@ export function summarizeDiscovery(result: DiscoveryResult): string {
   // Quick start hint
   lines.push('QUICK START');
   lines.push('───────────');
-  lines.push(`  bellwether test ${result.serverCommand} ${result.serverArgs.join(' ')}`);
+  lines.push(`  bellwether check ${result.serverCommand} ${result.serverArgs.join(' ')}`);
+  lines.push(`  bellwether explore ${result.serverCommand} ${result.serverArgs.join(' ')}`);
   lines.push('');
-  lines.push('  Options:');
-  lines.push('    --preset docs      Documentation-focused (recommended)');
-  lines.push('    --preset security  Include security testing');
-  lines.push('    --preset thorough  Comprehensive with all personas');
-  lines.push('    --preset ci        Fast CI/CD mode');
+  lines.push('  Commands:');
+  lines.push('    check    Schema validation and drift detection (free, fast)');
+  lines.push('    explore  LLM-powered behavioral exploration');
 
   return lines.join('\n');
 }
