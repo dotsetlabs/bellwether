@@ -114,9 +114,6 @@ baseline:
   # Fail if drift is detected (useful for CI)
   failOnDrift: ${ciOptimized ? 'true' : 'false'}
 
-  # Minimum confidence score (0-100) to report a change
-  minConfidence: 0
-
   # Confidence threshold (0-100) for CI failure
   confidenceThreshold: 80
 

@@ -102,7 +102,7 @@ export {
   type ErrorPatternDiff,
 } from './response-fingerprint.js';
 
-// Phase 1: Change impact analysis
+// Change impact analysis
 export {
   analyzeToolChangeImpact,
   analyzeDiffImpact,
@@ -118,7 +118,7 @@ export {
   type ActionItem,
 } from './change-impact-analyzer.js';
 
-// Phase 1: Performance tracking
+// Performance tracking
 export {
   calculateMetrics,
   createPerformanceBaseline,
@@ -138,7 +138,7 @@ export {
   type LatencySample,
 } from './performance-tracker.js';
 
-// Phase 1: Deprecation tracking
+// Deprecation tracking
 export {
   checkDeprecations,
   checkToolDeprecation,
@@ -159,7 +159,7 @@ export {
   type DeprecationConfig,
 } from './deprecation-tracker.js';
 
-// Phase 1: Health scoring
+// Health scoring
 export {
   calculateHealthScore,
   formatHealthScore,
@@ -180,7 +180,7 @@ export {
   type HealthInput,
 } from './health-scorer.js';
 
-// Phase 2: Schema evolution timeline
+// Schema evolution timeline
 export {
   buildServerTimeline,
   buildToolTimeline,
@@ -206,7 +206,7 @@ export {
   type TimelineBuildOptions,
 } from './schema-evolution.js';
 
-// Phase 2: Migration guide generation
+// Migration guide generation
 export {
   generateMigrationGuide,
   formatMigrationGuideMarkdown,
@@ -222,7 +222,7 @@ export {
   type MigrationStats,
 } from './migration-generator.js';
 
-// Phase 2: Auto-generated test scenarios
+// Auto-generated test scenarios
 export {
   generateToolScenarios,
   generateBaselineScenarios,
@@ -241,7 +241,7 @@ export {
   type ScenarioGenerationConfig,
 } from './scenario-generator.js';
 
-// Phase 2: Enhanced PR comments
+// Enhanced PR comments
 export {
   generatePRComment,
   generateCompactPRComment,

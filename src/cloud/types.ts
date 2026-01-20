@@ -461,7 +461,7 @@ export interface BadgeInfo {
  *
  * This interface is implemented by:
  * - MockCloudClient (local development/testing)
- * - HttpCloudClient (production, Phase 2)
+ * - HttpCloudClient (production)
  */
 export interface BellwetherCloudClient {
   /** Check if client is authenticated */

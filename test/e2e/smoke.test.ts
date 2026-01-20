@@ -482,14 +482,14 @@ explore:
 
   describe('Full workflow simulation', () => {
     it('should simulate complete interview-to-documentation workflow', () => {
-      // Step 1: Load configuration
+      // Load configuration
       const configPath = join(testDir, 'bellwether.yaml');
       const configContent = generateConfigTemplate();
       writeFileSync(configPath, configContent);
       const config = loadConfig(configPath);
       expect(config).toBeTruthy();
 
-      // Step 2: Simulate discovery (would connect to MCP server)
+      // Simulate discovery
       const discovery: DiscoveryResult = {
         serverInfo: { name: 'workflow-test-server', version: '2.0.0' },
         protocolVersion: '1.0',
@@ -505,7 +505,7 @@ explore:
       };
       expect(discovery.tools.length).toBe(1);
 
-      // Step 3: Simulate interview (would use LLM)
+      // Simulate interview
       const result: InterviewResult = {
         discovery,
         toolProfiles: [
@@ -533,7 +533,7 @@ explore:
         },
       };
 
-      // Step 4: Generate documentation
+      // Generate documentation
       const outputDir = join(testDir, 'docs');
       mkdirSync(outputDir, { recursive: true });
 
@@ -545,12 +545,12 @@ explore:
       writeFileSync(join(outputDir, 'report.json'), jsonReport);
       expect(existsSync(join(outputDir, 'report.json'))).toBe(true);
 
-      // Step 5: Save baseline for drift detection
+      // Save baseline
       const baseline = createBaseline(result, 'npx test-server');
       saveBaseline(baseline, join(outputDir, 'baseline.json'));
       expect(existsSync(join(outputDir, 'baseline.json'))).toBe(true);
 
-      // Step 6: Verify all outputs
+      // Verify outputs
       const files = ['AGENTS.md', 'report.json', 'baseline.json'];
       for (const file of files) {
         const path = join(outputDir, file);

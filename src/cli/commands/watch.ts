@@ -108,6 +108,7 @@ export const watchCommand = new Command('watch')
 
         const fullServerCommand = `${serverCommand} ${args.join(' ')}`.trim();
         // Watch mode uses check (no LLM) for fast, deterministic drift detection
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Contract mode doesn't use LLM
         const interviewer = new Interviewer(null as any, {
           maxQuestionsPerTool: 3,
           timeout,

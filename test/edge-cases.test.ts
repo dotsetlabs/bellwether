@@ -1,5 +1,5 @@
 /**
- * Comprehensive test coverage for Phase 4 features.
+ * Edge case and robustness tests.
  *
  * Covers:
  * - Edge case tests for evaluators
