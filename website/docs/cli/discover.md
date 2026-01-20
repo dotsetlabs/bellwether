@@ -1,11 +1,11 @@
 ---
 title: discover
-sidebar_position: 5
+sidebar_position: 6
 ---
 
 # bellwether discover
 
-Quick discovery of MCP server capabilities without running tests.
+Quick discovery of MCP server capabilities without running checks.
 
 ## Synopsis
 
@@ -15,7 +15,7 @@ bellwether discover [options] <command> [args...]
 
 ## Description
 
-The `discover` command connects to an MCP server and lists its capabilities (tools, prompts, and resources) without conducting a full test. This is useful for quick reconnaissance or verifying server connectivity.
+The `discover` command connects to an MCP server and lists its capabilities (tools, prompts, and resources) without conducting a full check. This is useful for quick reconnaissance or verifying server connectivity.
 
 ## Arguments
 
@@ -80,11 +80,11 @@ TOOLS
 QUICK START
 ──────────────────────────────────────────────────────────────────
 
-  bellwether test @modelcontextprotocol/server-filesystem /tmp --preset docs
-    Quick documentation generation
+  bellwether check npx @modelcontextprotocol/server-filesystem /tmp
+    Schema validation (free, fast)
 
-  bellwether test @modelcontextprotocol/server-filesystem /tmp --preset security
-    Security-focused testing
+  bellwether explore npx @modelcontextprotocol/server-filesystem /tmp
+    Deep behavioral exploration (requires LLM)
 ```
 
 ### JSON Output
@@ -145,7 +145,7 @@ bellwether discover \
 
 ### Verify Server Connectivity
 
-Before running a full test, verify the server starts and responds:
+Before running a full check, verify the server starts and responds:
 
 ```bash
 bellwether discover npx your-server && echo "Server OK"
@@ -169,14 +169,14 @@ bellwether discover --json npx your-server > capabilities.json
 
 ### Debugging Server Issues
 
-Use discover to isolate connection vs. test issues:
+Use discover to isolate connection vs. check issues:
 
 ```bash
 # If this fails, it's a connection issue
 bellwether discover npx your-server
 
-# If discover works but test fails, it's an LLM/test issue
-bellwether test npx your-server
+# If discover works but check fails, review the check output
+bellwether check npx your-server
 ```
 
 ## Exit Codes
@@ -184,9 +184,10 @@ bellwether test npx your-server
 | Code | Meaning |
 |:-----|:--------|
 | `0` | Success - server capabilities discovered |
-| `2` | Error - connection failed or server error |
+| `1` | Error - connection failed or server error |
 
 ## See Also
 
-- [test](/cli/test) - Full behavioral testing
+- [check](/cli/check) - Schema validation and drift detection
+- [explore](/cli/explore) - LLM-powered behavioral exploration
 - [init](/cli/init) - Create configuration file

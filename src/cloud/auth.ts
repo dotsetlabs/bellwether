@@ -324,6 +324,31 @@ export function setActiveTeam(teamId: string): boolean {
   saveSession(session);
   return true;
 }
+
+/**
+ * Update the session token in the stored session.
+ * Called when the server rotates the token and returns a new one.
+ *
+ * @param newToken - The new session token from the server
+ * @returns Promise that resolves when the session is updated
+ */
+export async function updateSessionToken(newToken: string): Promise<void> {
+  const session = getStoredSession();
+  if (!session) {
+    // No session to update - this shouldn't happen in normal flow
+    return;
+  }
+
+  // Validate the new token format
+  if (!isValidSessionFormat(newToken)) {
+    throw new Error('Invalid session token format received from server');
+  }
+
+  // Update the token and record when it was rotated
+  session.sessionToken = newToken;
+  session.tokenRotatedAt = new Date().toISOString();
+  saveSession(session);
+}
 /**
  * Directory name for per-project bellwether config.
  */

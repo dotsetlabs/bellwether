@@ -10,7 +10,7 @@ Authenticate with Bellwether Cloud.
 :::info Private Beta
 Bellwether Cloud is in private beta. You'll need a beta invitation code to log in.
 
-To request access, email [hello@dotsetlabs.com](mailto:hello@dotsetlabs.com).
+To request access, [join the waitlist at bellwether.sh](https://bellwether.sh). Once approved, you'll receive an invitation code via email.
 :::
 
 ## Synopsis
@@ -24,6 +24,10 @@ bellwether login [options]
 The `login` command authenticates you with Bellwether Cloud, enabling baseline syncing and history tracking.
 
 During beta, you'll be prompted for an invitation code if you don't already have beta access. Enter your code when prompted, then complete the GitHub OAuth flow.
+
+:::note Email Verification
+Your invitation code is tied to a specific email address. When logging in, you must use a GitHub account that has the same email address as your invitation. This ensures invitation codes can only be used by their intended recipients.
+:::
 
 ## Options
 
@@ -121,7 +125,7 @@ bellwether login --status
 # Copy the BELLWETHER_SESSION value
 
 # In CI
-export BELLWETHER_SESSION=iqt_xxx
+export BELLWETHER_SESSION=sess_xxx
 bellwether upload --ci
 ```
 

@@ -2,9 +2,10 @@
  * Documentation and reporting module.
  *
  * Supported output formats:
- * - AGENTS.md: Primary documentation format (industry standard)
+ * - CONTRACT.md: Check command output (schema-focused)
+ * - AGENTS.md: Explore command output (behavior-focused, LLM-powered)
  * - JSON: Machine-readable interview results
  */
 
 // Main generators
-export { generateAgentsMd, generateJsonReport } from './generator.js';
+export { generateAgentsMd, generateContractMd, generateJsonReport } from './generator.js';

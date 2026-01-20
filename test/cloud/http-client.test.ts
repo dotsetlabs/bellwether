@@ -4,6 +4,16 @@ import { HttpCloudClient } from '../../src/cloud/http-client.js';
 // Store original fetch
 const originalFetch = globalThis.fetch;
 
+/**
+ * Create a mock Headers object for fetch responses.
+ * @param headers - Optional headers to include
+ */
+function createMockHeaders(headers: Record<string, string> = {}): { get: (key: string) => string | null } {
+  return {
+    get: (key: string) => headers[key.toLowerCase()] ?? null,
+  };
+}
+
 describe('HttpCloudClient', () => {
   let mockFetch: ReturnType<typeof vi.fn>;
 
@@ -58,6 +68,7 @@ describe('HttpCloudClient', () => {
       const mockUser = { id: 'user-1', email: 'test@example.com', name: 'Test User' };
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ user: mockUser }),
       });
 
@@ -88,6 +99,7 @@ describe('HttpCloudClient', () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 401,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ error: 'unauthorized', message: 'Invalid token' }),
       });
 
@@ -106,6 +118,7 @@ describe('HttpCloudClient', () => {
       ];
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ projects: mockProjects }),
       });
 
@@ -123,6 +136,7 @@ describe('HttpCloudClient', () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 500,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ error: 'server_error', message: 'Internal server error' }),
       });
 
@@ -137,6 +151,7 @@ describe('HttpCloudClient', () => {
       const mockProject = { id: 'proj-new', name: 'New Project', serverCommand: 'node server.js' };
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ project: mockProject }),
       });
 
@@ -159,6 +174,7 @@ describe('HttpCloudClient', () => {
       const mockProject = { id: 'proj-1', name: 'Project 1', serverCommand: 'node server.js' };
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ project: mockProject }),
       });
 
@@ -176,6 +192,7 @@ describe('HttpCloudClient', () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 404,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ error: 'not_found', message: 'Project not found' }),
       });
 
@@ -190,6 +207,7 @@ describe('HttpCloudClient', () => {
     it('should delete project by ID', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ success: true }),
       });
 
@@ -212,6 +230,7 @@ describe('HttpCloudClient', () => {
       };
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ baseline: mockBaseline, diff: null }),
       });
 
@@ -234,6 +253,7 @@ describe('HttpCloudClient', () => {
       const mockDiff = { severity: 'info', toolsAdded: 1 };
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ baseline: mockBaseline, diff: mockDiff }),
       });
 
@@ -252,6 +272,7 @@ describe('HttpCloudClient', () => {
       ];
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ baselines: mockBaselines, total: 2 }),
       });
 
@@ -271,6 +292,7 @@ describe('HttpCloudClient', () => {
       const mockBaseline = { version: '1.0', server: { name: 'test' } };
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve(mockBaseline),
       });
 
@@ -288,6 +310,7 @@ describe('HttpCloudClient', () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 404,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ error: 'not_found' }),
       });
 
@@ -309,6 +332,7 @@ describe('HttpCloudClient', () => {
       };
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({
           diff: { summary: mockDiff, details: [], fromVersion: 1, toVersion: 2 },
         }),
@@ -330,6 +354,7 @@ describe('HttpCloudClient', () => {
       const mockDiff = { severity: 'info', toolsAdded: 0, toolsRemoved: 0 };
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({
           diff: { summary: mockDiff, fromVersion: 1, toVersion: 2 },
         }),
@@ -344,6 +369,7 @@ describe('HttpCloudClient', () => {
     it('should return null when no diff available', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ diff: null }),
       });
 
@@ -357,6 +383,7 @@ describe('HttpCloudClient', () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 404,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ error: 'not_found' }),
       });
 
@@ -377,6 +404,7 @@ describe('HttpCloudClient', () => {
       };
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ badge: mockBadge }),
       });
 
@@ -394,6 +422,7 @@ describe('HttpCloudClient', () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 404,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ error: 'not_found' }),
       });
 
@@ -427,6 +456,7 @@ describe('HttpCloudClient', () => {
     it('should include authorization header', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ projects: [] }),
       });
 
@@ -446,6 +476,7 @@ describe('HttpCloudClient', () => {
     it('should include content-type header', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ projects: [] }),
       });
 
@@ -469,6 +500,7 @@ describe('HttpCloudClient', () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 400,
+        headers: createMockHeaders(),
         json: () => Promise.resolve({ error: 'bad_request', message: 'Invalid input' }),
       });
 
@@ -482,12 +514,69 @@ describe('HttpCloudClient', () => {
         ok: false,
         status: 502,
         statusText: 'Bad Gateway',
+        headers: createMockHeaders(),
         json: () => Promise.reject(new Error('Not JSON')),
       });
 
       const client = new HttpCloudClient('https://api.example.com', 'token');
 
       await expect(client.listProjects()).rejects.toThrow('HTTP 502');
+    });
+  });
+
+  describe('token rotation', () => {
+    it('should update session token when X-Rotated-Session-Token header is present', async () => {
+      const newToken = 'sess_newtoken1234567890123456789012345678901234567890123456789012';
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: createMockHeaders({ 'x-rotated-session-token': newToken }),
+        json: () => Promise.resolve({ projects: [] }),
+      });
+
+      const client = new HttpCloudClient('https://api.example.com', 'sess_oldtoken');
+
+      await client.listProjects();
+
+      // Verify the client's internal token was updated
+      // The next request should use the new token
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: createMockHeaders(),
+        json: () => Promise.resolve({ projects: [] }),
+      });
+
+      await client.listProjects();
+
+      // Check the second call used the new token
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Authorization': `Bearer ${newToken}`,
+          }),
+        })
+      );
+    });
+
+    it('should continue working when rotation header is not present', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: createMockHeaders(),
+        json: () => Promise.resolve({ projects: [] }),
+      });
+
+      const client = new HttpCloudClient('https://api.example.com', 'sess_token');
+
+      await client.listProjects();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer sess_token',
+          }),
+        })
+      );
     });
   });
 });

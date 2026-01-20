@@ -60,10 +60,10 @@ export const llmConfigSchema = z.object({
 }).default({});
 
 /**
- * Test configuration schema (for full mode).
+ * Explore configuration schema (for bellwether explore command).
  */
-export const testConfigSchema = z.object({
-  /** Personas to use for testing */
+export const exploreConfigSchema = z.object({
+  /** Personas to use for exploration */
   personas: z.array(z.enum([
     'technical_writer',
     'security_tester',
@@ -82,6 +82,11 @@ export const testConfigSchema = z.object({
   /** Skip error/edge case testing */
   skipErrorTests: z.boolean().default(false),
 }).default({});
+
+/**
+ * @deprecated Use exploreConfigSchema instead
+ */
+export const testConfigSchema = exploreConfigSchema;
 
 /**
  * Scenarios configuration schema.
@@ -163,27 +168,30 @@ export const loggingConfigSchema = z.object({
 
 /**
  * Complete bellwether.yaml configuration schema.
+ *
+ * This config is used by both 'bellwether check' and 'bellwether explore' commands.
+ * Each command uses the relevant sections.
  */
 export const bellwetherConfigSchema = z.object({
-  /** Server configuration */
+  /** Server configuration (used by both commands) */
   server: serverConfigSchema,
-  /** Test mode: structural (free) or full (LLM) */
-  mode: z.enum(['structural', 'full']).default('structural'),
-  /** LLM configuration */
+  /** LLM configuration (used by explore command) */
   llm: llmConfigSchema,
-  /** Test settings (for full mode) */
-  test: testConfigSchema,
-  /** Custom scenarios */
+  /** Explore settings (used by explore command) */
+  explore: exploreConfigSchema,
+  /** @deprecated Use 'explore' instead. Kept for backward compatibility. */
+  test: exploreConfigSchema.optional(),
+  /** Custom scenarios (used by both commands) */
   scenarios: scenariosConfigSchema,
-  /** Workflow testing */
+  /** Workflow testing (used by explore command) */
   workflows: workflowsConfigSchema,
-  /** Output settings */
+  /** Output settings (used by both commands) */
   output: outputConfigSchema,
-  /** Baseline comparison */
+  /** Baseline comparison (used by check command) */
   baseline: baselineConfigSchema,
-  /** Caching */
+  /** Caching (used by both commands) */
   cache: cacheConfigSchema,
-  /** Logging */
+  /** Logging (used by both commands) */
   logging: loggingConfigSchema,
 });
 
@@ -212,9 +220,9 @@ export function validateConfig(config: unknown, filePath?: string): BellwetherCo
 }
 
 /**
- * Validate that required fields are present for running tests.
+ * Validate that required fields are present for the check command.
  */
-export function validateConfigForTest(config: BellwetherConfig, serverCommand?: string): void {
+export function validateConfigForCheck(config: BellwetherConfig, serverCommand?: string): void {
   // Server command must be provided either in config or as argument
   const effectiveCommand = serverCommand || config.server.command;
   if (!effectiveCommand) {
@@ -224,45 +232,69 @@ export function validateConfigForTest(config: BellwetherConfig, serverCommand?: 
       '  server:\n' +
       '    command: "npx @your/mcp-server"\n\n' +
       'Or pass it as an argument:\n' +
-      '  bellwether test npx @your/mcp-server'
+      '  bellwether check npx @your/mcp-server'
+    );
+  }
+  // Check command doesn't require LLM - it's free and deterministic
+}
+
+/**
+ * Validate that required fields are present for the explore command.
+ */
+export function validateConfigForExplore(config: BellwetherConfig, serverCommand?: string): void {
+  // Server command must be provided either in config or as argument
+  const effectiveCommand = serverCommand || config.server.command;
+  if (!effectiveCommand) {
+    throw new Error(
+      'No server command specified.\n\n' +
+      'Either add it to bellwether.yaml:\n' +
+      '  server:\n' +
+      '    command: "npx @your/mcp-server"\n\n' +
+      'Or pass it as an argument:\n' +
+      '  bellwether explore npx @your/mcp-server'
     );
   }
 
-  // In full mode, check LLM provider requirements
-  if (config.mode === 'full') {
-    const provider = config.llm.provider;
+  // Explore command requires LLM - check provider requirements
+  const provider = config.llm.provider;
 
-    if (provider === 'openai') {
-      const envVar = config.llm.openaiApiKeyEnvVar || 'OPENAI_API_KEY';
-      if (!process.env[envVar]) {
-        throw new Error(
-          `OpenAI API key not found.\n\n` +
-          `Set the ${envVar} environment variable or run:\n` +
-          `  bellwether auth\n\n` +
-          `Or switch to local Ollama (free) by setting:\n` +
-          `  mode: structural  (recommended for CI)\n` +
-          `  # or\n` +
-          `  llm:\n` +
-          `    provider: ollama`
-        );
-      }
-    } else if (provider === 'anthropic') {
-      const envVar = config.llm.anthropicApiKeyEnvVar || 'ANTHROPIC_API_KEY';
-      if (!process.env[envVar]) {
-        throw new Error(
-          `Anthropic API key not found.\n\n` +
-          `Set the ${envVar} environment variable or run:\n` +
-          `  bellwether auth\n\n` +
-          `Or switch to local Ollama (free) by setting:\n` +
-          `  mode: structural  (recommended for CI)\n` +
-          `  # or\n` +
-          `  llm:\n` +
-          `    provider: ollama`
-        );
-      }
+  if (provider === 'openai') {
+    const envVar = config.llm.openaiApiKeyEnvVar || 'OPENAI_API_KEY';
+    if (!process.env[envVar]) {
+      throw new Error(
+        `OpenAI API key not found.\n\n` +
+        `Set the ${envVar} environment variable or run:\n` +
+        `  bellwether auth\n\n` +
+        `Or switch to local Ollama (free) by setting:\n` +
+        `  llm:\n` +
+        `    provider: ollama\n\n` +
+        `For drift detection without LLM, use:\n` +
+        `  bellwether check`
+      );
     }
-    // Ollama doesn't require API keys
+  } else if (provider === 'anthropic') {
+    const envVar = config.llm.anthropicApiKeyEnvVar || 'ANTHROPIC_API_KEY';
+    if (!process.env[envVar]) {
+      throw new Error(
+        `Anthropic API key not found.\n\n` +
+        `Set the ${envVar} environment variable or run:\n` +
+        `  bellwether auth\n\n` +
+        `Or switch to local Ollama (free) by setting:\n` +
+        `  llm:\n` +
+        `    provider: ollama\n\n` +
+        `For drift detection without LLM, use:\n` +
+        `  bellwether check`
+      );
+    }
   }
+  // Ollama doesn't require API keys
+}
+
+/**
+ * @deprecated Use validateConfigForCheck or validateConfigForExplore instead.
+ */
+export function validateConfigForTest(config: BellwetherConfig, serverCommand?: string): void {
+  validateConfigForCheck(config, serverCommand);
 }
 
 /**

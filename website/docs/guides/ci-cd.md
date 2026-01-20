@@ -9,7 +9,7 @@ Integrate Bellwether into your CI/CD pipeline for automated behavioral testing o
 
 ## Quick Start
 
-The simplest CI/CD setup uses structural mode (free, fast, deterministic):
+The simplest CI/CD setup uses contract mode (free, fast, deterministic):
 
 ```yaml
 # .github/workflows/bellwether.yml
@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npx @dotsetlabs/bellwether test npx @mcp/your-server
+      - run: npx @dotsetlabs/bellwether check npx @mcp/your-server
       - run: npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
@@ -38,7 +38,7 @@ bellwether init --preset ci
 ```
 
 This creates `bellwether.yaml` with:
-- Structural mode (free, deterministic)
+- Contract mode (free, deterministic)
 - JSON output enabled
 - Fail on drift enabled
 
@@ -47,7 +47,7 @@ This creates `bellwether.yaml` with:
 Run the test and save a baseline:
 
 ```bash
-bellwether test npx @mcp/your-server
+bellwether check npx @mcp/your-server
 bellwether baseline save
 ```
 
@@ -75,7 +75,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Bellwether Test
-        run: npx @dotsetlabs/bellwether test npx @mcp/your-server
+        run: npx @dotsetlabs/bellwether check npx @mcp/your-server
 
       - name: Check for Drift
         run: npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
@@ -92,7 +92,7 @@ jobs:
     fail-on-drift: 'true'
 ```
 
-### Full Mode with LLM (Optional)
+### Document Mode with LLM (Optional)
 
 For comprehensive testing with LLM-generated scenarios:
 
@@ -103,11 +103,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Full Test
+      - name: Run Document Mode Test
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          npx @dotsetlabs/bellwether test npx @mcp/your-server
+          npx @dotsetlabs/bellwether check npx @mcp/your-server
           npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
@@ -119,7 +119,7 @@ jobs:
 bellwether:
   image: node:20
   script:
-    - npx @dotsetlabs/bellwether test npx @mcp/your-server
+    - npx @dotsetlabs/bellwether check npx @mcp/your-server
     - npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
@@ -127,7 +127,7 @@ bellwether:
 
 ## Workflow Patterns
 
-### PR Checks (Structural Mode)
+### PR Checks (Contract Mode)
 
 Fast, free checks on every pull request:
 
@@ -140,11 +140,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npx @dotsetlabs/bellwether test npx @mcp/your-server
+      - run: npx @dotsetlabs/bellwether check npx @mcp/your-server
       - run: npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
-### Nightly Full Tests
+### Nightly Document Mode Tests
 
 Comprehensive testing with LLM:
 
@@ -161,7 +161,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # Use thorough preset config
-      - run: npx @dotsetlabs/bellwether test --config ./configs/thorough.yaml npx @mcp/your-server
+      - run: npx @dotsetlabs/bellwether check --config ./configs/thorough.yaml npx @mcp/your-server
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
@@ -184,7 +184,7 @@ jobs:
 
       - name: Generate New Baseline
         run: |
-          npx @dotsetlabs/bellwether test npx @mcp/your-server
+          npx @dotsetlabs/bellwether check npx @mcp/your-server
           npx @dotsetlabs/bellwether baseline save --force
 
       - name: Commit Baseline
@@ -208,7 +208,7 @@ server:
   command: "npx @mcp/your-server"
   timeout: 30000
 
-mode: structural
+mode: contract
 
 output:
   dir: "."
@@ -238,7 +238,7 @@ mv bellwether.yaml configs/dev.yaml
 Use in CI:
 
 ```yaml
-- run: npx @dotsetlabs/bellwether test --config ./configs/ci.yaml npx @mcp/your-server
+- run: npx @dotsetlabs/bellwether check --config ./configs/ci.yaml npx @mcp/your-server
 ```
 
 ---
@@ -261,7 +261,7 @@ Commit baselines to version control:
 
 ```bash
 # Generate baseline
-bellwether test npx @mcp/your-server
+bellwether check npx @mcp/your-server
 bellwether baseline save
 
 # Commit
@@ -275,7 +275,7 @@ When you intentionally change your server:
 
 ```bash
 # Update baseline
-bellwether test npx @mcp/your-server
+bellwether check npx @mcp/your-server
 bellwether baseline save --force
 
 # Review and commit
@@ -302,7 +302,7 @@ Sync with Bellwether Cloud for history and team visibility:
   env:
     BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
   run: |
-    npx @dotsetlabs/bellwether test npx @mcp/your-server
+    npx @dotsetlabs/bellwether check npx @mcp/your-server
     npx @dotsetlabs/bellwether baseline save
     npx @dotsetlabs/bellwether upload --ci --fail-on-drift
 ```
@@ -313,11 +313,11 @@ Sync with Bellwether Cloud for history and team visibility:
 
 | Mode | Cost | Speed | Use Case |
 |:-----|:-----|:------|:---------|
-| Structural (default) | Free | Seconds | PR checks, CI gates |
-| Full with Ollama | Free | Minutes | Local dev |
-| Full with OpenAI | ~$0.01-0.10 | Minutes | Comprehensive testing |
+| Contract (default) | Free | Seconds | PR checks, CI gates |
+| Document with Ollama | Free | Minutes | Local dev |
+| Document with OpenAI | ~$0.01-0.10 | Minutes | Comprehensive testing |
 
-### Structural Mode Benefits
+### Contract Mode Benefits
 
 - **Free** - No API costs
 - **Fast** - Completes in seconds
@@ -330,8 +330,8 @@ Sync with Bellwether Cloud for history and team visibility:
 
 | Variable | Description | Required |
 |:---------|:------------|:---------|
-| `OPENAI_API_KEY` | OpenAI API key | For full mode with OpenAI |
-| `ANTHROPIC_API_KEY` | Anthropic API key | For full mode with Anthropic |
+| `OPENAI_API_KEY` | OpenAI API key | For document mode with OpenAI |
+| `ANTHROPIC_API_KEY` | Anthropic API key | For document mode with Anthropic |
 | `BELLWETHER_SESSION` | Cloud session token | For cloud upload |
 | `BELLWETHER_TEAM_ID` | Team ID for multi-team organizations | For cloud upload with specific team |
 
@@ -366,7 +366,7 @@ server:
 
 ```yaml
 - run: |
-    npx @dotsetlabs/bellwether test npx @mcp/your-server 2>&1 | tee bellwether.log
+    npx @dotsetlabs/bellwether check npx @mcp/your-server 2>&1 | tee bellwether.log
   env:
     LOG_LEVEL: debug
 
@@ -381,7 +381,7 @@ server:
 
 ## See Also
 
-- [test](/cli/test) - Test command reference
+- [check](/cli/check) - Test command reference
 - [baseline](/cli/baseline) - Baseline management
 - [Configuration](/guides/configuration) - Full config reference
 - [Drift Detection](/concepts/drift-detection) - Understanding drift

@@ -6,7 +6,7 @@
 
 > **Catch MCP server drift before your users do. Zero LLM required.**
 
-Bellwether detects behavioral changes in your [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server using **structural comparison**. No LLM needed. Free. Deterministic.
+Bellwether detects behavioral changes in your [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server using **contract comparison**. No LLM needed. Free. Deterministic.
 
 ## Quick Start
 
@@ -17,14 +17,17 @@ npm install -g @dotsetlabs/bellwether
 # Initialize configuration
 bellwether init npx @mcp/your-server
 
-# Run tests
-bellwether test
+# Check for drift (free, fast, deterministic)
+bellwether check
 
 # Save baseline for drift detection
 bellwether baseline save
+
+# Optional: Explore behavior with LLM
+bellwether explore
 ```
 
-That's it. No API keys. No LLM costs. Deterministic results.
+That's it. No API keys needed for check. No LLM costs. Deterministic results.
 
 ## CI/CD Integration
 
@@ -40,15 +43,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npx @dotsetlabs/bellwether test
-      - run: npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+      - run: npx @dotsetlabs/bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
 ```
 
 No secrets needed. Free. Runs in seconds.
 
 ## What Bellwether Detects
 
-Structural mode detects when your MCP server changes:
+Contract mode detects when your MCP server changes:
 
 | Change Type | Example | Detected |
 |:------------|:--------|:---------|
@@ -75,11 +77,11 @@ This catches the changes that break AI agent workflows.
 All settings are configured in `bellwether.yaml`. Create one with:
 
 ```bash
-bellwether init npx @mcp/your-server           # Default structural mode (free, fast)
+bellwether init npx @mcp/your-server           # Default (free, fast)
 bellwether init --preset ci npx @mcp/server    # Optimized for CI/CD
-bellwether init --preset security npx @mcp/server  # Security-focused testing
-bellwether init --preset thorough npx @mcp/server  # Comprehensive testing
-bellwether init --preset local npx @mcp/server # Full mode with local Ollama
+bellwether init --preset security npx @mcp/server  # Security-focused exploration
+bellwether init --preset thorough npx @mcp/server  # Comprehensive exploration
+bellwether init --preset local npx @mcp/server # Exploration with local Ollama
 ```
 
 The generated config file is fully documented with all available options.
@@ -98,36 +100,35 @@ server:
 
 This allows committing `bellwether.yaml` to version control without exposing secrets.
 
-## Modes
+## Commands
 
-### Structural Mode (Default, Recommended for CI)
+### Check Command (Recommended for CI)
 
 ```bash
 bellwether init npx @mcp/your-server
-bellwether test
+bellwether check
 ```
 
 - **Zero LLM** - No API keys required
 - **Free** - No token costs
 - **Deterministic** - Same input = same output
 - **Fast** - Runs in seconds
+- **Output** - Generates `CONTRACT.md` and baselines
 
-### Full Mode (Optional)
+### Explore Command (Optional)
 
 ```bash
 bellwether init --preset local npx @mcp/your-server  # Uses local Ollama (free)
 # or
 bellwether init --preset thorough npx @mcp/server    # Uses OpenAI (requires API key)
 
-bellwether test
+bellwether explore
 ```
 
 - Requires LLM (Ollama for free local, or OpenAI/Anthropic)
 - Multi-persona testing (technical writer, security tester, QA, novice)
-- Generates AGENTS.md documentation
+- Generates `AGENTS.md` documentation
 - Better for local development and deep exploration
-
-## Commands
 
 ### Core Commands
 
@@ -136,14 +137,19 @@ bellwether test
 bellwether init npx @mcp/server
 bellwether init --preset ci npx @mcp/server
 
-# Run tests using config settings
-bellwether test                    # Uses server.command from config
-bellwether test npx @mcp/server    # Override server command
+# Check for drift (free, fast, deterministic)
+bellwether check                   # Uses server.command from config
+bellwether check npx @mcp/server   # Override server command
+bellwether check --save-baseline   # Save baseline after check
+
+# Explore behavior (LLM-powered)
+bellwether explore                 # Uses server.command from config
+bellwether explore npx @mcp/server # Override server command
 
 # Discover server capabilities
 bellwether discover npx @mcp/server
 
-# Watch mode (re-test on file changes)
+# Watch mode (re-check on file changes)
 bellwether watch --watch-path ./src
 
 # Search MCP Registry
@@ -184,7 +190,7 @@ bellwether baseline migrate ./baseline.json --info
 
 Baselines use semantic versioning (e.g., `1.0.0`) for the format version:
 
-- **Major version** - Breaking structural changes (removed fields, type changes)
+- **Major version** - Breaking contract changes (removed fields, type changes)
 - **Minor version** - New optional fields (backwards compatible)
 - **Patch version** - Bug fixes in baseline generation
 
@@ -288,18 +294,19 @@ scenarios:
 Then run:
 
 ```bash
-bellwether test
+bellwether check   # Run scenarios as part of check
+bellwether explore # Run scenarios as part of explore
 ```
 
 ## Presets
 
-| Preset | Mode | Description |
-|:-------|:-----|:------------|
-| (default) | structural | Zero LLM, free, deterministic |
-| `ci` | structural | Optimized for CI/CD, fails on drift |
-| `security` | full | Security + technical personas, OpenAI |
-| `thorough` | full | All 4 personas, workflow discovery |
-| `local` | full | Local Ollama, free, private |
+| Preset | Optimized For | Description |
+|:-------|:--------------|:------------|
+| (default) | check | Zero LLM, free, deterministic |
+| `ci` | check | Optimized for CI/CD, fails on drift |
+| `security` | explore | Security + technical personas, OpenAI |
+| `thorough` | explore | All 4 personas, workflow discovery |
+| `local` | explore | Local Ollama, free, private |
 
 Use with: `bellwether init --preset <name> npx @mcp/server`
 
@@ -320,8 +327,8 @@ See [action/README.md](./action/README.md) for full documentation.
 
 | Variable | Description |
 |:---------|:------------|
-| `OPENAI_API_KEY` | OpenAI API key (full mode) |
-| `ANTHROPIC_API_KEY` | Anthropic API key (full mode) |
+| `OPENAI_API_KEY` | OpenAI API key (explore command) |
+| `ANTHROPIC_API_KEY` | Anthropic API key (explore command) |
 | `OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
 | `BELLWETHER_SESSION` | Cloud session token for CI/CD |
 | `BELLWETHER_API_URL` | Cloud API URL (default: `https://api.bellwether.sh`) |
@@ -339,7 +346,8 @@ npm run build
 npm test
 
 # Run locally
-./dist/cli/index.js test npx @mcp/server
+./dist/cli/index.js check npx @mcp/server
+./dist/cli/index.js explore npx @mcp/server
 ```
 
 ## License

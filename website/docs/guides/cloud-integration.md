@@ -10,7 +10,7 @@ Bellwether Cloud provides baseline history, webhooks, and documentation badges f
 :::info Private Beta
 Bellwether Cloud is currently in **private beta**. All features are free during the beta period.
 
-To request access, email [hello@dotsetlabs.com](mailto:hello@dotsetlabs.com). Once you have access, you can invite team members directly from the dashboard.
+To request access, [join the waitlist at bellwether.sh](https://bellwether.sh). Once approved, you'll receive an invitation code via email. You can then invite team members directly from the dashboard.
 :::
 
 ## Features
@@ -50,7 +50,7 @@ Follow the prompts to create or select a project.
 
 ```bash
 # Generate and upload
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline save
 bellwether upload
 ```
@@ -97,7 +97,7 @@ Copy the markdown from the `badge` command:
 
 ```bash
 # After uploading baseline, get updated badge
-bellwether test --preset ci npx your-server
+bellwether check --preset ci npx your-server
 bellwether upload
 bellwether badge --markdown
 ```
@@ -120,7 +120,7 @@ jobs:
         env:
           BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
         run: |
-          npx @dotsetlabs/bellwether test npx your-server
+          npx @dotsetlabs/bellwether check npx your-server
           npx @dotsetlabs/bellwether baseline save
           npx @dotsetlabs/bellwether upload --ci --fail-on-drift
 ```
@@ -202,7 +202,11 @@ During the private beta, all cloud features are **completely free**:
 - Team collaboration
 - API access
 
-To request access, email [hello@dotsetlabs.com](mailto:hello@dotsetlabs.com).
+To request access, [join the waitlist at bellwether.sh](https://bellwether.sh). Once approved, you'll receive an invitation code via email.
+
+:::note Email Verification
+Your invitation code is tied to a specific email address. When logging in with `bellwether login`, you must use a GitHub account that has the same email address as your invitation. This ensures invitation codes can only be used by their intended recipients.
+:::
 
 After the beta period ends, we'll introduce paid plans. The CLI will always remain free and open source.
 

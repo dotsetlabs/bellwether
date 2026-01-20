@@ -1,24 +1,22 @@
 /**
- * Baseline format versioning using semantic versioning.
- *
- * Version Format: MAJOR.MINOR.PATCH
- * - MAJOR: Breaking changes to baseline structure (removed/renamed fields, type changes)
- * - MINOR: Additive changes (new optional fields, backwards compatible)
- * - PATCH: Bug fixes in baseline generation logic
+ * Baseline versioning using CLI package version.
  *
  * Compatibility Rules:
- * - Same major version = COMPATIBLE (can compare)
- * - Different major version = INCOMPATIBLE (error unless forced)
+ * - Same CLI major version = COMPATIBLE (can compare baselines)
+ * - Different CLI major version = INCOMPATIBLE (requires migration)
+ *
+ * This aligns with semantic versioning: major version changes signal
+ * breaking changes, including baseline format changes.
  */
 
+import { VERSION } from '../version.js';
+
 /**
- * Current baseline format version.
- *
- * Increment MAJOR when making breaking structural changes.
- * Increment MINOR when adding new optional fields.
- * Increment PATCH for generation logic fixes.
+ * Get the current CLI version for baseline creation.
  */
-export const BASELINE_FORMAT_VERSION = '1.0.0';
+export function getBaselineVersion(): string {
+  return VERSION;
+}
 
 /**
  * Parsed semantic version components.
@@ -74,9 +72,9 @@ export class BaselineVersionError extends Error {
  * @returns Parsed version components
  */
 export function parseVersion(version: string | number | undefined): FormatVersion {
-  // Handle undefined/null - treat as version 1.0.0
+  // Handle undefined/null - treat as current version
   if (version === undefined || version === null) {
-    return { major: 1, minor: 0, patch: 0, raw: '1.0.0' };
+    return parseVersion(VERSION);
   }
 
   // Handle legacy numeric version (e.g., version: 1)
@@ -93,7 +91,7 @@ export function parseVersion(version: string | number | undefined): FormatVersio
   const parts = version.split('.').map(Number);
 
   // Validate parsed numbers
-  const major = Number.isNaN(parts[0]) ? 1 : parts[0];
+  const major = Number.isNaN(parts[0]) ? 0 : parts[0];
   const minor = Number.isNaN(parts[1]) ? 0 : (parts[1] ?? 0);
   const patch = Number.isNaN(parts[2]) ? 0 : (parts[2] ?? 0);
 
@@ -148,7 +146,7 @@ export function compareVersions(v1: FormatVersion, v2: FormatVersion): -1 | 0 | 
 export function getCompatibilityWarning(v1: FormatVersion, v2: FormatVersion): string | null {
   if (v1.major !== v2.major) {
     return (
-      `Baseline format versions are incompatible: v${v1.raw} vs v${v2.raw}. ` +
+      `Baseline CLI versions are incompatible: v${v1.raw} vs v${v2.raw}. ` +
       `Major version mismatch may cause incorrect comparison results. ` +
       `Use \`bellwether baseline migrate\` to upgrade baselines to the current format.`
     );
@@ -156,7 +154,7 @@ export function getCompatibilityWarning(v1: FormatVersion, v2: FormatVersion): s
 
   if (v1.minor !== v2.minor || v1.patch !== v2.patch) {
     return (
-      `Baseline format versions differ: v${v1.raw} vs v${v2.raw}. ` +
+      `Baseline CLI versions differ: v${v1.raw} vs v${v2.raw}. ` +
       `Comparison should work correctly, but some newer fields may not be present in the older baseline.`
     );
   }
@@ -202,7 +200,7 @@ export function assertVersionCompatibility(
 
   if (!areVersionsCompatible(v1, v2)) {
     throw new BaselineVersionError(
-      `Cannot compare baselines with incompatible format versions: v${v1.raw} vs v${v2.raw}. ` +
+      `Cannot compare baselines with incompatible CLI versions: v${v1.raw} vs v${v2.raw}. ` +
         `Use \`bellwether baseline migrate\` to upgrade the older baseline, ` +
         `or use --ignore-version-mismatch to force comparison (results may be incorrect).`,
       v1.raw,
@@ -223,37 +221,49 @@ export function formatVersion(version: string | number | undefined): string {
 }
 
 /**
- * Check if a version is the current format version.
+ * Check if a version is the current CLI version.
  *
  * @param version - Version to check
- * @returns true if version matches current format version
+ * @returns true if version matches current CLI version
  */
 export function isCurrentVersion(version: string | number | undefined): boolean {
   const parsed = parseVersion(version);
-  const current = parseVersion(BASELINE_FORMAT_VERSION);
+  const current = parseVersion(VERSION);
   return compareVersions(parsed, current) === 0;
 }
 
 /**
- * Check if a version is older than the current format version.
+ * Check if a version is older than the current CLI version.
  *
  * @param version - Version to check
  * @returns true if version is older than current
  */
 export function isOlderVersion(version: string | number | undefined): boolean {
   const parsed = parseVersion(version);
-  const current = parseVersion(BASELINE_FORMAT_VERSION);
+  const current = parseVersion(VERSION);
   return compareVersions(parsed, current) < 0;
 }
 
 /**
- * Check if a version is newer than the current format version.
+ * Check if a version is newer than the current CLI version.
  *
  * @param version - Version to check
  * @returns true if version is newer than current
  */
 export function isNewerVersion(version: string | number | undefined): boolean {
   const parsed = parseVersion(version);
-  const current = parseVersion(BASELINE_FORMAT_VERSION);
+  const current = parseVersion(VERSION);
   return compareVersions(parsed, current) > 0;
+}
+
+/**
+ * Check if a baseline version requires migration (different major version).
+ *
+ * @param version - Version to check
+ * @returns true if baseline needs migration to be compatible
+ */
+export function requiresMigration(version: string | number | undefined): boolean {
+  const parsed = parseVersion(version);
+  const current = parseVersion(VERSION);
+  return parsed.major !== current.major;
 }

@@ -9,7 +9,7 @@ sidebar_position: 2
 
 - **Node.js 20 or later** - Required for running Bellwether
 - **An MCP server to test** - Any server implementing the Model Context Protocol
-- **An LLM API key** (optional) - Only required for full mode; structural mode (default) is free and requires no API keys
+- **An LLM API key** (optional) - Only required for `bellwether explore`; `bellwether check` is free and requires no API keys
 
 ## Install via npm
 
@@ -30,18 +30,18 @@ bellwether --version
 Run Bellwether directly without global installation:
 
 ```bash
-npx @dotsetlabs/bellwether test <server-command>
+npx @dotsetlabs/bellwether check <server-command>
 ```
 
 This is useful for CI/CD pipelines or one-off usage.
 
 ## LLM Provider Setup (Optional)
 
-:::tip Structural Mode is Free
-By default, Bellwether runs in **structural mode** which requires no LLM and no API keys. It's free, fast, and deterministic. Only set up an LLM provider if you want **full mode** with multi-persona testing and AGENTS.md documentation generation.
+:::tip Check Mode is Free
+By default, `bellwether check` requires no LLM and no API keys. It's free, fast, and deterministic. Only set up an LLM provider if you want `bellwether explore` with multi-persona testing and AGENTS.md documentation generation.
 :::
 
-For full mode testing, choose one of the following providers:
+For explore mode, choose one of the following providers:
 
 ### OpenAI (Recommended)
 
@@ -121,7 +121,7 @@ bellwether auth status
 
 ### Ollama (Free, Local)
 
-For completely free, local LLM usage:
+For completely free, local LLM usage with explore mode:
 
 ```bash
 # Install Ollama (macOS/Linux)
@@ -133,8 +133,8 @@ ollama serve
 # Pull a model
 ollama pull llama3.2
 
-# Run Bellwether (no API key needed)
-bellwether test npx @modelcontextprotocol/server-filesystem /tmp
+# Run explore (no API key needed)
+bellwether explore npx @modelcontextprotocol/server-filesystem /tmp
 ```
 
 Default model: `llama3.2`
@@ -156,7 +156,7 @@ Bellwether automatically detects which provider to use based on environment vari
 Override with the `--provider` flag:
 
 ```bash
-bellwether test --provider openai npx server
+bellwether explore --provider openai npx server
 ```
 
 ## Configuration File
@@ -164,18 +164,22 @@ bellwether test --provider openai npx server
 For persistent configuration, create `bellwether.yaml` in your project root:
 
 ```yaml
-version: 1
+server:
+  command: npx @mcp/your-server
+  timeout: 30000
 
 llm:
   provider: openai
-  model: gpt-4o
+  model: gpt-5.2
 
-interview:
+explore:
+  personas:
+    - technical_writer
+    - security_tester
   maxQuestionsPerTool: 3
-  timeout: 30000
 
 output:
-  format: markdown
+  dir: "."
 ```
 
 Or in your home directory at `~/.bellwether/bellwether.yaml` for global defaults.
@@ -185,26 +189,29 @@ Or in your home directory at `~/.bellwether/bellwether.yaml` for global defaults
 Test your installation:
 
 ```bash
-# With OpenAI
-export OPENAI_API_KEY=sk-xxx
-bellwether test npx @modelcontextprotocol/server-memory
+# Check mode (free, no API key needed)
+bellwether check npx @modelcontextprotocol/server-memory
 
-# With Ollama (free)
+# Explore mode with Ollama (free)
 ollama serve &
-bellwether test npx @modelcontextprotocol/server-memory
+bellwether explore npx @modelcontextprotocol/server-memory
 ```
 
-You should see:
+For check mode, you should see:
 1. Connection to the MCP server
 2. Tool discovery
-3. Test scenarios being run
-4. AGENTS.md file generated
+3. Schema validation
+4. CONTRACT.md file generated
+
+For explore mode, you should also see:
+1. Multi-persona testing
+2. AGENTS.md file generated
 
 ## Troubleshooting
 
 ### "API key not found"
 
-Set up your API key using the interactive wizard:
+This only applies to explore mode. Set up your API key:
 
 ```bash
 bellwether auth
@@ -214,23 +221,6 @@ Or check your current authentication status:
 
 ```bash
 bellwether auth status
-```
-
-Alternative methods:
-
-```bash
-# Store in system keychain
-bellwether auth add openai
-
-# Or: Global .env file (set once, use everywhere)
-mkdir -p ~/.bellwether
-echo "OPENAI_API_KEY=sk-xxx" >> ~/.bellwether/.env
-
-# Or: Project .env file
-echo "OPENAI_API_KEY=sk-xxx" >> .env
-
-# Or: Current session only
-export OPENAI_API_KEY=sk-xxx
 ```
 
 ### "Connection refused" with Ollama
@@ -255,7 +245,7 @@ nvm use 20
 
 ## Next Steps
 
-- [Quick Start](/quickstart) - Run your first test
+- [Quick Start](/quickstart) - Run your first check
 - [Local Development](/guides/local-development) - Test your MCP server during development
 - [Configuration Guide](/guides/configuration) - Advanced configuration options
-- [CLI Reference](/cli/test) - Full command documentation
+- [CLI Reference](/cli/check) - Full command documentation

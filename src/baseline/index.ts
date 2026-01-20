@@ -60,7 +60,7 @@ export {
 } from './schema-compare.js';
 
 export {
-  BASELINE_FORMAT_VERSION,
+  getBaselineVersion,
   parseVersion,
   areVersionsCompatible,
   compareVersions,
@@ -71,6 +71,7 @@ export {
   isCurrentVersion,
   isOlderVersion,
   isNewerVersion,
+  requiresMigration,
   BaselineVersionError,
   type FormatVersion,
   type VersionCompatibility,

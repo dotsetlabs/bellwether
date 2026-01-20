@@ -19,7 +19,7 @@ A baseline is a JSON file containing:
 
 ```bash
 # Run test first
-bellwether test npx your-server
+bellwether check npx your-server
 
 # Then save baseline
 bellwether baseline save
@@ -32,7 +32,7 @@ This generates `bellwether-baseline.json`:
   "formatVersion": "1.0.0",
   "createdAt": "2026-01-12T10:30:00Z",
   "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
-  "mode": "structural",
+  "mode": "contract",
   "integrityHash": "abc123...",
   "server": {
     "name": "@modelcontextprotocol/server-filesystem",
@@ -65,11 +65,11 @@ This generates `bellwether-baseline.json`:
 
 ```bash
 # Save to specific path
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline save ./baselines/v1.json
 
 # Compare against specific baseline
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline compare ./baselines/v1.json
 ```
 
@@ -79,7 +79,7 @@ bellwether baseline compare ./baselines/v1.json
 
 ```bash
 # Create baseline
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline save
 
 # Commit
@@ -93,7 +93,7 @@ git commit -m "Update behavioral baseline"
 # GitHub Actions
 - name: Check Behavioral Drift
   run: |
-    npx @dotsetlabs/bellwether test npx your-server
+    npx @dotsetlabs/bellwether check npx your-server
     npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
@@ -103,7 +103,7 @@ When intentional changes are made:
 
 ```bash
 # Run test and review changes
-bellwether test npx your-server
+bellwether check npx your-server
 bellwether baseline compare ./bellwether-baseline.json
 
 # Update baseline if changes are intentional

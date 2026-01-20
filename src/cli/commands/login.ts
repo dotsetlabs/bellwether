@@ -103,7 +103,12 @@ export const loginCommand = new Command('login')
             output.info('\nJoin the waitlist at https://bellwether.sh');
             process.exit(1);
           }
-          output.info('Invitation verified! Proceeding with login...\n');
+          output.info('Invitation verified! Proceeding with login...');
+          if (verifyResult.email) {
+            output.info(`Note: Please sign in with a GitHub account that has the email: ${verifyResult.email}\n`);
+          } else {
+            output.info('');
+          }
           inviteToken = verifyResult.token;
         } else {
           rl.close();
@@ -201,9 +206,9 @@ async function checkBetaStatus(): Promise<{ betaMode: boolean }> {
 
 /**
  * Verify a beta invite code with the server.
- * Returns the token for use in subsequent requests if valid.
+ * Returns the 64-char hex token for use in subsequent requests if valid.
  */
-async function verifyBetaInvite(code: string): Promise<{ valid: boolean; token?: string }> {
+async function verifyBetaInvite(code: string): Promise<{ valid: boolean; token?: string; email?: string }> {
   const baseUrl = getBaseUrl();
 
   try {
@@ -222,12 +227,12 @@ async function verifyBetaInvite(code: string): Promise<{ valid: boolean; token?:
     const result = await response.json() as {
       valid: boolean;
       invite?: { id: string; email: string; expiresAt: string };
+      token?: string; // The 64-char hex token for API requests
     };
 
-    if (result.valid && result.invite) {
-      // The invite ID can be used as a token for the beta middleware
-      // We'll use the code itself as the token since it's verified
-      return { valid: true, token: code };
+    if (result.valid && result.token) {
+      // Use the returned 64-char hex token for x-beta-invite-token header
+      return { valid: true, token: result.token, email: result.invite?.email };
     }
 
     return { valid: false };
@@ -303,7 +308,10 @@ async function pollForCompletion(
       throw new Error(`Poll request failed: ${response.status}`);
     }
 
-    const result = await response.json() as DevicePollResponse;
+    const result = await response.json() as DevicePollResponse & {
+      expected_email?: string;
+      actual_email?: string;
+    };
 
     if (result.error === 'authorization_pending') {
       // Still waiting, continue polling
@@ -316,6 +324,16 @@ async function pollForCompletion(
 
     if (result.error === 'access_denied') {
       throw new Error('Authorization denied by user.');
+    }
+
+    if (result.error === 'email_mismatch') {
+      // SECURITY: GitHub email doesn't match invitation email
+      process.stdout.write('\r                                    \r');
+      throw new Error(
+        `Email mismatch: This invitation was sent to ${result.expected_email}, ` +
+        `but you signed in with a GitHub account using ${result.actual_email}. ` +
+        `Please sign in with a GitHub account that has the email ${result.expected_email}.`
+      );
     }
 
     if (result.session_token && result.user) {

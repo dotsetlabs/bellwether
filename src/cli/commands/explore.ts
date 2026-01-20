@@ -1,8 +1,10 @@
 /**
- * Test command - the simplified, config-driven MCP server testing command.
+ * Explore command - LLM-powered behavioral exploration for MCP servers.
  *
- * All settings are read from bellwether.yaml (created by `bellwether init`).
- * The only optional argument is the server command, which can also be in config.
+ * Purpose: Deep exploration and documentation of MCP server behavior.
+ * Output: AGENTS.md, bellwether-explore.json
+ * Baseline: None (use 'bellwether check' for drift detection)
+ * LLM: Required (OpenAI, Anthropic, or Ollama)
  */
 
 import { Command } from 'commander';
@@ -10,19 +12,13 @@ import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
-import { createLLMClient, type LLMClient } from '../../llm/index.js';
+import type { LLMClient } from '../../llm/index.js';
 import { Interviewer } from '../../interview/interviewer.js';
-import type { ServerContext } from '../../interview/types.js';
+import type { ServerContext, WorkflowConfig, InterviewStreamingCallbacks } from '../../interview/types.js';
+import type { InterviewProgress } from '../../interview/interviewer.js';
 import { generateAgentsMd, generateJsonReport } from '../../docs/generator.js';
 import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
-import { validateConfigForTest } from '../../config/validator.js';
-import type { InterviewProgress } from '../../interview/interviewer.js';
-import {
-  createBaseline,
-  loadBaseline,
-  compareBaselines,
-  formatDiffText,
-} from '../../baseline/index.js';
+import { validateConfigForExplore } from '../../config/validator.js';
 import {
   CostTracker,
   estimateInterviewCost,
@@ -35,22 +31,12 @@ import { getMetricsCollector, resetMetricsCollector } from '../../metrics/collec
 import { FallbackLLMClient } from '../../llm/fallback.js';
 import { getGlobalCache, resetGlobalCache } from '../../cache/response-cache.js';
 import { INTERVIEW, WORKFLOW } from '../../constants.js';
-import { InterviewProgressBar, formatStartupBanner } from '../utils/progress.js';
+import { InterviewProgressBar, formatExploreBanner } from '../utils/progress.js';
 import { parsePersonas } from '../../persona/builtins.js';
-import {
-  loadScenariosFromFile,
-  tryLoadDefaultScenarios,
-  DEFAULT_SCENARIOS_FILE,
-} from '../../scenarios/index.js';
-import {
-  loadWorkflowsFromFile,
-  tryLoadDefaultWorkflows,
-  DEFAULT_WORKFLOWS_FILE,
-} from '../../workflow/loader.js';
-import type { WorkflowConfig } from '../../interview/types.js';
+import { loadScenariosFromFile, tryLoadDefaultScenarios, DEFAULT_SCENARIOS_FILE } from '../../scenarios/index.js';
+import { loadWorkflowsFromFile, tryLoadDefaultWorkflows, DEFAULT_WORKFLOWS_FILE } from '../../workflow/loader.js';
 import * as output from '../output.js';
 import { StreamingDisplay } from '../output.js';
-import type { InterviewStreamingCallbacks } from '../../interview/types.js';
 import { suppressLogs, restoreLogLevel } from '../../logging/logger.js';
 
 /**
@@ -110,13 +96,15 @@ function isCI(): boolean {
   );
 }
 
-export const testCommand = new Command('test')
-  .description('Test an MCP server using settings from bellwether.yaml')
+export const exploreCommand = new Command('explore')
+  .description('Explore MCP server behavior with LLM-powered testing')
   .argument('[server-command]', 'Server command (overrides config)')
   .argument('[args...]', 'Server arguments')
-  .option('-c, --config <path>', 'Path to config file (default: ./bellwether.yaml)')
+  .option('-c, --config <path>', 'Path to config file', 'bellwether.yaml')
+  .option('--provider <provider>', 'Override LLM provider (ollama, openai, anthropic)')
+  .option('--model <model>', 'Override LLM model')
   .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
-    // Load configuration (required)
+    // Load configuration
     let config: BellwetherConfig;
     try {
       config = loadConfig(options.config);
@@ -132,49 +120,41 @@ export const testCommand = new Command('test')
     const serverCommand = serverCommandArg || config.server.command;
     const args = serverArgs.length > 0 ? serverArgs : config.server.args;
 
-    // Validate config for running tests
+    // Validate config for explore
     try {
-      validateConfigForTest(config, serverCommand);
+      validateConfigForExplore(config, serverCommand);
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
 
-    // Extract settings from config
-    const isStructuralMode = config.mode === 'structural';
+    // Extract settings from config (CLI options override config)
     const timeout = config.server.timeout;
     const outputDir = config.output.dir;
-    const wantsJson = config.output.format === 'json' || config.output.format === 'both';
     const cacheEnabled = config.cache.enabled;
     const verbose = config.logging.verbose;
     const logLevel = config.logging.level;
 
-    // Parse personas from config
-    const selectedPersonas = parsePersonasWithWarning(config.test.personas);
-    const maxQuestions = config.test.maxQuestionsPerTool;
-    const parallelPersonas = config.test.parallelPersonas;
+    // Parse personas from config (using explore section)
+    const selectedPersonas = parsePersonasWithWarning(config.explore.personas);
+    const maxQuestions = config.explore.maxQuestionsPerTool;
+    const parallelPersonas = config.explore.parallelPersonas;
 
-    // Get LLM settings
-    const provider = config.llm.provider;
-    const model = config.llm.model || undefined; // Empty string means use default
+    // Get LLM settings (CLI overrides config)
+    const provider = options.provider || config.llm.provider;
+    const model = options.model || config.llm.model || undefined;
 
     // Display startup banner
-    const banner = formatStartupBanner({
+    const banner = formatExploreBanner({
       serverCommand: `${serverCommand} ${args.join(' ')}`,
       provider,
       model: model || 'default',
-      isQuality: false,
       personas: selectedPersonas.map((p) => p.name),
       questionsPerTool: maxQuestions,
     });
     output.info(banner);
     output.newline();
-
-    if (isStructuralMode) {
-      output.info('Mode: structural (free, deterministic - no LLM calls)');
-    } else {
-      output.info(`Mode: full (LLM-powered using ${provider})`);
-    }
+    output.info(`Explore: LLM-powered behavioral exploration (using ${provider})`);
     output.newline();
 
     // Initialize cost tracker
@@ -199,40 +179,27 @@ export const testCommand = new Command('test')
       transport: 'stdio',
     });
 
-    // Initialize LLM client (only for full mode)
-    let llmClient: LLMClient | undefined;
+    // Initialize LLM client
+    let llmClient: LLMClient;
+    const onUsageCallback = (inputTokens: number, outputTokens: number) => {
+      costTracker.addUsage(inputTokens, outputTokens);
+      metricsCollector.recordTokenUsage(provider, model || 'default', inputTokens, outputTokens, 'llm_call');
+    };
 
-    if (!isStructuralMode) {
-      const onUsageCallback = (inputTokens: number, outputTokens: number) => {
-        costTracker.addUsage(inputTokens, outputTokens);
-        metricsCollector.recordTokenUsage(provider, model || 'default', inputTokens, outputTokens, 'llm_call');
-      };
-
-      try {
-        // Use fallback client for robustness
-        llmClient = new FallbackLLMClient({
-          providers: [{ provider, model, baseUrl: provider === 'ollama' ? config.llm.ollama.baseUrl : undefined }],
-          useOllamaFallback: true,
-          onUsage: onUsageCallback,
-        });
-      } catch (error) {
-        output.error('Failed to initialize LLM client: ' + (error instanceof Error ? error.message : String(error)));
-        output.error(`\nProvider: ${provider}`);
-        output.error('Make sure the appropriate API key environment variable is set:');
-        output.error('  - OpenAI: OPENAI_API_KEY');
-        output.error('  - Anthropic: ANTHROPIC_API_KEY');
-        output.error('  - Ollama: No API key needed (ensure Ollama is running)');
-        process.exit(1);
-      }
-    }
-
-    // For structural mode, create a minimal LLM client that won't be used
-    if (!llmClient) {
-      llmClient = createLLMClient({
-        provider: 'ollama',
-        model: 'llama3.2', // Default model; not actually used in structural mode
-        baseUrl: 'http://localhost:11434',
+    try {
+      llmClient = new FallbackLLMClient({
+        providers: [{ provider, model, baseUrl: provider === 'ollama' ? config.llm.ollama.baseUrl : undefined }],
+        useOllamaFallback: true,
+        onUsage: onUsageCallback,
       });
+    } catch (error) {
+      output.error('Failed to initialize LLM client: ' + (error instanceof Error ? error.message : String(error)));
+      output.error(`\nProvider: ${provider}`);
+      output.error('Make sure the appropriate API key environment variable is set:');
+      output.error('  - OpenAI: OPENAI_API_KEY');
+      output.error('  - Anthropic: ANTHROPIC_API_KEY');
+      output.error('  - Ollama: No API key needed (ensure Ollama is running)');
+      process.exit(1);
     }
 
     try {
@@ -257,14 +224,14 @@ export const testCommand = new Command('test')
       });
 
       if (discovery.tools.length === 0) {
-        output.info('No tools found. Nothing to test.');
+        output.info('No tools found. Nothing to explore.');
         metricsCollector.endInterview();
         await mcpClient.disconnect();
         return;
       }
 
-      // Show cost/time estimate (unless in structural mode or CI)
-      if (!isStructuralMode && !isCI()) {
+      // Show cost/time estimate (unless in CI)
+      if (!isCI()) {
         const costEstimate = estimateInterviewCost(model || 'default', discovery.tools.length, maxQuestions, selectedPersonas.length);
         const timeEstimate = estimateInterviewTime(
           discovery.tools.length,
@@ -286,7 +253,7 @@ export const testCommand = new Command('test')
           personaCount: selectedPersonas.length,
           isParallelPersonas: parallelPersonas,
           isPremiumModel: false,
-          isUsingCiPreset: isStructuralMode,
+          isUsingCiPreset: false,
           hasScenariosFile,
         });
         if (suggestions.length > 0) {
@@ -296,7 +263,7 @@ export const testCommand = new Command('test')
         output.newline();
       }
 
-      // Load custom scenarios
+      // Load custom scenarios (work in explore mode too)
       let customScenarios: ReturnType<typeof loadScenariosFromFile> | undefined;
       if (config.scenarios.path) {
         try {
@@ -306,7 +273,7 @@ export const testCommand = new Command('test')
           output.error(`Failed to load scenarios: ${error instanceof Error ? error.message : error}`);
           process.exit(1);
         }
-      } else if (!isStructuralMode) {
+      } else {
         const defaultScenarios = tryLoadDefaultScenarios(outputDir);
         if (defaultScenarios) {
           customScenarios = defaultScenarios;
@@ -334,7 +301,7 @@ export const testCommand = new Command('test')
             process.exit(1);
           }
         }
-      } else if (!isStructuralMode) {
+      } else {
         const defaultWorkflows = tryLoadDefaultWorkflows(outputDir);
         if (defaultWorkflows && defaultWorkflows.length > 0) {
           workflowConfig = {
@@ -352,7 +319,7 @@ export const testCommand = new Command('test')
       let streamingDisplay: StreamingDisplay | null = null;
       let streamingCallbacks: InterviewStreamingCallbacks | undefined;
 
-      if (!isStructuralMode && !isCI() && logLevel !== 'silent') {
+      if (!isCI() && logLevel !== 'silent') {
         suppressLogs();
         streamingDisplay = new StreamingDisplay({ style: 'dim', maxWidth: 100 });
 
@@ -392,12 +359,12 @@ export const testCommand = new Command('test')
         };
       }
 
-      // Create interviewer
+      // Create interviewer for explore mode
       const fullServerCommand = `${serverCommand} ${args.join(' ')}`.trim();
-      const interviewer = new Interviewer(llmClient!, {
+      const interviewer = new Interviewer(llmClient, {
         maxQuestionsPerTool: maxQuestions,
         timeout,
-        skipErrorTests: config.test.skipErrorTests,
+        skipErrorTests: config.explore.skipErrorTests,
         model: model || 'default',
         personas: selectedPersonas,
         customScenarios,
@@ -408,7 +375,7 @@ export const testCommand = new Command('test')
         personaConcurrency: INTERVIEW.DEFAULT_PERSONA_CONCURRENCY,
         cache,
         workflowConfig,
-        structuralOnly: isStructuralMode,
+        contractOnly: false, // Full exploration mode with LLM
         serverCommand: fullServerCommand,
       });
 
@@ -426,17 +393,17 @@ export const testCommand = new Command('test')
         if (verbose) {
           switch (progress.phase) {
             case 'starting':
-              output.info('Starting test...');
+              output.info('Starting exploration...');
               progressBar.start(progress.totalTools, progress.totalPersonas, progress.totalPrompts ?? 0, progress.totalResources ?? 0);
               break;
             case 'interviewing':
-              output.info(`[${progress.currentPersona}] Testing: ${progress.currentTool} (${progress.toolsCompleted + 1}/${progress.totalTools})`);
+              output.info(`[${progress.currentPersona}] Exploring: ${progress.currentTool} (${progress.toolsCompleted + 1}/${progress.totalTools})`);
               break;
             case 'synthesizing':
               output.info('Synthesizing findings...');
               break;
             case 'complete':
-              output.info('Test complete!');
+              output.info('Exploration complete!');
               break;
           }
         } else {
@@ -450,7 +417,7 @@ export const testCommand = new Command('test')
         }
       };
 
-      output.info('Starting test...\n');
+      output.info('Starting exploration...\n');
       const result = await interviewer.interview(mcpClient, discovery, progressCallback);
 
       progressBar.stop();
@@ -467,19 +434,24 @@ export const testCommand = new Command('test')
       writeFileSync(agentsMdPath, agentsMd);
       output.info(`Written: ${agentsMdPath}`);
 
-      if (wantsJson) {
-        const jsonReport = generateJsonReport(result);
-        const jsonPath = join(outputDir, 'bellwether-report.json');
-        writeFileSync(jsonPath, jsonReport);
-        output.info(`Written: ${jsonPath}`);
-      }
+      // Generate JSON report
+      const jsonReport = generateJsonReport(result);
+      const jsonPath = join(outputDir, 'bellwether-explore.json');
+      writeFileSync(jsonPath, jsonReport);
+      output.info(`Written: ${jsonPath}`);
 
       // End metrics
       metricsCollector.endInterview();
 
-      output.info('\nTest complete!');
+      output.info('\nExploration complete!');
       output.info(`Duration: ${(result.metadata.durationMs / 1000).toFixed(1)}s`);
-      output.info(`Tools verified: ${result.toolProfiles.length}`);
+      output.info(`Tools explored: ${result.toolProfiles.length}`);
+
+      // Display cost summary
+      const costEstimate = costTracker.getCost();
+      if (costEstimate.costUSD > 0) {
+        output.info(`Estimated cost: $${costEstimate.costUSD.toFixed(4)}`);
+      }
 
       // Display scenario results
       if (result.scenarioResults && result.scenarioResults.length > 0) {
@@ -516,36 +488,11 @@ export const testCommand = new Command('test')
         }
       }
 
-      // Handle baseline comparison from config
-      if (config.baseline.comparePath) {
-        const compareBaselinePath = config.baseline.comparePath;
-        if (!existsSync(compareBaselinePath)) {
-          output.error(`\nBaseline file not found: ${compareBaselinePath}`);
-          process.exit(1);
-        }
-
-        const previousBaseline = loadBaseline(compareBaselinePath);
-        const baselineMode = isStructuralMode ? 'structural' : 'full';
-        const currentBaseline = createBaseline(result, fullServerCommand, baselineMode);
-
-        const diff = compareBaselines(previousBaseline, currentBaseline, {});
-
-        output.info('\n--- Drift Report ---');
-        output.info(formatDiffText(diff));
-
-        if (config.baseline.failOnDrift) {
-          if (diff.severity === 'breaking') {
-            output.error('\nBreaking changes detected!');
-            process.exit(1);
-          } else if (diff.severity === 'warning') {
-            output.warn('\nWarning-level changes detected.');
-            process.exit(1);
-          }
-        }
-      }
+      // Note about baselines
+      output.info('\nTip: For drift detection, use "bellwether check" to create and compare baselines.');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      output.error('\n--- Test Failed ---');
+      output.error('\n--- Exploration Failed ---');
       output.error(`Error: ${errorMessage}`);
 
       if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('Connection refused')) {
@@ -560,6 +507,10 @@ export const testCommand = new Command('test')
         output.error('\nPossible causes:');
         output.error('  - The server command was not found');
         output.error('  - Check that the command is installed and in PATH');
+      } else if (errorMessage.includes('API key') || errorMessage.includes('authentication')) {
+        output.error('\nPossible causes:');
+        output.error('  - Missing or invalid API key');
+        output.error('  - Run "bellwether auth" to configure API keys');
       }
 
       process.exit(1);

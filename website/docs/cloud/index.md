@@ -11,7 +11,7 @@ Bellwether Cloud provides baseline version history, drift alerts, and embeddable
 :::info Private Beta
 Bellwether Cloud is currently in **private beta**. All features are free during the beta period.
 
-To request access, email [hello@dotsetlabs.com](mailto:hello@dotsetlabs.com). Once you have access, you can invite team members directly from the dashboard.
+To request access, [join the waitlist at bellwether.sh](https://bellwether.sh). Once approved, you'll receive an invitation code via email. You can then invite team members directly from the dashboard.
 :::
 
 ## What Cloud Offers
@@ -33,7 +33,7 @@ bellwether login
 bellwether link
 
 # 3. Run your test and save baseline
-bellwether test
+bellwether check
 bellwether baseline save
 
 # 4. Upload to cloud
@@ -48,7 +48,7 @@ bellwether badge --markdown
 ```
 Local Development          Cloud
        │                    │
-       ├── bellwether test ─┤
+       ├── bellwether check ─┤
        │                    │
        ├── baseline save ───┤
        │                    │
@@ -181,7 +181,7 @@ Use cloud in your CI/CD pipeline:
   env:
     BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
   run: |
-    bellwether test
+    bellwether check
     bellwether baseline save
     bellwether upload --ci --fail-on-drift
 ```

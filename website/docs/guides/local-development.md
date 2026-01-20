@@ -19,7 +19,7 @@ Testing locally allows you to:
 - **Shift-left testing** - Catch behavioral regressions before they're deployed
 - **Fast iteration** - No waiting for deployments between tests
 - **CI/CD integration** - Gate deployments on drift detection
-- **Free testing** - Use structural mode or Ollama for completely free testing
+- **Free testing** - Use contract mode or Ollama for completely free testing
 
 ## Quick Start
 
@@ -28,7 +28,7 @@ Testing locally allows you to:
 bellwether init "node ./src/mcp-server.js"
 
 # 2. Run test
-bellwether test
+bellwether check
 
 # 3. Save baseline
 bellwether baseline save
@@ -46,19 +46,19 @@ The most common way to test locally is using stdio transport, where Bellwether s
 ```bash
 # Node.js server
 bellwether init "node ./src/mcp-server.js"
-bellwether test
+bellwether check
 
 # Python server
 bellwether init "python ./mcp_server.py"
-bellwether test
+bellwether check
 
 # TypeScript (via ts-node or tsx)
 bellwether init "npx tsx ./src/server.ts"
-bellwether test
+bellwether check
 
 # Any executable
 bellwether init "./my-server-binary --config ./config.json"
-bellwether test
+bellwether check
 ```
 
 Bellwether communicates with your server via stdin/stdout using JSON-RPC 2.0.
@@ -88,10 +88,10 @@ server:
 First, create your configuration file:
 
 ```bash
-# Default structural mode (free, fast)
+# Default contract mode (free, fast)
 bellwether init "node ./src/mcp-server.js"
 
-# Or full LLM mode with Ollama (free)
+# Or document mode with Ollama (free)
 bellwether init --preset local "node ./src/mcp-server.js"
 ```
 
@@ -101,7 +101,7 @@ After your server is working, create a baseline to track future changes:
 
 ```bash
 # Run test first
-bellwether test
+bellwether check
 
 # Save baseline
 bellwether baseline save
@@ -147,7 +147,7 @@ Changes detected:
 Before committing, verify your changes against the baseline:
 
 ```bash
-bellwether test
+bellwether check
 bellwether baseline compare ./bellwether-baseline.json
 ```
 
@@ -162,7 +162,7 @@ When changes are intentional (new features, bug fixes):
 
 ```bash
 # Review the changes
-bellwether test
+bellwether check
 bellwether baseline compare ./bellwether-baseline.json
 
 # Update baseline if changes are correct
@@ -191,13 +191,13 @@ ollama pull llama3.2
 bellwether init --preset local "node ./src/mcp-server.js"
 
 # Run test (free!)
-bellwether test
+bellwether check
 ```
 
 The generated `bellwether.yaml` will be configured for Ollama:
 
 ```yaml
-mode: full
+mode: document
 
 llm:
   provider: ollama
@@ -243,7 +243,7 @@ scenarios:
 Then run:
 
 ```bash
-bellwether test
+bellwether check
 ```
 
 ## CI/CD Integration
@@ -270,7 +270,7 @@ jobs:
         run: npm ci
 
       - name: Run Bellwether Test
-        run: npx @dotsetlabs/bellwether test
+        run: npx @dotsetlabs/bellwether check
 
       - name: Check for Drift
         run: npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
@@ -280,17 +280,17 @@ jobs:
 
 Choose the right mode for your workflow:
 
-### Structural Mode (Default)
+### Contract Mode (Default)
 
 - **Cost**: Free
 - **Speed**: Fast (seconds)
 - **Use case**: CI/CD, quick checks, schema verification
 
 ```bash
-bellwether init "node ./src/mcp-server.js"  # Default structural
+bellwether init "node ./src/mcp-server.js"  # Default contract mode
 ```
 
-### Full Mode
+### Document Mode
 
 - **Cost**: Free with Ollama, ~$0.01-0.15 with API
 - **Speed**: Slower (minutes)
@@ -348,7 +348,7 @@ bellwether watch --watch-path ./src --watch-path ./lib
 ## See Also
 
 - [watch](/cli/watch) - Watch mode CLI reference
-- [test](/cli/test) - Test CLI reference
+- [check](/cli/check) - Test CLI reference
 - [baseline](/cli/baseline) - Baseline management
 - [Drift Detection](/concepts/drift-detection) - Understanding drift detection
 - [Custom Scenarios](/guides/custom-scenarios) - Deterministic testing

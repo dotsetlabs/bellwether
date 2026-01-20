@@ -57,10 +57,10 @@ Workflows can be run from a YAML file or discovered automatically using an LLM.
 
 ```bash
 # Generate a sample workflow file
-bellwether test --init-workflows
+bellwether check --init-workflows
 
 # Run with user-defined workflows
-bellwether test --workflows ./bellwether-workflows.yaml npx your-server
+bellwether check --workflows ./bellwether-workflows.yaml npx your-server
 ```
 
 ### Auto-Discovery
@@ -69,10 +69,10 @@ Let the LLM discover potential workflows based on available tools:
 
 ```bash
 # Discover workflows automatically
-bellwether test --discover-workflows npx your-server
+bellwether check --discover-workflows npx your-server
 
 # Limit the number of discovered workflows
-bellwether test --discover-workflows --max-workflows 5 npx your-server
+bellwether check --discover-workflows --max-workflows 5 npx your-server
 ```
 
 ### State Tracking
@@ -80,7 +80,7 @@ bellwether test --discover-workflows --max-workflows 5 npx your-server
 Enable state tracking to monitor changes during workflow execution:
 
 ```bash
-bellwether test \
+bellwether check \
   --workflows ./workflows.yaml \
   --workflow-state-tracking \
   npx your-server
@@ -253,4 +253,4 @@ args:
 
 - [Workflow Authoring Guide](/guides/workflow-authoring) - Advanced workflow patterns
 - [Drift Detection](/concepts/drift-detection) - Track workflow behavior changes
-- [test](/cli/test) - Running workflows
+- [check](/cli/check) - Running workflows

@@ -266,20 +266,21 @@ describe('discovery', () => {
       expect(summary).toMatch(/2 Tools.*Logging|Logging.*2 Tools/);
     });
 
-    it('should include quick start section with presets', () => {
+    it('should include quick start section with commands', () => {
       const summary = summarizeDiscovery(mockResult);
 
       expect(summary).toContain('QUICK START');
-      expect(summary).toContain('--preset docs');
-      expect(summary).toContain('--preset security');
-      expect(summary).toContain('--preset thorough');
-      expect(summary).toContain('--preset ci');
+      expect(summary).toContain('bellwether check');
+      expect(summary).toContain('bellwether explore');
+      expect(summary).toContain('Schema validation and drift detection');
+      expect(summary).toContain('LLM-powered behavioral exploration');
     });
 
     it('should include server command in quick start', () => {
       const summary = summarizeDiscovery(mockResult);
 
-      expect(summary).toContain('bellwether test test-server');
+      expect(summary).toContain('bellwether check test-server');
+      expect(summary).toContain('bellwether explore test-server');
     });
   });
 });

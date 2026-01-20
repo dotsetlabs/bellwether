@@ -1,8 +1,11 @@
 /**
- * Watch command - watch for file changes and auto-test.
+ * Watch command - watch for file changes and auto-check.
  *
- * Uses bellwether.yaml for all test configuration.
+ * Uses bellwether.yaml for configuration.
  * Only watch-specific options are available as flags.
+ *
+ * Note: Watch mode only runs schema validation (check mode).
+ * For LLM-powered exploration, use 'bellwether explore' directly.
  */
 
 import { Command } from 'commander';
@@ -10,10 +13,9 @@ import { existsSync, readdirSync, statSync } from 'fs';
 import { join, resolve } from 'path';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
-import { createLLMClient, type LLMClient } from '../../llm/index.js';
 import { Interviewer } from '../../interview/interviewer.js';
 import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
-import { validateConfigForTest } from '../../config/validator.js';
+import { validateConfigForCheck } from '../../config/validator.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
 import {
   createBaseline,
@@ -22,11 +24,10 @@ import {
   compareBaselines,
   formatDiffText,
 } from '../../baseline/index.js';
-import { parsePersonas } from '../../persona/builtins.js';
 import * as output from '../output.js';
 
 export const watchCommand = new Command('watch')
-  .description('Watch for file changes and auto-test (uses bellwether.yaml)')
+  .description('Watch for file changes and auto-check (uses bellwether.yaml)')
   .argument('[server-command]', 'Server command (overrides config)')
   .argument('[args...]', 'Server arguments')
   .option('-c, --config <path>', 'Path to config file')
@@ -52,9 +53,9 @@ export const watchCommand = new Command('watch')
     const serverCommand = serverCommandArg || config.server.command;
     const args = serverArgs.length > 0 ? serverArgs : config.server.args;
 
-    // Validate config for running tests
+    // Validate config for check mode (watch only does check, not explore)
     try {
-      validateConfigForTest(config, serverCommand);
+      validateConfigForCheck(config, serverCommand);
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
       process.exit(1);
@@ -65,41 +66,17 @@ export const watchCommand = new Command('watch')
     const baselinePath = resolve(options.baseline);
 
     // Extract settings from config
-    const isStructuralMode = config.mode === 'structural';
     const timeout = config.server.timeout;
-    const maxQuestions = config.test.maxQuestionsPerTool;
-    const selectedPersonas = parsePersonas(config.test.personas);
 
     output.info('Bellwether Watch Mode\n');
     output.info(`Server: ${serverCommand} ${args.join(' ')}`);
-    output.info(`Mode: ${isStructuralMode ? 'structural' : 'full'}`);
+    output.info(`Mode: check (schema validation)`);
     output.info(`Watching: ${watchPath}`);
     output.info(`Baseline: ${baselinePath}`);
     output.info(`Poll interval: ${interval}ms`);
     output.info('');
-
-    // Initialize LLM client (only for full mode)
-    let llmClient: LLMClient;
-
-    if (!isStructuralMode) {
-      try {
-        llmClient = createLLMClient({
-          provider: config.llm.provider,
-          model: config.llm.model || undefined,
-          baseUrl: config.llm.provider === 'ollama' ? config.llm.ollama.baseUrl : undefined,
-        });
-      } catch (error) {
-        output.error('Failed to initialize LLM client: ' + (error instanceof Error ? error.message : String(error)));
-        process.exit(1);
-      }
-    } else {
-      // For structural mode, create a minimal LLM client that won't be used
-      llmClient = createLLMClient({
-        provider: 'ollama',
-        model: 'llama3.2', // Default model; not actually used in structural mode
-        baseUrl: 'http://localhost:11434',
-      });
-    }
+    output.info('Note: Watch mode runs schema validation only. Use "bellwether explore" for LLM analysis.');
+    output.info('');
 
     // Track last baseline hash to detect changes
     let lastBaselineHash: string | null = null;
@@ -130,28 +107,26 @@ export const watchCommand = new Command('watch')
         }
 
         const fullServerCommand = `${serverCommand} ${args.join(' ')}`.trim();
-        const interviewer = new Interviewer(llmClient, {
-          maxQuestionsPerTool: maxQuestions,
+        // Watch mode uses check (no LLM) for fast, deterministic drift detection
+        const interviewer = new Interviewer(null as any, {
+          maxQuestionsPerTool: 3,
           timeout,
-          skipErrorTests: config.test.skipErrorTests,
-          model: config.llm.model || 'default',
-          personas: selectedPersonas,
-          structuralOnly: isStructuralMode,
+          skipErrorTests: false,
+          model: 'check',
+          personas: [],
+          contractOnly: true, // Always check mode in watch
           serverCommand: fullServerCommand,
         });
 
         const progressCallback = (progress: InterviewProgress) => {
-          const totalTools = progress.totalTools * progress.totalPersonas;
-          const toolsDone = (progress.personasCompleted * progress.totalTools) + progress.toolsCompleted;
-          process.stdout.write(`\rTesting: ${toolsDone}/${totalTools} tools`.padEnd(60));
+          process.stdout.write(`\rChecking: ${progress.toolsCompleted + 1}/${progress.totalTools} tools`.padEnd(60));
         };
 
         const result = await interviewer.interview(mcpClient, discovery, progressCallback);
         output.info('\n');
 
         // Create and compare baseline
-        const mode = isStructuralMode ? 'structural' : 'full';
-        const newBaseline = createBaseline(result, fullServerCommand, mode);
+        const newBaseline = createBaseline(result, fullServerCommand);
 
         if (lastBaselineHash && existsSync(baselinePath)) {
           const previousBaseline = loadBaseline(baselinePath);

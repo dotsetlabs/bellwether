@@ -241,7 +241,7 @@ async function interactiveSetup(): Promise<void> {
     output.info(`\nYou're all set! Bellwether will now use ${info.name} for tests.`);
     output.info(`\nDefault model: ${DEFAULT_MODELS[provider]}`);
     output.info('\nTry it out:');
-    output.info('  bellwether test npx @modelcontextprotocol/server-memory');
+    output.info('  bellwether explore npx @modelcontextprotocol/server-memory');
   } catch (error) {
     output.error(`\nFailed to store API key: ${error instanceof Error ? error.message : error}`);
     process.exit(1);

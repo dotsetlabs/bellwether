@@ -18,47 +18,35 @@ npm install -g @dotsetlabs/bellwether
 Create a config file for your MCP server:
 
 ```bash
-# Default: structural mode (free, fast, deterministic)
-bellwether init "npx @modelcontextprotocol/server-filesystem /tmp"
+# Default configuration for both check and explore commands
+bellwether init npx @mcp/your-server
 ```
 
 This creates `bellwether.yaml` with your server command and settings.
 
 ### Presets
 
-| Preset | Mode | Description |
-|:-------|:-----|:------------|
-| *(default)* | Structural | Free, fast, deterministic |
-| `--preset ci` | Structural | Optimized for CI/CD pipelines |
-| `--preset local` | Full | LLM testing with local Ollama (free) |
-| `--preset security` | Full | Security-focused testing |
-| `--preset thorough` | Full | Comprehensive multi-persona testing |
+| Preset | Optimized For | Description |
+|:-------|:--------------|:------------|
+| *(default)* | `check` | Free, fast, deterministic |
+| `--preset ci` | `check` | Optimized for CI/CD pipelines |
+| `--preset local` | `explore` | LLM exploration with local Ollama (free) |
+| `--preset security` | `explore` | Security-focused exploration |
+| `--preset thorough` | `explore` | Comprehensive multi-persona exploration |
 
-## 3. Set API Key (Full Mode Only)
-
-If using full mode with OpenAI or Anthropic:
+## 3. Run Check (Free, Fast, Deterministic)
 
 ```bash
-# Interactive (stores securely in keychain)
-bellwether auth
-
-# Or environment variable
-export OPENAI_API_KEY=sk-xxx
+bellwether check
 ```
 
-Structural mode and Ollama require no API keys.
+This discovers tools, validates schemas, and generates:
+- `CONTRACT.md` - structural documentation
+- `bellwether-check.json` - validation results
 
-## 4. Run Test
+No API keys needed. No LLM costs. Deterministic output.
 
-```bash
-bellwether test
-```
-
-This discovers tools, runs tests, and generates:
-- `AGENTS.md` - behavioral documentation
-- `bellwether-report.json` - test results
-
-## 5. Save Baseline
+## 4. Save Baseline
 
 ```bash
 bellwether baseline save
@@ -66,20 +54,35 @@ bellwether baseline save
 
 Creates `bellwether-baseline.json` for drift detection.
 
-## 6. Detect Drift
+## 5. Detect Drift
 
 After making changes, compare against baseline:
 
 ```bash
-bellwether test
-bellwether baseline compare ./bellwether-baseline.json
+bellwether check --baseline ./bellwether-baseline.json
 ```
 
 For CI/CD, fail on drift:
 
 ```bash
-bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
 ```
+
+## 6. Explore with LLM (Optional)
+
+For deeper behavioral exploration using AI:
+
+```bash
+# Set API key (or use local Ollama)
+bellwether auth
+
+# Run LLM-powered exploration
+bellwether explore
+```
+
+This generates:
+- `AGENTS.md` - behavioral documentation
+- `bellwether-explore.json` - exploration results
 
 ---
 
@@ -89,30 +92,37 @@ bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 
 ```bash
 bellwether init "node ./src/server.js"
-bellwether test
-bellwether baseline save
-bellwether watch --watch-path ./src    # Re-test on file changes
+bellwether check                         # Validate schemas
+bellwether baseline save                 # Save baseline
+bellwether watch --watch-path ./src      # Re-check on file changes
 ```
 
 ### CI/CD Pipeline
 
 ```bash
-bellwether test
-bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
 ```
 
 ### Security Audit
 
 ```bash
 bellwether init --preset security "npx your-server"
-bellwether test
+bellwether explore                       # Deep exploration with security focus
+```
+
+### Comprehensive Documentation
+
+```bash
+bellwether init --preset thorough "npx your-server"
+bellwether check                         # Generate CONTRACT.md
+bellwether explore                       # Generate AGENTS.md
 ```
 
 ---
 
 ## Next Steps
 
-- [Test Modes](/concepts/test-modes) - Structural vs full mode
+- [CLI Reference](/cli/check) - Check and explore commands
 - [Local Development](/guides/local-development) - Watch mode and continuous testing
 - [CI/CD Integration](/guides/ci-cd) - GitHub Actions, GitLab CI
 - [Cloud](/cloud) - Baseline history and verification badges

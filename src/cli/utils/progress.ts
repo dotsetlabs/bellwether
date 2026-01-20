@@ -152,7 +152,95 @@ export class InterviewProgressBar {
 }
 
 /**
+ * Format a startup banner for the check command.
+ */
+export function formatCheckBanner(options: {
+  serverCommand: string;
+  toolCount?: number;
+}): string {
+  const { serverCommand, toolCount } = options;
+
+  // Truncate server command if too long
+  const maxCmdLen = 45;
+  const displayCmd =
+    serverCommand.length > maxCmdLen
+      ? serverCommand.substring(0, maxCmdLen - 3) + '...'
+      : serverCommand;
+
+  const lines = [
+    'Bellwether Check - Schema Validation & Drift Detection',
+    '',
+    '\u250C' + '\u2500'.repeat(50) + '\u2510',
+    `\u2502 Server:    ${displayCmd.padEnd(38)}\u2502`,
+    `\u2502 Mode:      ${'Check (free, deterministic)'.padEnd(38)}\u2502`,
+  ];
+
+  if (toolCount !== undefined) {
+    lines.push(`\u2502 Tools:     ${String(toolCount + ' discovered').padEnd(38)}\u2502`);
+  }
+
+  lines.push('\u2514' + '\u2500'.repeat(50) + '\u2518');
+
+  return lines.join('\n');
+}
+
+/**
+ * Format a startup banner for the explore command.
+ */
+export function formatExploreBanner(options: {
+  serverCommand: string;
+  provider: string;
+  model: string;
+  personas: string[];
+  questionsPerTool: number;
+  toolCount?: number;
+}): string {
+  const {
+    serverCommand,
+    provider,
+    model,
+    personas,
+    questionsPerTool,
+    toolCount,
+  } = options;
+
+  // Truncate server command if too long
+  const maxCmdLen = 45;
+  const displayCmd =
+    serverCommand.length > maxCmdLen
+      ? serverCommand.substring(0, maxCmdLen - 3) + '...'
+      : serverCommand;
+
+  const personaList = personas.join(', ');
+  const personaLabel = `${personaList} (${personas.length})`;
+
+  const lines = [
+    'Bellwether Explore - Behavioral Documentation',
+    '',
+    '\u250C' + '\u2500'.repeat(50) + '\u2510',
+    `\u2502 Server:    ${displayCmd.padEnd(38)}\u2502`,
+    `\u2502 Provider:  ${provider.padEnd(38)}\u2502`,
+    `\u2502 Model:     ${model.padEnd(38)}\u2502`,
+    `\u2502 Personas:  ${personaLabel.padEnd(38)}\u2502`,
+    `\u2502 Questions: ${String(questionsPerTool + ' per tool').padEnd(38)}\u2502`,
+  ];
+
+  if (toolCount !== undefined) {
+    lines.push(`\u2502 Tools:     ${String(toolCount + ' discovered').padEnd(38)}\u2502`);
+  }
+
+  lines.push('\u2514' + '\u2500'.repeat(50) + '\u2518');
+  lines.push('');
+  lines.push(
+    'Tip: For drift detection, use "bellwether check" instead'
+  );
+
+  return lines.join('\n');
+}
+
+/**
  * Format a startup banner showing interview configuration.
+ * @deprecated Use formatCheckBanner or formatExploreBanner instead
  */
 export function formatStartupBanner(options: {
   serverCommand: string;
@@ -202,7 +290,7 @@ export function formatStartupBanner(options: {
   lines.push('\u2514' + '\u2500'.repeat(50) + '\u2518');
   lines.push('');
   lines.push(
-    'Tip: Use --structural (or --ci) for free, deterministic drift detection'
+    'Tip: Use "bellwether check" for free, deterministic drift detection'
   );
 
   return lines.join('\n');

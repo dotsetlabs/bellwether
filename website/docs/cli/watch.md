@@ -1,74 +1,62 @@
 ---
 title: watch
-sidebar_position: 4
+sidebar_position: 5
 ---
 
 # bellwether watch
 
-Automatically re-test when files change.
+Automatically re-check when files change.
 
 ## Synopsis
 
 ```bash
-bellwether watch [options] <command> [args...]
+bellwether watch [options]
 ```
 
 ## Description
 
-Watch mode monitors your source files and automatically re-runs tests when changes are detected. This is useful during development to continuously validate your MCP server's behavior.
+Watch mode monitors your source files and automatically re-runs checks when changes are detected. This is useful during development to continuously validate your MCP server's schema.
 
-## Arguments
-
-| Argument | Description |
-|:---------|:------------|
-| `<command>` | The command to start the MCP server |
-| `[args...]` | Arguments to pass to the server command |
+Watch mode uses `bellwether check` under the hood—it's free, fast, and deterministic.
 
 ## Options
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `-w, --watch-path <path>` | Directory to watch for changes | `.` |
-| `-i, --interval <ms>` | Polling interval in milliseconds | `5000` |
-| `--baseline <path>` | Baseline file to compare against | `bellwether-baseline.json` |
-| `--on-change <command>` | Command to run after detecting drift | - |
-| `--debug` | Show debug output for file scanning errors | `false` |
-| `-c, --config <path>` | Path to config file | - |
+| `-w, --watch-path <path>` | Directory to watch for changes | From config |
+| `-c, --config <path>` | Path to config file | `bellwether.yaml` |
 
 ## Examples
 
 ### Basic Watch Mode
 
 ```bash
-# Watch current directory (default)
-bellwether watch npx your-server
+# Watch using settings from bellwether.yaml
+bellwether watch
 
 # Watch a specific directory
-bellwether watch npx your-server --watch-path ./src
+bellwether watch --watch-path ./src
 ```
 
-### Custom Polling Interval
+## Configuration
 
-```bash
-# Check for changes every 2 seconds
-bellwether watch npx your-server --interval 2000
-```
+Configure watch mode in `bellwether.yaml`:
 
-### Run Command on Drift
+```yaml
+server:
+  command: "npx @mcp/your-server"
+  timeout: 30000
 
-```bash
-# Run tests when drift is detected
-bellwether watch npx your-server --on-change "npm test"
+# Watch settings are typically configured via CLI flags
 ```
 
 ## Behavior
 
-1. **Initial test** - Runs a full test on startup and saves baseline
-2. **File monitoring** - Polls the watch directory at the specified interval
-3. **Change detection** - Detects changes to `.ts`, `.js`, `.json`, `.py`, `.go` files
-4. **Re-test** - Runs test and compares against previous baseline
-5. **Optional action** - Runs `--on-change` command if drift is detected
-6. **Repeat** - Continues monitoring
+1. **Initial check** - Runs a full check on startup
+2. **File monitoring** - Watches the specified directory for changes
+3. **Change detection** - Detects changes to source files
+4. **Re-check** - Runs check and compares against previous baseline
+5. **Repeat** - Continues monitoring
 
 Output:
 ```
@@ -76,29 +64,25 @@ Bellwether Watch Mode
 
 Server: npx your-server
 Watching: /path/to/project
-Baseline: /path/to/project/bellwether-baseline.json
-Poll interval: 5000ms
 
---- Running Test ---
-[10:30:45] Starting test...
+--- Running Check ---
+[10:30:45] Starting check...
 Found 5 tools
-Testing: 5/5 tools
-Test complete.
+Checking schemas...
+Check complete.
 
 Watching for changes... (Press Ctrl+C to exit)
 
 File changed: src/tools/read.ts
 
---- Running Test ---
-[10:31:02] Starting test...
+--- Running Check ---
+[10:31:02] Starting check...
 Found 5 tools
-Test complete.
+Check complete.
 
---- Behavioral Drift Detected ---
-  + read_file now handles symlinks
-  ~ error message format changed for ENOENT
-
-Baseline updated: a1b2c3d4
+--- Drift Detected ---
+  + new_tool added
+  ~ read_file parameter changed
 
 Watching for changes... (Press Ctrl+C to exit)
 ```
@@ -111,28 +95,20 @@ Keep watch running in a terminal while developing:
 
 ```bash
 # Terminal 1: Watch for changes
-bellwether watch npx your-server
+bellwether watch
 
 # Terminal 2: Edit your server code
 vim src/tools/read.ts
-# Watch automatically re-tests when you save
-```
-
-### CI Integration Trigger
-
-Run tests automatically when behavior changes:
-
-```bash
-bellwether watch npx your-server --on-change "npm test"
+# Watch automatically re-checks when you save
 ```
 
 ### TDD for MCP Servers
 
 Use watch mode for test-driven development:
 
-1. Write expected behavior in AGENTS.md
+1. Define expected tool schemas
 2. Start watch mode
-3. Implement tools until behavior matches
+3. Implement tools until schemas match
 
 ## Exit
 
@@ -140,5 +116,5 @@ Press `Ctrl+C` to stop watch mode.
 
 ## See Also
 
-- [test](/cli/test) - Run a single test
+- [check](/cli/check) - Run a single check
 - [Drift Detection](/concepts/drift-detection) - Understanding changes

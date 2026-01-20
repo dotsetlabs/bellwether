@@ -45,7 +45,8 @@ async function loadKeychainCredentials(): Promise<void> {
 }
 
 import { Command } from 'commander';
-import { testCommand } from './commands/test.js';
+import { checkCommand } from './commands/check.js';
+import { exploreCommand } from './commands/explore.js';
 import { discoverCommand } from './commands/discover.js';
 import { watchCommand } from './commands/watch.js';
 import { initCommand } from './commands/init.js';
@@ -66,21 +67,25 @@ const program = new Command();
 
 // ASCII art banner for help
 const banner = `
-Bellwether - Behavioral Drift Detection for MCP Servers
+Bellwether - MCP Server Validation & Documentation
 `;
 
 // Extended help with examples
 const examples = `
 Examples:
 
-  Initialize and test a server:
-    $ bellwether init                     # Create bellwether.yaml
-    $ bellwether test npx @mcp/my-server  # Test using config
+  Initialize configuration:
+    $ bellwether init                       # Create bellwether.yaml
+    $ bellwether init --preset ci           # Optimized for CI/CD
+    $ bellwether init --preset local        # Local LLM with Ollama
 
-  Baseline workflow:
-    $ bellwether test npx @mcp/my-server  # Run test (generates report)
-    $ bellwether baseline save            # Save baseline for drift detection
-    $ bellwether baseline compare ./bellwether-baseline.json  # Compare
+  Check for drift (free, fast, deterministic):
+    $ bellwether check npx @mcp/my-server   # Validate schemas
+    $ bellwether baseline save              # Save baseline
+    $ bellwether baseline compare ./bellwether-baseline.json  # Detect drift
+
+  Explore behavior (LLM-powered):
+    $ bellwether explore npx @mcp/my-server # Generate AGENTS.md documentation
 
   Discover server capabilities:
     $ bellwether discover npx @mcp/server-postgres
@@ -89,12 +94,11 @@ Examples:
     $ bellwether registry filesystem
 
   Cloud workflow:
-    $ bellwether login                    # Authenticate with Bellwether Cloud
-    $ bellwether teams                    # List your teams
-    $ bellwether teams switch <team-id>   # Switch active team
-    $ bellwether link my-project          # Link to cloud project
-    $ bellwether upload                   # Upload baseline
-    $ bellwether history                  # View version history
+    $ bellwether login                      # Authenticate with Bellwether Cloud
+    $ bellwether teams                      # List your teams
+    $ bellwether link my-project            # Link to cloud project
+    $ bellwether upload                     # Upload baseline
+    $ bellwether history                    # View version history
 
 Documentation: https://docs.bellwether.sh
 `;
@@ -102,7 +106,11 @@ Documentation: https://docs.bellwether.sh
 program
   .name('bellwether')
   .description(`${banner}
-Test MCP servers. Detect structural drift. Generate documentation.
+Check MCP servers for drift. Explore behavior. Generate documentation.
+
+Commands:
+  check    - Schema validation and drift detection (free, fast, deterministic)
+  explore  - LLM-powered behavioral exploration and documentation
 
 For more information on a specific command, use:
   bellwether <command> --help`)
@@ -121,15 +129,20 @@ For more information on a specific command, use:
 // Add command groups for better organization
 program.addHelpText('beforeAll', '\nCore Commands:');
 
-// Core commands - local testing
+// Core commands - check and explore
 program.addCommand(
-  testCommand.description(
-    'Test an MCP server and generate baselines for drift detection'
+  checkCommand.description(
+    'Check MCP server schema and detect drift (free, fast, deterministic)'
+  )
+);
+program.addCommand(
+  exploreCommand.description(
+    'Explore MCP server behavior with LLM-powered testing'
   )
 );
 program.addCommand(
   watchCommand.description(
-    'Watch for MCP server changes and auto-test'
+    'Watch for MCP server changes and auto-check'
   )
 );
 program.addCommand(

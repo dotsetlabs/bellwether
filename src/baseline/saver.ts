@@ -16,7 +16,7 @@ import type {
 } from './types.js';
 import { computeConsensusSchemaHash } from './schema-compare.js';
 import {
-  BASELINE_FORMAT_VERSION,
+  getBaselineVersion,
   parseVersion,
   formatVersion,
 } from './version.js';
@@ -93,7 +93,7 @@ const toolFingerprintSchema = z.object({
   assertions: z.array(behavioralAssertionSchema),
   securityNotes: z.array(z.string()),
   limitations: z.array(z.string()),
-  // Response fingerprinting fields (structural mode enhancement)
+  // Response fingerprinting fields (contract mode enhancement)
   responseFingerprint: responseFingerprintSchema.optional(),
   inferredOutputSchema: inferredSchemaSchema.optional(),
   errorPatterns: z.array(errorPatternSchema).optional(),
@@ -134,7 +134,7 @@ const baselineSchema = z.object({
     z.number().int().positive(), // Legacy format support
   ]),
   createdAt: z.string().or(z.date()),
-  mode: z.enum(['full', 'structural']).optional(),
+  mode: z.enum(['document', 'contract']).optional(),
   serverCommand: z.string(),
   server: serverFingerprintSchema,
   tools: z.array(toolFingerprintSchema),
@@ -166,12 +166,19 @@ export interface LoadBaselineOptions {
 
 /**
  * Create a behavioral baseline from interview results.
+ *
+ * Mode is automatically derived from the result metadata:
+ * - 'check' mode (contractOnly=true) -> 'contract'
+ * - 'explore' mode (LLM-powered) -> 'document'
  */
 export function createBaseline(
   result: InterviewResult,
   serverCommand: string,
-  mode: BaselineMode = 'full'
+  mode?: BaselineMode
 ): BehavioralBaseline {
+  // Derive mode from result metadata if not explicitly provided
+  const effectiveMode = mode ?? (result.metadata.model === 'check' || result.metadata.model === 'contract' ? 'contract' : 'document');
+
   const server = createServerFingerprint(result);
   // Create a map of tool name -> inputSchema from discovery
   const schemaMap = new Map<string, Record<string, unknown>>();
@@ -187,9 +194,9 @@ export function createBaseline(
   const workflowSignatures = extractWorkflowSignatures(result);
 
   const baselineData: Omit<BehavioralBaseline, 'integrityHash'> = {
-    version: BASELINE_FORMAT_VERSION,
+    version: getBaselineVersion(),
     createdAt: new Date(),
-    mode,
+    mode: effectiveMode,
     serverCommand,
     server,
     tools,
@@ -266,9 +273,9 @@ export function loadBaseline(
     } else {
       // Log warning but continue with the old format
       console.warn(
-        `Warning: Baseline uses older format ${formatVersion(currentVersion.raw)}. ` +
-          `Current format is ${formatVersion(BASELINE_FORMAT_VERSION)}. ` +
-          `Run \`bellwether baseline migrate\` to upgrade.`
+        `Warning: Baseline uses older CLI version ${formatVersion(currentVersion.raw)}. ` +
+        `Current CLI version is ${formatVersion(getBaselineVersion())}. ` +
+        `Run \`bellwether baseline migrate\` to upgrade.`
       );
     }
   }
@@ -346,7 +353,7 @@ function createToolFingerprint(
   const interactions = profile.interactions.map(i => ({ args: i.question.args }));
   const { hash: schemaHash } = computeConsensusSchemaHash(interactions);
 
-  // Analyze responses to create fingerprint (structural mode enhancement)
+  // Analyze responses to create fingerprint (contract mode enhancement)
   const responseData = profile.interactions.map(i => ({
     response: i.response,
     error: i.error,
@@ -403,8 +410,8 @@ function extractToolAssertions(profile: ToolProfile): BehavioralAssertion[] {
       aspect: 'security',
       assertion: secNote,
       isPositive: !secNote.toLowerCase().includes('risk') &&
-                  !secNote.toLowerCase().includes('vulnerab') &&
-                  !secNote.toLowerCase().includes('dangerous'),
+        !secNote.toLowerCase().includes('vulnerab') &&
+        !secNote.toLowerCase().includes('dangerous'),
     });
   }
 

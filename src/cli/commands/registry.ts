@@ -80,7 +80,7 @@ async function handleRegistry(
       const firstServer = servers[0].server;
       const runCmd = generateRunCommand(firstServer);
       if (runCmd) {
-        output.info(chalk.cyan(`  bellwether test ${runCmd}`));
+        output.info(chalk.cyan(`  bellwether check ${runCmd}`));
       }
     }
   } catch (error) {

@@ -1,6 +1,6 @@
 ---
 title: verify
-sidebar_position: 6
+sidebar_position: 7
 ---
 
 # bellwether verify
@@ -10,19 +10,16 @@ Generate a verification report for the Verified by Bellwether program.
 ## Synopsis
 
 ```bash
-bellwether verify [options] <command> [args...]
+bellwether verify [options]
 ```
 
 ## Description
 
-The `verify` command runs a comprehensive test and generates a verification report that earns your MCP server a coverage badge. Verified servers receive a badge indicating their tier level and test coverage.
+The `verify` command runs a comprehensive check and generates a verification report that earns your MCP server a coverage badge. Verified servers receive a badge indicating their tier level and test coverage.
 
-## Arguments
-
-| Argument | Description |
-|:---------|:------------|
-| `<command>` | The command to start the MCP server |
-| `[args...]` | Arguments to pass to the server command |
+:::info Config Required
+A `bellwether.yaml` config file is required. Run `bellwether init` to create one.
+:::
 
 ## Options
 
@@ -33,7 +30,6 @@ The `verify` command runs a comprehensive test and generates a verification repo
 | `--tier <tier>` | Target tier: `bronze`, `silver`, `gold`, `platinum` | `silver` |
 | `--server-id <id>` | Server identifier (namespace/name) | Auto-detect |
 | `--version <version>` | Server version to verify | Auto-detect |
-| `--security` | Include security hygiene checks (required for gold+ tiers) | `false` |
 
 ### Output Options
 
@@ -43,43 +39,44 @@ The `verify` command runs a comprehensive test and generates a verification repo
 | `--json` | Output verification result as JSON | `false` |
 | `--badge-only` | Only output badge URL | `false` |
 
-### LLM Options
+### Config Options
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `--provider <provider>` | LLM provider: `openai`, `anthropic`, `ollama` | `openai` |
-| `--model <model>` | Specific model to use | Provider default |
+| `-c, --config <path>` | Path to config file | `bellwether.yaml` |
 
 ## Verification Tiers
 
 | Tier | Icon | Requirements |
 |:-----|:-----|:-------------|
-| **Bronze** | 🥉 | Basic testing (happy path) |
-| **Silver** | 🥈 | Error handling tested (2+ personas) |
-| **Gold** | 🥇 | Multiple personas + good coverage (85%+) |
-| **Platinum** | 💎 | Comprehensive testing + all personas (90%+) |
+| **Bronze** | 🥉 | Basic check passes |
+| **Silver** | 🥈 | Check passes with good coverage |
+| **Gold** | 🥇 | Check + explore with multiple personas |
+| **Platinum** | 💎 | Comprehensive check + explore with all personas |
 
 ### Tier Details
 
 **Bronze** - Entry level verification
-- Uses Technical Writer persona
-- Basic happy path testing
-- Pass rate: 50%+
+- Schema validation passes
+- Basic tool coverage
 
 **Silver** - Standard verification
-- Uses Technical Writer + QA Engineer
-- Error handling scenarios tested
-- Pass rate: 75%+
+- All tools validated
+- No breaking schema issues
 
 **Gold** - Thorough verification
-- Uses 3+ personas
-- Tests prompts and resources if available
+- Check + explore mode
+- Multiple personas (3+)
 - Pass rate: 85%+
 
 **Platinum** - Comprehensive verification
-- All 4 personas used (including security hygiene checks)
+- All 4 personas used
 - Complete behavioral coverage
 - Pass rate: 90%+
+
+:::info LLM Required for Gold+
+Gold and Platinum tiers require `bellwether explore`, which needs an LLM API key. Bronze and Silver use `bellwether check` only.
+:::
 
 ## Examples
 
@@ -87,31 +84,31 @@ The `verify` command runs a comprehensive test and generates a verification repo
 
 ```bash
 # Run verification with default settings (silver tier)
-bellwether verify npx @modelcontextprotocol/server-filesystem /tmp
+bellwether verify
 ```
 
 ### Target a Specific Tier
 
 ```bash
-# Aim for gold certification
-bellwether verify --tier gold npx your-server
+# Aim for gold certification (requires LLM)
+bellwether verify --tier gold
 
-# Aim for platinum (includes security testing)
-bellwether verify --tier platinum --security npx your-server
+# Aim for platinum (all personas)
+bellwether verify --tier platinum
 ```
 
 ### Get Badge URL Only
 
 ```bash
 # Just output the badge URL for your README
-bellwether verify --badge-only npx your-server
+bellwether verify --badge-only
 ```
 
 ### JSON Output
 
 ```bash
 # Get full report as JSON
-bellwether verify --json npx your-server > verification.json
+bellwether verify --json > verification.json
 ```
 
 ## Output
@@ -125,20 +122,18 @@ Connecting to npx your-server...
 ✓ Connected to your-server v1.0.0
   5 tools, 2 prompts, 0 resources
 
-Target tier: gold
-Using personas: Technical Writer, QA Engineer, Novice User
+Target tier: silver
 
-Running verification test...
-✓ Test complete
+Running verification check...
+✓ Check complete
 
 ────────────────────────────────────────────────────────────
 Verification Result
 
   Server:     your-server v1.0.0
   Status:     VERIFIED
-  Tier:       GOLD
+  Tier:       SILVER
 
-  Pass Rate:  87% (26/30 tests)
   Tools:      5 verified
 
   Verified:   1/13/2026
@@ -149,10 +144,10 @@ Verification Result
 Report saved to: ./bellwether-verification.json
 
 Badge:
-https://img.shields.io/badge/bellwether-gold-FFD700
+https://img.shields.io/badge/bellwether-silver-C0C0C0
 
 Markdown:
-![Bellwether verified: gold](https://img.shields.io/badge/bellwether-gold-FFD700)
+![Bellwether verified: silver](https://img.shields.io/badge/bellwether-silver-C0C0C0)
 ```
 
 ### Verification Report
@@ -165,15 +160,12 @@ The generated `bellwether-verification.json` contains:
     "serverId": "your-server",
     "version": "1.0.0",
     "status": "verified",
-    "tier": "gold",
+    "tier": "silver",
     "verifiedAt": "2026-01-13T12:00:00.000Z",
     "expiresAt": "2026-04-13T12:00:00.000Z",
     "toolsVerified": 5,
-    "testsPassed": 26,
-    "testsTotal": 30,
-    "passRate": 87,
     "reportHash": "a1b2c3d4e5f6g7h8",
-    "bellwetherVersion": "0.5.4"
+    "bellwetherVersion": "0.14.0"
   },
   "serverInfo": {
     "name": "your-server",
@@ -183,15 +175,13 @@ The generated `bellwether-verification.json` contains:
   "tools": [
     {
       "name": "tool_name",
-      "testsRun": 6,
-      "testsPassed": 5,
-      "errors": ["One edge case failed"]
+      "verified": true
     }
   ],
   "environment": {
     "os": "linux",
     "nodeVersion": "v20.0.0",
-    "bellwetherVersion": "0.5.4"
+    "bellwetherVersion": "0.14.0"
   }
 }
 ```
@@ -201,13 +191,13 @@ The generated `bellwether-verification.json` contains:
 Add the verification badge to your README:
 
 ```markdown
-![Verified by Bellwether](https://img.shields.io/badge/bellwether-gold-FFD700)
+![Verified by Bellwether](https://img.shields.io/badge/bellwether-silver-C0C0C0)
 ```
 
 Or with a link to your report:
 
 ```markdown
-[![Verified by Bellwether](https://img.shields.io/badge/bellwether-gold-FFD700)](./bellwether-verification.json)
+[![Verified by Bellwether](https://img.shields.io/badge/bellwether-silver-C0C0C0)](./bellwether-verification.json)
 ```
 
 ## Verification Validity
@@ -222,10 +212,10 @@ Or with a link to your report:
 |:-----|:--------|
 | `0` | Success - verification passed |
 | `1` | Failure - target tier not achieved |
-| `2` | Error - test failed |
 
 ## See Also
 
-- [test](/cli/test) - Standard behavioral testing
+- [check](/cli/check) - Schema validation and drift detection
+- [explore](/cli/explore) - LLM-powered behavioral exploration
 - [badge](/cloud/badge) - Get embeddable badges
 - [CI/CD Integration](/guides/ci-cd) - Automate verification

@@ -5,11 +5,15 @@ sidebar_position: 4
 
 # Personas
 
-Personas define the "personality" of the interviewer when testing MCP servers. Different personas ask different types of questions, focusing on various aspects like documentation, security, edge cases, or usability.
+Personas define the "personality" of the interviewer when exploring MCP servers with `bellwether explore`. Different personas ask different types of questions, focusing on various aspects like documentation, security, edge cases, or usability.
+
+:::info Explore Only
+Personas are used with `bellwether explore`, which requires an LLM. The `bellwether check` command doesn't use personas—it performs deterministic schema validation.
+:::
 
 ## How Personas Work
 
-A persona shapes how Bellwether interviews your MCP server by:
+A persona shapes how Bellwether explores your MCP server by:
 
 1. **System Prompt** - Instructs the LLM how to behave and what to focus on
 2. **Question Bias** - Weights different categories of questions
@@ -82,35 +86,33 @@ Each persona weights these categories differently:
 
 ## Using Personas
 
-### Via Command Line
-
-```bash
-# Use a single persona
-bellwether test --persona security_tester npx your-server
-
-# Use multiple personas
-bellwether test --persona technical_writer,security_tester npx your-server
-```
-
 ### Via Configuration File
 
 ```yaml
 # bellwether.yaml
-interview:
+explore:
   personas:
     - technical_writer
     - security_tester
+  maxQuestionsPerTool: 3
 ```
 
-### Via Profiles
+Then run:
 
 ```bash
-# Create a security profile
-bellwether preset create security --personas security_tester,qa_engineer
+bellwether explore npx your-server
+```
 
-# Use the profile
-bellwether preset use security
-bellwether test npx your-server
+### Via Preset
+
+```bash
+# Security-focused exploration
+bellwether init --preset security "npx your-server"
+bellwether explore
+
+# Comprehensive exploration with all personas
+bellwether init --preset thorough "npx your-server"
+bellwether explore
 ```
 
 ## Combining Personas
@@ -118,17 +120,19 @@ bellwether test npx your-server
 Run multiple personas for comprehensive coverage:
 
 ```yaml
-interview:
+explore:
   personas:
     - technical_writer  # Documentation
     - security_tester   # Security
     - qa_engineer       # Edge cases
+    - novice_user       # Usability
 ```
 
-Each persona runs independently, and results are combined in the final report. This provides:
+Each persona runs independently, and results are combined in the final AGENTS.md report. This provides:
 - Complete documentation from technical_writer
 - Security findings from security_tester
 - Edge cases and error handling from qa_engineer
+- Usability insights from novice_user
 
 ## Persona Output
 
@@ -151,11 +155,16 @@ Each persona contributes different sections to AGENTS.md:
 - Boundary conditions
 - Limitations
 
+**Novice User** generates:
+- Usability observations
+- Error message quality assessments
+- Common mistake scenarios
+
 ## Recommendations
 
 | Use Case | Recommended Personas |
 |:---------|:--------------------|
-| Quick CI check | `technical_writer` |
+| Quick documentation | `technical_writer` |
 | Security audit | `security_tester` |
 | Release testing | All four personas |
 | Documentation | `technical_writer`, `novice_user` |
@@ -168,5 +177,6 @@ For specialized testing needs, you can create custom personas. See the [Custom P
 ## See Also
 
 - [Custom Personas Guide](/guides/custom-personas) - Create your own personas
-- [test](/cli/test) - Using personas in tests
+- [explore](/cli/explore) - Using personas in exploration
+- [Check vs Explore](/concepts/test-modes) - When to use each command
 - [Workflows](/concepts/workflows) - Multi-step testing

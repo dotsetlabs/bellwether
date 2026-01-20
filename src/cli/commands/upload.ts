@@ -77,7 +77,7 @@ export const uploadCommand = new Command('upload')
       }
       output.error(`Baseline file not found: ${baselinePath}`);
       output.error('\nCreate a baseline first:');
-      output.error('  1. Run `bellwether test` (with output.format: json in config)');
+      output.error('  1. Run `bellwether check` (with output.format: json in config)');
       output.error('  2. Run `bellwether baseline save`');
       process.exit(1);
     }
