@@ -84,11 +84,6 @@ export const exploreConfigSchema = z.object({
 }).default({});
 
 /**
- * @deprecated Use exploreConfigSchema instead
- */
-export const testConfigSchema = exploreConfigSchema;
-
-/**
  * Scenarios configuration schema.
  */
 export const scenariosConfigSchema = z.object({
@@ -118,8 +113,6 @@ export const outputConfigSchema = z.object({
   dir: z.string().default('.'),
   /** Output format */
   format: z.enum(['agents.md', 'json', 'both']).default('both'),
-  /** Generate cloud-compatible format */
-  cloudFormat: z.boolean().default(false),
 }).default({});
 
 /**
@@ -130,13 +123,6 @@ export const baselineConfigSchema = z.object({
   comparePath: z.string().optional(),
   /** Fail if drift is detected */
   failOnDrift: z.boolean().default(false),
-  /** Minimum confidence to report (0-100) */
-  minConfidence: z
-    .number()
-    .int()
-    .min(VALIDATION_BOUNDS.CONFIDENCE.MIN)
-    .max(VALIDATION_BOUNDS.CONFIDENCE.MAX)
-    .default(0),
   /** Confidence threshold for CI failure (0-100) */
   confidenceThreshold: z
     .number()
@@ -179,8 +165,6 @@ export const bellwetherConfigSchema = z.object({
   llm: llmConfigSchema,
   /** Explore settings (used by explore command) */
   explore: exploreConfigSchema,
-  /** @deprecated Use 'explore' instead. Kept for backward compatibility. */
-  test: exploreConfigSchema.optional(),
   /** Custom scenarios (used by both commands) */
   scenarios: scenariosConfigSchema,
   /** Workflow testing (used by explore command) */
@@ -288,13 +272,6 @@ export function validateConfigForExplore(config: BellwetherConfig, serverCommand
     }
   }
   // Ollama doesn't require API keys
-}
-
-/**
- * @deprecated Use validateConfigForCheck or validateConfigForExplore instead.
- */
-export function validateConfigForTest(config: BellwetherConfig, serverCommand?: string): void {
-  validateConfigForCheck(config, serverCommand);
 }
 
 /**

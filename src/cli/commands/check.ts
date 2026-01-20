@@ -183,7 +183,8 @@ export const checkCommand = new Command('check')
 
       // Create interviewer for check mode
       const fullServerCommand = `${serverCommand} ${args.join(' ')}`.trim();
-      const interviewer = new Interviewer(null as any, { // No LLM client needed
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Contract mode doesn't use LLM
+      const interviewer = new Interviewer(null as any, {
         maxQuestionsPerTool: 3, // Default for schema-based tests
         timeout,
         skipErrorTests: false,

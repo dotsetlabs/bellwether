@@ -74,7 +74,7 @@ export const loginCommand = new Command('login')
     output.info('Signing in with GitHub...\n');
 
     try {
-      // Step 0: Check if beta mode is enabled and get invite code if needed
+      // Check if beta mode is enabled and get invite code if needed
       let inviteToken: string | undefined;
       const betaStatus = await checkBetaStatus();
 
@@ -118,7 +118,7 @@ export const loginCommand = new Command('login')
         }
       }
 
-      // Step 1: Start device flow
+      // Start OAuth device flow
       const deviceAuth = await startDeviceFlow(inviteToken);
 
       output.info('To authenticate, visit:\n');
@@ -130,7 +130,7 @@ export const loginCommand = new Command('login')
         await openBrowser(deviceAuth.verification_uri);
       }
 
-      // Step 2: Poll for completion
+      // Poll for authorization completion
       output.info('Waiting for authorization...');
       const result = await pollForCompletion(
         deviceAuth.device_code,
@@ -144,7 +144,7 @@ export const loginCommand = new Command('login')
         process.exit(1);
       }
 
-      // Step 3: Fetch teams from /auth/me
+      // Fetch user teams
       const authMe = await fetchAuthMe(result.session_token);
       const teams: SessionTeam[] = authMe?.teams ?? [];
 
@@ -152,7 +152,7 @@ export const loginCommand = new Command('login')
       const activeTeamId = teams.length > 0 ? teams[0].id : undefined;
       const activeTeam = teams.find(t => t.id === activeTeamId);
 
-      // Step 4: Save session with teams
+      // Save session
       const session: StoredSession = {
         sessionToken: result.session_token,
         user: result.user,

@@ -307,7 +307,7 @@ describe('docs/generator', () => {
     });
   });
 
-  describe('Enhanced AGENTS.md Features (Phase 4)', () => {
+  describe('Enhanced AGENTS.md Features', () => {
     it('should include Quick Reference section', () => {
       const md = generateAgentsMd(mockResult);
 

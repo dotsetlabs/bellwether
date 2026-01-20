@@ -697,7 +697,7 @@ export const PREMIUM_MODELS = {
   ollama: 'llama3.2:70b',
 } as const;
 
-// ==================== Phase 1: Advanced Analysis ====================
+// Change Impact Analysis
 
 /**
  * Change impact analysis configuration.
