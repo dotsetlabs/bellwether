@@ -206,7 +206,8 @@ Warning: No tools discovered
 1. **Use a better model in bellwether.yaml:**
    ```yaml
    llm:
-     model: gpt-5.2
+     provider: anthropic
+     model: claude-sonnet-4-5
    ```
 
 2. **Increase questions:**

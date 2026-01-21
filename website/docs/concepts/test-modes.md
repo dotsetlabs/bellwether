@@ -90,11 +90,11 @@ Typical costs for exploring a server with 10 tools:
 | Provider/Model | Cost | Notes |
 |:---------------|:-----|:------|
 | `bellwether check` | $0.00 | Free, deterministic |
-| Ollama (local) | $0.00 | Free, requires local setup |
-| gpt-5-mini | ~$0.02 | Good balance of cost/quality |
-| claude-haiku-4-5 | ~$0.04 | Good balance of cost/quality |
-| gpt-5.2 | ~$0.12 | Best quality |
-| claude-sonnet-4-5 | ~$0.13 | Best quality |
+| Ollama (qwen3:8b) | $0.00 | Free, requires local setup |
+| gpt-4.1-nano | ~$0.01-0.02 | Budget cloud option |
+| claude-haiku-4-5 | ~$0.02-0.05 | Recommended |
+| gpt-4.1 | ~$0.04-0.08 | Higher quality OpenAI |
+| claude-sonnet-4-5 | ~$0.08-0.15 | Premium quality |
 
 ## Combining Check and Explore
 
@@ -122,8 +122,8 @@ server:
 
 # LLM settings (for explore command)
 llm:
-  provider: openai  # or anthropic, ollama
-  model: gpt-5-mini  # optional, uses provider default
+  provider: anthropic  # or openai, ollama
+  model: ""  # optional, uses provider default (claude-haiku-4-5)
 
 # Explore settings
 explore:

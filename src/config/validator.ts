@@ -109,8 +109,10 @@ export const workflowsConfigSchema = z.object({
  * Output configuration schema.
  */
 export const outputConfigSchema = z.object({
-  /** Output directory */
-  dir: z.string().default('.'),
+  /** Output directory for JSON files (bellwether-check.json, etc.) */
+  dir: z.string().default('.bellwether'),
+  /** Output directory for documentation files (CONTRACT.md, AGENTS.md) */
+  docsDir: z.string().default('.'),
   /** Output format */
   format: z.enum(['agents.md', 'json', 'both']).default('both'),
 }).default({});
@@ -119,6 +121,8 @@ export const outputConfigSchema = z.object({
  * Baseline configuration schema.
  */
 export const baselineConfigSchema = z.object({
+  /** Path to baseline file for upload (relative to output.dir or absolute) */
+  path: z.string().optional(),
   /** Path to baseline for comparison */
   comparePath: z.string().optional(),
   /** Fail if drift is detected */

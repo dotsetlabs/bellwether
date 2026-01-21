@@ -39,8 +39,8 @@ export const LLM_DEFAULTS = {
   MAX_TOKENS: 4096,
   /** Default temperature for completions */
   TEMPERATURE: 0.7,
-  /** Max tokens for analysis prompts */
-  ANALYSIS_MAX_TOKENS: 200,
+  /** Max tokens for analysis prompts (must be high enough for reasoning models) */
+  ANALYSIS_MAX_TOKENS: 1024,
   /** Default Ollama base URL */
   OLLAMA_BASE_URL: 'http://localhost:11434',
 } as const;
@@ -561,10 +561,12 @@ export const PATHS = {
     '.bellwether.yaml',
     '.bellwether.yml',
   ],
-  /** Default baseline output file */
+  /** Default baseline output file (for upload command) */
   DEFAULT_BASELINE_FILE: 'bellwether-baseline.json',
-  /** Default test report file */
-  DEFAULT_REPORT_FILE: 'bellwether-report.json',
+  /** Default check report file */
+  DEFAULT_CHECK_REPORT_FILE: 'bellwether-check.json',
+  /** Default explore report file */
+  DEFAULT_EXPLORE_REPORT_FILE: 'bellwether-explore.json',
   /** Default test scenarios file */
   DEFAULT_SCENARIOS_FILE: 'bellwether-tests.yaml',
   /** Default workflows file */
@@ -679,12 +681,14 @@ export const METRICS_CONFIG = {
 
 /**
  * Default model configurations per provider.
- * Uses budget-friendly models by default for cost efficiency.
+ * Uses budget-friendly, non-reasoning models by default for cost efficiency.
+ * Note: gpt-4.1-nano is preferred over gpt-5-nano because GPT-5 models use
+ * reasoning tokens that increase costs unpredictably.
  */
 export const DEFAULT_MODELS = {
-  openai: 'gpt-5-mini',
+  openai: 'gpt-4.1-nano',
   anthropic: 'claude-haiku-4-5',
-  ollama: 'llama3.2',
+  ollama: 'qwen3:8b',
 } as const;
 
 /**
@@ -692,7 +696,7 @@ export const DEFAULT_MODELS = {
  * Higher quality output but more expensive.
  */
 export const PREMIUM_MODELS = {
-  openai: 'gpt-5.2',
+  openai: 'gpt-4.1',
   anthropic: 'claude-sonnet-4-5',
   ollama: 'llama3.2:70b',
 } as const;

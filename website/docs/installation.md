@@ -43,17 +43,17 @@ By default, `bellwether check` requires no LLM and no API keys. It's free, fast,
 
 For explore mode, choose one of the following providers:
 
-### OpenAI (Recommended)
-
-Get your API key from [platform.openai.com](https://platform.openai.com/api-keys).
-
-Default model: `gpt-5-mini`
-
-### Anthropic Claude
+### Anthropic Claude (Recommended)
 
 Get your API key from [console.anthropic.com](https://console.anthropic.com/).
 
-Default model: `claude-haiku-4-5`
+Default model: `claude-haiku-4-5` (best quality/cost balance)
+
+### OpenAI
+
+Get your API key from [platform.openai.com](https://platform.openai.com/api-keys).
+
+Default model: `gpt-4.1-nano` (budget option)
 
 ### Setting Your API Key
 
@@ -131,13 +131,13 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama serve
 
 # Pull a model
-ollama pull llama3.2
+ollama pull qwen3:8b
 
 # Run explore (no API key needed)
 bellwether explore npx @modelcontextprotocol/server-filesystem /tmp
 ```
 
-Default model: `llama3.2`
+Default model: `qwen3:8b`
 
 :::tip
 Ollama is great for development and testing. For production CI/CD, OpenAI or Anthropic provide more consistent results.
@@ -169,8 +169,8 @@ server:
   timeout: 30000
 
 llm:
-  provider: openai
-  model: gpt-5.2
+  provider: anthropic
+  model: claude-sonnet-4-5
 
 explore:
   personas:

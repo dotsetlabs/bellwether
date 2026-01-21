@@ -295,6 +295,56 @@ When comparing baselines, Bellwether detects:
 | `0` | Success / No drift |
 | `1` | Drift detected (with `--fail-on-drift`) |
 
+## Configuration
+
+Baseline settings can be configured in `bellwether.yaml`:
+
+```yaml
+# bellwether.yaml
+baseline:
+  # Default path for baseline file (used by save/compare when no path specified)
+  path: "./bellwether-baseline.json"
+
+  # Path to baseline for comparison (used by check --baseline)
+  comparePath: "./bellwether-baseline.json"
+
+  # Fail if drift is detected (for CI/CD)
+  failOnDrift: true
+```
+
+| Setting | Description | Default |
+|:--------|:------------|:--------|
+| `baseline.path` | Default baseline file path | `bellwether-baseline.json` |
+| `baseline.comparePath` | Baseline to compare against during check | - |
+| `baseline.failOnDrift` | Exit with error if drift detected | `false` |
+
+### Contract-Only Mode
+
+The `--contract` flag creates a lightweight baseline containing only structural data (no behavioral exploration results). This is useful for:
+
+- **CI/CD pipelines**: Smaller files, faster comparisons
+- **Version control**: Clean diffs, smaller commits
+- **Check command**: Contract-only is the default for `bellwether check`
+
+Contract-only baselines contain:
+- Tool schemas and fingerprints
+- Server capabilities
+- Integrity hashes
+
+They exclude:
+- Interview results (from `explore`)
+- Behavioral assertions
+- Persona-specific findings
+
+```bash
+# Create contract-only baseline
+bellwether baseline save --contract
+
+# Full baseline with behavioral data (from explore)
+bellwether explore
+bellwether baseline save
+```
+
 ## See Also
 
 - [check](/cli/check) - Run checks to generate reports

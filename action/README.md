@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Detect Drift
-        uses: dotsetlabs/bellwether/action@v1
+        uses: dotsetlabs/bellwether@v1
         with:
           server-command: 'npx @mcp/your-server'
 ```
@@ -39,7 +39,7 @@ No secrets needed. Free. Runs in seconds.
 
 ```yaml
 - name: Detect Drift
-  uses: dotsetlabs/bellwether/action@v1
+  uses: dotsetlabs/bellwether@v1
   with:
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
@@ -50,7 +50,7 @@ No secrets needed. Free. Runs in seconds.
 
 ```yaml
 - name: Save Baseline
-  uses: dotsetlabs/bellwether/action@v1
+  uses: dotsetlabs/bellwether@v1
   with:
     server-command: 'npx @mcp/your-server'
     save-baseline: 'true'
@@ -66,7 +66,7 @@ No secrets needed. Free. Runs in seconds.
 
 ```yaml
 - name: Run with Custom Config
-  uses: dotsetlabs/bellwether/action@v1
+  uses: dotsetlabs/bellwether@v1
   with:
     server-command: 'npx @mcp/your-server'
     config-path: './configs/ci.yaml'
@@ -78,7 +78,7 @@ Upload baselines to Bellwether Cloud for history tracking and team visibility:
 
 ```yaml
 - name: Test and Upload
-  uses: dotsetlabs/bellwether/action@v1
+  uses: dotsetlabs/bellwether@v1
   with:
     server-command: 'npx @mcp/your-server'
     save-baseline: 'true'
@@ -108,7 +108,7 @@ server:
 
 ```yaml
 - name: Test with Secrets
-  uses: dotsetlabs/bellwether/action@v1
+  uses: dotsetlabs/bellwether@v1
   with:
     server-command: 'npx @mcp/your-server'
   env:
@@ -196,7 +196,7 @@ jobs:
 
       - name: Check MCP Server
         id: bellwether
-        uses: dotsetlabs/bellwether/action@v1
+        uses: dotsetlabs/bellwether@v1
         with:
           server-command: 'npx @mcp/your-server'
           fail-on-drift: 'true'
@@ -252,7 +252,7 @@ If you were using the old flag-based inputs:
 
 **After:**
 ```yaml
-- uses: dotsetlabs/bellwether/action@v1
+- uses: dotsetlabs/bellwether@v1
   with:
     server-command: 'npx @mcp/server'
 ```

@@ -185,7 +185,7 @@ brew install ollama
 ollama serve
 
 # Pull a model
-ollama pull llama3.2
+ollama pull qwen3:8b
 
 # Initialize with local preset
 bellwether init --preset local "node ./src/mcp-server.js"
@@ -201,7 +201,7 @@ mode: document
 
 llm:
   provider: ollama
-  model: ""  # Uses llama3.2 by default
+  model: ""  # Uses qwen3:8b by default
   ollama:
     baseUrl: "http://localhost:11434"
 ```

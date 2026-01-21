@@ -82,7 +82,7 @@ llm:
   provider: ollama
 
   # Model to use. Leave empty for provider default.
-  # Defaults: ollama=llama3.2, openai=gpt-5-mini, anthropic=claude-haiku-4-5
+  # Defaults: ollama=qwen3:8b, openai=gpt-4.1-nano, anthropic=claude-haiku-4-5
   model: ""
 
   # Ollama settings (for local LLM)
@@ -223,8 +223,8 @@ Presets provide pre-configured settings for common use cases:
 |:-------|:-----|:------------|
 | (default) | contract | Zero LLM, free, deterministic |
 | `ci` | contract | Optimized for CI/CD, fails on drift |
-| `security` | document | Security + technical personas, OpenAI |
-| `thorough` | document | All 4 personas, workflow discovery |
+| `security` | document | Security + technical personas, Anthropic |
+| `thorough` | document | All 4 personas, workflow discovery, Anthropic |
 | `local` | document | Local Ollama, free, private |
 
 Use presets with `bellwether init`:
@@ -242,32 +242,14 @@ mode: document
 
 llm:
   provider: ollama
-  model: llama3.2
+  model: qwen3:8b
   ollama:
     baseUrl: "http://localhost:11434"
 ```
 
 No API key required. Make sure Ollama is running locally.
 
-### OpenAI
-
-```yaml
-mode: document
-
-llm:
-  provider: openai
-  model: gpt-5-mini  # or gpt-5.2, gpt-4-turbo
-```
-
-Set API key via environment or `bellwether auth`:
-
-```bash
-export OPENAI_API_KEY=sk-xxx
-# or
-bellwether auth
-```
-
-### Anthropic
+### Anthropic (Recommended)
 
 ```yaml
 mode: document
@@ -281,6 +263,24 @@ Set API key via environment or `bellwether auth`:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-xxx
+# or
+bellwether auth
+```
+
+### OpenAI
+
+```yaml
+mode: document
+
+llm:
+  provider: openai
+  model: gpt-4.1-nano  # or gpt-4.1
+```
+
+Set API key via environment or `bellwether auth`:
+
+```bash
+export OPENAI_API_KEY=sk-xxx
 # or
 bellwether auth
 ```

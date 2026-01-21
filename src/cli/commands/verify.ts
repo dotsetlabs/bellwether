@@ -15,12 +15,18 @@ import type { VerificationTier, VerificationConfig } from '../../verification/in
 import { Interviewer, DEFAULT_CONFIG } from '../../interview/interviewer.js';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
-import { createLLMClient } from '../../llm/index.js';
-import { loadConfig, ConfigNotFoundError } from '../../config/loader.js';
+import { createLLMClient, DEFAULT_MODELS } from '../../llm/index.js';
+import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
+import { CostTracker } from '../../cost/index.js';
 import { BUILTIN_PERSONAS } from '../../persona/builtins.js';
 import type { Persona } from '../../persona/types.js';
 import { TIMEOUTS } from '../../constants.js';
 import * as output from '../output.js';
+import { InterviewProgressBar } from '../utils/progress.js';
+import type { InterviewProgress } from '../../interview/interviewer.js';
+import { createCloudClient } from '../../cloud/client.js';
+import { getLinkedProject, getSessionToken } from '../../cloud/auth.js';
+import type { CloudVerificationResult } from '../../cloud/types.js';
 
 // Convert BUILTIN_PERSONAS record to array
 const ALL_PERSONAS: Persona[] = Object.values(BUILTIN_PERSONAS);
@@ -32,77 +38,103 @@ const ALL_PERSONAS: Persona[] = Object.values(BUILTIN_PERSONAS);
 export function createVerifyCommand(): Command {
   return new Command('verify')
     .description('Generate a verification report for the Verified by Bellwether program')
-    .argument('<command>', 'Command to start the MCP server')
-    .argument('[args...]', 'Arguments for the server command')
-    .option('-o, --output <dir>', 'Output directory', '.')
+    .argument('[server-command]', 'Server command (overrides config)')
+    .argument('[args...]', 'Server arguments')
+    .option('-c, --config <path>', 'Path to config file', 'bellwether.yaml')
+    .option('-o, --output <dir>', 'Output directory')
     .option('--server-id <id>', 'Server identifier (namespace/name)')
     .option('--version <version>', 'Server version to verify')
     .option('--tier <tier>', 'Target verification tier (bronze, silver, gold, platinum)', 'silver')
     .option('--security', 'Include security testing (required for gold+ tiers)')
     .option('--json', 'Output verification result as JSON')
     .option('--badge-only', 'Only output badge URL')
-    .option('--provider <provider>', 'LLM provider (openai, anthropic, ollama)', 'openai')
+    .option('--provider <provider>', 'LLM provider (ollama, openai, anthropic)')
     .option('--model <model>', 'LLM model to use')
-    .action(async (command: string, args: string[], options) => {
-      await handleVerify(command, args, options);
+    .option('-p, --project <id>', 'Project ID to submit verification to (requires login)')
+    .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
+      await handleVerify(serverCommandArg, serverArgs, options);
     });
 }
 
 export const verifyCommand = createVerifyCommand();
 
 async function handleVerify(
-  command: string,
-  args: string[],
+  serverCommandArg: string | undefined,
+  serverArgs: string[],
   options: {
-    output: string;
+    config: string;
+    output?: string;
     serverId?: string;
     version?: string;
     tier: string;
     security?: boolean;
     json?: boolean;
     badgeOnly?: boolean;
-    provider: string;
+    provider?: string;
     model?: string;
+    project?: string;
   }
 ): Promise<void> {
   output.info(chalk.bold('\n🔒 Bellwether Verification\n'));
 
-  // Try to load config (optional - verify command doesn't require config file)
-  let configProvider: string | undefined;
-  let configModel: string | undefined;
+  // Load configuration
+  let bellwetherConfig: BellwetherConfig;
   try {
-    const config = loadConfig();
-    configProvider = config.llm.provider;
-    configModel = config.llm.model;
+    bellwetherConfig = loadConfig(options.config);
   } catch (error) {
-    if (!(error instanceof ConfigNotFoundError)) {
-      throw error;
+    if (error instanceof ConfigNotFoundError) {
+      output.error(error.message);
+      process.exit(1);
     }
-    // No config file is OK - we'll use CLI options or defaults
+    throw error;
   }
 
-  const provider = options.provider ?? configProvider ?? 'openai';
-  const model = options.model ?? configModel;
+  // Determine server command (CLI arg overrides config)
+  const serverCommand = serverCommandArg || bellwetherConfig.server.command;
+  const args = serverArgs.length > 0 ? serverArgs : bellwetherConfig.server.args;
 
-  // Create LLM client
+  if (!serverCommand) {
+    output.error('Error: No server command provided.');
+    output.error('Either specify a server command as an argument or configure it in bellwether.yaml');
+    process.exit(1);
+  }
+
+  // Get settings from config (CLI options override config)
+  // Use || for model to treat empty string as undefined (falls back to provider default)
+  const provider = options.provider || bellwetherConfig.llm.provider || 'ollama';
+  const model = options.model || bellwetherConfig.llm.model || undefined;
+  const outputDir = options.output ?? bellwetherConfig.output.dir ?? '.';
+  const serverTimeout = bellwetherConfig.server.timeout ?? TIMEOUTS.DEFAULT;
+  const serverEnv = bellwetherConfig.server.env;
+
+  // Initialize cost tracker
+  const effectiveModel = model || DEFAULT_MODELS[provider as 'openai' | 'anthropic' | 'ollama'];
+  const costTracker = new CostTracker(effectiveModel);
+
+  // Create LLM client with usage tracking
   let llm;
   try {
     llm = createLLMClient({
       provider: provider as 'openai' | 'anthropic' | 'ollama',
       model,
+      onUsage: (inputTokens: number, outputTokens: number) => {
+        costTracker.addUsage(inputTokens, outputTokens);
+      },
     });
   } catch {
     output.error(chalk.red('Error: Could not create LLM client. Check your API keys.'));
     process.exit(1);
   }
 
+  output.info(chalk.gray(`Using model: ${effectiveModel}`));
+
   // Connect to server
-  output.info(chalk.gray(`Connecting to ${command} ${args.join(' ')}...`));
-  const client = new MCPClient({ timeout: TIMEOUTS.DEFAULT });
+  output.info(chalk.gray(`Connecting to ${serverCommand} ${args.join(' ')}...`));
+  const client = new MCPClient({ timeout: serverTimeout });
 
   try {
-    await client.connect(command, args);
-    const discovery = await discover(client, command, args);
+    await client.connect(serverCommand, args, serverEnv);
+    const discovery = await discover(client, serverCommand, args);
 
     output.info(chalk.green(`✓ Connected to ${discovery.serverInfo.name} v${discovery.serverInfo.version}`));
     output.info(chalk.gray(`  ${discovery.tools.length} tools, ${discovery.prompts.length} prompts, ${(discovery.resources ?? []).length} resources`));
@@ -117,32 +149,60 @@ async function handleVerify(
     output.newline();
 
     // Run interview
-    output.info(chalk.bold('Running verification test...'));
+    output.info(chalk.bold('Running verification test...\n'));
     const interviewer = new Interviewer(llm, {
       ...DEFAULT_CONFIG,
       personas,
       maxQuestionsPerTool: targetTier === 'platinum' ? 5 : targetTier === 'gold' ? 4 : 3,
     });
 
-    const interview = await interviewer.interview(client, discovery, (progress) => {
-      if (progress.currentTool && !output.isQuiet()) {
-        process.stdout.write(chalk.gray(`  Testing: ${progress.currentTool}...\r`));
-      }
-    });
+    // Set up progress bar
+    const progressBar = new InterviewProgressBar({ enabled: !output.isQuiet() });
 
-    output.info(chalk.green('\n✓ Test complete\n'));
+    const progressCallback = (progress: InterviewProgress) => {
+      if (progress.phase === 'starting') {
+        progressBar.start(
+          progress.totalTools,
+          progress.totalPersonas,
+          progress.totalPrompts ?? 0,
+          progress.totalResources ?? 0
+        );
+      } else if (['interviewing', 'prompts', 'resources'].includes(progress.phase)) {
+        progressBar.update(progress);
+      } else if (progress.phase === 'complete' || progress.phase === 'synthesizing') {
+        progressBar.stop();
+      }
+    };
+
+    const interview = await interviewer.interview(client, discovery, progressCallback);
+
+    progressBar.stop();
+    output.newline();
+    output.info(chalk.green('✓ Test complete'));
+
+    // Display cost summary
+    const costEstimate = costTracker.getCost();
+    const usage = costEstimate.usage;
+    if (usage.totalTokens > 0) {
+      const costStr = costEstimate.costUSD > 0
+        ? `$${costEstimate.costUSD.toFixed(4)}`
+        : 'Free (local model)';
+      output.info(chalk.gray(`  Tokens: ${usage.totalTokens.toLocaleString()} (${usage.inputTokens.toLocaleString()} in, ${usage.outputTokens.toLocaleString()} out)`));
+      output.info(chalk.gray(`  Estimated cost: ${costStr}`));
+    }
+    output.newline();
 
     // Generate verification
     const serverId = options.serverId ?? `${discovery.serverInfo.name}`;
-    const config: VerificationConfig = {
+    const verificationConfig: VerificationConfig = {
       serverId,
       version: options.version ?? discovery.serverInfo.version,
       targetTier,
       includeSecurity: options.security,
-      outputDir: options.output,
+      outputDir,
     };
 
-    const report = generateVerificationReport(interview, config);
+    const report = generateVerificationReport(interview, verificationConfig);
     const result = report.result;
 
     // Output results
@@ -160,7 +220,7 @@ async function handleVerify(
     displayVerificationResult(result);
 
     // Save report
-    const reportPath = join(options.output, 'bellwether-verification.json');
+    const reportPath = join(outputDir, 'bellwether-verification.json');
     await writeFile(reportPath, JSON.stringify(report, null, 2));
     output.info(chalk.gray(`\nReport saved to: ${reportPath}`));
 
@@ -170,6 +230,51 @@ async function handleVerify(
     output.newline();
     output.info(chalk.bold('Markdown:'));
     output.info(chalk.gray(generateBadgeMarkdown(result)));
+
+    // Submit to cloud if project ID is specified
+    const projectId = options.project ?? getLinkedProject()?.projectId;
+    if (projectId) {
+      output.newline();
+
+      // Check if logged in
+      if (!getSessionToken()) {
+        output.warn(chalk.yellow('⚠ Not logged in. Run `bellwether login` to submit verification to the platform.'));
+      } else {
+        output.info(chalk.gray('Submitting verification to platform...'));
+
+        try {
+          const cloudClient = createCloudClient();
+
+          // Convert local result to cloud format
+          const cloudResult: CloudVerificationResult = {
+            serverId: result.serverId,
+            version: result.version,
+            status: result.status,
+            tier: result.tier,
+            verifiedAt: result.verifiedAt,
+            expiresAt: result.expiresAt,
+            toolsVerified: result.toolsVerified,
+            testsPassed: result.testsPassed,
+            testsTotal: result.testsTotal,
+            passRate: result.passRate,
+            reportHash: result.reportHash,
+            bellwetherVersion: result.bellwetherVersion,
+          };
+
+          const submission = await cloudClient.submitVerification(
+            projectId,
+            cloudResult,
+            report as unknown as Record<string, unknown>
+          );
+
+          output.info(chalk.green(`✓ Verification submitted successfully`));
+          output.info(chalk.gray(`  View at: ${submission.viewUrl}`));
+        } catch (submitError) {
+          output.error(chalk.red(`Failed to submit verification: ${submitError instanceof Error ? submitError.message : 'Unknown error'}`));
+          // Don't exit with error - local verification succeeded
+        }
+      }
+    }
 
     // Exit with appropriate code
     if (result.status !== 'verified') {

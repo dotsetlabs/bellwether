@@ -10,18 +10,20 @@ Quick discovery of MCP server capabilities without running checks.
 ## Synopsis
 
 ```bash
-bellwether discover [options] <command> [args...]
+bellwether discover [command] [args...] [options]
 ```
 
 ## Description
 
 The `discover` command connects to an MCP server and lists its capabilities (tools, prompts, and resources) without conducting a full check. This is useful for quick reconnaissance or verifying server connectivity.
 
+For remote MCP servers, use `--transport sse` or `--transport streamable-http` with `--url` instead of providing a command.
+
 ## Arguments
 
 | Argument | Description |
 |:---------|:------------|
-| `<command>` | The command to start the MCP server |
+| `[command]` | Command to start the MCP server (not required for remote) |
 | `[args...]` | Arguments to pass to the server command |
 
 ## Options

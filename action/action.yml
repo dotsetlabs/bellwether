@@ -106,12 +106,18 @@ runs:
 
         echo "$CHECK_OUTPUT"
 
-        # Extract tool count from output
-        TOOL_COUNT=$(echo "$CHECK_OUTPUT" | grep -oP 'Found \K\d+(?= tools)' || echo "0")
+        # Extract tool count from output (portable regex without Perl extensions)
+        TOOL_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'Found [0-9]* tools' | grep -o '[0-9]*' | head -1 || echo "0")
+        if [ -z "$TOOL_COUNT" ]; then
+          TOOL_COUNT="0"
+        fi
         echo "tool-count=$TOOL_COUNT" >> $GITHUB_OUTPUT
 
-        # Check for CONTRACT.md
+        # Check for CONTRACT.md in output dir or .bellwether default
         CONTRACT_MD="${OUTPUT_DIR}/CONTRACT.md"
+        if [ ! -f "$CONTRACT_MD" ]; then
+          CONTRACT_MD=".bellwether/CONTRACT.md"
+        fi
         if [ -f "$CONTRACT_MD" ]; then
           echo "contract-md=$CONTRACT_MD" >> $GITHUB_OUTPUT
         fi
@@ -119,8 +125,8 @@ runs:
         # Set baseline file output
         echo "baseline-file=$BASELINE_PATH" >> $GITHUB_OUTPUT
 
-        # Determine drift status from output
-        if echo "$CHECK_OUTPUT" | grep -q "drift detected\|Breaking changes\|Warning-level changes"; then
+        # Determine drift status from output (matches actual CLI output strings)
+        if echo "$CHECK_OUTPUT" | grep -qE "Breaking changes detected|Warning-level changes detected"; then
           echo "drift-detected=true" >> $GITHUB_OUTPUT
         else
           echo "drift-detected=false" >> $GITHUB_OUTPUT
@@ -147,7 +153,9 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: bellwether-docs
-        path: ${{ inputs.output-dir }}/CONTRACT.md
+        path: |
+          ${{ inputs.output-dir }}/CONTRACT.md
+          .bellwether/CONTRACT.md
         if-no-files-found: ignore
 
     - name: Upload baseline artifact
@@ -163,5 +171,7 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: bellwether-report
-        path: ${{ inputs.output-dir }}/bellwether-check.json
+        path: |
+          ${{ inputs.output-dir }}/bellwether-check.json
+          .bellwether/bellwether-check.json
         if-no-files-found: ignore

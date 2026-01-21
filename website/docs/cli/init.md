@@ -39,6 +39,7 @@ If your server command includes arguments, wrap the entire string in quotes so t
 |:-------|:------------|:--------|
 | `-f, --force` | Overwrite existing config file | `false` |
 | `-p, --preset <name>` | Use a preset configuration | - |
+| `--provider <provider>` | LLM provider for explore command (`ollama`, `openai`, `anthropic`) | `ollama` |
 | `-y, --yes` | Skip prompts, use defaults | `false` |
 
 ## Presets
@@ -82,7 +83,7 @@ Uses local Ollama for free LLM-powered exploration. Requires Ollama running:
 
 ```bash
 ollama serve
-ollama pull llama3.2
+ollama pull qwen3:8b
 ```
 
 ### Security-Focused Exploration

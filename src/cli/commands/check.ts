@@ -99,6 +99,7 @@ export const checkCommand = new Command('check')
     // Extract settings from config
     const timeout = config.server.timeout;
     const outputDir = config.output.dir;
+    const docsDir = config.output.docsDir;
     const cacheEnabled = config.cache.enabled;
     const verbose = config.logging.verbose;
     const logLevel = config.logging.level;
@@ -245,9 +246,12 @@ export const checkCommand = new Command('check')
       // Generate documentation
       output.info('Generating documentation...');
       mkdirSync(outputDir, { recursive: true });
+      if (docsDir !== outputDir) {
+        mkdirSync(docsDir, { recursive: true });
+      }
 
       const contractMd = generateContractMd(result);
-      const contractMdPath = join(outputDir, 'CONTRACT.md');
+      const contractMdPath = join(docsDir, 'CONTRACT.md');
       writeFileSync(contractMdPath, contractMd);
       output.info(`Written: ${contractMdPath}`);
 

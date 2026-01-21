@@ -31,7 +31,7 @@ The `registry` command searches the [MCP Registry](https://registry.modelcontext
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `--limit <n>` | Maximum number of results | `10` |
+| `-l, --limit <n>` | Maximum number of results | `10` |
 | `--json` | Output as JSON | `false` |
 
 ## Examples

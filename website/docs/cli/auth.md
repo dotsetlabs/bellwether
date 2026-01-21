@@ -49,18 +49,18 @@ Output:
 Bellwether Authentication Status
 =================================
 
-OpenAI:
+Anthropic:
   Status: ✓ Configured
   Source: System keychain
-  Model:  gpt-5-mini
+  Model:  claude-haiku-4-5
 
-Anthropic:
+OpenAI:
   Status: ✗ Not configured
-  Setup:  Run 'bellwether auth' or set ANTHROPIC_API_KEY
+  Setup:  Run 'bellwether auth' or set OPENAI_API_KEY
 
 Ollama:
   Status: No API key required (local)
-  Model:  llama3.2
+  Model:  qwen3:8b
 
 Credential resolution order:
   1. Environment variables (highest priority)

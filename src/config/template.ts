@@ -98,8 +98,12 @@ scenarios:
 # bellwether explore outputs: AGENTS.md, bellwether-explore.json
 
 output:
-  # Directory for output files
-  dir: "."
+  # Directory for JSON output files (bellwether-check.json, etc.)
+  dir: ".bellwether"
+
+  # Directory for documentation files (CONTRACT.md, AGENTS.md)
+  # These are kept in root by default for visibility
+  docsDir: "."
 
 # =============================================================================
 # CHECK COMMAND SETTINGS
@@ -108,7 +112,10 @@ output:
 # Free, fast, deterministic. No LLM required.
 
 baseline:
-  # Path to baseline file for comparison
+  # Path to baseline file for upload (default: bellwether-check.json in output.dir)
+  # path: "./bellwether-check.json"
+
+  # Path to baseline file for comparison (drift detection)
   # comparePath: "./bellwether-baseline.json"
 
   # Fail if drift is detected (useful for CI)
@@ -128,7 +135,7 @@ llm:
   provider: ${provider}
 
   # Model to use. Leave empty for provider default.
-  # Defaults: ollama=llama3.2, openai=gpt-4o-mini, anthropic=claude-haiku-4-5
+  # Defaults: ollama=qwen3:8b, openai=gpt-4.1-nano, anthropic=claude-haiku-4-5
   model: ""
 
   # Ollama settings (for local LLM)
@@ -203,14 +210,14 @@ export const PRESETS: Record<string, ConfigTemplateOptions> = {
    * Security preset: Optimized for 'bellwether explore' with security focus.
    */
   security: {
-    provider: 'openai',
+    provider: 'anthropic',
   },
 
   /**
    * Thorough preset: Optimized for 'bellwether explore' with all personas.
    */
   thorough: {
-    provider: 'openai',
+    provider: 'anthropic',
   },
 
   /**
@@ -252,8 +259,8 @@ logging:
 # Optimized for 'bellwether explore' with security focus
 
 llm:
-  provider: openai
-  model: gpt-4o  # Better reasoning for security analysis
+  provider: anthropic
+  model: claude-sonnet-4-5  # Better reasoning for security analysis
 
 explore:
   personas:
@@ -270,8 +277,8 @@ explore:
 # Comprehensive exploration with all personas
 
 llm:
-  provider: openai
-  model: gpt-4o
+  provider: anthropic
+  model: claude-sonnet-4-5
 
 explore:
   personas:
@@ -294,7 +301,7 @@ workflows:
 
 llm:
   provider: ollama
-  model: llama3.2
+  model: qwen3:8b
   ollama:
     baseUrl: "http://localhost:11434"
 

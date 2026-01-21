@@ -27,8 +27,9 @@ The `upload` command uploads your local baseline to Bellwether Cloud, enabling h
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
+| `-b, --baseline <path>` | Path to baseline JSON file | `bellwether-baseline.json` |
+| `-c, --config <path>` | Path to config file | `bellwether.yaml` |
 | `-p, --project <id>` | Project ID to upload to | Uses linked project |
-| `--public` | Make baseline publicly viewable | `false` |
 | `--ci` | CI mode: output URL only, exit 1 on breaking drift | `false` |
 | `--session <session>` | Session token (overrides stored/env session) | - |
 | `--fail-on-drift` | Exit with error if any behavioral drift detected | `false` |
@@ -110,6 +111,14 @@ View at: https://bellwether.sh/projects/proj_abc123/baselines/12
 | `0` | Success - baseline uploaded |
 | `1` | Drift detected (with `--fail-on-drift`) |
 | `2` | Error - upload failed |
+
+## Environment Variables
+
+| Variable | Description | Default |
+|:---------|:------------|:--------|
+| `BELLWETHER_SESSION` | Session token for authentication (required in CI) | - |
+| `BELLWETHER_API_URL` | Custom API URL for testing/development | `https://api.bellwether.sh` |
+| `BELLWETHER_TEAM_ID` | Override active team for multi-team accounts | - |
 
 ## See Also
 

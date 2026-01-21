@@ -34,7 +34,7 @@ import * as output from '../output.js';
  * Default paths for baseline files.
  */
 const DEFAULT_BASELINE_PATH = PATHS.DEFAULT_BASELINE_FILE;
-const DEFAULT_REPORT_PATH = PATHS.DEFAULT_REPORT_FILE;
+const DEFAULT_REPORT_PATH = PATHS.DEFAULT_CHECK_REPORT_FILE || PATHS.DEFAULT_EXPLORE_REPORT_FILE;
 
 /**
  * Load interview result from JSON report.

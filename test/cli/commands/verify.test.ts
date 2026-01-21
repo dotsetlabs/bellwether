@@ -24,9 +24,19 @@ vi.mock('../../../src/config/loader.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/config/loader.js')>();
   return {
     ...actual,
-    loadConfig: vi.fn().mockImplementation(() => {
-      throw new actual.ConfigNotFoundError();
+    loadConfig: vi.fn().mockReturnValue({
+      server: { command: '', args: [], timeout: 30000, env: {} },
+      mode: 'explore',
+      llm: { provider: 'ollama', model: '', ollama: { baseUrl: 'http://localhost:11434' } },
+      explore: { personas: [], maxQuestionsPerTool: 3, parallelPersonas: false, skipErrorTests: false },
+      output: { dir: '.', format: 'agents.md' },
+      baseline: { failOnDrift: false, confidenceThreshold: 80 },
+      cache: { enabled: true, dir: '.bellwether/cache' },
+      logging: { level: 'info', verbose: false },
+      scenarios: { only: false },
+      workflows: { discover: false, trackState: false },
     }),
+    ConfigNotFoundError: actual.ConfigNotFoundError,
   };
 });
 
@@ -36,6 +46,11 @@ vi.mock('../../../src/llm/index.js', () => ({
     complete: vi.fn(),
     getProviderInfo: vi.fn().mockReturnValue({ name: 'openai' }),
   }),
+  DEFAULT_MODELS: {
+    openai: 'gpt-4o',
+    anthropic: 'claude-sonnet-4-20250514',
+    ollama: 'llama3.2',
+  },
 }));
 
 // Shared mock instance for MCPClient
@@ -210,7 +225,7 @@ describe('Verify Command', () => {
       await command.parseAsync(['node', 'test', 'node', 'server.js']);
 
       // Verify MCPClient was used by checking the shared mock instance methods
-      expect(mockMCPClientInstance.connect).toHaveBeenCalledWith('node', ['server.js']);
+      expect(mockMCPClientInstance.connect).toHaveBeenCalledWith('node', ['server.js'], {});
     });
 
     it('should run discovery on the server', async () => {

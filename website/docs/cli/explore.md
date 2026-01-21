@@ -69,11 +69,11 @@ bellwether explore --provider ollama npx server
 ### With Specific Model
 
 ```bash
-# GPT-4o for better quality
-bellwether explore --model gpt-5.2 npx server
-
-# Claude Sonnet
+# Claude Sonnet for better quality
 bellwether explore --provider anthropic --model claude-sonnet-4-5 npx server
+
+# GPT-4.1 for higher quality OpenAI
+bellwether explore --provider openai --model gpt-4.1 npx server
 ```
 
 ## Output Files
@@ -105,8 +105,8 @@ server:
   timeout: 30000
 
 llm:
-  provider: openai          # ollama, openai, anthropic
-  model: gpt-5-mini        # Leave empty for provider default
+  provider: anthropic       # ollama, openai, anthropic
+  model: ""                 # Leave empty for provider default
   ollama:
     baseUrl: "http://localhost:11434"
 
@@ -168,13 +168,13 @@ Estimated time: 2-4 minutes
 
 Typical costs:
 
-| Model | Cost per Exploration |
-|:------|:--------------------|
-| gpt-5-mini | ~$0.02 |
-| claude-haiku-4-5 | ~$0.04 |
-| gpt-5.2 | ~$0.12 |
-| claude-sonnet-4-5 | ~$0.13 |
-| Ollama (local) | Free |
+| Model | Cost per Exploration | Notes |
+|:------|:--------------------|:------|
+| Ollama (qwen3:8b) | Free | Local, requires GPU |
+| gpt-4.1-nano | ~$0.01-0.02 | Budget cloud option |
+| claude-haiku-4-5 | ~$0.02-0.05 | Recommended |
+| gpt-4.1 | ~$0.04-0.08 | Higher quality OpenAI |
+| claude-sonnet-4-5 | ~$0.08-0.15 | Premium quality |
 
 ## LLM Provider Setup
 
@@ -199,7 +199,7 @@ bellwether auth add anthropic
 ollama serve
 
 # Pull a model
-ollama pull llama3.2
+ollama pull qwen3:8b
 
 # Run explore (no API key needed)
 bellwether explore npx server
@@ -224,7 +224,7 @@ bellwether explore npx server
 
 ### For Better Results
 
-1. **Use a better model**: GPT-4o or Claude Sonnet produce more insightful observations
+1. **Use a better model**: Claude Sonnet or GPT-4.1 produce more insightful observations
 2. **Increase questions**: Set `explore.maxQuestionsPerTool: 5` for deeper exploration
 3. **Enable all personas**: More perspectives = more comprehensive documentation
 
