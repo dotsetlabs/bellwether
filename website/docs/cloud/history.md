@@ -10,19 +10,26 @@ View baseline history for a project.
 ## Synopsis
 
 ```bash
-bellwether history [options]
+bellwether history [project-id] [options]
 ```
 
 ## Description
 
-The `history` command shows the baseline upload history for the linked project, including version numbers, timestamps, and drift summaries.
+The `history` command shows the baseline upload history for a project, including version numbers, timestamps, and drift summaries.
+
+## Arguments
+
+| Argument | Description |
+|:---------|:------------|
+| `[project-id]` | Project ID (uses linked project if not specified) |
 
 ## Options
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `--limit <n>` | Maximum entries to show | `10` |
+| `-n, --limit <n>` | Number of versions to show | `10` |
 | `--json` | Output as JSON | `false` |
+| `--session <session>` | Session token (overrides stored/env session) | - |
 
 ## Examples
 
@@ -109,6 +116,7 @@ Behavior changes: 3
 |:-------|:------------|:--------|
 | `-p, --project <id>` | Project ID | Linked project |
 | `--json` | Output as JSON | `false` |
+| `--session <session>` | Session token (overrides stored/env session) | - |
 
 ### Local File Comparison
 

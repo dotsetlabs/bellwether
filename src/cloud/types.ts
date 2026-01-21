@@ -436,6 +436,65 @@ export interface AuthMeResponse {
 export type BadgeStatus = 'verified' | 'failing' | 'drift' | 'unknown';
 
 /**
+ * Verification status for a project.
+ * Matches platform verification service status values.
+ */
+export type VerificationStatus =
+  | 'verified'
+  | 'pending'
+  | 'failed'
+  | 'expired'
+  | 'not_verified';
+
+/**
+ * Verification tier based on test coverage.
+ */
+export type VerificationTier = 'bronze' | 'silver' | 'gold' | 'platinum';
+
+/**
+ * Verification result from a verification run.
+ * This matches the format expected by the platform API.
+ */
+export interface CloudVerificationResult {
+  /** Server identifier (namespace/name) */
+  serverId: string;
+  /** Server version */
+  version: string;
+  /** Verification status */
+  status: VerificationStatus;
+  /** Verification tier achieved */
+  tier?: VerificationTier | null;
+  /** ISO timestamp when verified */
+  verifiedAt: string;
+  /** ISO timestamp when verification expires */
+  expiresAt: string;
+  /** Number of tools verified */
+  toolsVerified: number;
+  /** Number of tests passed */
+  testsPassed: number;
+  /** Total number of tests run */
+  testsTotal: number;
+  /** Pass rate (0-100) */
+  passRate: number;
+  /** Checksum of the verification report */
+  reportHash: string;
+  /** Bellwether version used */
+  bellwetherVersion: string;
+}
+
+/**
+ * Result of submitting a verification to the platform.
+ */
+export interface VerificationSubmissionResult {
+  /** Verification ID assigned by the platform */
+  verificationId: string;
+  /** Project ID the verification was submitted to */
+  projectId: string;
+  /** URL to view the verification in the dashboard */
+  viewUrl: string;
+}
+
+/**
  * Badge information for a project.
  */
 export interface BadgeInfo {
@@ -506,4 +565,11 @@ export interface BellwetherCloudClient {
 
   /** Get badge info for a project */
   getBadgeInfo(projectId: string): Promise<BadgeInfo | null>;
+
+  /** Submit a verification result to a project */
+  submitVerification(
+    projectId: string,
+    result: CloudVerificationResult,
+    report?: Record<string, unknown>
+  ): Promise<VerificationSubmissionResult>;
 }

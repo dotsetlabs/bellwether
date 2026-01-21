@@ -162,6 +162,14 @@ Credentials are stored in `~/.bellwether/session.json`:
 Never commit session.json to version control.
 :::
 
+## Environment Variables
+
+| Variable | Description | Default |
+|:---------|:------------|:--------|
+| `BELLWETHER_SESSION` | Session token for authentication (CI/CD) | - |
+| `BELLWETHER_API_URL` | Custom API URL for testing/development | `https://api.bellwether.sh` |
+| `BELLWETHER_TEAM_ID` | Override active team for multi-team accounts | - |
+
 ## See Also
 
 - [teams](/cloud/teams) - Manage team selection

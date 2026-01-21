@@ -32,6 +32,7 @@ export interface OpenAIClientOptions {
  * These models:
  * - Require max_completion_tokens instead of max_tokens
  * - Don't support custom temperature (only default of 1)
+ * - Use reasoning tokens that come out of the completion token budget
  */
 const MODELS_WITH_RESTRICTED_PARAMS = [
   'o1',
@@ -43,6 +44,13 @@ const MODELS_WITH_RESTRICTED_PARAMS = [
 ];
 
 /**
+ * Minimum max_completion_tokens for reasoning models.
+ * Reasoning models use tokens for internal "thinking" before producing output.
+ * We need a high minimum to ensure there are enough tokens left for actual output.
+ */
+const REASONING_MODEL_MIN_TOKENS = 8192;
+
+/**
  * Check if a model has restricted parameters (newer reasoning/GPT-5 models).
  */
 function hasRestrictedParams(model: string): boolean {
@@ -50,6 +58,18 @@ function hasRestrictedParams(model: string): boolean {
   return MODELS_WITH_RESTRICTED_PARAMS.some(prefix =>
     modelLower.startsWith(prefix)
   );
+}
+
+/**
+ * Get the effective max tokens for a model, accounting for reasoning overhead.
+ */
+function getEffectiveMaxTokens(model: string, requestedMaxTokens: number): number {
+  if (hasRestrictedParams(model)) {
+    // Reasoning models need much higher token limits because reasoning tokens
+    // come out of the completion budget. Use at least REASONING_MODEL_MIN_TOKENS.
+    return Math.max(requestedMaxTokens, REASONING_MODEL_MIN_TOKENS);
+  }
+  return requestedMaxTokens;
 }
 
 export class OpenAIClient implements LLMClient {
@@ -95,8 +115,10 @@ export class OpenAIClient implements LLMClient {
 
         try {
           // Build request parameters - newer models have restricted params
-          const maxTokensValue = options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS;
+          const requestedMaxTokens = options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS;
           const restrictedParams = hasRestrictedParams(model);
+          // For reasoning models, ensure we have enough tokens for both reasoning AND output
+          const maxTokensValue = getEffectiveMaxTokens(model, requestedMaxTokens);
 
           const response = await this.client.chat.completions.create({
             model,
@@ -242,8 +264,10 @@ export class OpenAIClient implements LLMClient {
 
         try {
           // Build request parameters - newer models have restricted params
-          const maxTokensValue = options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS;
+          const requestedMaxTokens = options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS;
           const restrictedParams = hasRestrictedParams(model);
+          // For reasoning models, ensure we have enough tokens for both reasoning AND output
+          const maxTokensValue = getEffectiveMaxTokens(model, requestedMaxTokens);
 
           const stream = await this.client.chat.completions.create({
             model,

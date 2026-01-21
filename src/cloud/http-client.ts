@@ -15,6 +15,8 @@ import type {
   DiffSummary,
   BellwetherBaseline,
   BadgeInfo,
+  CloudVerificationResult,
+  VerificationSubmissionResult,
 } from './types.js';
 import { updateSessionToken } from './auth.js';
 
@@ -279,5 +281,37 @@ export class HttpCloudClient implements BellwetherCloudClient {
     } catch {
       return null;
     }
+  }
+
+  async submitVerification(
+    projectId: string,
+    result: CloudVerificationResult,
+    report?: Record<string, unknown>
+  ): Promise<VerificationSubmissionResult> {
+    const response = await this.request<{ verification: { id: string } }>(
+      'POST',
+      `/projects/${projectId}/verifications`,
+      {
+        serverId: result.serverId,
+        version: result.version,
+        status: result.status,
+        tier: result.tier ?? null,
+        verifiedAt: result.verifiedAt,
+        expiresAt: result.expiresAt,
+        toolsVerified: result.toolsVerified,
+        testsPassed: result.testsPassed,
+        testsTotal: result.testsTotal,
+        passRate: result.passRate,
+        reportHash: result.reportHash,
+        bellwetherVersion: result.bellwetherVersion,
+        report: report ?? null,
+      }
+    );
+
+    return {
+      verificationId: response.verification.id,
+      projectId,
+      viewUrl: `${this.baseUrl.replace('/api', '')}/projects/${projectId}/verification`,
+    };
   }
 }

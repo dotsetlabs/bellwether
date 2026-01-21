@@ -48,6 +48,7 @@ const sidebars: SidebarsConfig = {
         'cloud/projects',
         'cloud/upload',
         'cloud/history',
+        'cloud/diff',
         'cloud/badge',
       ],
     },

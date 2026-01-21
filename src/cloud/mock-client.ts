@@ -29,6 +29,8 @@ import type {
   BellwetherBaseline,
   StoredSession,
   BadgeInfo,
+  CloudVerificationResult,
+  VerificationSubmissionResult,
 } from './types.js';
 import { isMockSession, MOCK_SESSION_PREFIX } from './auth.js';
 import * as output from '../cli/output.js';
@@ -482,6 +484,56 @@ export class MockCloudClient implements BellwetherCloudClient {
       markdown,
       lastVerified: latestBaseline?.uploadedAt,
       latestVersion: latestBaseline?.version,
+    };
+  }
+
+  async submitVerification(
+    projectId: string,
+    result: CloudVerificationResult,
+    report?: Record<string, unknown>
+  ): Promise<VerificationSubmissionResult> {
+    if (!this.isAuthenticated()) {
+      throw new Error('Not authenticated');
+    }
+
+    // Verify project exists
+    const project = this.loadProjects().find((p) => p.id === projectId);
+    if (!project) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+
+    // Generate verification ID
+    const verificationId = generateId('ver');
+
+    // Save verification data to mock storage
+    const verificationData = {
+      id: verificationId,
+      projectId,
+      ...result,
+      report: report ?? null,
+      createdAt: new Date().toISOString(),
+    };
+
+    const verificationFile = join(this.dataDir, `${verificationId}.json`);
+    writeFileSync(verificationFile, JSON.stringify(verificationData, null, 2));
+
+    // Also save to a verifications list file for the project
+    const verificationsFile = join(this.dataDir, `${projectId}-verifications.json`);
+    let verifications: Array<{ id: string; createdAt: string }> = [];
+    if (existsSync(verificationsFile)) {
+      try {
+        verifications = JSON.parse(readFileSync(verificationsFile, 'utf-8'));
+      } catch {
+        verifications = [];
+      }
+    }
+    verifications.push({ id: verificationId, createdAt: verificationData.createdAt });
+    writeFileSync(verificationsFile, JSON.stringify(verifications, null, 2));
+
+    return {
+      verificationId,
+      projectId,
+      viewUrl: `file://${verificationFile}`,
     };
   }
 

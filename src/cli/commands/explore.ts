@@ -131,6 +131,7 @@ export const exploreCommand = new Command('explore')
     // Extract settings from config (CLI options override config)
     const timeout = config.server.timeout;
     const outputDir = config.output.dir;
+    const docsDir = config.output.docsDir;
     const cacheEnabled = config.cache.enabled;
     const verbose = config.logging.verbose;
     const logLevel = config.logging.level;
@@ -428,9 +429,12 @@ export const exploreCommand = new Command('explore')
       // Generate documentation
       output.info('Generating documentation...');
       mkdirSync(outputDir, { recursive: true });
+      if (docsDir !== outputDir) {
+        mkdirSync(docsDir, { recursive: true });
+      }
 
       const agentsMd = generateAgentsMd(result);
-      const agentsMdPath = join(outputDir, 'AGENTS.md');
+      const agentsMdPath = join(docsDir, 'AGENTS.md');
       writeFileSync(agentsMdPath, agentsMd);
       output.info(`Written: ${agentsMdPath}`);
 

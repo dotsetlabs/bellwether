@@ -166,8 +166,8 @@ describe('cli/init', () => {
       const parsed = parseYamlSecure(content);
       const validated = validateConfig(parsed);
 
-      // Security preset uses openai for exploration
-      expect(validated.llm.provider).toBe('openai');
+      // Security preset uses anthropic for exploration
+      expect(validated.llm.provider).toBe('anthropic');
       // Base template includes technical_writer; additional personas can be added via getPresetOverrides
       expect(validated.explore.personas).toBeDefined();
     });
@@ -177,8 +177,8 @@ describe('cli/init', () => {
       const parsed = parseYamlSecure(content);
       const validated = validateConfig(parsed);
 
-      // Thorough preset uses openai
-      expect(validated.llm.provider).toBe('openai');
+      // Thorough preset uses anthropic
+      expect(validated.llm.provider).toBe('anthropic');
       // Base template has personas defined
       expect(validated.explore.personas).toBeDefined();
     });

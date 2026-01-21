@@ -24,7 +24,7 @@ When you build an MCP server, you're creating capabilities that AI agents can ca
 
 | | `bellwether check` | `bellwether explore` |
 |:--|:-------------------|:---------------------|
-| **Cost** | Free | ~$0.01-0.15 per run |
+| **Cost** | Free | ~$0.01-0.15 per run (cloud) or Free (local) |
 | **Speed** | Seconds | Minutes |
 | **LLM Required** | No | Yes |
 | **Output** | CONTRACT.md | AGENTS.md |
@@ -58,21 +58,23 @@ Your invitation code is tied to your email address for security. Once you have a
 
 For `bellwether explore`:
 
-- **OpenAI** - GPT-4o, GPT-4o-mini, GPT-4-turbo
-- **Anthropic** - Claude Sonnet, Claude Opus, Claude Haiku
-- **Ollama** - Local models (Llama, Mistral, etc.)
+- **Anthropic** (recommended) - Claude Haiku 4.5, Claude Sonnet 4.5, Claude Opus 4.5
+- **OpenAI** - GPT-4.1-nano (default), GPT-4.1, GPT-4o
+- **Ollama** - Local models (Qwen3, Llama, Mistral, etc.)
 
 ### How much does explore mode cost?
 
-Typical costs per exploration:
+Typical costs per exploration (varies based on server complexity):
 
-| Model | Cost |
-|:------|:-----|
-| gpt-5-mini | ~$0.02 |
-| claude-haiku-4-5 | ~$0.04 |
-| gpt-5.2 | ~$0.12 |
-| claude-sonnet-4-5 | ~$0.13 |
-| Ollama | Free |
+| Model | Cost | Notes |
+|:------|:-----|:------|
+| Ollama (qwen3:8b) | Free | Local, requires GPU |
+| gpt-4.1-nano | ~$0.01-0.02 | Budget cloud option |
+| claude-haiku-4-5 | ~$0.02-0.05 | Recommended for quality/cost balance |
+| gpt-4.1 | ~$0.04-0.08 | Higher quality OpenAI |
+| claude-sonnet-4-5 | ~$0.08-0.15 | Premium quality |
+
+**Note:** Avoid GPT-5 series models for Bellwether—they use "reasoning tokens" that make costs unpredictable and significantly higher.
 
 ### Why not just write unit tests?
 
@@ -122,7 +124,7 @@ For `bellwether explore`, you can use Ollama for free local LLM inference:
 
 ```bash
 ollama serve
-ollama pull llama3.2
+ollama pull qwen3:8b
 bellwether explore npx your-server
 ```
 

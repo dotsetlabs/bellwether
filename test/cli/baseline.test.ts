@@ -275,9 +275,9 @@ describe('baseline command', () => {
     });
 
     it('should save baseline when report exists', async () => {
-      // Create test report
+      // Create test report (using bellwether-check.json which is the default report path)
       writeFileSync(
-        join(testDir, 'bellwether-report.json'),
+        join(testDir, 'bellwether-check.json'),
         JSON.stringify(sampleInterviewResult)
       );
 

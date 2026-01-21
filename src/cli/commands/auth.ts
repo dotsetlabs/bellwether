@@ -171,8 +171,8 @@ async function interactiveSetup(): Promise<void> {
 
   // Select provider
   const provider = await promptSelect(rl, 'Which LLM provider would you like to configure?', [
-    { value: 'openai', label: 'OpenAI (recommended)' },
-    { value: 'anthropic', label: 'Anthropic Claude' },
+    { value: 'anthropic', label: 'Anthropic Claude (recommended)' },
+    { value: 'openai', label: 'OpenAI' },
   ]) as Exclude<LLMProviderId, 'ollama'>;
 
   const info = PROVIDER_INFO[provider];
@@ -263,7 +263,7 @@ async function showStatus(): Promise<void> {
     if (s.provider === 'ollama') {
       output.info('Ollama:');
       output.info('  Status: No API key required (local)');
-      output.info('  Model:  llama3.2');
+      output.info('  Model:  qwen3:8b');
       output.newline();
       continue;
     }
@@ -315,8 +315,8 @@ async function addProvider(providerArg?: string): Promise<void> {
     provider = providerArg;
   } else {
     provider = await promptSelect(rl, 'Which provider?', [
+      { value: 'anthropic', label: 'Anthropic (recommended)' },
       { value: 'openai', label: 'OpenAI' },
-      { value: 'anthropic', label: 'Anthropic' },
     ]) as Exclude<LLMProviderId, 'ollama'>;
   }
 
@@ -351,8 +351,8 @@ async function removeProvider(providerArg?: string): Promise<void> {
     provider = providerArg;
   } else {
     provider = await promptSelect(rl, 'Which provider to remove?', [
-      { value: 'openai', label: 'OpenAI' },
       { value: 'anthropic', label: 'Anthropic' },
+      { value: 'openai', label: 'OpenAI' },
     ]) as Exclude<LLMProviderId, 'ollama'>;
   }
 

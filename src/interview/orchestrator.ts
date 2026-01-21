@@ -127,6 +127,15 @@ function categorizeLLMError(error: unknown): { category: LLMErrorCategory; isRet
     return { category: 'network', isRetryable: true, message: 'Network error' };
   }
 
+  // Check for empty response (token exhaustion or model issues) - retryable
+  if (
+    message.includes('empty or whitespace') ||
+    message.includes('token exhaustion') ||
+    message.includes('unexpected end of json')
+  ) {
+    return { category: 'format_error', isRetryable: true, message: 'LLM returned empty response (possible token exhaustion)' };
+  }
+
   // Check for format errors (LLM returned wrong format) - retryable once
   if (
     message.includes('invalid question format') ||
@@ -380,6 +389,7 @@ export class Orchestrator {
     let lastError: { category: LLMErrorCategory; message: string } | undefined;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let rawResponse: string | undefined;
       try {
         // Apply timeout to LLM call - use streaming if enabled
         const response = await withTimeout(
@@ -390,6 +400,14 @@ export class Orchestrator {
           DEFAULT_TIMEOUTS.questionGeneration,
           `Question generation for ${tool.name}`
         );
+
+        rawResponse = response;
+
+        // Check for empty/whitespace-only responses (common with token exhaustion)
+        const trimmed = response.trim();
+        if (!trimmed || /^[\s\t\n]+$/.test(response)) {
+          throw new Error('LLM returned empty or whitespace-only response (possible token exhaustion)');
+        }
 
         const parsed = this.llm.parseJSON<InterviewQuestion[] | InterviewQuestion | { error?: string }>(response);
 
@@ -407,6 +425,16 @@ export class Orchestrator {
           return [parsed as InterviewQuestion];
         }
 
+        // Check for wrapped array format (e.g., {"test_cases": [...]} or {"questions": [...]})
+        // Some models wrap the array in an object instead of returning bare array
+        const wrapperKeys = ['test_cases', 'questions', 'tests', 'items', 'data'];
+        for (const key of wrapperKeys) {
+          if (Array.isArray(obj[key])) {
+            this.logger.debug({ tool: tool.name, wrapperKey: key }, 'LLM wrapped array in object, unwrapping');
+            return (obj[key] as InterviewQuestion[]).slice(0, maxQuestions);
+          }
+        }
+
         // It's an error object or invalid format
         const errorMsg = (parsed as { error?: string })?.error ?? 'Response was not a valid question format';
         throw new Error(`Invalid question format: ${errorMsg}`);
@@ -422,6 +450,7 @@ export class Orchestrator {
             errorCategory: categorized.category,
             errorMessage: categorized.message,
             isRetryable: categorized.isRetryable,
+            rawResponse: rawResponse?.substring(0, 1000),
           },
           'Question generation failed'
         );

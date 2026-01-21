@@ -27,12 +27,12 @@ export const DEFAULT_TIMEOUTS = {
   httpRequest: 30000,
   /** Timeout for SSE connection establishment */
   sseConnect: 10000,
-  /** Timeout for interview question generation */
-  questionGeneration: 45000,
+  /** Timeout for interview question generation (longer for local models) */
+  questionGeneration: 120000,
   /** Timeout for response analysis */
-  responseAnalysis: 30000,
+  responseAnalysis: 60000,
   /** Timeout for profile synthesis */
-  profileSynthesis: 45000,
+  profileSynthesis: 120000,
 } as const;
 
 /**

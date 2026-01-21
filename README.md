@@ -314,7 +314,7 @@ Use with: `bellwether init --preset <name> npx @mcp/server`
 
 ```yaml
 - name: Detect Behavioral Drift
-  uses: dotsetlabs/bellwether/cli/action@v1
+  uses: dotsetlabs/bellwether@v1
   with:
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'

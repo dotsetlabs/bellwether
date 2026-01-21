@@ -23,31 +23,42 @@ import { getSeverityIcon, type DiffSummary } from '../output.js';
 const DEFAULT_BASELINE_FILE = PATHS.DEFAULT_BASELINE_FILE;
 
 /**
- * Try to get output directory from config file.
+ * Try to get baseline config from config file.
+ * Returns output directory and optional baseline path from config.
  */
-function getOutputDirFromConfig(configPath?: string): string {
+function getBaselineConfigFromFile(configPath?: string): { outputDir: string; baselinePath?: string } {
   try {
     const config = loadConfig(configPath);
-    return config.output.dir;
+    return {
+      outputDir: config.output.dir,
+      baselinePath: config.baseline.path,
+    };
   } catch {
-    return '.';
+    return { outputDir: '.' };
   }
 }
 
 export const uploadCommand = new Command('upload')
   .description('Upload a baseline to Bellwether Cloud')
   .argument('[baseline]', `Path to baseline JSON file (default: ${DEFAULT_BASELINE_FILE})`)
-  .option('-c, --config <path>', 'Path to config file (for reading output directory)')
+  .option('-b, --baseline <path>', 'Path to baseline JSON file')
+  .option('-c, --config <path>', 'Path to config file')
   .option('-p, --project <id>', 'Project ID to upload to (uses linked project if not specified)')
   .option('--ci', 'CI mode - output URL only, exit 1 on breaking drift')
   .option('--session <session>', 'Session token (overrides stored/env session)')
   .option('--fail-on-drift', 'Exit with error if any behavioral drift detected')
   .action(async (baselineArg: string | undefined, options) => {
-    // Try to get output directory from config
-    const outputDir = getOutputDirFromConfig(options.config);
+    // Get config settings
+    const configSettings = getBaselineConfigFromFile(options.config);
+    const outputDir = configSettings.outputDir;
 
-    // Determine baseline path - check explicit arg, then config output dir
-    let baselinePath = baselineArg;
+    // Determine baseline path with priority:
+    // 1. Positional argument
+    // 2. --baseline flag
+    // 3. baseline.path from config
+    // 4. Default file in output.dir
+    // 5. Default file in current directory
+    let baselinePath = baselineArg ?? options.baseline ?? configSettings.baselinePath;
     if (!baselinePath) {
       const configBaseline = join(outputDir, DEFAULT_BASELINE_FILE);
       if (existsSync(configBaseline)) {

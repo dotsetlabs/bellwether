@@ -10,7 +10,7 @@ Automatically re-check when files change.
 ## Synopsis
 
 ```bash
-bellwether watch [options]
+bellwether watch [server-command] [args...] [options]
 ```
 
 ## Description
@@ -19,12 +19,23 @@ Watch mode monitors your source files and automatically re-runs checks when chan
 
 Watch mode uses `bellwether check` under the hood—it's free, fast, and deterministic.
 
+## Arguments
+
+| Argument | Description |
+|:---------|:------------|
+| `[server-command]` | Server command (overrides config) |
+| `[args...]` | Server arguments |
+
 ## Options
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `-w, --watch-path <path>` | Directory to watch for changes | From config |
 | `-c, --config <path>` | Path to config file | `bellwether.yaml` |
+| `-w, --watch-path <path>` | Directory to watch for changes | `.` |
+| `-i, --interval <ms>` | Polling interval in milliseconds | `5000` |
+| `--baseline <path>` | Baseline file path | `bellwether-baseline.json` |
+| `--on-change <command>` | Command to run after detecting drift | - |
+| `--debug` | Show debug output for file scanning | `false` |
 
 ## Examples
 
@@ -36,6 +47,23 @@ bellwether watch
 
 # Watch a specific directory
 bellwether watch --watch-path ./src
+
+# Override the server command
+bellwether watch npx @mcp/your-server /data
+```
+
+### Custom Polling Interval
+
+```bash
+# Check every 10 seconds instead of default 5
+bellwether watch --interval 10000
+```
+
+### Run Command on Drift
+
+```bash
+# Run a notification script when drift is detected
+bellwether watch --on-change "notify-send 'Drift detected!'"
 ```
 
 ## Configuration

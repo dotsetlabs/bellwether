@@ -10,18 +10,35 @@ Generate a verification report for the Verified by Bellwether program.
 ## Synopsis
 
 ```bash
-bellwether verify [options]
+bellwether verify [server-command] [args...] [options]
 ```
 
 ## Description
 
-The `verify` command runs a comprehensive check and generates a verification report that earns your MCP server a coverage badge. Verified servers receive a badge indicating their tier level and test coverage.
+The `verify` command runs LLM-powered testing and generates a verification report that earns your MCP server a coverage badge. Verified servers receive a badge indicating their tier level and test coverage.
 
-:::info Config Required
-A `bellwether.yaml` config file is required. Run `bellwether init` to create one.
+:::info LLM Required
+All verification tiers require an LLM. The `verify` command uses LLM-powered interviews to evaluate your server. Set up your API key with `bellwether auth` or use Ollama for free local inference.
 :::
 
+:::tip Config-First Design
+Like `bellwether check` and `bellwether explore`, the `verify` command reads configuration from `bellwether.yaml`. Simply run `bellwether verify` and it uses your config file for the server command, LLM settings, and output options. CLI arguments override config values when provided.
+:::
+
+## Arguments
+
+| Argument | Description |
+|:---------|:------------|
+| `[server-command]` | Server command (overrides config) |
+| `[args...]` | Server arguments (overrides config) |
+
 ## Options
+
+### Configuration Options
+
+| Option | Description | Default |
+|:-------|:------------|:--------|
+| `-c, --config <path>` | Path to config file | `bellwether.yaml` |
 
 ### Verification Options
 
@@ -30,6 +47,14 @@ A `bellwether.yaml` config file is required. Run `bellwether init` to create one
 | `--tier <tier>` | Target tier: `bronze`, `silver`, `gold`, `platinum` | `silver` |
 | `--server-id <id>` | Server identifier (namespace/name) | Auto-detect |
 | `--version <version>` | Server version to verify | Auto-detect |
+| `--security` | Include security testing (required for gold+ tiers) | `false` |
+
+### LLM Options
+
+| Option | Description | Default |
+|:-------|:------------|:--------|
+| `--provider <provider>` | LLM provider: `ollama`, `openai`, `anthropic` | `ollama` (or config) |
+| `--model <model>` | LLM model to use | Provider default |
 
 ### Output Options
 
@@ -39,62 +64,96 @@ A `bellwether.yaml` config file is required. Run `bellwether init` to create one
 | `--json` | Output verification result as JSON | `false` |
 | `--badge-only` | Only output badge URL | `false` |
 
-### Config Options
+### Cloud Options
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `-c, --config <path>` | Path to config file | `bellwether.yaml` |
+| `-p, --project <id>` | Project ID to submit verification to (requires login) | Uses linked project |
 
 ## Verification Tiers
 
-| Tier | Icon | Requirements |
-|:-----|:-----|:-------------|
-| **Bronze** | 🥉 | Basic check passes |
-| **Silver** | 🥈 | Check passes with good coverage |
-| **Gold** | 🥇 | Check + explore with multiple personas |
-| **Platinum** | 💎 | Comprehensive check + explore with all personas |
+| Tier | Icon | Personas Used | Requirements |
+|:-----|:-----|:--------------|:-------------|
+| **Bronze** | 🥉 | Technical Writer | Basic documentation check |
+| **Silver** | 🥈 | Technical Writer, QA Engineer | Standard verification |
+| **Gold** | 🥇 | Technical Writer, QA Engineer, +1 | Thorough testing |
+| **Platinum** | 💎 | All 4 personas | Comprehensive coverage |
 
 ### Tier Details
 
 **Bronze** - Entry level verification
-- Schema validation passes
-- Basic tool coverage
+- Technical Writer persona only
+- 3 questions per tool
+- Basic pass rate requirements
 
-**Silver** - Standard verification
-- All tools validated
-- No breaking schema issues
+**Silver** - Standard verification (default)
+- Technical Writer + QA Engineer personas
+- 3 questions per tool
+- Good coverage of edge cases
 
 **Gold** - Thorough verification
-- Check + explore mode
-- Multiple personas (3+)
+- 3 personas (adds Security Tester with `--security`, or Novice User)
+- 4 questions per tool
 - Pass rate: 85%+
 
 **Platinum** - Comprehensive verification
-- All 4 personas used
-- Complete behavioral coverage
+- All 4 personas (Technical Writer, Security Tester, QA Engineer, Novice User)
+- 5 questions per tool
 - Pass rate: 90%+
-
-:::info LLM Required for Gold+
-Gold and Platinum tiers require `bellwether explore`, which needs an LLM API key. Bronze and Silver use `bellwether check` only.
-:::
 
 ## Examples
 
-### Basic Verification
+### Basic Verification (Using Config)
 
 ```bash
-# Run verification with default settings (silver tier)
+# Run verification using bellwether.yaml config (recommended)
 bellwether verify
+
+# The config file specifies the server command, LLM provider, and output settings
+```
+
+### Override Server Command
+
+```bash
+# Override the server command from config
+bellwether verify npx @modelcontextprotocol/server-filesystem /tmp
 ```
 
 ### Target a Specific Tier
 
 ```bash
-# Aim for gold certification (requires LLM)
-bellwether verify --tier gold
+# Aim for gold certification with security testing
+bellwether verify --tier gold --security
 
 # Aim for platinum (all personas)
 bellwether verify --tier platinum
+```
+
+### Use Different LLM Providers
+
+```bash
+# Use local Ollama (default, free) - configured in bellwether.yaml
+bellwether verify
+
+# Override provider from command line
+bellwether verify --provider openai
+
+# Use Anthropic Claude
+bellwether verify --provider anthropic
+
+# Specify a particular model
+bellwether verify --provider anthropic --model claude-sonnet-4-5
+```
+
+### Submit to Cloud
+
+```bash
+# Link your project once, then verify submissions are automatic
+bellwether link proj_abc123
+bellwether verify  # Auto-submits to linked project
+
+# Or specify a project explicitly
+bellwether verify --project proj_abc123
 ```
 
 ### Get Badge URL Only
@@ -118,14 +177,16 @@ bellwether verify --json > verification.json
 ```
 🔒 Bellwether Verification
 
-Connecting to npx your-server...
+Connecting to node dist/index.js ...
 ✓ Connected to your-server v1.0.0
   5 tools, 2 prompts, 0 resources
 
 Target tier: silver
+Using personas: Technical Writer, QA Engineer
 
-Running verification check...
-✓ Check complete
+Running verification test...
+  Testing: read_file...
+✓ Test complete
 
 ────────────────────────────────────────────────────────────
 Verification Result
@@ -134,6 +195,7 @@ Verification Result
   Status:     VERIFIED
   Tier:       SILVER
 
+  Pass Rate:  85% (17/20 tests)
   Tools:      5 verified
 
   Verified:   1/13/2026
@@ -148,6 +210,10 @@ https://img.shields.io/badge/bellwether-silver-C0C0C0
 
 Markdown:
 ![Bellwether verified: silver](https://img.shields.io/badge/bellwether-silver-C0C0C0)
+
+Submitting verification to platform...
+✓ Verification submitted successfully
+  View at: https://bellwether.sh/projects/proj_abc123/verification
 ```
 
 ### Verification Report
@@ -164,6 +230,9 @@ The generated `bellwether-verification.json` contains:
     "verifiedAt": "2026-01-13T12:00:00.000Z",
     "expiresAt": "2026-04-13T12:00:00.000Z",
     "toolsVerified": 5,
+    "testsPassed": 17,
+    "testsTotal": 20,
+    "passRate": 85,
     "reportHash": "a1b2c3d4e5f6g7h8",
     "bellwetherVersion": "0.14.0"
   },
@@ -211,11 +280,11 @@ Or with a link to your report:
 | Code | Meaning |
 |:-----|:--------|
 | `0` | Success - verification passed |
-| `1` | Failure - target tier not achieved |
+| `1` | Failure - target tier not achieved or verification failed |
 
 ## See Also
 
-- [check](/cli/check) - Schema validation and drift detection
+- [check](/cli/check) - Schema validation and drift detection (free)
 - [explore](/cli/explore) - LLM-powered behavioral exploration
-- [badge](/cloud/badge) - Get embeddable badges
+- [badge](/cloud/badge) - Get embeddable badges from cloud
 - [CI/CD Integration](/guides/ci-cd) - Automate verification

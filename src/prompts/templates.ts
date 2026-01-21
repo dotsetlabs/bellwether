@@ -499,11 +499,12 @@ export const COMPLETION_OPTIONS = {
   questionGeneration: {
     temperature: 0.4,
     responseFormat: 'json' as const,
+    maxTokens: 2048, // Ensure enough tokens for complex tool schemas
   },
   /** For response analysis - lower temperature for consistency */
   responseAnalysis: {
     temperature: 0.3,
-    maxTokens: 200,
+    maxTokens: 1024,
   },
   /** For profile synthesis - structured output */
   profileSynthesis: {
@@ -518,22 +519,23 @@ export const COMPLETION_OPTIONS = {
   /** For workflow step analysis */
   workflowStepAnalysis: {
     temperature: 0.3,
-    maxTokens: 150,
+    maxTokens: 1024,
   },
   /** For workflow summary */
   workflowSummary: {
     temperature: 0.3,
-    maxTokens: 200,
+    maxTokens: 1024,
   },
   /** For prompt question generation */
   promptQuestionGeneration: {
     temperature: 0.4,
     responseFormat: 'json' as const,
+    maxTokens: 2048, // Ensure enough tokens for complex prompt schemas
   },
   /** For prompt response analysis */
   promptResponseAnalysis: {
     temperature: 0.3,
-    maxTokens: 200,
+    maxTokens: 1024,
   },
   /** For prompt profile synthesis */
   promptProfileSynthesis: {

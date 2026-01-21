@@ -634,16 +634,16 @@ describe('prompts/templates', () => {
     });
 
     it('should have maxTokens limits for text outputs', () => {
-      expect(COMPLETION_OPTIONS.responseAnalysis.maxTokens).toBe(200);
-      expect(COMPLETION_OPTIONS.workflowStepAnalysis.maxTokens).toBe(150);
-      expect(COMPLETION_OPTIONS.workflowSummary.maxTokens).toBe(200);
+      expect(COMPLETION_OPTIONS.responseAnalysis.maxTokens).toBe(1024);
+      expect(COMPLETION_OPTIONS.workflowStepAnalysis.maxTokens).toBe(1024);
+      expect(COMPLETION_OPTIONS.workflowSummary.maxTokens).toBe(1024);
     });
 
     it('should have prompt-specific options', () => {
       expect(COMPLETION_OPTIONS.promptQuestionGeneration.temperature).toBe(0.4);
       expect(COMPLETION_OPTIONS.promptQuestionGeneration.responseFormat).toBe('json');
       expect(COMPLETION_OPTIONS.promptResponseAnalysis.temperature).toBe(0.3);
-      expect(COMPLETION_OPTIONS.promptResponseAnalysis.maxTokens).toBe(200);
+      expect(COMPLETION_OPTIONS.promptResponseAnalysis.maxTokens).toBe(1024);
       expect(COMPLETION_OPTIONS.promptProfileSynthesis.temperature).toBe(0.3);
       expect(COMPLETION_OPTIONS.promptProfileSynthesis.responseFormat).toBe('json');
     });
