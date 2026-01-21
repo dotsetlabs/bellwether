@@ -74,7 +74,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Bellwether Test
+      - name: Run Bellwether Check
         run: npx @dotsetlabs/bellwether check npx @mcp/your-server
 
       - name: Check for Drift
@@ -103,12 +103,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Document Mode Test
+      - name: Run Document Mode Exploration
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          npx @dotsetlabs/bellwether check npx @mcp/your-server
-          npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+          npx @dotsetlabs/bellwether explore npx @mcp/your-server
 ```
 
 ---

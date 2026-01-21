@@ -5,6 +5,9 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['test/**/*.test.ts'],
+    // Exclude e2e tests - they are run separately with `npm run test:e2e`
+    // E2E tests take too long for CI, run locally only
+    exclude: ['test/e2e/**/*.test.ts', 'node_modules/**'],
     pool: 'forks', // Use forks instead of threads to support process.chdir()
     coverage: {
       provider: 'v8',
