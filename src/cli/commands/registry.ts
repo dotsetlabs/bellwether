@@ -33,7 +33,9 @@ async function handleRegistry(
   query: string | undefined,
   options: { limit: string; json: boolean }
 ): Promise<void> {
-  const client = new RegistryClient();
+  // Allow overriding registry URL for testing
+  const registryUrl = process.env.BELLWETHER_REGISTRY_URL;
+  const client = new RegistryClient(registryUrl ? { baseUrl: registryUrl } : undefined);
   const limit = parseInt(options.limit, 10) || 10;
 
   try {
