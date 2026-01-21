@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.1] - 2026-01-21
+
+### Features
+
+- **Verify command cloud submission**: Added `--project` option to submit verification results directly to Bellwether Cloud
+- **Progress display**: Added progress bar for verification runs showing interview progress
+
+### Changes
+
+- **Default LLM models updated**: Changed OpenAI default to `gpt-4.1-nano` (budget-friendly, non-reasoning) and Ollama default to `qwen3:8b`
+- **Preset providers updated**: Security and thorough presets now use Anthropic provider by default
+- **Verify command**: Now requires config file; added `--config` option for explicit config path
+
+### Documentation
+
+- Added `cloud/diff.md` documentation for comparing baseline versions
+- Updated documentation across all CLI commands with improved examples
+- Enhanced verify command documentation with cloud submission examples
+
+### Fixes
+
+- Fixed test mocks to match updated default models and configurations
+
 ## [0.6.0] - 2026-01-20
 
 Initial public beta release of Bellwether CLI.
