@@ -14,6 +14,7 @@ A baseline is a JSON file containing:
 - **Tool schemas** - Parameter types and requirements
 - **Behavioral observations** - How tools actually behave
 - **Security findings** - Any identified vulnerabilities
+- **Performance metrics** - P50/P95 latency and success rates per tool
 
 ## Creating a Baseline
 
@@ -49,7 +50,12 @@ This generates `bellwether-baseline.json`:
       "description": "Read contents of a file",
       "schemaHash": "def456...",
       "securityNotes": ["Path traversal normalized within root"],
-      "limitations": ["Maximum file size: 10MB"]
+      "limitations": ["Maximum file size: 10MB"],
+      "baselineP50Ms": 45,
+      "baselineP95Ms": 120,
+      "baselineSuccessRate": 0.98,
+      "lastTestedAt": "2026-01-22T10:30:00Z",
+      "inputSchemaHashAtTest": "def456..."
     }
   ],
   "assertions": [
@@ -233,11 +239,13 @@ When comparing baselines with incompatible versions, use `bellwether baseline mi
 |:---------|:--------|
 | **Server Info** | Name, version, protocol version, capabilities |
 | **Tools** | Name, description, schema hash, security notes, limitations |
+| **Performance** | P50/P95 latency, success rate per tool |
 | **Assertions** | Behavioral assertions |
 | **Workflows** | Workflow signatures and results |
 | **Integrity** | Hash for detecting file tampering |
 | **Metadata** | Timestamp, mode, server command |
 | **Acceptance** | Optional: when/why drift was accepted |
+| **Incremental** | Schema hash and test timestamp for incremental checking |
 
 ## Baseline Comparison
 
@@ -250,6 +258,43 @@ When comparing baselines, Bellwether detects:
 | Schema change | Parameter `path` now required |
 | Behavior change | Error message format changed |
 | Security change | New vulnerability detected |
+| Performance regression | P50 latency increased by >10% |
+
+### Performance Comparison
+
+When baselines include performance metrics, Bellwether compares:
+- **P50 latency** - Median response time
+- **P95 latency** - 95th percentile response time
+- **Success rate** - Percentage of successful calls
+
+Configure the regression threshold in `bellwether.yaml`:
+
+```yaml
+check:
+  performanceThreshold: 10  # Flag if P50 latency increases by >10%
+```
+
+## Incremental Checking
+
+Bellwether supports incremental checking to speed up CI runs. Only tools with changed schemas are re-tested:
+
+```bash
+bellwether check --incremental
+```
+
+Or configure in `bellwether.yaml`:
+
+```yaml
+check:
+  incremental: true
+  incrementalCacheHours: 168  # 1 week cache validity
+```
+
+Each tool fingerprint includes:
+- `lastTestedAt` - When the tool was last tested
+- `inputSchemaHashAtTest` - Schema hash at test time
+
+When a tool's schema changes, it's automatically re-tested. Unchanged tools reuse cached fingerprints.
 
 ## See Also
 

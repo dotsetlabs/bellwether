@@ -9,6 +9,7 @@ import {
   generateRunCommand,
 } from '../../registry/index.js';
 import type { RegistryServerEntry } from '../../registry/index.js';
+import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 
 /**
@@ -91,7 +92,7 @@ async function handleRegistry(
     } else {
       output.error(chalk.red('An unexpected error occurred'));
     }
-    process.exit(1);
+    process.exit(EXIT_CODES.ERROR);
   }
 }
 

@@ -21,9 +21,13 @@ import {
   acceptDrift,
   hasAcceptance,
   clearAcceptance,
+  applySeverityConfig,
+  shouldFailOnDiff,
+  compareSeverity,
+  severityMeetsThreshold,
 } from '../../src/baseline/index.js';
 import type { InterviewResult, ToolProfile } from '../../src/interview/types.js';
-import type { BehavioralBaseline } from '../../src/baseline/types.js';
+import type { BehavioralBaseline, BehaviorChange } from '../../src/baseline/types.js';
 
 // Helper to create mock interview result
 function createMockInterviewResult(options: {
@@ -739,6 +743,302 @@ describe('Baseline Comparison', () => {
       expect(loaded.acceptance).toBeDefined();
       expect(loaded.acceptance?.reason).toBe('Test acceptance');
       expect(loaded.acceptance?.acceptedBy).toBe('test-user');
+    });
+  });
+
+  describe('severity configuration', () => {
+    it('should compare severity levels correctly', () => {
+      expect(compareSeverity('none', 'info')).toBeLessThan(0);
+      expect(compareSeverity('info', 'warning')).toBeLessThan(0);
+      expect(compareSeverity('warning', 'breaking')).toBeLessThan(0);
+      expect(compareSeverity('breaking', 'none')).toBeGreaterThan(0);
+      expect(compareSeverity('warning', 'warning')).toBe(0);
+    });
+
+    it('should check severity threshold correctly', () => {
+      expect(severityMeetsThreshold('breaking', 'warning')).toBe(true);
+      expect(severityMeetsThreshold('warning', 'warning')).toBe(true);
+      expect(severityMeetsThreshold('info', 'warning')).toBe(false);
+      expect(severityMeetsThreshold('none', 'breaking')).toBe(false);
+    });
+
+    it('should filter changes by minimum severity', () => {
+      const result1 = createMockInterviewResult({
+        tools: [{
+          name: 'tool_a',
+          description: 'Original description',
+          interactions: [],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+      const result2 = createMockInterviewResult({
+        tools: [{
+          name: 'tool_a',
+          description: 'Changed description',
+          interactions: [],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+
+      const baseline1 = createBaseline(result1, 'npx test-server');
+      const baseline2 = createBaseline(result2, 'npx test-server');
+      const diff = compareBaselines(baseline1, baseline2);
+
+      // Description changes are 'info' severity
+      expect(diff.behaviorChanges.some(c => c.aspect === 'description')).toBe(true);
+
+      // Filter out info-level changes with minimum severity of warning
+      const filtered = applySeverityConfig(diff, { minimumSeverity: 'warning' });
+      expect(filtered.behaviorChanges.filter((c: BehaviorChange) => c.aspect === 'description')).toHaveLength(0);
+    });
+
+    it('should apply aspect overrides to changes', () => {
+      const result1 = createMockInterviewResult({
+        tools: [{
+          name: 'tool_a',
+          description: 'Original',
+          interactions: [],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+      const result2 = createMockInterviewResult({
+        tools: [{
+          name: 'tool_a',
+          description: 'Changed',
+          interactions: [],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+
+      const baseline1 = createBaseline(result1, 'npx test-server');
+      const baseline2 = createBaseline(result2, 'npx test-server');
+      const diff = compareBaselines(baseline1, baseline2);
+
+      // Upgrade description changes to breaking via aspect override
+      const upgraded = applySeverityConfig(diff, {
+        aspectOverrides: { description: 'breaking' },
+      });
+      expect(upgraded.behaviorChanges.find((c: BehaviorChange) => c.aspect === 'description')?.severity).toBe('breaking');
+      expect(upgraded.severity).toBe('breaking');
+    });
+
+    it('should suppress warnings when configured', () => {
+      const result1 = createMockInterviewResult({
+        tools: [{
+          name: 'tool_a',
+          description: 'Original',
+          interactions: [],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+      const result2 = createMockInterviewResult({
+        tools: [{
+          name: 'tool_a',
+          description: 'Changed',
+          interactions: [],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+
+      const baseline1 = createBaseline(result1, 'npx test-server');
+      const baseline2 = createBaseline(result2, 'npx test-server');
+      const diff = compareBaselines(baseline1, baseline2);
+
+      // Upgrade to warning and then suppress
+      const upgraded = applySeverityConfig(diff, {
+        aspectOverrides: { description: 'warning' },
+      });
+      expect(upgraded.warningCount).toBeGreaterThan(0);
+
+      const suppressed = applySeverityConfig(diff, {
+        aspectOverrides: { description: 'warning' },
+        suppressWarnings: true,
+      });
+      expect(suppressed.behaviorChanges.filter((c: BehaviorChange) => c.severity === 'warning')).toHaveLength(0);
+    });
+
+    it('should determine failure threshold correctly', () => {
+      const result1 = createMockInterviewResult({
+        tools: [{
+          name: 'tool_a',
+          description: 'Original',
+          interactions: [],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+      const result2 = createMockInterviewResult({
+        tools: [], // All tools removed = breaking
+      });
+
+      const baseline1 = createBaseline(result1, 'npx test-server');
+      const baseline2 = createBaseline(result2, 'npx test-server');
+      const diff = compareBaselines(baseline1, baseline2);
+
+      // Breaking changes should fail at breaking threshold
+      expect(shouldFailOnDiff(diff, 'breaking')).toBe(true);
+      // Warning threshold should also fail on breaking
+      expect(shouldFailOnDiff(diff, 'warning')).toBe(true);
+
+      // Info-level changes should not fail at breaking threshold
+      const infoDiff = compareBaselines(baseline1, baseline1);
+      expect(shouldFailOnDiff(infoDiff, 'breaking')).toBe(false);
+    });
+  });
+
+  describe('Performance Regression Detection', () => {
+    it('should detect performance regression when p50 exceeds threshold', () => {
+      // Create a mock result with performance data
+      const result1 = createMockInterviewResult({
+        tools: [{
+          name: 'test_tool',
+          description: 'Test tool',
+          interactions: [
+            {
+              toolName: 'test_tool',
+              question: { description: 'Test', category: 'happy_path' as const, args: {} },
+              response: null,
+              error: null,
+              analysis: 'OK',
+              durationMs: 100,
+              toolExecutionMs: 100, // Fast
+            },
+          ],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+
+      const result2 = createMockInterviewResult({
+        tools: [{
+          name: 'test_tool',
+          description: 'Test tool',
+          interactions: [
+            {
+              toolName: 'test_tool',
+              question: { description: 'Test', category: 'happy_path' as const, args: {} },
+              response: null,
+              error: null,
+              analysis: 'OK',
+              durationMs: 200,
+              toolExecutionMs: 200, // 100% slower
+            },
+          ],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+
+      const baseline1 = createBaseline(result1, 'npx test-server');
+      const baseline2 = createBaseline(result2, 'npx test-server');
+
+      // Compare with 10% threshold (100% regression should exceed)
+      const diff = compareBaselines(baseline1, baseline2, { performanceThreshold: 0.10 });
+
+      expect(diff.performanceReport).toBeDefined();
+      expect(diff.performanceReport?.hasRegressions).toBe(true);
+      expect(diff.performanceReport?.regressionCount).toBe(1);
+      expect(diff.performanceReport?.regressions[0].toolName).toBe('test_tool');
+    });
+
+    it('should not report regression when within threshold', () => {
+      const result1 = createMockInterviewResult({
+        tools: [{
+          name: 'test_tool',
+          description: 'Test tool',
+          interactions: [
+            {
+              toolName: 'test_tool',
+              question: { description: 'Test', category: 'happy_path' as const, args: {} },
+              response: null,
+              error: null,
+              analysis: 'OK',
+              durationMs: 100,
+              toolExecutionMs: 100,
+            },
+          ],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+
+      const result2 = createMockInterviewResult({
+        tools: [{
+          name: 'test_tool',
+          description: 'Test tool',
+          interactions: [
+            {
+              toolName: 'test_tool',
+              question: { description: 'Test', category: 'happy_path' as const, args: {} },
+              response: null,
+              error: null,
+              analysis: 'OK',
+              durationMs: 105,
+              toolExecutionMs: 105, // 5% slower - within threshold
+            },
+          ],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+
+      const baseline1 = createBaseline(result1, 'npx test-server');
+      const baseline2 = createBaseline(result2, 'npx test-server');
+
+      const diff = compareBaselines(baseline1, baseline2, { performanceThreshold: 0.10 });
+
+      expect(diff.performanceReport).toBeDefined();
+      expect(diff.performanceReport?.hasRegressions).toBe(false);
+      expect(diff.performanceReport?.regressionCount).toBe(0);
+    });
+
+    it('should return undefined when no performance data exists', () => {
+      // Baseline without toolExecutionMs
+      const result1 = createMockInterviewResult({
+        tools: [{
+          name: 'test_tool',
+          description: 'Test tool',
+          interactions: [
+            {
+              toolName: 'test_tool',
+              question: { description: 'Test', category: 'happy_path' as const, args: {} },
+              response: null,
+              error: null,
+              analysis: 'OK',
+              durationMs: 100,
+              // No toolExecutionMs
+            },
+          ],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+
+      const baseline1 = createBaseline(result1, 'npx test-server');
+      const baseline2 = createBaseline(result1, 'npx test-server');
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      // No performance data, so report is undefined
+      expect(diff.performanceReport).toBeUndefined();
     });
   });
 });

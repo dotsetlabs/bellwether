@@ -455,3 +455,182 @@ describe('executePromptScenarios', () => {
     expect(results[0].scenario.description).toBe('Active');
   });
 });
+
+describe('parallel tool testing (check mode)', () => {
+  let mockClient: MCPClient;
+
+  beforeEach(() => {
+    mockClient = createMockMCPClient();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should complete interview with parallelTools enabled', async () => {
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      parallelTools: true,
+      toolConcurrency: 2,
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [
+        { name: 'tool_a', description: 'Tool A', inputSchema: { type: 'object', properties: {} } },
+        { name: 'tool_b', description: 'Tool B', inputSchema: { type: 'object', properties: {} } },
+        { name: 'tool_c', description: 'Tool C', inputSchema: { type: 'object', properties: {} } },
+      ],
+    });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    expect(result).toBeDefined();
+    expect(result.toolProfiles).toHaveLength(3);
+    expect(result.toolProfiles.map(p => p.name)).toContain('tool_a');
+    expect(result.toolProfiles.map(p => p.name)).toContain('tool_b');
+    expect(result.toolProfiles.map(p => p.name)).toContain('tool_c');
+  });
+
+  it('should test all tools with parallel execution', async () => {
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      parallelTools: true,
+      toolConcurrency: 4,
+    });
+
+    const tools = Array.from({ length: 10 }, (_, i) => ({
+      name: `tool_${i}`,
+      description: `Tool ${i}`,
+      inputSchema: { type: 'object', properties: {} },
+    }));
+
+    const discovery = createMockDiscovery({ tools });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    expect(result.toolProfiles).toHaveLength(10);
+  });
+
+  it('should handle tool errors in parallel mode', async () => {
+    const errorClient = createMockMCPClient();
+    let callCount = 0;
+    (errorClient.callTool as ReturnType<typeof vi.fn>).mockImplementation(async (name: string) => {
+      callCount++;
+      if (name === 'failing_tool') {
+        throw new Error('Tool call failed');
+      }
+      return createMockToolResult(JSON.stringify({ tool: name, success: true }));
+    });
+
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      parallelTools: true,
+      toolConcurrency: 2,
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [
+        { name: 'working_tool', description: 'Works' },
+        { name: 'failing_tool', description: 'Fails' },
+      ],
+    });
+
+    const result = await interviewer.interview(errorClient, discovery);
+
+    // Should complete despite error
+    expect(result).toBeDefined();
+    expect(result.toolProfiles).toHaveLength(2);
+    expect(result.metadata.errorCount).toBeGreaterThan(0);
+  });
+
+  it('should call progress callback in parallel mode', async () => {
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      parallelTools: true,
+      toolConcurrency: 2,
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [
+        { name: 'tool_a', description: 'Tool A' },
+        { name: 'tool_b', description: 'Tool B' },
+      ],
+    });
+
+    const progressUpdates: InterviewProgress[] = [];
+    await interviewer.interview(mockClient, discovery, (progress) => {
+      progressUpdates.push({ ...progress });
+    });
+
+    // Verify progress was tracked
+    expect(progressUpdates.length).toBeGreaterThan(0);
+    const completeProgress = progressUpdates.find(p => p.phase === 'complete');
+    expect(completeProgress).toBeDefined();
+  });
+
+  it('should respect toolConcurrency setting', async () => {
+    // This test verifies the concurrency setting is used, not its exact behavior
+    // (which would require mocking internal parallelLimit function)
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      parallelTools: true,
+      toolConcurrency: 1, // Single worker
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [
+        { name: 'tool_a', description: 'Tool A' },
+        { name: 'tool_b', description: 'Tool B' },
+      ],
+    });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    // All tools should still be tested
+    expect(result.toolProfiles).toHaveLength(2);
+  });
+
+  it('should generate fallback questions for tools with required params', async () => {
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      parallelTools: true,
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [
+        {
+          name: 'tool_with_params',
+          description: 'Tool with params',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              count: { type: 'number' },
+            },
+            required: ['name'],
+          },
+        },
+      ],
+    });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    expect(result.toolProfiles).toHaveLength(1);
+    // Should have interactions from fallback questions
+    expect(result.toolProfiles[0].interactions.length).toBeGreaterThan(0);
+  });
+
+  it('should work with empty tool list in parallel mode', async () => {
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      parallelTools: true,
+    });
+
+    const discovery = createMockDiscovery({ tools: [] });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    expect(result.toolProfiles).toHaveLength(0);
+    expect(result.metadata).toBeDefined();
+  });
+});

@@ -6,25 +6,29 @@
  */
 
 import { getLogger } from '../logging/logger.js';
+import { TIMEOUTS, INTERVIEW, WORKFLOW } from '../constants.js';
 
 const logger = getLogger('timeout');
 
 /**
  * Default timeout values in milliseconds.
+ *
+ * These reference the centralized constants where applicable,
+ * ensuring consistency across the codebase.
  */
 export const DEFAULT_TIMEOUTS = {
-  /** Timeout for individual tool calls */
-  toolCall: 30000,
-  /** Timeout for LLM API calls */
-  llmCall: 60000,
-  /** Timeout for state snapshots (all probes combined) */
-  stateSnapshot: 30000,
-  /** Timeout for individual probe tool calls */
-  probeTool: 5000,
-  /** Timeout for resource reads */
-  resourceRead: 15000,
-  /** Timeout for HTTP requests */
-  httpRequest: 30000,
+  /** Timeout for individual tool calls - uses INTERVIEW.TOOL_TIMEOUT */
+  toolCall: INTERVIEW.TOOL_TIMEOUT,
+  /** Timeout for LLM API calls - uses TIMEOUTS.INTERVIEW */
+  llmCall: TIMEOUTS.INTERVIEW,
+  /** Timeout for state snapshots - uses WORKFLOW.STATE_SNAPSHOT_TIMEOUT */
+  stateSnapshot: WORKFLOW.STATE_SNAPSHOT_TIMEOUT,
+  /** Timeout for individual probe tool calls - uses WORKFLOW.PROBE_TOOL_TIMEOUT */
+  probeTool: WORKFLOW.PROBE_TOOL_TIMEOUT,
+  /** Timeout for resource reads - uses INTERVIEW.RESOURCE_TIMEOUT */
+  resourceRead: INTERVIEW.RESOURCE_TIMEOUT,
+  /** Timeout for HTTP requests - uses TIMEOUTS.CLOUD_API */
+  httpRequest: TIMEOUTS.CLOUD_API,
   /** Timeout for SSE connection establishment */
   sseConnect: 10000,
   /** Timeout for interview question generation (longer for local models) */

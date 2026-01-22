@@ -6,9 +6,18 @@
  * - Detect constraint changes (min/max, patterns, enums)
  * - Compare across multiple interactions
  * - Visualize schema differences
+ * - Circular reference protection
+ * - Unicode normalization for consistent property comparison
  */
 
 import { createHash } from 'crypto';
+import { PAYLOAD_LIMITS } from '../constants.js';
+
+/**
+ * Maximum depth for schema traversal to prevent stack overflow
+ * from circular references or extremely deep nesting.
+ */
+const MAX_SCHEMA_DEPTH = PAYLOAD_LIMITS.MAX_SCHEMA_DEPTH;
 
 /**
  * JSON Schema property type.
@@ -78,22 +87,76 @@ export interface SchemaComparisonResult {
 
 /**
  * Compute a comprehensive schema hash that includes types and constraints.
+ * Protected against circular references and excessively deep schemas.
  */
 export function computeSchemaHash(schema: InputSchema | undefined): string {
   if (!schema) return 'empty';
 
-  // Create normalized representation for hashing
-  const normalized = normalizeSchema(schema);
+  // Create normalized representation for hashing with circular reference protection
+  const seen = new WeakSet<object>();
+  const normalized = normalizeSchema(schema, 0, seen);
   const serialized = JSON.stringify(normalized);
 
   return createHash('sha256').update(serialized).digest('hex').slice(0, 16);
 }
 
 /**
- * Normalize schema for consistent hashing.
- * Sorts keys and removes undefined values.
+ * Normalize a Unicode string key for consistent comparison.
+ * Uses NFC (Canonical Decomposition, followed by Canonical Composition)
+ * to ensure equivalent Unicode sequences compare as equal.
  */
-function normalizeSchema(schema: InputSchema | SchemaProperty): Record<string, unknown> {
+function normalizeUnicodeKey(key: string): string {
+  return key.normalize('NFC');
+}
+
+/**
+ * Check if we've exceeded the maximum schema depth.
+ * Returns a truncation marker instead of continuing.
+ */
+function checkDepthLimit(depth: number): Record<string, unknown> | null {
+  if (depth > MAX_SCHEMA_DEPTH) {
+    return { _truncated: true, _reason: 'max_depth_exceeded', _depth: depth };
+  }
+  return null;
+}
+
+/**
+ * Check for circular reference and mark if detected.
+ */
+function checkCircularRef(obj: unknown, seen: WeakSet<object>): Record<string, unknown> | null {
+  if (typeof obj === 'object' && obj !== null) {
+    if (seen.has(obj)) {
+      return { _circular: true };
+    }
+    seen.add(obj);
+  }
+  return null;
+}
+
+/**
+ * Normalize schema for consistent hashing.
+ * Sorts keys, removes undefined values, and handles edge cases:
+ * - Circular reference protection via WeakSet
+ * - Depth limiting to prevent stack overflow
+ * - Unicode normalization for property keys
+ *
+ * @param schema - The schema to normalize
+ * @param depth - Current recursion depth
+ * @param seen - WeakSet tracking visited objects for circular reference detection
+ */
+function normalizeSchema(
+  schema: InputSchema | SchemaProperty,
+  depth: number = 0,
+  seen: WeakSet<object> = new WeakSet()
+): Record<string, unknown> {
+  // Check depth limit
+  const depthLimit = checkDepthLimit(depth);
+  if (depthLimit) return depthLimit;
+
+  // Check circular reference
+  const circularRef = checkCircularRef(schema, seen);
+  if (circularRef) return circularRef;
+
   const result: Record<string, unknown> = {};
 
   // Sort and normalize simple fields
@@ -109,32 +172,48 @@ function normalizeSchema(schema: InputSchema | SchemaProperty): Record<string, u
     );
   }
 
-  // Constraints
+  // Constraints - normalize numeric values to handle 1.0 vs 1
   const constraintFields = ['minimum', 'maximum', 'minLength', 'maxLength', 'pattern', 'default'] as const;
   for (const field of constraintFields) {
-    if ((schema as SchemaProperty)[field] !== undefined) {
-      result[field] = (schema as SchemaProperty)[field];
+    const value = (schema as SchemaProperty)[field];
+    if (value !== undefined) {
+      // Normalize numeric values to avoid 1.0 vs 1 differences
+      if (typeof value === 'number') {
+        result[field] = Number.isInteger(value) ? Math.floor(value) : value;
+      } else {
+        result[field] = value;
+      }
     }
   }
 
-  // Required array
+  // Required array - normalize Unicode in property names
   if (schema.required !== undefined && schema.required.length > 0) {
-    result.required = [...schema.required].sort();
+    result.required = [...schema.required].map(normalizeUnicodeKey).sort();
   }
 
-  // Properties - recursively normalize
+  // Properties - recursively normalize with Unicode-normalized keys
   if (schema.properties) {
     const props: Record<string, unknown> = {};
-    const sortedKeys = Object.keys(schema.properties).sort();
+    // Normalize Unicode in property keys and sort
+    const sortedKeys = Object.keys(schema.properties)
+      .map(normalizeUnicodeKey)
+      .sort();
+
     for (const key of sortedKeys) {
-      props[key] = normalizeSchema(schema.properties[key]);
+      // Find the original key (may differ in Unicode representation)
+      const originalKey = Object.keys(schema.properties).find(
+        k => normalizeUnicodeKey(k) === key
+      );
+      if (originalKey) {
+        props[key] = normalizeSchema(schema.properties[originalKey], depth + 1, seen);
+      }
     }
     result.properties = props;
   }
 
   // Items for arrays
   if ((schema as SchemaProperty).items) {
-    result.items = normalizeSchema((schema as SchemaProperty).items!);
+    result.items = normalizeSchema((schema as SchemaProperty).items!, depth + 1, seen);
   }
 
   // Additional properties
@@ -142,7 +221,7 @@ function normalizeSchema(schema: InputSchema | SchemaProperty): Record<string, u
     if (typeof schema.additionalProperties === 'boolean') {
       result.additionalProperties = schema.additionalProperties;
     } else {
-      result.additionalProperties = normalizeSchema(schema.additionalProperties);
+      result.additionalProperties = normalizeSchema(schema.additionalProperties, depth + 1, seen);
     }
   }
 

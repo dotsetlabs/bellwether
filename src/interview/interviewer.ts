@@ -88,6 +88,19 @@ interface PersonaInterviewData {
 }
 
 /**
+ * Result of testing a single tool in check mode.
+ * Used for parallel tool testing.
+ */
+interface ToolCheckResult {
+  toolName: string;
+  interactions: ToolInteraction[];
+  scenarioResults: ScenarioResult[];
+  questionsAsked: number;
+  toolCallCount: number;
+  errorCount: number;
+}
+
+/**
  * Interviewer conducts the interview process using the orchestrator.
  * Supports streaming output for real-time feedback during LLM operations.
  * Supports parallel persona execution for improved performance.
@@ -440,6 +453,42 @@ export class Interviewer {
 
       allScenarioResults = aggregated.allScenarioResults;
 
+    } else if (this.config.checkMode && this.config.parallelTools) {
+      // Parallel tool testing in check mode
+      this.logger.info('Using parallel tool testing in check mode');
+
+      const parallelResult = await this.interviewToolsInParallel(
+        client,
+        discovery.tools,
+        progress,
+        onProgress
+      );
+
+      // Update tool interactions map with parallel results
+      for (const profile of parallelResult.toolProfiles) {
+        const toolData = toolInteractionsMap.get(profile.name);
+        if (toolData) {
+          toolData.interactions = profile.interactions;
+          toolData.findingsByPersona = [{
+            personaId: 'check_mode',
+            personaName: 'Check Mode',
+            behavioralNotes: [],
+            limitations: [],
+            securityNotes: [],
+          }];
+        }
+      }
+
+      // Update persona stats with aggregated counts
+      const checkModeStats = personaStats.get(this.personas[0].id);
+      if (checkModeStats) {
+        checkModeStats.questionsAsked = parallelResult.totalQuestionsAsked;
+        checkModeStats.toolCallCount = parallelResult.totalToolCallCount;
+        checkModeStats.errorCount = parallelResult.totalErrorCount;
+      }
+
+      allScenarioResults = parallelResult.scenarioResults;
+
     } else {
       // Sequential persona execution (original behavior)
       for (const persona of this.personas) {
@@ -448,7 +497,7 @@ export class Interviewer {
 
         // Create orchestrator with server context and streaming if enabled
         const orchestrator = this.createOrchestrator(persona);
-        const stats = personaStats.get(persona.id)!;
+        const stats = personaStats.get(persona.id)!
 
         // Interview each tool with this persona
         for (const tool of discovery.tools) {
@@ -1343,6 +1392,284 @@ export class Interviewer {
     }
 
     return { toolInteractionsMap, personaStats, allScenarioResults };
+  }
+
+  /**
+   * Interview a single tool in check mode (parallel-safe).
+   * Designed for parallel tool testing with minimal overhead.
+   *
+   * @param client - MCP client for tool calls
+   * @param tool - Tool to test
+   * @param toolCallMutex - Mutex for serializing tool calls (shared resource)
+   * @returns ToolCheckResult with interactions and stats
+   */
+  private async interviewToolInCheckMode(
+    client: MCPClient,
+    tool: MCPTool,
+    toolCallMutex: ReturnType<typeof createMutex>
+  ): Promise<ToolCheckResult> {
+    const interactions: ToolInteraction[] = [];
+    const scenarioResults: ScenarioResult[] = [];
+    let questionsAsked = 0;
+    let toolCallCount = 0;
+    let errorCount = 0;
+
+    // Check for custom scenarios for this tool
+    const customScenarios = this.getScenariosForTool(tool.name);
+
+    // Build questions list - custom scenarios or fallback questions
+    let questions: InterviewQuestion[] = [];
+
+    if (customScenarios.length > 0) {
+      // Execute custom scenarios
+      await toolCallMutex.acquire();
+      try {
+        const results = await this.executeToolScenarios(client, tool.name, customScenarios);
+        scenarioResults.push(...results);
+        toolCallCount += results.length;
+        errorCount += results.filter(r => !r.passed).length;
+      } finally {
+        toolCallMutex.release();
+      }
+
+      // Convert scenarios to interview questions
+      questions = customScenarios.map(s => this.scenarioToQuestion(s));
+    } else {
+      // No custom scenarios - use fallback questions (check mode, no LLM)
+      // We need an orchestrator for fallback questions, but we won't use LLM
+      // Get fallback questions directly
+      questions = this.getFallbackQuestionsForTool(tool, this.config.skipErrorTests)
+        .slice(0, this.config.maxQuestionsPerTool);
+    }
+
+    // Ask each question
+    for (const question of questions) {
+      const interactionStart = Date.now();
+      let response: MCPToolCallResult | null = null;
+      let error: string | null = null;
+      let toolExecutionMs = 0;
+
+      // Acquire mutex for tool calls (shared MCP client)
+      await toolCallMutex.acquire();
+      try {
+        const toolCallStart = Date.now();
+        try {
+          response = await client.callTool(tool.name, question.args);
+          toolExecutionMs = Date.now() - toolCallStart;
+          toolCallCount++;
+
+          if (response.isError) {
+            errorCount++;
+            const errorContent = response.content?.find(c => c.type === 'text');
+            if (errorContent && 'text' in errorContent) {
+              error = String(errorContent.text);
+            }
+          }
+        } catch (e) {
+          toolExecutionMs = Date.now() - toolCallStart;
+          error = e instanceof Error ? e.message : String(e);
+          errorCount++;
+          toolCallCount++;
+        }
+      } finally {
+        toolCallMutex.release();
+      }
+
+      // Generate simple analysis (no LLM in check mode)
+      const analysis = this.generateSimpleAnalysis(error, !!response, 'Tool call succeeded.');
+
+      const interaction: ToolInteraction = {
+        toolName: tool.name,
+        question,
+        response,
+        error,
+        analysis,
+        durationMs: Date.now() - interactionStart,
+        toolExecutionMs,
+        llmAnalysisMs: 0, // No LLM in check mode
+        personaId: 'check_mode',
+      };
+
+      interactions.push(interaction);
+      questionsAsked++;
+    }
+
+    this.logger.debug({
+      tool: tool.name,
+      questionsAsked,
+      toolCallCount,
+      errorCount,
+    }, 'Tool check complete');
+
+    return {
+      toolName: tool.name,
+      interactions,
+      scenarioResults,
+      questionsAsked,
+      toolCallCount,
+      errorCount,
+    };
+  }
+
+  /**
+   * Get fallback questions for a tool without requiring an orchestrator.
+   * Used in check mode when parallel tool testing is enabled.
+   */
+  private getFallbackQuestionsForTool(
+    tool: MCPTool,
+    skipErrorTests: boolean
+  ): InterviewQuestion[] {
+    const questions: InterviewQuestion[] = [];
+    const schema = tool.inputSchema;
+
+    // Happy path: empty args if no required params
+    const requiredParams = schema?.required as string[] | undefined;
+    if (!requiredParams || requiredParams.length === 0) {
+      questions.push({
+        description: 'Test with empty arguments',
+        category: 'happy_path',
+        args: {},
+      });
+    }
+
+    // Build minimal required args
+    const properties = schema?.properties as Record<string, unknown> | undefined;
+    if (properties && requiredParams && requiredParams.length > 0) {
+      const minimalArgs: Record<string, unknown> = {};
+      for (const param of requiredParams) {
+        const prop = properties[param] as { type?: string } | undefined;
+        if (prop?.type === 'string') {
+          minimalArgs[param] = 'test';
+        } else if (prop?.type === 'number' || prop?.type === 'integer') {
+          minimalArgs[param] = 1;
+        } else if (prop?.type === 'boolean') {
+          minimalArgs[param] = true;
+        } else if (prop?.type === 'array') {
+          minimalArgs[param] = [];
+        } else if (prop?.type === 'object') {
+          minimalArgs[param] = {};
+        } else {
+          minimalArgs[param] = 'test';
+        }
+      }
+
+      questions.push({
+        description: 'Test with minimal required arguments',
+        category: 'happy_path',
+        args: minimalArgs,
+      });
+    }
+
+    // Error handling: missing required param (if we have required params)
+    if (!skipErrorTests && requiredParams && requiredParams.length > 0) {
+      questions.push({
+        description: 'Test error handling with missing required argument',
+        category: 'error_handling',
+        args: {},
+      });
+    }
+
+    return questions;
+  }
+
+  /**
+   * Run parallel tool testing in check mode.
+   * Tests all tools concurrently with a configurable worker limit.
+   *
+   * @param client - MCP client for tool calls
+   * @param tools - Tools to test
+   * @param onProgress - Progress callback
+   * @returns Aggregated tool profiles
+   */
+  private async interviewToolsInParallel(
+    client: MCPClient,
+    tools: MCPTool[],
+    progress: InterviewProgress,
+    onProgress?: ProgressCallback
+  ): Promise<{
+    toolProfiles: ToolProfile[];
+    scenarioResults: ScenarioResult[];
+    totalToolCallCount: number;
+    totalErrorCount: number;
+    totalQuestionsAsked: number;
+  }> {
+    const concurrency = this.config.toolConcurrency ?? INTERVIEW.DEFAULT_TOOL_CONCURRENCY;
+    const toolCallMutex = createMutex(); // Shared mutex for serializing MCP client calls
+
+    this.logger.info({
+      toolCount: tools.length,
+      concurrency,
+    }, 'Running parallel tool testing');
+
+    // Create tasks for each tool
+    const toolTasks = tools.map(tool => async () => {
+      progress.currentTool = tool.name;
+      onProgress?.(progress);
+
+      const result = await this.interviewToolInCheckMode(client, tool, toolCallMutex);
+
+      progress.toolsCompleted++;
+      progress.questionsAsked += result.questionsAsked;
+      onProgress?.(progress);
+
+      return result;
+    });
+
+    // Execute tools in parallel with concurrency limit
+    const parallelResults = await parallelLimit(toolTasks, { concurrency });
+
+    // Check for errors
+    if (!parallelResults.allSucceeded) {
+      for (const [index, error] of parallelResults.errors) {
+        this.logger.error({
+          tool: tools[index]?.name,
+          error: error.message,
+        }, 'Tool check failed');
+      }
+    }
+
+    // Aggregate results
+    const successfulResults = parallelResults.results.filter((r): r is ToolCheckResult => r !== undefined);
+    const toolProfiles: ToolProfile[] = [];
+    const scenarioResults: ScenarioResult[] = [];
+    let totalToolCallCount = 0;
+    let totalErrorCount = 0;
+    let totalQuestionsAsked = 0;
+
+    for (const result of successfulResults) {
+      const tool = tools.find(t => t.name === result.toolName);
+      if (!tool) continue;
+
+      // Build minimal profile for check mode
+      toolProfiles.push({
+        name: result.toolName,
+        description: tool.description ?? '',
+        interactions: result.interactions,
+        behavioralNotes: [],
+        limitations: [],
+        securityNotes: [],
+        findingsByPersona: [],
+      });
+
+      scenarioResults.push(...result.scenarioResults);
+      totalToolCallCount += result.toolCallCount;
+      totalErrorCount += result.errorCount;
+      totalQuestionsAsked += result.questionsAsked;
+    }
+
+    this.logger.info({
+      toolCount: toolProfiles.length,
+      totalToolCallCount,
+      totalErrorCount,
+    }, 'Parallel tool testing complete');
+
+    return {
+      toolProfiles,
+      scenarioResults,
+      totalToolCallCount,
+      totalErrorCount,
+      totalQuestionsAsked,
+    };
   }
 
   /**

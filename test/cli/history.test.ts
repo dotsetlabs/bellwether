@@ -140,7 +140,7 @@ describe('history command', () => {
 
       await expect(
         historyCommand.parseAsync(['node', 'test'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('Not authenticated'))).toBe(true);
     });
@@ -153,7 +153,7 @@ describe('history command', () => {
 
       await expect(
         historyCommand.parseAsync(['node', 'test', 'proj_123'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('Authentication failed'))).toBe(true);
     });
@@ -194,7 +194,7 @@ describe('history command', () => {
 
       await expect(
         historyCommand.parseAsync(['node', 'test'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('No project specified'))).toBe(true);
     });
@@ -293,7 +293,7 @@ describe('history command', () => {
 
       await expect(
         historyCommand.parseAsync(['node', 'test'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('Failed to fetch'))).toBe(true);
     });
@@ -381,7 +381,7 @@ describe('diff command', () => {
 
       await expect(
         diffCommand.parseAsync(['node', 'test', '1', '2'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('Not authenticated'))).toBe(true);
     });
@@ -397,7 +397,7 @@ describe('diff command', () => {
 
       await expect(
         diffCommand.parseAsync(['node', 'test', 'abc', '2'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('Invalid version'))).toBe(true);
     });
@@ -523,7 +523,7 @@ describe('diff command', () => {
 
       await expect(
         diffCommand.parseAsync(['node', 'test', '1', '2'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('No project specified'))).toBe(true);
     });

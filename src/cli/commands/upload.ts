@@ -13,7 +13,7 @@ import { loadBaseline } from '../../baseline/saver.js';
 import { convertToCloudBaseline } from '../../baseline/converter.js';
 import { loadConfig } from '../../config/loader.js';
 import type { BellwetherBaseline } from '../../cloud/types.js';
-import { PATHS } from '../../constants.js';
+import { PATHS, EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 import { getSeverityIcon, type DiffSummary } from '../output.js';
 
@@ -74,23 +74,23 @@ export const uploadCommand = new Command('upload')
     if (!sessionToken) {
       if (isCiMode) {
         output.error('BELLWETHER_SESSION not set');
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       output.error('Not authenticated. Run `bellwether login` first or set BELLWETHER_SESSION.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Check baseline file exists
     if (!existsSync(baselinePath)) {
       if (isCiMode) {
         output.error(`Baseline not found: ${baselinePath}`);
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       output.error(`Baseline file not found: ${baselinePath}`);
       output.error('\nCreate a baseline first:');
       output.error('  1. Run `bellwether check` (with output.format: json in config)');
       output.error('  2. Run `bellwether baseline save`');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Determine project ID
@@ -109,13 +109,13 @@ export const uploadCommand = new Command('upload')
     if (!projectId) {
       if (isCiMode) {
         output.error('No project specified');
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       output.error('No project specified.');
       output.error('\nEither:');
       output.error('  - Use --project <id> to specify a project');
       output.error('  - Run `bellwether link` to link this directory to a project');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Load and convert baseline
@@ -137,10 +137,10 @@ export const uploadCommand = new Command('upload')
     } catch (error) {
       if (isCiMode) {
         output.error(`Failed to load baseline: ${error instanceof Error ? error.message : error}`);
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       output.error('Failed to load baseline: ' + (error instanceof Error ? error.message : String(error)));
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Create client and upload
@@ -149,10 +149,10 @@ export const uploadCommand = new Command('upload')
     if (!client.isAuthenticated()) {
       if (isCiMode) {
         output.error('Authentication failed');
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       output.error('Authentication failed. Run `bellwether login` to re-authenticate.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     if (!isCiMode) {
@@ -173,12 +173,12 @@ export const uploadCommand = new Command('upload')
           if (diff) {
             if (diff.severity === 'breaking') {
               output.error('Breaking changes detected');
-              process.exit(1);
+              process.exit(EXIT_CODES.ERROR);
             }
 
             if (options.failOnDrift && diff.severity !== 'none') {
               output.error(`Behavioral drift detected: ${diff.severity}`);
-              process.exit(1);
+              process.exit(EXIT_CODES.ERROR);
             }
           }
         }
@@ -208,10 +208,10 @@ export const uploadCommand = new Command('upload')
     } catch (error) {
       if (isCiMode) {
         output.error(`Upload failed: ${error instanceof Error ? error.message : error}`);
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       output.error('Upload failed: ' + (error instanceof Error ? error.message : String(error)));
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
   });
 

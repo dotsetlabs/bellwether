@@ -71,7 +71,7 @@ function detectConfigurationIssues(profiles: ToolProfile[], metadata: InterviewM
 
 /**
  * Generate CONTRACT.md documentation from check results.
- * Focused on schema documentation - no LLM-generated behavioral analysis.
+ * Enhanced with examples, error patterns, and performance data.
  * Used by: bellwether check
  */
 export function generateContractMd(result: InterviewResult): string {
@@ -108,29 +108,39 @@ export function generateContractMd(result: InterviewResult): string {
   }
   lines.push('');
 
-  // Quick Reference section
+  // Quick Reference section with performance data
   if (toolProfiles.length > 0) {
     lines.push('## Quick Reference');
     lines.push('');
-    lines.push('| Tool | Parameters | Description |');
-    lines.push('|------|------------|-------------|');
+    lines.push('| Tool | Parameters | Success Rate | Description |');
+    lines.push('|------|------------|--------------|-------------|');
 
     for (const tool of discovery.tools) {
       const params = extractParameters(tool.inputSchema);
-      const desc = tool.description?.substring(0, 60) || 'No description';
-      const descDisplay = tool.description && tool.description.length > 60 ? desc + '...' : desc;
-      lines.push(`| \`${escapeTableCell(tool.name)}\` | ${escapeTableCell(params)} | ${escapeTableCell(descDisplay)} |`);
+      const desc = tool.description?.substring(0, 50) || 'No description';
+      const descDisplay = tool.description && tool.description.length > 50 ? desc + '...' : desc;
+      const profile = toolProfiles.find(p => p.name === tool.name);
+      const successRate = calculateToolSuccessRate(profile);
+      lines.push(`| \`${escapeTableCell(tool.name)}\` | ${escapeTableCell(params)} | ${successRate} | ${escapeTableCell(descDisplay)} |`);
     }
 
     lines.push('');
   }
 
-  // Tools section
+  // Performance Baseline section
+  const perfSection = generateContractPerformanceSection(toolProfiles);
+  if (perfSection.length > 0) {
+    lines.push(...perfSection);
+  }
+
+  // Tools section with examples and error patterns
   if (discovery.tools.length > 0) {
     lines.push('## Tools');
     lines.push('');
 
     for (const tool of discovery.tools) {
+      const profile = toolProfiles.find(p => p.name === tool.name);
+
       lines.push(`### ${tool.name}`);
       lines.push('');
       lines.push(tool.description || 'No description available.');
@@ -143,6 +153,18 @@ export function generateContractMd(result: InterviewResult): string {
         lines.push(schemaJson.content);
         lines.push('```');
         lines.push('');
+      }
+
+      // Add example usage from successful interactions (up to 2)
+      const examples = generateToolExamples(profile, 2);
+      if (examples.length > 0) {
+        lines.push(...examples);
+      }
+
+      // Add error patterns if any were observed
+      const errorPatterns = generateToolErrorPatterns(profile);
+      if (errorPatterns.length > 0) {
+        lines.push(...errorPatterns);
       }
     }
   }
@@ -188,12 +210,278 @@ export function generateContractMd(result: InterviewResult): string {
     }
   }
 
+  // Error Summary section
+  const errorSummary = generateErrorSummarySection(toolProfiles);
+  if (errorSummary.length > 0) {
+    lines.push(...errorSummary);
+  }
+
   // Metadata footer
   lines.push('---');
   lines.push('');
   lines.push(`*Schema validation completed in ${formatDuration(metadata.durationMs)}.*`);
 
   return lines.join('\n');
+}
+
+/**
+ * Calculate success rate for a tool from its interactions.
+ */
+function calculateToolSuccessRate(profile: ToolProfile | undefined): string {
+  if (!profile || profile.interactions.length === 0) {
+    return '-';
+  }
+
+  const successCount = profile.interactions.filter(i => {
+    if (i.error || i.response?.isError) return false;
+    const textContent = i.response?.content?.find(c => c.type === 'text');
+    if (textContent && 'text' in textContent) {
+      if (looksLikeError(String(textContent.text))) return false;
+    }
+    return true;
+  }).length;
+
+  const rate = (successCount / profile.interactions.length) * 100;
+  const emoji = rate >= 90 ? '✓' : rate >= 50 ? '⚠' : '✗';
+  return `${emoji} ${rate.toFixed(0)}%`;
+}
+
+/**
+ * Generate performance baseline section for CONTRACT.md.
+ */
+function generateContractPerformanceSection(profiles: ToolProfile[]): string[] {
+  const lines: string[] = [];
+  const metrics = calculatePerformanceMetrics(profiles);
+
+  if (metrics.length === 0) {
+    return [];
+  }
+
+  // Only show if we have meaningful data
+  const hasValidMetrics = metrics.some(m => m.callCount >= 2);
+  if (!hasValidMetrics) {
+    return [];
+  }
+
+  lines.push('## Performance Baseline');
+  lines.push('');
+  lines.push('Response time metrics observed during schema validation:');
+  lines.push('');
+  lines.push('| Tool | Calls | P50 | P95 | Success |');
+  lines.push('|------|-------|-----|-----|---------|');
+
+  for (const m of metrics) {
+    const successRate = ((1 - m.errorRate) * 100).toFixed(0);
+    const successEmoji = m.errorRate < 0.1 ? '✓' : m.errorRate < 0.5 ? '⚠' : '✗';
+    lines.push(`| \`${escapeTableCell(m.toolName)}\` | ${m.callCount} | ${m.p50Ms}ms | ${m.p95Ms}ms | ${successEmoji} ${successRate}% |`);
+  }
+
+  lines.push('');
+  return lines;
+}
+
+/**
+ * Generate example usage for a tool from successful interactions.
+ */
+function generateToolExamples(profile: ToolProfile | undefined, maxExamples: number): string[] {
+  const lines: string[] = [];
+
+  if (!profile || profile.interactions.length === 0) {
+    return [];
+  }
+
+  // Find successful interactions
+  const successful = profile.interactions.filter(i => {
+    if (i.error || i.response?.isError) return false;
+    const textContent = i.response?.content?.find(c => c.type === 'text');
+    if (textContent && 'text' in textContent) {
+      if (looksLikeError(String(textContent.text))) return false;
+    }
+    return true;
+  });
+
+  if (successful.length === 0) {
+    return [];
+  }
+
+  // Take up to maxExamples unique examples (by different args)
+  const examples: Array<{ args: Record<string, unknown>; response: string }> = [];
+  const seenArgsHashes = new Set<string>();
+
+  for (const interaction of successful) {
+    if (examples.length >= maxExamples) break;
+
+    const argsHash = JSON.stringify(interaction.question.args);
+    if (seenArgsHashes.has(argsHash)) continue;
+    seenArgsHashes.add(argsHash);
+
+    const textContent = interaction.response?.content?.find(c => c.type === 'text');
+    if (!textContent || !('text' in textContent)) continue;
+
+    const responseText = String(textContent.text);
+    if (responseText.length === 0) continue;
+
+    examples.push({
+      args: interaction.question.args,
+      response: responseText.length > 200 ? responseText.slice(0, 197) + '...' : responseText,
+    });
+  }
+
+  if (examples.length === 0) {
+    return [];
+  }
+
+  lines.push(`**Example${examples.length > 1 ? 's' : ''}:**`);
+  lines.push('');
+
+  for (let i = 0; i < examples.length; i++) {
+    const example = examples[i];
+    if (examples.length > 1) {
+      lines.push(`*Example ${i + 1}:*`);
+    }
+
+    // Show input
+    lines.push('Input:');
+    const inputJson = validateJsonForCodeBlock(example.args);
+    lines.push('```json');
+    lines.push(inputJson.content);
+    lines.push('```');
+
+    // Show output
+    lines.push('Output:');
+    const outputJson = validateJsonForCodeBlock(example.response);
+    lines.push('```');
+    lines.push(outputJson.content);
+    lines.push('```');
+    lines.push('');
+  }
+
+  return lines;
+}
+
+/**
+ * Generate error patterns section for a tool.
+ */
+function generateToolErrorPatterns(profile: ToolProfile | undefined): string[] {
+  const lines: string[] = [];
+
+  if (!profile || profile.interactions.length === 0) {
+    return [];
+  }
+
+  // Categorize errors
+  const errorCategories: Map<string, string[]> = new Map();
+
+  for (const interaction of profile.interactions) {
+    const errorText = interaction.error || '';
+    const textContent = interaction.response?.content?.find(c => c.type === 'text');
+    const responseText = textContent && 'text' in textContent ? String(textContent.text) : '';
+
+    const isError = interaction.error || interaction.response?.isError || looksLikeError(responseText);
+    if (!isError) continue;
+
+    const errorContent = errorText || responseText;
+    if (!errorContent) continue;
+
+    const category = categorizeError(errorContent);
+    const existing = errorCategories.get(category) || [];
+    if (existing.length < 2) { // Max 2 examples per category
+      const truncated = errorContent.length > 100 ? errorContent.slice(0, 97) + '...' : errorContent;
+      existing.push(truncated);
+    }
+    errorCategories.set(category, existing);
+  }
+
+  if (errorCategories.size === 0) {
+    return [];
+  }
+
+  lines.push('**Error Patterns:**');
+  lines.push('');
+
+  for (const [category, examples] of errorCategories) {
+    lines.push(`- **${category}**: ${examples[0]}`);
+  }
+
+  lines.push('');
+  return lines;
+}
+
+/**
+ * Categorize an error message.
+ */
+function categorizeError(errorText: string): string {
+  const lower = errorText.toLowerCase();
+
+  if (/permission|denied|not allowed|forbidden|unauthorized/i.test(lower)) {
+    return 'Permission';
+  }
+  if (/not found|does not exist|no such|cannot find|missing/i.test(lower)) {
+    return 'NotFound';
+  }
+  if (/invalid|validation|required|must be|expected|type error/i.test(lower)) {
+    return 'Validation';
+  }
+  if (/timeout|timed out|deadline/i.test(lower)) {
+    return 'Timeout';
+  }
+  if (/connect|network|econnrefused|socket/i.test(lower)) {
+    return 'Network';
+  }
+  return 'Other';
+}
+
+/**
+ * Generate error summary section aggregating errors across all tools.
+ */
+function generateErrorSummarySection(profiles: ToolProfile[]): string[] {
+  const lines: string[] = [];
+
+  // Count errors by category across all tools
+  const categoryCounts: Map<string, { count: number; tools: Set<string>; example: string }> = new Map();
+
+  for (const profile of profiles) {
+    for (const interaction of profile.interactions) {
+      const errorText = interaction.error || '';
+      const textContent = interaction.response?.content?.find(c => c.type === 'text');
+      const responseText = textContent && 'text' in textContent ? String(textContent.text) : '';
+
+      const isError = interaction.error || interaction.response?.isError || looksLikeError(responseText);
+      if (!isError) continue;
+
+      const errorContent = errorText || responseText;
+      if (!errorContent) continue;
+
+      const category = categorizeError(errorContent);
+      const existing = categoryCounts.get(category) || { count: 0, tools: new Set(), example: '' };
+      existing.count++;
+      existing.tools.add(profile.name);
+      if (!existing.example) {
+        existing.example = errorContent.length > 80 ? errorContent.slice(0, 77) + '...' : errorContent;
+      }
+      categoryCounts.set(category, existing);
+    }
+  }
+
+  if (categoryCounts.size === 0) {
+    return [];
+  }
+
+  lines.push('## Error Patterns Summary');
+  lines.push('');
+  lines.push('Errors observed during schema validation:');
+  lines.push('');
+  lines.push('| Category | Count | Affected Tools |');
+  lines.push('|----------|-------|----------------|');
+
+  for (const [category, data] of categoryCounts) {
+    const toolList = Array.from(data.tools).slice(0, 3).map(t => `\`${t}\``).join(', ');
+    const more = data.tools.size > 3 ? ` +${data.tools.size - 3} more` : '';
+    lines.push(`| ${category} | ${data.count} | ${toolList}${more} |`);
+  }
+
+  lines.push('');
+  return lines;
 }
 
 /**

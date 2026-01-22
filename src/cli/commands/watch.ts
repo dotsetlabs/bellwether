@@ -24,6 +24,7 @@ import {
   compareBaselines,
   formatDiffText,
 } from '../../baseline/index.js';
+import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 
 export const watchCommand = new Command('watch')
@@ -39,7 +40,7 @@ export const watchCommand = new Command('watch')
     } catch (error) {
       if (error instanceof ConfigNotFoundError) {
         output.error(error.message);
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       throw error;
     }
@@ -53,7 +54,7 @@ export const watchCommand = new Command('watch')
       validateConfigForCheck(config, serverCommand);
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Get watch settings from config
@@ -266,7 +267,7 @@ export const watchCommand = new Command('watch')
         clearInterval(currentInterval);
         currentInterval = null;
       }
-      process.exit(0);
+      process.exit(EXIT_CODES.CLEAN);
     };
 
     process.on('SIGINT', cleanup);

@@ -358,7 +358,7 @@ describe('Verify Command', () => {
       await command.parseAsync(['node', 'test', 'node', 'server.js']);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('LLM client'));
-      expect(processExitSpy).toHaveBeenCalledWith(1);
+      expect(processExitSpy).toHaveBeenCalledWith(4);
     });
 
     it('should handle server connection failure', async () => {
@@ -369,7 +369,7 @@ describe('Verify Command', () => {
       await command.parseAsync(['node', 'test', 'node', 'server.js']);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Connection failed'));
-      expect(processExitSpy).toHaveBeenCalledWith(1);
+      expect(processExitSpy).toHaveBeenCalledWith(4);
     });
 
     it('should exit with code 1 when verification fails', async () => {
@@ -395,7 +395,7 @@ describe('Verify Command', () => {
       const command = createVerifyCommand();
       await command.parseAsync(['node', 'test', 'node', 'server.js']);
 
-      expect(processExitSpy).toHaveBeenCalledWith(1);
+      expect(processExitSpy).toHaveBeenCalledWith(4);
     });
   });
 

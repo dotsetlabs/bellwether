@@ -24,6 +24,20 @@ import {
   compareBaselines,
   acceptDrift,
   formatDiffText,
+  formatDiffJson,
+  formatDiffCompact,
+  formatDiffGitHubActions,
+  formatDiffMarkdown,
+  formatDiffJUnit,
+  formatDiffSarif,
+  applySeverityConfig,
+  shouldFailOnDiff,
+  analyzeForIncremental,
+  formatIncrementalSummary,
+  type BehavioralDiff,
+  type SeverityConfig,
+  type ChangeSeverity,
+  type BehavioralBaseline,
 } from '../../baseline/index.js';
 import { getMetricsCollector, resetMetricsCollector } from '../../metrics/collector.js';
 import { getGlobalCache, resetGlobalCache } from '../../cache/response-cache.js';
@@ -31,16 +45,25 @@ import { InterviewProgressBar, formatCheckBanner } from '../utils/progress.js';
 import { loadScenariosFromFile, tryLoadDefaultScenarios, DEFAULT_SCENARIOS_FILE } from '../../scenarios/index.js';
 import * as output from '../output.js';
 import { extractServerContextFromArgs } from './shared.js';
+import { EXIT_CODES, SEVERITY_TO_EXIT_CODE, PATHS } from '../../constants.js';
 
 
 export const checkCommand = new Command('check')
   .description('Check MCP server schema and detect drift (free, fast, deterministic)')
   .argument('[server-command]', 'Server command (overrides config)')
   .argument('[args...]', 'Server arguments')
-  .option('-c, --config <path>', 'Path to config file', 'bellwether.yaml')
+  .option('-c, --config <path>', 'Path to config file', PATHS.DEFAULT_CONFIG_FILENAME)
   .option('--fail-on-drift', 'Exit with error if drift detected (overrides config)')
   .option('--accept-drift', 'Accept detected drift as intentional and update baseline')
   .option('--accept-reason <reason>', 'Reason for accepting drift (used with --accept-drift)')
+  .option('--format <format>', 'Diff output format: text, json, compact, github, markdown, junit, sarif', 'text')
+  .option('--min-severity <level>', 'Minimum severity to report: none, info, warning, breaking')
+  .option('--fail-on-severity <level>', 'Fail threshold: none, info, warning, breaking')
+  .option('--incremental', 'Only test tools with changed schemas (requires baseline)')
+  .option('--incremental-cache-hours <hours>', 'Max age of cached results in hours', '168')
+  .option('--parallel', 'Enable parallel tool testing for faster checks')
+  .option('--parallel-workers <n>', 'Number of concurrent tool workers (1-10)', '4')
+  .option('--performance-threshold <n>', 'Performance regression threshold percentage (default: 10)', '10')
   .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
     // Load configuration
     let config: BellwetherConfig;
@@ -49,7 +72,7 @@ export const checkCommand = new Command('check')
     } catch (error) {
       if (error instanceof ConfigNotFoundError) {
         output.error(error.message);
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       throw error;
     }
@@ -63,7 +86,7 @@ export const checkCommand = new Command('check')
       validateConfigForCheck(config, serverCommand);
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Extract settings from config
@@ -78,6 +101,27 @@ export const checkCommand = new Command('check')
     const baselinePath = config.baseline.comparePath;
     const saveBaselinePath = config.baseline.savePath;
     const failOnDrift = options.failOnDrift || config.baseline.failOnDrift;
+
+    // Build severity config (CLI options override config file)
+    const severityConfig: SeverityConfig = {
+      minimumSeverity: (options.minSeverity as ChangeSeverity) || config.baseline.severity.minimumSeverity,
+      failOnSeverity: (options.failOnSeverity as ChangeSeverity) || config.baseline.severity.failOnSeverity,
+      suppressWarnings: config.baseline.severity.suppressWarnings,
+      aspectOverrides: config.baseline.severity.aspectOverrides as SeverityConfig['aspectOverrides'],
+    };
+
+    // Resolve check options (CLI flags override config file)
+    const incrementalEnabled = options.incremental ?? config.check.incremental;
+    const incrementalCacheHours = options.incrementalCacheHours
+      ? parseInt(options.incrementalCacheHours, 10)
+      : config.check.incrementalCacheHours;
+    const parallelEnabled = options.parallel ?? config.check.parallel;
+    const parallelWorkers = options.parallelWorkers
+      ? parseInt(options.parallelWorkers, 10)
+      : config.check.parallelWorkers;
+    const performanceThreshold = options.performanceThreshold
+      ? parseFloat(options.performanceThreshold) / 100
+      : config.check.performanceThreshold / 100;
 
     // Display startup banner
     const banner = formatCheckBanner({
@@ -135,6 +179,38 @@ export const checkCommand = new Command('check')
         return;
       }
 
+      // Incremental checking - load baseline and determine which tools to test
+      let incrementalBaseline: BehavioralBaseline | null = null;
+      let incrementalResult: ReturnType<typeof analyzeForIncremental> | null = null;
+
+      if (incrementalEnabled) {
+        if (!baselinePath || !existsSync(baselinePath)) {
+          output.warn('Incremental mode requires a baseline. Testing all tools.');
+        } else {
+          incrementalBaseline = loadBaseline(baselinePath);
+          incrementalResult = analyzeForIncremental(
+            discovery.tools,
+            incrementalBaseline,
+            { maxCacheAgeHours: incrementalCacheHours }
+          );
+
+          const summary = formatIncrementalSummary(incrementalResult.changeSummary);
+          output.info(`Incremental analysis: ${summary}`);
+
+          if (incrementalResult.toolsToTest.length === 0) {
+            output.info('All tools unchanged. Using cached results.');
+            // Still need to generate output with cached data
+            // Skip to comparison section
+          } else {
+            output.info(`Testing ${incrementalResult.toolsToTest.length} tools (${incrementalResult.toolsToSkip.length} cached)\n`);
+            // Filter discovery to only include tools that need testing
+            discovery.tools = discovery.tools.filter(t =>
+              incrementalResult!.toolsToTest.includes(t.name)
+            );
+          }
+        }
+      }
+
       // Load custom scenarios (work in check mode too)
       let customScenarios: ReturnType<typeof loadScenariosFromFile> | undefined;
       if (config.scenarios.path) {
@@ -143,7 +219,7 @@ export const checkCommand = new Command('check')
           output.info(`Loaded ${customScenarios.toolScenarios.length} tool scenarios from ${config.scenarios.path}`);
         } catch (error) {
           output.error(`Failed to load scenarios: ${error instanceof Error ? error.message : error}`);
-          process.exit(1);
+          process.exit(EXIT_CODES.ERROR);
         }
       } else {
         const defaultScenarios = tryLoadDefaultScenarios(outputDir);
@@ -155,6 +231,20 @@ export const checkCommand = new Command('check')
 
       // Create interviewer for check mode (no LLM required)
       const fullServerCommand = `${serverCommand} ${args.join(' ')}`.trim();
+
+      // Validate parallel workers (already resolved from config + CLI override)
+      let toolConcurrency = parallelWorkers;
+      if (toolConcurrency < 1) {
+        toolConcurrency = 4;
+      } else if (toolConcurrency > 10) {
+        output.warn('Tool concurrency capped at 10');
+        toolConcurrency = 10;
+      }
+
+      if (parallelEnabled) {
+        output.info(`Parallel tool testing enabled (${toolConcurrency} workers)`);
+      }
+
       const interviewer = new Interviewer(null, {
         maxQuestionsPerTool: 3, // Default for schema-based tests
         timeout,
@@ -165,6 +255,8 @@ export const checkCommand = new Command('check')
         customScenariosOnly: config.scenarios.only,
         enableStreaming: false,
         parallelPersonas: false,
+        parallelTools: parallelEnabled,
+        toolConcurrency,
         cache,
         checkMode: true, // Required when passing null for LLM
         serverCommand: fullServerCommand,
@@ -259,7 +351,23 @@ export const checkCommand = new Command('check')
       }
 
       // Create baseline from results
-      const currentBaseline = createBaseline(result, fullServerCommand);
+      let currentBaseline = createBaseline(result, fullServerCommand);
+
+      // Merge cached fingerprints in incremental mode
+      if (incrementalResult && incrementalResult.cachedFingerprints.length > 0) {
+        // Merge new fingerprints with cached ones
+        const mergedTools = [
+          ...currentBaseline.tools,
+          ...incrementalResult.cachedFingerprints,
+        ].sort((a, b) => a.name.localeCompare(b.name));
+
+        currentBaseline = {
+          ...currentBaseline,
+          tools: mergedTools,
+        };
+
+        output.info(`Merged ${incrementalResult.cachedFingerprints.length} cached tool fingerprints`);
+      }
 
       // Save baseline if configured
       if (saveBaselinePath) {
@@ -271,18 +379,43 @@ export const checkCommand = new Command('check')
       if (baselinePath) {
         if (!existsSync(baselinePath)) {
           output.error(`\nBaseline file not found: ${baselinePath}`);
-          process.exit(1);
+          process.exit(EXIT_CODES.ERROR);
         }
 
         const previousBaseline = loadBaseline(baselinePath);
-        const diff = compareBaselines(previousBaseline, currentBaseline, {});
+
+        const rawDiff = compareBaselines(previousBaseline, currentBaseline, {
+          performanceThreshold, // Already resolved from config + CLI override
+        });
+
+        // Apply severity configuration (filtering, overrides)
+        const diff = applySeverityConfig(rawDiff, severityConfig);
 
         output.info('\n--- Drift Report ---');
-        output.info(formatDiffText(diff));
+
+        // Select formatter based on --format option
+        const formattedDiff = formatDiff(diff, options.format, baselinePath);
+        output.info(formattedDiff);
+
+        // Report performance regressions if detected
+        if (diff.performanceReport?.hasRegressions) {
+          output.warn('\n--- Performance Regressions ---');
+          for (const regression of diff.performanceReport.regressions) {
+            const percentStr = (regression.regressionPercent * 100).toFixed(1);
+            output.warn(
+              `  ${regression.toolName}: p50 ${regression.previousP50Ms.toFixed(0)}ms → ` +
+                `${regression.currentP50Ms.toFixed(0)}ms (+${percentStr}%)`
+            );
+          }
+        } else if (diff.performanceReport?.improvementCount ?? 0 > 0) {
+          output.info(
+            `\nPerformance: ${diff.performanceReport?.improvementCount} tool(s) improved`
+          );
+        }
 
         // Handle --accept-drift flag
         if (options.acceptDrift && diff.severity !== 'none') {
-          const acceptedBaseline = acceptDrift(currentBaseline, diff, {
+          const acceptedBaseline = acceptDrift(currentBaseline, rawDiff, {
             reason: options.acceptReason,
           });
           saveBaseline(acceptedBaseline, baselinePath);
@@ -291,16 +424,33 @@ export const checkCommand = new Command('check')
             output.info(`Reason: ${options.acceptReason}`);
           }
           output.info('Future checks will compare against this new baseline.');
-        } else if (failOnDrift && !options.acceptDrift) {
+        } else if (!options.acceptDrift) {
+          // Check if diff meets failure threshold based on severity config
+          const shouldFail = shouldFailOnDiff(diff, severityConfig.failOnSeverity);
+          const exitCode = SEVERITY_TO_EXIT_CODE[diff.severity] ?? EXIT_CODES.CLEAN;
+
           if (diff.severity === 'breaking') {
             output.error('\nBreaking changes detected!');
             output.error('Use --accept-drift to accept these changes as intentional.');
-            process.exit(1);
+            if (failOnDrift || shouldFail) {
+              process.exit(exitCode);
+            }
           } else if (diff.severity === 'warning') {
             output.warn('\nWarning-level changes detected.');
             output.warn('Use --accept-drift to accept these changes as intentional.');
-            process.exit(1);
+            if (failOnDrift || shouldFail) {
+              process.exit(exitCode);
+            }
+          } else if (diff.severity === 'info') {
+            output.info('\nInfo-level changes detected (non-breaking).');
+            if (shouldFail) {
+              process.exit(exitCode);
+            }
           }
+
+          // Exit with appropriate code based on severity
+          // This provides semantic exit codes for CI/CD even when not failing
+          process.exit(exitCode);
         }
       }
     } catch (error) {
@@ -322,8 +472,39 @@ export const checkCommand = new Command('check')
         output.error('  - Check that the command is installed and in PATH');
       }
 
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     } finally {
       await mcpClient.disconnect();
     }
   });
+
+/**
+ * Format a diff using the specified output format.
+ *
+ * @param diff - The behavioral diff to format
+ * @param format - Output format: text, json, compact, github, markdown, junit, sarif
+ * @param baselinePath - Path to baseline file (used for SARIF location references)
+ * @returns Formatted string
+ */
+function formatDiff(diff: BehavioralDiff, format: string, baselinePath: string): string {
+  switch (format.toLowerCase()) {
+    case 'json':
+      return formatDiffJson(diff);
+    case 'compact':
+      return formatDiffCompact(diff);
+    case 'github':
+      return formatDiffGitHubActions(diff);
+    case 'markdown':
+    case 'md':
+      return formatDiffMarkdown(diff);
+    case 'junit':
+    case 'junit-xml':
+    case 'xml':
+      return formatDiffJUnit(diff, 'bellwether-check');
+    case 'sarif':
+      return formatDiffSarif(diff, baselinePath);
+    case 'text':
+    default:
+      return formatDiffText(diff);
+  }
+}

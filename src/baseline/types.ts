@@ -88,6 +88,38 @@ export interface BehavioralDiff {
   summary: string;
   /** Version compatibility information for the compared baselines */
   versionCompatibility?: VersionCompatibilityInfo;
+  /** Performance regression report (when performance data available) */
+  performanceReport?: PerformanceRegressionReport;
+}
+
+/**
+ * Performance regression report summary in diff.
+ */
+export interface PerformanceRegressionReport {
+  /** Tools with performance regression */
+  regressions: PerformanceRegression[];
+  /** Total tools with regressions */
+  regressionCount: number;
+  /** Total tools with improved performance */
+  improvementCount: number;
+  /** Overall has regressions beyond threshold */
+  hasRegressions: boolean;
+}
+
+/**
+ * A single tool's performance regression.
+ */
+export interface PerformanceRegression {
+  /** Tool name */
+  toolName: string;
+  /** Previous p50 latency */
+  previousP50Ms: number;
+  /** Current p50 latency */
+  currentP50Ms: number;
+  /** Regression percentage (positive = slower) */
+  regressionPercent: number;
+  /** Whether this exceeds the threshold */
+  exceedsThreshold: boolean;
 }
 
 /**
@@ -144,6 +176,12 @@ export interface ToolFingerprint {
   baselineP95Ms?: number;
   /** Baseline success rate (0-1) */
   baselineSuccessRate?: number;
+
+  // Incremental checking fields
+  /** When this tool was last tested */
+  lastTestedAt?: Date;
+  /** Hash of the input schema at last test time */
+  inputSchemaHashAtTest?: string;
 }
 
 /**
@@ -207,6 +245,8 @@ export interface CompareOptions {
   tools?: string[];
   /** Force comparison even if baseline versions are incompatible */
   ignoreVersionMismatch?: boolean;
+  /** Performance regression threshold (0-1, e.g., 0.10 = 10% slower) */
+  performanceThreshold?: number;
 }
 
 /**
@@ -241,4 +281,37 @@ export interface AcceptedDiff {
   breakingCount: number;
   warningCount: number;
   infoCount: number;
+}
+
+/**
+ * Configuration for severity thresholds.
+ * Allows customizing how changes are classified and reported.
+ */
+export interface SeverityConfig {
+  /**
+   * Minimum severity level to include in reports.
+   * Changes below this threshold are filtered out.
+   * @default 'none'
+   */
+  minimumSeverity?: ChangeSeverity;
+
+  /**
+   * Severity level at which to fail CI checks.
+   * Exit code 0 for changes below this threshold.
+   * @default 'breaking'
+   */
+  failOnSeverity?: ChangeSeverity;
+
+  /**
+   * Suppress warning-level changes from output.
+   * @default false
+   */
+  suppressWarnings?: boolean;
+
+  /**
+   * Custom severity overrides per aspect.
+   * Allows downgrading/upgrading severity for specific change types.
+   * Use 'none' to completely ignore changes for an aspect.
+   */
+  aspectOverrides?: Partial<Record<BehaviorAspect, ChangeSeverity>>;
 }

@@ -87,6 +87,10 @@ export interface InterviewConfig {
   parallelPersonas?: boolean;
   /** Maximum concurrent persona interviews (default: 3) */
   personaConcurrency?: number;
+  /** Enable parallel tool testing (check mode only) */
+  parallelTools?: boolean;
+  /** Maximum concurrent tool tests (default: 4) */
+  toolConcurrency?: number;
   /** Cache for tool responses and LLM analysis */
   cache?: ToolResponseCache;
   /** Workflow testing configuration */

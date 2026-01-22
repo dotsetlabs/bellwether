@@ -277,7 +277,7 @@ describe('baseline command', () => {
 
       await expect(
         baselineCommand.parseAsync(['node', 'test', 'save'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
     });
 
     it('should save baseline when report exists', async () => {
@@ -325,7 +325,7 @@ describe('baseline command', () => {
 
       await expect(
         baselineCommand.parseAsync(['node', 'test', 'compare', 'nonexistent.json'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
     });
   });
 
@@ -364,7 +364,7 @@ describe('baseline command', () => {
 
       await expect(
         baselineCommand.parseAsync(['node', 'test', 'show'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
     });
 
     it('should display baseline when found', async () => {
@@ -407,7 +407,7 @@ describe('baseline command', () => {
 
       await expect(
         baselineCommand.parseAsync(['node', 'test', 'diff', 'nonexistent1.json', 'nonexistent2.json'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
     });
 
     it('should error when second baseline not found', async () => {
@@ -421,7 +421,7 @@ describe('baseline command', () => {
 
       await expect(
         baselineCommand.parseAsync(['node', 'test', 'diff', 'baseline1.json', 'nonexistent2.json'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
     });
 
     it('should compare two baselines when both exist', async () => {
@@ -484,7 +484,7 @@ describe('baseline command', () => {
 
       await expect(
         baselineCommand.parseAsync(['node', 'test', 'accept'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
     });
   });
 });

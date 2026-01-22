@@ -14,6 +14,7 @@ import { discover } from '../../discovery/discovery.js';
 import { getMetricsCollector, resetMetricsCollector, type MetricsCollector } from '../../metrics/collector.js';
 import { getGlobalCache, resetGlobalCache, type ResponseCache } from '../../cache/response-cache.js';
 import { loadScenariosFromFile, tryLoadDefaultScenarios, DEFAULT_SCENARIOS_FILE, type LoadedScenarios } from '../../scenarios/index.js';
+import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 
 /**
@@ -235,5 +236,5 @@ export function handleCommandError(error: unknown, commandName: 'check' | 'explo
     output.error('  - Run "bellwether auth" to configure API keys');
   }
 
-  process.exit(1);
+  process.exit(EXIT_CODES.ERROR);
 }

@@ -117,6 +117,60 @@ export const outputConfigSchema = z.object({
 }).default({});
 
 /**
+ * Severity levels for configuration.
+ */
+const severityLevels = ['none', 'info', 'warning', 'breaking'] as const;
+
+/**
+ * Behavior aspects that can have severity overrides.
+ */
+const behaviorAspects = [
+  'response_format',
+  'response_structure',
+  'error_handling',
+  'error_pattern',
+  'security',
+  'performance',
+  'schema',
+  'description',
+] as const;
+
+/**
+ * Severity configuration schema.
+ * Allows customizing how changes are classified and reported.
+ */
+export const severityConfigSchema = z.object({
+  /** Minimum severity level to include in reports */
+  minimumSeverity: z.enum(severityLevels).default('none'),
+  /** Severity level at which to fail CI checks */
+  failOnSeverity: z.enum(severityLevels).default('breaking'),
+  /** Suppress warning-level changes from output */
+  suppressWarnings: z.boolean().default(false),
+  /** Custom severity overrides per aspect */
+  aspectOverrides: z.record(
+    z.enum(behaviorAspects),
+    z.enum(severityLevels)
+  ).optional(),
+}).default({});
+
+/**
+ * Check command configuration schema.
+ * Controls behavior of `bellwether check`.
+ */
+export const checkConfigSchema = z.object({
+  /** Enable incremental checking (only test tools with changed schemas) */
+  incremental: z.boolean().default(false),
+  /** Maximum age of cached results in hours (for incremental checking) */
+  incrementalCacheHours: z.number().int().min(1).max(720).default(168),
+  /** Enable parallel tool testing (faster checks) */
+  parallel: z.boolean().default(false),
+  /** Number of concurrent tool workers (1-10) */
+  parallelWorkers: z.number().int().min(1).max(10).default(4),
+  /** Performance regression threshold percentage (0-100, e.g., 10 = 10% slower triggers warning) */
+  performanceThreshold: z.number().min(0).max(100).default(10),
+}).default({});
+
+/**
  * Baseline configuration schema.
  */
 export const baselineConfigSchema = z.object({
@@ -128,6 +182,8 @@ export const baselineConfigSchema = z.object({
   comparePath: z.string().optional(),
   /** Fail if drift is detected */
   failOnDrift: z.boolean().default(false),
+  /** Severity thresholds for filtering and CI failure */
+  severity: severityConfigSchema,
 }).default({});
 
 /**
@@ -177,6 +233,8 @@ export const bellwetherConfigSchema = z.object({
   llm: llmConfigSchema,
   /** Explore settings (used by explore command) */
   explore: exploreConfigSchema,
+  /** Check settings (used by check command) */
+  check: checkConfigSchema,
   /** Custom scenarios (used by both commands) */
   scenarios: scenariosConfigSchema,
   /** Workflow testing (used by explore command) */

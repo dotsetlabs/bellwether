@@ -27,8 +27,9 @@ import {
 } from '../../cloud/auth.js';
 import { generateMockSession } from '../../cloud/mock-client.js';
 import type { DeviceAuthorizationResponse, DevicePollResponse, StoredSession, AuthMeResponse, SessionTeam } from '../../cloud/types.js';
+import { EXIT_CODES, TIME_CONSTANTS } from '../../constants.js';
+import { isLocalhost } from '../../utils/index.js';
 import * as output from '../output.js';
-import { TIME_CONSTANTS } from '../../constants.js';
 
 /**
  * Header name for beta invite token (for pre-OAuth flow).
@@ -91,7 +92,7 @@ export const loginCommand = new Command('login')
       if (p !== 'github' && p !== 'google') {
         output.error(`Invalid provider: ${options.provider}`);
         output.info('Supported providers: github, google');
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       provider = p as OAuthProvider;
     } else {
@@ -116,7 +117,7 @@ export const loginCommand = new Command('login')
         provider = 'google';
       } else {
         output.error('Invalid selection. Please enter 1 or 2.');
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       output.info('');
     }
@@ -151,7 +152,7 @@ export const loginCommand = new Command('login')
           if (!verifyResult.valid) {
             output.error('Invalid or expired invitation code.');
             output.info('\nJoin the waitlist at https://bellwether.sh');
-            process.exit(1);
+            process.exit(EXIT_CODES.ERROR);
           }
           output.info('Invitation verified! Proceeding with login...');
           if (verifyResult.email) {
@@ -164,7 +165,7 @@ export const loginCommand = new Command('login')
           rl.close();
           output.info('\nTo request beta access, visit https://bellwether.sh');
           output.info('Join the waitlist and we\'ll send you an invitation.');
-          process.exit(0);
+          process.exit(EXIT_CODES.CLEAN);
         }
       }
 
@@ -192,7 +193,7 @@ export const loginCommand = new Command('login')
 
       if (!result.session_token || !result.user) {
         output.error('\nAuthorization failed or expired.');
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
 
       // Fetch user teams
@@ -227,7 +228,7 @@ export const loginCommand = new Command('login')
       output.info(`\nSession saved to ${CONFIG_DIR}/session.json`);
     } catch (err) {
       output.error('Authentication failed: ' + (err instanceof Error ? err.message : String(err)));
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
   });
 
@@ -443,11 +444,8 @@ function isValidBrowserUrl(url: string): boolean {
     const parsed = new URL(url);
 
     // Only allow HTTPS (or HTTP for localhost during development)
-    if (parsed.protocol !== 'https:') {
-      const isLocalhost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
-      if (!isLocalhost) {
-        return false;
-      }
+    if (parsed.protocol !== 'https:' && !isLocalhost(parsed.hostname)) {
+      return false;
     }
 
     // Block javascript: and data: URLs

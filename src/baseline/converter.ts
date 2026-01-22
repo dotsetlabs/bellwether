@@ -2,10 +2,41 @@
  * Baseline format converter.
  *
  * Converts between local BehavioralBaseline format and cloud BellwetherBaseline format.
+ *
+ * ## Severity Type Mappings
+ *
+ * The codebase uses three different severity type systems for different contexts:
+ *
+ * ### ChangeSeverity (baseline/types.ts)
+ * Used for drift detection change classification. Maps to CLI exit codes.
+ * Values: 'none' | 'info' | 'warning' | 'breaking'
+ *
+ * ### ErrorSeverity (errors/types.ts)
+ * Used for error severity classification in error handling.
+ * Values: 'low' | 'medium' | 'high' | 'critical'
+ *
+ * ### CloudAssertionSeverity (cloud/types.ts)
+ * Used for cloud assertions and PersonaFinding severity levels.
+ * Values: 'info' | 'low' | 'medium' | 'high' | 'critical'
+ *
+ * ### Conversion Mappings
+ *
+ * ChangeSeverity → CloudAssertionSeverity:
+ * - 'none'     → 'info'     (no change, informational)
+ * - 'info'     → 'low'      (minor changes)
+ * - 'warning'  → 'medium'   (moderate changes)
+ * - 'breaking' → 'critical' (breaking changes)
+ *
+ * CloudAssertionSeverity → ChangeSeverity (for display/filtering):
+ * - 'info'     → 'info'
+ * - 'low'      → 'info'
+ * - 'medium'   → 'warning'
+ * - 'high'     → 'warning'
+ * - 'critical' → 'breaking'
  */
 
 import { createHash } from 'crypto';
-import type { BehavioralBaseline, ToolFingerprint, BehavioralAssertion } from './types.js';
+import type { BehavioralBaseline, ToolFingerprint, BehavioralAssertion, ChangeSeverity } from './types.js';
 import type { InterviewResult, ToolProfile } from '../interview/types.js';
 import type { DiscoveryResult } from '../discovery/types.js';
 import { analyzeResponses } from './response-fingerprint.js';
@@ -26,6 +57,29 @@ import type {
 } from '../cloud/types.js';
 import { getBaselineVersion } from './version.js';
 import { VERSION } from '../version.js';
+
+/**
+ * Map ChangeSeverity to CloudAssertionSeverity.
+ * Used when converting local baselines to cloud format.
+ */
+export const CHANGE_TO_CLOUD_SEVERITY: Record<ChangeSeverity, CloudAssertionSeverity> = {
+  none: 'info',
+  info: 'low',
+  warning: 'medium',
+  breaking: 'critical',
+} as const;
+
+/**
+ * Map CloudAssertionSeverity to ChangeSeverity.
+ * Used when filtering or displaying cloud data locally.
+ */
+export const CLOUD_TO_CHANGE_SEVERITY: Record<CloudAssertionSeverity, ChangeSeverity> = {
+  info: 'info',
+  low: 'info',
+  medium: 'warning',
+  high: 'warning',
+  critical: 'breaking',
+} as const;
 
 /**
  * Hash a string using SHA-256.

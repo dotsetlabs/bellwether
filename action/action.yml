@@ -23,7 +23,7 @@ inputs:
     required: false
     default: 'bellwether-baseline.json'
   fail-on-drift:
-    description: 'Fail the action if schema drift is detected'
+    description: 'Fail the action if schema drift is detected (deprecated: use fail-on-severity instead)'
     default: 'true'
   save-baseline:
     description: 'Save baseline after check'
@@ -31,14 +31,61 @@ inputs:
   output-dir:
     description: 'Directory for output files'
     default: '.'
+  format:
+    description: 'Output format: text, json, compact, github, markdown, junit, sarif'
+    required: false
+    default: 'github'
+  parallel:
+    description: 'Enable parallel tool testing for faster checks'
+    required: false
+    default: 'true'
+  parallel-workers:
+    description: 'Number of concurrent tool workers (1-10)'
+    required: false
+    default: '4'
+  incremental:
+    description: 'Only test tools with changed schemas (requires existing baseline)'
+    required: false
+    default: 'false'
+  incremental-cache-hours:
+    description: 'Max age of cached results in hours for incremental mode'
+    required: false
+    default: '168'
+  performance-threshold:
+    description: 'Performance regression threshold percentage (0-100)'
+    required: false
+    default: '10'
+  min-severity:
+    description: 'Minimum severity to report: none, info, warning, breaking'
+    required: false
+    default: 'info'
+  fail-on-severity:
+    description: 'Fail threshold severity: none, info, warning, breaking'
+    required: false
+    default: 'breaking'
+  accept-drift:
+    description: 'Accept detected drift as intentional and update baseline'
+    required: false
+    default: 'false'
+  accept-reason:
+    description: 'Reason for accepting drift (used with accept-drift: true)'
+    required: false
+    default: ''
+  upload-sarif:
+    description: 'Upload SARIF results to GitHub Code Scanning'
+    required: false
+    default: 'true'
 
 outputs:
   result:
     description: 'Check result: passed or failed'
     value: ${{ steps.test.outputs.result }}
   exit-code:
-    description: 'Exit code (0=pass, 1=drift/fail, 2=error)'
+    description: 'Semantic exit code: 0=clean, 1=info, 2=warning, 3=breaking, 4=error'
     value: ${{ steps.test.outputs.exit-code }}
+  severity:
+    description: 'Highest change severity detected: none, info, warning, breaking'
+    value: ${{ steps.test.outputs.severity }}
   drift-detected:
     description: 'Whether schema drift was detected (true/false)'
     value: ${{ steps.test.outputs.drift-detected }}
@@ -51,6 +98,12 @@ outputs:
   baseline-file:
     description: 'Path to baseline file'
     value: ${{ steps.test.outputs.baseline-file }}
+  sarif-file:
+    description: 'Path to SARIF file (when format includes sarif)'
+    value: ${{ steps.test.outputs.sarif-file }}
+  junit-file:
+    description: 'Path to JUnit XML file (when format includes junit)'
+    value: ${{ steps.test.outputs.junit-file }}
 
 runs:
   using: 'composite'
@@ -86,11 +139,41 @@ runs:
         CONFIG_PATH="${{ inputs.config-path }}"
         OUTPUT_DIR="${{ inputs.output-dir }}"
         BASELINE_PATH="${{ inputs.baseline-path }}"
-        FAIL_ON_DRIFT="${{ inputs.fail-on-drift }}"
         SAVE_BASELINE="${{ inputs.save-baseline }}"
 
         # Build check command flags
         CHECK_FLAGS="--config $CONFIG_PATH"
+        CHECK_FLAGS="$CHECK_FLAGS --format ${{ inputs.format }}"
+
+        # Parallel options
+        if [ "${{ inputs.parallel }}" = "true" ]; then
+          CHECK_FLAGS="$CHECK_FLAGS --parallel --parallel-workers ${{ inputs.parallel-workers }}"
+        fi
+
+        # Incremental options
+        if [ "${{ inputs.incremental }}" = "true" ]; then
+          CHECK_FLAGS="$CHECK_FLAGS --incremental --incremental-cache-hours ${{ inputs.incremental-cache-hours }}"
+        fi
+
+        # Performance threshold
+        CHECK_FLAGS="$CHECK_FLAGS --performance-threshold ${{ inputs.performance-threshold }}"
+
+        # Severity options
+        CHECK_FLAGS="$CHECK_FLAGS --min-severity ${{ inputs.min-severity }}"
+        CHECK_FLAGS="$CHECK_FLAGS --fail-on-severity ${{ inputs.fail-on-severity }}"
+
+        # Accept drift options
+        if [ "${{ inputs.accept-drift }}" = "true" ]; then
+          CHECK_FLAGS="$CHECK_FLAGS --accept-drift"
+          if [ -n "${{ inputs.accept-reason }}" ]; then
+            CHECK_FLAGS="$CHECK_FLAGS --accept-reason \"${{ inputs.accept-reason }}\""
+          fi
+        fi
+
+        # Legacy fail-on-drift support
+        if [ "${{ inputs.fail-on-drift }}" = "true" ]; then
+          CHECK_FLAGS="$CHECK_FLAGS --fail-on-drift"
+        fi
 
         # Run check
         echo "Running: bellwether check $CHECK_FLAGS ${{ inputs.server-command }} ${{ inputs.server-args }}"
@@ -118,57 +201,78 @@ runs:
         # Set baseline file output
         echo "baseline-file=$BASELINE_PATH" >> $GITHUB_OUTPUT
 
-        # Initialize drift status
-        DRIFT_DETECTED="false"
-        FINAL_EXIT=$CHECK_EXIT
+        # Map exit code to severity (0.8.0 semantic exit codes)
+        case $CHECK_EXIT in
+          0) SEVERITY="none" ;;
+          1) SEVERITY="info" ;;
+          2) SEVERITY="warning" ;;
+          3) SEVERITY="breaking" ;;
+          4) SEVERITY="error" ;;
+          *) SEVERITY="error" ;;
+        esac
+        echo "severity=$SEVERITY" >> $GITHUB_OUTPUT
 
-        # If check passed and save-baseline is true, save the baseline
+        # Determine drift status from exit code
+        if [ $CHECK_EXIT -ge 1 ] && [ $CHECK_EXIT -le 3 ]; then
+          DRIFT_DETECTED="true"
+        else
+          DRIFT_DETECTED="false"
+        fi
+        echo "drift-detected=$DRIFT_DETECTED" >> $GITHUB_OUTPUT
+
+        # Save baseline if requested and check was clean
         if [ $CHECK_EXIT -eq 0 ] && [ "$SAVE_BASELINE" = "true" ]; then
           echo ""
           echo "Saving baseline to $BASELINE_PATH..."
           bellwether baseline save "$BASELINE_PATH" --force
         fi
 
-        # If check passed and baseline exists, compare against it
-        if [ $CHECK_EXIT -eq 0 ] && [ -f "$BASELINE_PATH" ] && [ "$SAVE_BASELINE" != "true" ]; then
+        # Generate SARIF file for GitHub Code Scanning
+        SARIF_FILE="${OUTPUT_DIR}/bellwether.sarif"
+        if [ "${{ inputs.upload-sarif }}" = "true" ]; then
           echo ""
-          echo "Comparing against baseline: $BASELINE_PATH"
-          COMPARE_FLAGS=""
-          if [ "$FAIL_ON_DRIFT" = "true" ]; then
-            COMPARE_FLAGS="--fail-on-drift"
-          fi
-          COMPARE_OUTPUT=$(bellwether baseline compare "$BASELINE_PATH" $COMPARE_FLAGS 2>&1)
-          COMPARE_EXIT=$?
-          echo "$COMPARE_OUTPUT"
-
-          # Check for drift in compare output
-          if echo "$COMPARE_OUTPUT" | grep -qE "Breaking changes detected|Warning-level changes detected"; then
-            DRIFT_DETECTED="true"
-          fi
-
-          # Update final exit code based on comparison
-          if [ $COMPARE_EXIT -ne 0 ]; then
-            FINAL_EXIT=$COMPARE_EXIT
+          echo "Generating SARIF report..."
+          bellwether check --config "$CONFIG_PATH" --format sarif ${{ inputs.server-command }} ${{ inputs.server-args }} > "$SARIF_FILE" 2>/dev/null || true
+          if [ -f "$SARIF_FILE" ] && [ -s "$SARIF_FILE" ]; then
+            echo "sarif-file=$SARIF_FILE" >> $GITHUB_OUTPUT
           fi
         fi
 
-        echo "drift-detected=$DRIFT_DETECTED" >> $GITHUB_OUTPUT
+        # Generate JUnit file if requested
+        if [ "${{ inputs.format }}" = "junit" ]; then
+          JUNIT_FILE="${OUTPUT_DIR}/bellwether-junit.xml"
+          echo ""
+          echo "Generating JUnit report..."
+          bellwether check --config "$CONFIG_PATH" --format junit ${{ inputs.server-command }} ${{ inputs.server-args }} > "$JUNIT_FILE" 2>/dev/null || true
+          if [ -f "$JUNIT_FILE" ] && [ -s "$JUNIT_FILE" ]; then
+            echo "junit-file=$JUNIT_FILE" >> $GITHUB_OUTPUT
+          fi
+        fi
 
-        # Set final result
-        echo "exit-code=$FINAL_EXIT" >> $GITHUB_OUTPUT
+        # Set final outputs
+        echo "exit-code=$CHECK_EXIT" >> $GITHUB_OUTPUT
 
-        if [ $FINAL_EXIT -eq 0 ]; then
+        if [ $CHECK_EXIT -eq 0 ]; then
           echo "result=passed" >> $GITHUB_OUTPUT
-          echo "::notice::Bellwether check passed"
+          echo "::notice::Bellwether check passed - no drift detected"
+        elif [ $CHECK_EXIT -eq 1 ]; then
+          echo "result=passed" >> $GITHUB_OUTPUT
+          echo "::notice::Bellwether check passed - info-level changes detected (non-breaking)"
+        elif [ $CHECK_EXIT -eq 2 ]; then
+          echo "result=failed" >> $GITHUB_OUTPUT
+          echo "::warning::Bellwether check: warning-level changes detected"
+        elif [ $CHECK_EXIT -eq 3 ]; then
+          echo "result=failed" >> $GITHUB_OUTPUT
+          echo "::error::Bellwether check failed: breaking changes detected"
+          echo ""
+          echo "If changes are intentional, update your baseline:"
+          echo "  bellwether baseline accept --reason \"Your reason here\" --force"
         else
           echo "result=failed" >> $GITHUB_OUTPUT
-          echo "::error::Bellwether check failed. Review the output above for details."
-          echo ""
-          echo "If drift was detected and changes are intentional, update your baseline:"
-          echo "  bellwether baseline accept --reason \"Your reason here\""
+          echo "::error::Bellwether check failed with error. Review the output above for details."
         fi
 
-        exit $FINAL_EXIT
+        exit $CHECK_EXIT
 
     - name: Upload CONTRACT.md artifact
       if: always()
@@ -196,4 +300,20 @@ runs:
         path: |
           ${{ inputs.output-dir }}/bellwether-check.json
           .bellwether/bellwether-check.json
+        if-no-files-found: ignore
+
+    - name: Upload SARIF to GitHub Code Scanning
+      if: inputs.upload-sarif == 'true' && always() && steps.test.outputs.sarif-file != ''
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.test.outputs.sarif-file }}
+        category: bellwether-mcp-check
+      continue-on-error: true
+
+    - name: Upload JUnit artifact
+      if: inputs.format == 'junit' && always() && steps.test.outputs.junit-file != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: bellwether-junit
+        path: ${{ steps.test.outputs.junit-file }}
         if-no-files-found: ignore

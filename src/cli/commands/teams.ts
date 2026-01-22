@@ -12,6 +12,7 @@ import {
   getTeamId,
   TEAM_ID_ENV_VAR,
 } from '../../cloud/auth.js';
+import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 
 export const teamsCommand = new Command('teams')
@@ -24,7 +25,7 @@ export const teamsCommand = new Command('teams')
     if (!session) {
       output.error('Not logged in.');
       output.error('Run `bellwether login` first.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     const teams = getSessionTeams();
@@ -86,7 +87,7 @@ teamsCommand
     if (!session) {
       output.error('Not logged in.');
       output.error('Run `bellwether login` first.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     const teams = getSessionTeams();
@@ -129,7 +130,7 @@ teamsCommand
       for (const team of teams) {
         output.error(`  - ${team.name} (${team.id})`);
       }
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Check if already active
@@ -153,7 +154,7 @@ teamsCommand
       }
     } else {
       output.error('Failed to switch team. Please try logging in again.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
   });
 
@@ -167,7 +168,7 @@ teamsCommand
 
     if (!session) {
       output.error('Not logged in.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     const effectiveTeamId = getTeamId();

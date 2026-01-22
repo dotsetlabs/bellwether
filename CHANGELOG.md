@@ -2,6 +2,84 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2026-01-22
+
+### Features
+
+- **Granular exit codes**: Check command now returns semantic exit codes for CI/CD:
+  - `0` = Clean (no changes)
+  - `1` = Info-level changes (non-breaking)
+  - `2` = Warning-level changes
+  - `3` = Breaking changes
+  - `4` = Runtime error
+- **JUnit/SARIF output formats**: New `--format` option supports `junit` and `sarif` for CI integration
+  - JUnit XML for Jenkins, GitLab CI, CircleCI test reporting
+  - SARIF 2.1.0 for GitHub Code Scanning with rule IDs BWH001-BWH004
+- **Configurable severity thresholds**: New `baseline.severity` config section
+  - `minimumSeverity` - Filter changes below a severity level
+  - `failOnSeverity` - CI failure threshold
+  - `suppressWarnings` - Hide warning-level changes
+  - `aspectOverrides` - Custom severity per change aspect
+- **Parallel tool testing**: New `--parallel` and `--parallel-workers` options for faster checks
+  - Tests tools concurrently with configurable worker count (1-10)
+  - Uses mutex for MCP client serialization
+- **Incremental checking**: New `--incremental` option to only test tools with changed schemas
+  - Compares current schemas against baseline
+  - Reuses cached fingerprints for unchanged tools
+  - Significantly faster for large servers
+- **Performance regression detection**: Track and compare tool latency
+  - Captures P50/P95 latency and success rate per tool
+  - New `--performance-threshold` option (default: 10%)
+  - Flags tools with latency regression exceeding threshold
+- **Enhanced CONTRACT.md**: Richer generated documentation
+  - Quick reference table with success rates
+  - Performance baseline section with latency metrics
+  - Example usage from successful interactions (up to 2 per tool)
+  - Categorized error patterns (Permission, NotFound, Validation, Timeout, Network)
+  - Error summary section aggregating patterns across tools
+- **Detailed schema diff**: Property-level schema change detection
+  - Wired existing `compareSchemas()` into baseline comparison
+  - Shows specific property additions, removals, and type changes
+- **Edge case handling**: Improved robustness for enterprise workloads
+  - Circular reference detection in schemas
+  - Unicode normalization for property names
+  - Binary content detection
+  - Payload size limits (1MB schema, 10MB baseline, 5MB response)
+
+### Configuration
+
+- New `check:` section in `bellwether.yaml`:
+  ```yaml
+  check:
+    incremental: false
+    incrementalCacheHours: 168
+    parallel: false
+    parallelWorkers: 4
+    performanceThreshold: 10
+  ```
+- New `baseline.severity:` section for configurable thresholds
+- CI preset now enables parallel testing by default
+
+### CLI Options
+
+- `--format <fmt>` - Output format: text, json, compact, github, markdown, junit, sarif
+- `--parallel` - Enable parallel tool testing
+- `--parallel-workers <n>` - Number of concurrent workers (1-10)
+- `--incremental` - Only test tools with changed schemas
+- `--incremental-cache-hours <hours>` - Cache validity for incremental checking
+- `--performance-threshold <n>` - Performance regression threshold (%)
+- `--min-severity <level>` - Minimum severity to report
+- `--fail-on-severity <level>` - CI failure threshold
+
+### Documentation
+
+- Updated all CLI documentation with new options
+- Added output formats guide with JUnit/SARIF examples
+- Added parallel and incremental checking documentation
+- Updated CI/CD guide with new exit codes and severity thresholds
+- Updated baselines documentation with performance metrics
+- Updated GitHub Action documentation with new inputs/outputs
+
 ## [0.7.1] - 2026-01-22
 
 ### Improvements

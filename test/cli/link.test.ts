@@ -203,7 +203,7 @@ describe('link command', () => {
 
       await expect(
         linkCommand.parseAsync(['node', 'test', 'proj_nonexistent'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('not found'))).toBe(true);
     });
@@ -253,7 +253,7 @@ describe('link command', () => {
 
       await expect(
         linkCommand.parseAsync(['node', 'test'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('Failed to create'))).toBe(true);
     });
@@ -267,7 +267,7 @@ describe('link command', () => {
 
       await expect(
         linkCommand.parseAsync(['node', 'test'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('Not authenticated'))).toBe(true);
     });
@@ -280,7 +280,7 @@ describe('link command', () => {
 
       await expect(
         linkCommand.parseAsync(['node', 'test'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('Authentication failed'))).toBe(true);
     });
