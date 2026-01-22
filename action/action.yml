@@ -86,18 +86,11 @@ runs:
         CONFIG_PATH="${{ inputs.config-path }}"
         OUTPUT_DIR="${{ inputs.output-dir }}"
         BASELINE_PATH="${{ inputs.baseline-path }}"
+        FAIL_ON_DRIFT="${{ inputs.fail-on-drift }}"
+        SAVE_BASELINE="${{ inputs.save-baseline }}"
 
         # Build check command flags
         CHECK_FLAGS="--config $CONFIG_PATH"
-        if [ -f "$BASELINE_PATH" ] && [ "${{ inputs.save-baseline }}" != "true" ]; then
-          CHECK_FLAGS="$CHECK_FLAGS --baseline $BASELINE_PATH"
-        fi
-        if [ "${{ inputs.fail-on-drift }}" = "true" ]; then
-          CHECK_FLAGS="$CHECK_FLAGS --fail-on-drift"
-        fi
-        if [ "${{ inputs.save-baseline }}" = "true" ]; then
-          CHECK_FLAGS="$CHECK_FLAGS --save-baseline $BASELINE_PATH"
-        fi
 
         # Run check
         echo "Running: bellwether check $CHECK_FLAGS ${{ inputs.server-command }} ${{ inputs.server-args }}"
@@ -125,17 +118,46 @@ runs:
         # Set baseline file output
         echo "baseline-file=$BASELINE_PATH" >> $GITHUB_OUTPUT
 
-        # Determine drift status from output (matches actual CLI output strings)
-        if echo "$CHECK_OUTPUT" | grep -qE "Breaking changes detected|Warning-level changes detected"; then
-          echo "drift-detected=true" >> $GITHUB_OUTPUT
-        else
-          echo "drift-detected=false" >> $GITHUB_OUTPUT
+        # Initialize drift status
+        DRIFT_DETECTED="false"
+        FINAL_EXIT=$CHECK_EXIT
+
+        # If check passed and save-baseline is true, save the baseline
+        if [ $CHECK_EXIT -eq 0 ] && [ "$SAVE_BASELINE" = "true" ]; then
+          echo ""
+          echo "Saving baseline to $BASELINE_PATH..."
+          bellwether baseline save "$BASELINE_PATH" --force
         fi
 
-        # Set final result
-        echo "exit-code=$CHECK_EXIT" >> $GITHUB_OUTPUT
+        # If check passed and baseline exists, compare against it
+        if [ $CHECK_EXIT -eq 0 ] && [ -f "$BASELINE_PATH" ] && [ "$SAVE_BASELINE" != "true" ]; then
+          echo ""
+          echo "Comparing against baseline: $BASELINE_PATH"
+          COMPARE_FLAGS=""
+          if [ "$FAIL_ON_DRIFT" = "true" ]; then
+            COMPARE_FLAGS="--fail-on-drift"
+          fi
+          COMPARE_OUTPUT=$(bellwether baseline compare "$BASELINE_PATH" $COMPARE_FLAGS 2>&1)
+          COMPARE_EXIT=$?
+          echo "$COMPARE_OUTPUT"
 
-        if [ $CHECK_EXIT -eq 0 ]; then
+          # Check for drift in compare output
+          if echo "$COMPARE_OUTPUT" | grep -qE "Breaking changes detected|Warning-level changes detected"; then
+            DRIFT_DETECTED="true"
+          fi
+
+          # Update final exit code based on comparison
+          if [ $COMPARE_EXIT -ne 0 ]; then
+            FINAL_EXIT=$COMPARE_EXIT
+          fi
+        fi
+
+        echo "drift-detected=$DRIFT_DETECTED" >> $GITHUB_OUTPUT
+
+        # Set final result
+        echo "exit-code=$FINAL_EXIT" >> $GITHUB_OUTPUT
+
+        if [ $FINAL_EXIT -eq 0 ]; then
           echo "result=passed" >> $GITHUB_OUTPUT
           echo "::notice::Bellwether check passed"
         else
@@ -143,10 +165,10 @@ runs:
           echo "::error::Bellwether check failed. Review the output above for details."
           echo ""
           echo "If drift was detected and changes are intentional, update your baseline:"
-          echo "  bellwether check ${{ inputs.server-command }} --save-baseline"
+          echo "  bellwether baseline accept --reason \"Your reason here\""
         fi
 
-        exit $CHECK_EXIT
+        exit $FINAL_EXIT
 
     - name: Upload CONTRACT.md artifact
       if: always()

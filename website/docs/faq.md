@@ -177,15 +177,25 @@ bellwether baseline save
 
 ### How do I compare against a baseline?
 
-```bash
-bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
-```
-
-Or as separate commands:
+Run check first, then compare:
 
 ```bash
 bellwether check npx your-server
 bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+```
+
+Or configure baseline comparison in `bellwether.yaml`:
+
+```yaml
+baseline:
+  comparePath: "./bellwether-baseline.json"
+  failOnDrift: true
+```
+
+Then simply run:
+
+```bash
+bellwether check --fail-on-drift
 ```
 
 ## CI/CD

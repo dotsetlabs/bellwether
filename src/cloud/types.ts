@@ -320,6 +320,11 @@ export interface DiffSummary {
 }
 
 /**
+ * OAuth provider type.
+ */
+export type OAuthProvider = 'github' | 'google' | 'gitlab' | 'microsoft';
+
+/**
  * User information from the cloud.
  */
 export interface CloudUser {
@@ -327,11 +332,19 @@ export interface CloudUser {
   id: string;
   /** User email */
   email: string | null;
-  /** GitHub username */
+  /** Primary OAuth provider used for authentication */
+  primaryProvider?: OAuthProvider;
+  /** Display name (provider-agnostic) */
+  displayName?: string | null;
+  /** Provider login/username (provider-agnostic) */
+  providerLogin?: string | null;
+  /** Provider avatar URL (provider-agnostic) */
+  providerAvatarUrl?: string | null;
+  /** GitHub username (legacy, for backward compatibility) */
   githubLogin: string;
-  /** GitHub avatar URL */
+  /** GitHub avatar URL (legacy, for backward compatibility) */
   githubAvatarUrl: string | null;
-  /** GitHub display name */
+  /** GitHub display name (legacy, for backward compatibility) */
   githubName: string | null;
   /** Subscription plan */
   plan: 'free' | 'pro';
