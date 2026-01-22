@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { VERSION } from '../../../src/version.js';
 
 // Mock the output module
 vi.mock('../../../src/cli/output.js', () => ({
@@ -26,10 +27,10 @@ describe('baseline migrate command', () => {
   let testDir: string;
   let originalCwd: string;
 
-  // Sample baseline in current format - uses actual CLI version (0.8.0)
+  // Sample baseline in current format - uses actual CLI version
   // Note: version '1.0.0' is treated as legacy "format version" and requires migration
   const currentVersionBaseline = {
-    version: '0.8.0',  // Must match actual CLI version to skip migration
+    version: VERSION,  // Must match actual CLI version to skip migration
     createdAt: new Date().toISOString(),
     serverCommand: 'npx test-server',
     mode: 'check',
@@ -236,7 +237,7 @@ describe('baseline migrate command', () => {
       // New file should be created with migration applied
       expect(existsSync(outputPath)).toBe(true);
       const migratedContent = JSON.parse(readFileSync(outputPath, 'utf-8'));
-      expect(migratedContent.version).toBe('0.8.0'); // Migrated to CLI version
+      expect(migratedContent.version).toBe(VERSION); // Migrated to CLI version
     });
 
     it('should error if output file exists without --force', async () => {
