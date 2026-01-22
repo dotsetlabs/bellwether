@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.1] - 2026-01-22
+
+### Improvements
+
+- **Reduced npm package size**: Excluded source maps from published package (682 kB → 445 kB, 35% smaller)
+- **Added CHANGELOG.md to package**: Now included in npm package for version history visibility
+
+### Fixes
+
+- Replaced `console.warn()` with structured logger in baseline loading for consistent log level filtering
+- Removed unused function parameters in `cloud/client.ts` and `baseline/deprecation-tracker.ts`
+
 ## [0.7.0] - 2026-01-21
 
 ### Features

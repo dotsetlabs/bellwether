@@ -26,6 +26,7 @@ import {
 import { migrateBaseline, needsMigration } from './migrations.js';
 import { analyzeResponses, type InferredSchema } from './response-fingerprint.js';
 import { PATTERNS } from '../constants.js';
+import { getLogger } from '../logging/logger.js';
 
 /**
  * Zod schema for behavioral assertion validation.
@@ -297,8 +298,8 @@ export function loadBaseline(
       baseline = migrateBaseline(baseline) as unknown as Record<string, unknown>;
     } else {
       // Log warning but continue with the old format
-      console.warn(
-        `Warning: Baseline uses older CLI version ${formatVersion(currentVersion.raw)}. ` +
+      getLogger('baseline').warn(
+        `Baseline uses older CLI version ${formatVersion(currentVersion.raw)}. ` +
         `Current CLI version is ${formatVersion(getBaselineVersion())}. ` +
         `Run \`bellwether baseline migrate\` to upgrade.`
       );
