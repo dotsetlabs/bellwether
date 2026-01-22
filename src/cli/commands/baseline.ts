@@ -26,6 +26,7 @@ import {
 } from '../../baseline/index.js';
 import { createCloudBaseline } from '../../baseline/converter.js';
 import { BaselineVersionError } from '../../baseline/version.js';
+import { EXIT_CODES } from '../../constants.js';
 import { migrateCommand } from './baseline-migrate.js';
 import { acceptCommand } from './baseline-accept.js';
 import type { InterviewResult } from '../../interview/types.js';
@@ -136,7 +137,7 @@ baselineCommand
       result = loadInterviewResult(reportPath);
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Determine baseline path (relative to output dir if not absolute)
@@ -148,7 +149,7 @@ baselineCommand
     if (existsSync(finalPath) && !options.force) {
       output.error(`Baseline already exists: ${finalPath}`);
       output.error('Use --force to overwrite.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Extract server command from result metadata
@@ -192,7 +193,7 @@ baselineCommand
     // Load baseline
     if (!existsSync(baselinePath)) {
       output.error(`Baseline not found: ${baselinePath}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     let previousBaseline;
@@ -200,7 +201,7 @@ baselineCommand
       previousBaseline = loadBaseline(baselinePath);
     } catch (error) {
       output.error(`Failed to load baseline: ${error instanceof Error ? error.message : error}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Find and load the report file
@@ -210,7 +211,7 @@ baselineCommand
       result = loadInterviewResult(reportPath);
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Create current baseline for comparison
@@ -232,7 +233,7 @@ baselineCommand
         output.error('\nTo fix this, either:');
         output.error('  1. Run: bellwether baseline migrate <baseline-path>');
         output.error('  2. Use: --ignore-version-mismatch (results may be incorrect)');
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       throw error;
     }
@@ -272,10 +273,10 @@ baselineCommand
     if (options.failOnDrift) {
       if (diff.severity === 'breaking') {
         output.error('\nBreaking changes detected!');
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       } else if (diff.severity === 'warning') {
         output.warn('\nWarning-level changes detected.');
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
     }
   });
@@ -301,7 +302,7 @@ baselineCommand
     if (!existsSync(fullPath)) {
       output.error(`Baseline not found: ${fullPath}`);
       output.error('\nRun `bellwether baseline save` to create a baseline.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     let baseline;
@@ -309,7 +310,7 @@ baselineCommand
       baseline = loadBaseline(fullPath);
     } catch (error) {
       output.error(`Failed to load baseline: ${error instanceof Error ? error.message : error}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Raw JSON output
@@ -411,11 +412,11 @@ baselineCommand
     // Load both baselines
     if (!existsSync(path1)) {
       output.error(`Baseline not found: ${path1}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
     if (!existsSync(path2)) {
       output.error(`Baseline not found: ${path2}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     let baseline1, baseline2;
@@ -424,7 +425,7 @@ baselineCommand
       baseline2 = loadBaseline(path2);
     } catch (error) {
       output.error(`Failed to load baseline: ${error instanceof Error ? error.message : error}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Compare
@@ -442,7 +443,7 @@ baselineCommand
         output.error('\nTo fix this, either:');
         output.error('  1. Run: bellwether baseline migrate <baseline-path>');
         output.error('  2. Use: --ignore-version-mismatch (results may be incorrect)');
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       throw error;
     }

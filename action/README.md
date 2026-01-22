@@ -7,9 +7,14 @@ Structural drift detection for MCP servers in CI/CD. Free. Deterministic. Fast.
 ## Features
 
 - **Structural Drift Detection** - Catch tool additions, removals, schema changes
+- **Performance Regression Detection** - Flag tools with increased latency
 - **Zero LLM Required** - No API keys, no token costs
 - **Deterministic** - Same input = same output
 - **CI/CD Gating** - Block deployments when behavior drifts unexpectedly
+- **Granular Exit Codes** - Semantic exit codes (0-4) for precise CI control
+- **JUnit/SARIF Output** - Integration with test reporters and code scanning
+- **Parallel Testing** - Faster checks for servers with many tools
+- **Incremental Checking** - Only test tools with changed schemas
 - **Config-Driven** - Uses `bellwether.yaml` for all settings
 - **Cloud Integration** - Optional upload to Bellwether Cloud for history tracking
 
@@ -93,6 +98,66 @@ Upload baselines to Bellwether Cloud for history tracking and team visibility:
 ```
 
 
+### With JUnit Output
+
+Generate JUnit XML for test reporting:
+
+```yaml
+- name: Run Check with JUnit
+  uses: dotsetlabs/bellwether@v1
+  with:
+    server-command: 'npx @mcp/your-server'
+    output-format: 'junit'
+
+- name: Publish Test Results
+  uses: mikepenz/action-junit-report@v4
+  with:
+    report_paths: 'bellwether-results.xml'
+```
+
+### With SARIF for Code Scanning
+
+Generate SARIF for GitHub Code Scanning:
+
+```yaml
+- name: Run Check with SARIF
+  uses: dotsetlabs/bellwether@v1
+  with:
+    server-command: 'npx @mcp/your-server'
+    output-format: 'sarif'
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: bellwether.sarif
+```
+
+### With Parallel Testing
+
+Speed up checks for servers with many tools:
+
+```yaml
+- name: Fast Parallel Check
+  uses: dotsetlabs/bellwether@v1
+  with:
+    server-command: 'npx @mcp/your-server'
+    parallel: 'true'
+    parallel-workers: '4'
+```
+
+### With Incremental Checking
+
+Only test tools with changed schemas:
+
+```yaml
+- name: Incremental Check
+  uses: dotsetlabs/bellwether@v1
+  with:
+    server-command: 'npx @mcp/your-server'
+    incremental: 'true'
+    baseline-path: './bellwether-baseline.json'
+```
+
 ### With Server Environment Variables
 
 If your MCP server needs environment variables, use interpolation in your config:
@@ -118,6 +183,8 @@ server:
 
 ## Inputs
 
+### Core Inputs
+
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
 | `server-command` | Command to start the MCP server | Yes | - |
@@ -128,14 +195,29 @@ server:
 | `save-baseline` | Save baseline after test | No | `false` |
 | `output-dir` | Directory for output files | No | `.` |
 
+### Advanced Inputs
+
+| Input | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `output-format` | Output format: `text`, `json`, `junit`, `sarif` | No | `text` |
+| `parallel` | Enable parallel tool testing | No | From config |
+| `parallel-workers` | Number of concurrent workers (1-10) | No | `4` |
+| `incremental` | Only test tools with changed schemas | No | `false` |
+| `fail-on-severity` | Failure threshold: `info`, `warning`, `breaking` | No | `breaking` |
+| `performance-threshold` | Performance regression threshold (%) | No | `10` |
+
 ## Outputs
 
 | Output | Description |
 |--------|-------------|
 | `result` | Check result: `passed` or `failed` |
-| `exit-code` | Exit code (0=pass, 1=fail, 2=error) |
+| `exit-code` | Exit code (0=clean, 1=info, 2=warning, 3=breaking, 4=error) |
 | `drift-detected` | Whether drift was detected (`true`/`false`) |
+| `drift-severity` | Severity level: `none`, `info`, `warning`, `breaking` |
 | `tool-count` | Number of tools discovered |
+| `breaking-count` | Number of breaking changes |
+| `warning-count` | Number of warning changes |
+| `info-count` | Number of info changes |
 | `contract-md` | Path to generated CONTRACT.md file |
 | `baseline-file` | Path to baseline file |
 
@@ -177,6 +259,13 @@ output:
 
 baseline:
   failOnDrift: true
+  severity:
+    failOnSeverity: breaking  # or "warning" for stricter checks
+
+check:
+  parallel: true              # Faster checks
+  parallelWorkers: 4          # Concurrent tool tests
+  performanceThreshold: 10    # Flag >10% latency regression
 ```
 
 ## Complete Workflow Example
@@ -223,11 +312,26 @@ jobs:
 
 ## Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success - no drift detected |
-| `1` | Drift detected or test failed |
-| `2` | Configuration or connection error |
+Bellwether uses granular exit codes for semantic CI control:
+
+| Code | Meaning | CI Behavior |
+|------|---------|-------------|
+| `0` | Clean - no changes detected | Pass |
+| `1` | Info - non-breaking changes (new tools, optional params) | Pass by default |
+| `2` | Warning - behavioral changes to investigate | Fail with `fail-on-drift` |
+| `3` | Breaking - critical changes (tool removed, type changed) | Always fail |
+| `4` | Error - runtime error (connection, config) | Fail |
+
+### Configurable Failure Threshold
+
+Use the `fail-on-severity` input to control when the action fails:
+
+```yaml
+- uses: dotsetlabs/bellwether@v1
+  with:
+    server-command: 'npx @mcp/your-server'
+    fail-on-severity: 'warning'  # Fail on warning or breaking
+```
 
 ## Environment Variables
 

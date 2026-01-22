@@ -26,11 +26,12 @@ describe('utils/timeout', () => {
 
   describe('DEFAULT_TIMEOUTS', () => {
     it('should have expected default values', () => {
-      expect(DEFAULT_TIMEOUTS.toolCall).toBe(30000);
-      expect(DEFAULT_TIMEOUTS.llmCall).toBe(60000);
-      expect(DEFAULT_TIMEOUTS.stateSnapshot).toBe(30000);
-      expect(DEFAULT_TIMEOUTS.probeTool).toBe(5000);
-      expect(DEFAULT_TIMEOUTS.resourceRead).toBe(15000);
+      // These should match the centralized constants in constants.ts
+      expect(DEFAULT_TIMEOUTS.toolCall).toBe(30000);  // INTERVIEW.TOOL_TIMEOUT
+      expect(DEFAULT_TIMEOUTS.llmCall).toBe(60000);   // TIMEOUTS.INTERVIEW
+      expect(DEFAULT_TIMEOUTS.stateSnapshot).toBe(10000);  // WORKFLOW.STATE_SNAPSHOT_TIMEOUT
+      expect(DEFAULT_TIMEOUTS.probeTool).toBe(5000);  // WORKFLOW.PROBE_TOOL_TIMEOUT
+      expect(DEFAULT_TIMEOUTS.resourceRead).toBe(15000);  // INTERVIEW.RESOURCE_TIMEOUT
     });
   });
 

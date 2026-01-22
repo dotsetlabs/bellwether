@@ -20,7 +20,7 @@ import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../co
 import { CostTracker } from '../../cost/index.js';
 import { BUILTIN_PERSONAS } from '../../persona/builtins.js';
 import type { Persona } from '../../persona/types.js';
-import { TIMEOUTS } from '../../constants.js';
+import { TIMEOUTS, EXIT_CODES, PATHS } from '../../constants.js';
 import * as output from '../output.js';
 import { InterviewProgressBar } from '../utils/progress.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
@@ -40,7 +40,7 @@ export function createVerifyCommand(): Command {
     .description('Generate a verification report for the Verified by Bellwether program')
     .argument('[server-command]', 'Server command (overrides config)')
     .argument('[args...]', 'Server arguments')
-    .option('-c, --config <path>', 'Path to config file', 'bellwether.yaml')
+    .option('-c, --config <path>', 'Path to config file', PATHS.DEFAULT_CONFIG_FILENAME)
     .option('-o, --output <dir>', 'Output directory')
     .option('--server-id <id>', 'Server identifier (namespace/name)')
     .option('--version <version>', 'Server version to verify')
@@ -80,7 +80,7 @@ async function handleVerify(
   } catch (error) {
     if (error instanceof ConfigNotFoundError) {
       output.error(error.message);
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
     throw error;
   }
@@ -92,7 +92,7 @@ async function handleVerify(
   if (!serverCommand) {
     output.error('Error: No server command provided.');
     output.error('Either specify a server command as an argument or configure it in bellwether.yaml');
-    process.exit(1);
+    process.exit(EXIT_CODES.ERROR);
   }
 
   // Get LLM settings from config
@@ -118,7 +118,7 @@ async function handleVerify(
     });
   } catch {
     output.error(chalk.red('Error: Could not create LLM client. Check your API keys.'));
-    process.exit(1);
+    process.exit(EXIT_CODES.ERROR);
   }
 
   output.info(chalk.gray(`Using model: ${effectiveModel}`));
@@ -273,11 +273,11 @@ async function handleVerify(
 
     // Exit with appropriate code
     if (result.status !== 'verified') {
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
   } catch (error) {
     output.error(chalk.red(`\nError: ${error instanceof Error ? error.message : 'Unknown error'}`));
-    process.exit(1);
+    process.exit(EXIT_CODES.ERROR);
   } finally {
     await client.disconnect();
   }

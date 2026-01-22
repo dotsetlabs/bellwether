@@ -18,6 +18,7 @@ export type {
   VersionCompatibilityInfo,
   DriftAcceptance,
   AcceptedDiff,
+  SeverityConfig,
 } from './types.js';
 
 export {
@@ -41,6 +42,11 @@ export {
   hasSecurityChanges,
   filterByMinimumSeverity,
   checkBaselineVersionCompatibility,
+  compareSeverity,
+  severityMeetsThreshold,
+  applyAspectOverride,
+  applySeverityConfig,
+  shouldFailOnDiff,
 } from './comparator.js';
 
 export {
@@ -49,6 +55,8 @@ export {
   formatDiffCompact,
   formatDiffGitHubActions,
   formatDiffMarkdown,
+  formatDiffJUnit,
+  formatDiffSarif,
 } from './diff.js';
 
 export {
@@ -90,6 +98,18 @@ export {
   needsMigration,
   getMigrationInfo,
 } from './migrations.js';
+
+// Incremental checking
+export {
+  analyzeForIncremental,
+  mergeFingerprints,
+  formatIncrementalSummary,
+  isIncrementalWorthwhile,
+  addIncrementalMetadata,
+  type IncrementalCheckResult,
+  type IncrementalChangeSummary,
+  type IncrementalCheckOptions,
+} from './incremental-checker.js';
 
 export {
   analyzeResponses,

@@ -97,6 +97,10 @@ export const INTERVIEW = {
   DEFAULT_PERSONA_CONCURRENCY: 3,
   /** Maximum allowed persona concurrency (to prevent rate limiting) */
   MAX_PERSONA_CONCURRENCY: 10,
+  /** Default tool concurrency for parallel tool testing (check mode) */
+  DEFAULT_TOOL_CONCURRENCY: 4,
+  /** Maximum allowed tool concurrency (to prevent overwhelming MCP servers) */
+  MAX_TOOL_CONCURRENCY: 10,
   /** Default resource read timeout in ms */
   RESOURCE_TIMEOUT: 15000,
   /** Tool names that reveal server constraints (directories, permissions, etc.) */
@@ -471,6 +475,8 @@ export const PATHS = {
     '.bellwether.yaml',
     '.bellwether.yml',
   ],
+  /** Default config file name (first in CONFIG_FILENAMES) */
+  DEFAULT_CONFIG_FILENAME: 'bellwether.yaml',
   /** Default baseline output file (for upload command) */
   DEFAULT_BASELINE_FILE: 'bellwether-baseline.json',
   /** Default check report file */
@@ -514,7 +520,7 @@ export const PATTERNS = {
  */
 export const CLI_SECURITY = {
   /** Hostnames considered localhost (skip TLS verification) */
-  LOCALHOST_HOSTS: ['localhost', '127.0.0.1'],
+  LOCALHOST_HOSTS: ['localhost', '127.0.0.1', '::1'],
   /** Allowed domains for Bellwether Cloud */
   ALLOWED_DOMAINS: ['bellwether.sh', 'api.bellwether.sh', 'dashboard.bellwether.sh'],
   /** Session token prefix */
@@ -651,6 +657,19 @@ export const CHANGE_IMPACT = {
     warning: 50,
     breaking: 70,
   },
+} as const;
+
+/**
+ * Check command configuration defaults.
+ * Used by check.ts and incremental-checker.ts.
+ */
+export const CHECK = {
+  /** Default cache age for incremental checking (1 week in hours) */
+  DEFAULT_INCREMENTAL_CACHE_HOURS: 168,
+  /** Minimum cache age (1 hour) */
+  MIN_INCREMENTAL_CACHE_HOURS: 1,
+  /** Maximum cache age (30 days in hours) */
+  MAX_INCREMENTAL_CACHE_HOURS: 720,
 } as const;
 
 /**
@@ -884,4 +903,69 @@ export const PR_COMMENTS = {
     info: 'blue',
     none: 'green',
   } as const,
+} as const;
+
+// ==================== Exit Codes ====================
+
+/**
+ * Granular exit codes for CI/CD integration.
+ *
+ * Enables semantic responses to drift detection, allowing CI pipelines
+ * to differentiate between severity levels and take appropriate action.
+ *
+ * Usage in CI:
+ *   bellwether check ...
+ *   case $? in
+ *     0) echo "No changes" ;;
+ *     1) echo "Info-level changes" ;;
+ *     2) echo "Warning-level changes" ;;
+ *     3) echo "Breaking changes" ;;
+ *     4) echo "Runtime error" ;;
+ *   esac
+ */
+export const EXIT_CODES = {
+  /** No changes detected - baseline matches current state */
+  CLEAN: 0,
+  /** Info-level changes only (non-breaking additions, description changes) */
+  INFO: 1,
+  /** Warning-level changes (potential issues, new error patterns) */
+  WARNING: 2,
+  /** Breaking changes detected (schema changes, removed tools) */
+  BREAKING: 3,
+  /** Runtime error (connection failed, timeout, configuration error) */
+  ERROR: 4,
+} as const;
+
+/**
+ * Map severity level to exit code.
+ * Used by check command to determine appropriate exit status.
+ */
+export const SEVERITY_TO_EXIT_CODE: Record<string, number> = {
+  none: EXIT_CODES.CLEAN,
+  info: EXIT_CODES.INFO,
+  warning: EXIT_CODES.WARNING,
+  breaking: EXIT_CODES.BREAKING,
+} as const;
+
+// ==================== Payload Limits ====================
+
+/**
+ * Payload size limits for protection against resource exhaustion.
+ *
+ * These limits prevent DoS scenarios where malformed or malicious
+ * MCP servers could cause memory exhaustion or infinite loops.
+ */
+export const PAYLOAD_LIMITS = {
+  /** Maximum schema size in bytes (1MB) */
+  MAX_SCHEMA_SIZE: 1024 * 1024,
+  /** Maximum baseline file size in bytes (10MB) */
+  MAX_BASELINE_SIZE: 10 * 1024 * 1024,
+  /** Maximum response content size in bytes (5MB) */
+  MAX_RESPONSE_SIZE: 5 * 1024 * 1024,
+  /** Maximum array items to process in fingerprinting */
+  MAX_ARRAY_ITEMS: 10000,
+  /** Maximum object properties to process */
+  MAX_OBJECT_PROPERTIES: 1000,
+  /** Maximum schema depth for circular reference protection */
+  MAX_SCHEMA_DEPTH: 50,
 } as const;

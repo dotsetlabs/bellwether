@@ -11,6 +11,7 @@ import type { LLMProviderId } from '../../llm/client.js';
 import { DEFAULT_MODELS } from '../../llm/client.js';
 import { getKeychainService } from '../../auth/keychain.js';
 import { getAuthStatus } from '../../auth/credentials.js';
+import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 
 /**
@@ -75,7 +76,7 @@ async function prompt(rl: readline.Interface, question: string, hidden = false):
           }
         } else if (charCode === 3) {
           // Ctrl+C
-          process.exit(0);
+          process.exit(EXIT_CODES.CLEAN);
         } else if (charCode >= 32) {
           // Printable character
           input += char;
@@ -187,7 +188,7 @@ async function interactiveSetup(): Promise<void> {
   if (!validation.valid) {
     output.error(`\nError: ${validation.error}`);
     rl.close();
-    process.exit(1);
+    process.exit(EXIT_CODES.ERROR);
   }
 
   // Check keychain availability
@@ -244,7 +245,7 @@ async function interactiveSetup(): Promise<void> {
     output.info('  bellwether explore npx @modelcontextprotocol/server-memory');
   } catch (error) {
     output.error(`\nFailed to store API key: ${error instanceof Error ? error.message : error}`);
-    process.exit(1);
+    process.exit(EXIT_CODES.ERROR);
   }
 
   rl.close();
@@ -329,7 +330,7 @@ async function addProvider(providerArg?: string): Promise<void> {
   if (!validation.valid) {
     output.error(`\nError: ${validation.error}`);
     rl.close();
-    process.exit(1);
+    process.exit(EXIT_CODES.ERROR);
   }
 
   const keychain = getKeychainService();

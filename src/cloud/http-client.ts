@@ -19,6 +19,7 @@ import type {
   VerificationSubmissionResult,
 } from './types.js';
 import { updateSessionToken } from './auth.js';
+import { isLocalhost } from '../utils/index.js';
 
 /**
  * Header name for receiving rotated session token from server.
@@ -42,12 +43,7 @@ function validateSecureUrl(url: string): void {
   const parsed = new URL(url);
 
   // Allow HTTP for local development
-  const isLocalhost =
-    parsed.hostname === 'localhost' ||
-    parsed.hostname === '127.0.0.1' ||
-    parsed.hostname === '::1';
-
-  if (parsed.protocol !== 'https:' && !isLocalhost) {
+  if (parsed.protocol !== 'https:' && !isLocalhost(parsed.hostname)) {
     throw new Error(
       `Insecure URL rejected: ${url}. ` +
         'Cloud API must use HTTPS for security. ' +

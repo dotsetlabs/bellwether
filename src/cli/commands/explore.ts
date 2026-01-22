@@ -28,9 +28,9 @@ import {
   formatOptimizationSuggestions,
 } from '../../cost/index.js';
 import { getMetricsCollector, resetMetricsCollector } from '../../metrics/collector.js';
+import { EXIT_CODES, INTERVIEW, WORKFLOW, PATHS } from '../../constants.js';
 import { FallbackLLMClient } from '../../llm/fallback.js';
 import { getGlobalCache, resetGlobalCache } from '../../cache/response-cache.js';
-import { INTERVIEW, WORKFLOW } from '../../constants.js';
 import { InterviewProgressBar, formatExploreBanner } from '../utils/progress.js';
 import { parsePersonas } from '../../persona/builtins.js';
 import { loadScenariosFromFile, tryLoadDefaultScenarios, DEFAULT_SCENARIOS_FILE } from '../../scenarios/index.js';
@@ -53,7 +53,7 @@ export const exploreCommand = new Command('explore')
   .description('Explore MCP server behavior with LLM-powered testing')
   .argument('[server-command]', 'Server command (overrides config)')
   .argument('[args...]', 'Server arguments')
-  .option('-c, --config <path>', 'Path to config file', 'bellwether.yaml')
+  .option('-c, --config <path>', 'Path to config file', PATHS.DEFAULT_CONFIG_FILENAME)
   .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
     // Load configuration
     let config: BellwetherConfig;
@@ -62,7 +62,7 @@ export const exploreCommand = new Command('explore')
     } catch (error) {
       if (error instanceof ConfigNotFoundError) {
         output.error(error.message);
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       throw error;
     }
@@ -76,7 +76,7 @@ export const exploreCommand = new Command('explore')
       validateConfigForExplore(config, serverCommand);
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Extract settings from config (CLI options override config)
@@ -151,7 +151,7 @@ export const exploreCommand = new Command('explore')
       output.error('  - OpenAI: OPENAI_API_KEY');
       output.error('  - Anthropic: ANTHROPIC_API_KEY');
       output.error('  - Ollama: No API key needed (ensure Ollama is running)');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     try {
@@ -223,7 +223,7 @@ export const exploreCommand = new Command('explore')
           output.info(`Loaded ${customScenarios.toolScenarios.length} tool scenarios from ${config.scenarios.path}`);
         } catch (error) {
           output.error(`Failed to load scenarios: ${error instanceof Error ? error.message : error}`);
-          process.exit(1);
+          process.exit(EXIT_CODES.ERROR);
         }
       } else {
         const defaultScenarios = tryLoadDefaultScenarios(outputDir);
@@ -250,7 +250,7 @@ export const exploreCommand = new Command('explore')
             output.info(`Loaded ${workflows.length} workflow(s) from ${config.workflows.path}`);
           } catch (error) {
             output.error(`Failed to load workflows: ${error instanceof Error ? error.message : error}`);
-            process.exit(1);
+            process.exit(EXIT_CODES.ERROR);
           }
         }
       } else {
@@ -468,7 +468,7 @@ export const exploreCommand = new Command('explore')
         output.error('  - Run "bellwether auth" to configure API keys');
       }
 
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     } finally {
       restoreLogLevel();
       await mcpClient.disconnect();

@@ -10,6 +10,7 @@ import { writeFileSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import * as readline from 'readline';
 import { generateConfigTemplate, generatePresetConfig, PRESETS } from '../../config/template.js';
+import { EXIT_CODES, PATHS } from '../../constants.js';
 import * as output from '../output.js';
 
 /**
@@ -83,20 +84,20 @@ export const initCommand = new Command('init')
   .option('--provider <provider>', 'LLM provider for explore command (ollama, openai, anthropic)', 'ollama')
   .option('-y, --yes', 'Skip prompts, use defaults')
   .action(async (serverCommandArg: string | undefined, options) => {
-    const configPath = join(process.cwd(), 'bellwether.yaml');
+    const configPath = join(process.cwd(), PATHS.DEFAULT_CONFIG_FILENAME);
 
     // Check for existing config
     if (existsSync(configPath) && !options.force) {
       output.error(`Config file already exists: ${configPath}`);
       output.error('Use --force to overwrite.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Validate preset if provided
     if (options.preset && !PRESETS[options.preset]) {
       output.error(`Unknown preset: ${options.preset}`);
       output.error(`Available presets: ${Object.keys(PRESETS).join(', ')}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Determine server command

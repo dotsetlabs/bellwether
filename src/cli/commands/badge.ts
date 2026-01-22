@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { createCloudClient } from '../../cloud/client.js';
 import { getLinkedProject } from '../../cloud/auth.js';
+import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 
 export const badgeCommand = new Command('badge')
@@ -18,7 +19,7 @@ export const badgeCommand = new Command('badge')
       if (!link) {
         output.error('No project specified and no linked project found.');
         output.error('Run `bellwether link <project>` first or use --project <id>');
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
       projectId = link.projectId;
     }
@@ -31,7 +32,7 @@ export const badgeCommand = new Command('badge')
 
       if (!badge) {
         output.error(`Project not found: ${projectId}`);
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
 
       if (options.json) {
@@ -75,6 +76,6 @@ export const badgeCommand = new Command('badge')
       output.info('');
     } catch (error) {
       output.error('Failed to get badge info: ' + (error instanceof Error ? error.message : String(error)));
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
   });

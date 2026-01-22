@@ -25,7 +25,8 @@ import {
 } from './version.js';
 import { migrateBaseline, needsMigration } from './migrations.js';
 import { analyzeResponses, type InferredSchema } from './response-fingerprint.js';
-import { PATTERNS } from '../constants.js';
+import { calculateMetrics, type LatencySample } from './performance-tracker.js';
+import { PATTERNS, PAYLOAD_LIMITS } from '../constants.js';
 import { getLogger } from '../logging/logger.js';
 
 /**
@@ -53,7 +54,7 @@ const behavioralAssertionSchema = z.object({
  */
 const responseFingerprintSchema = z.object({
   structureHash: z.string(),
-  contentType: z.enum(['text', 'object', 'array', 'primitive', 'empty', 'error', 'mixed']),
+  contentType: z.enum(['text', 'object', 'array', 'primitive', 'empty', 'error', 'mixed', 'binary']),
   fields: z.array(z.string()).optional(),
   arrayItemStructure: z.string().optional(),
   size: z.enum(['tiny', 'small', 'medium', 'large']),
@@ -267,6 +268,18 @@ export function loadBaseline(
   }
 
   const content = readFileSync(path, 'utf-8');
+
+  // Check file size to prevent resource exhaustion
+  const contentSize = Buffer.byteLength(content, 'utf-8');
+  if (contentSize > PAYLOAD_LIMITS.MAX_BASELINE_SIZE) {
+    const sizeMB = (contentSize / (1024 * 1024)).toFixed(2);
+    const limitMB = (PAYLOAD_LIMITS.MAX_BASELINE_SIZE / (1024 * 1024)).toFixed(0);
+    throw new Error(
+      `Baseline file too large: ${sizeMB}MB exceeds limit of ${limitMB}MB. ` +
+        `File may be corrupted or contain excessive data.`
+    );
+  }
+
   let parsed: unknown;
 
   try {
@@ -389,6 +402,29 @@ function createToolFingerprint(
   }));
   const responseAnalysis = analyzeResponses(responseData);
 
+  // Calculate performance metrics from interactions
+  const latencySamples: LatencySample[] = profile.interactions
+    .filter(i => i.toolExecutionMs !== undefined)
+    .map(i => ({
+      toolName: profile.name,
+      durationMs: i.toolExecutionMs ?? 0,
+      success: !i.error,
+      timestamp: new Date(),
+    }));
+
+  let baselineP50Ms: number | undefined;
+  let baselineP95Ms: number | undefined;
+  let baselineSuccessRate: number | undefined;
+
+  if (latencySamples.length > 0) {
+    const metrics = calculateMetrics(latencySamples);
+    if (metrics) {
+      baselineP50Ms = metrics.p50Ms;
+      baselineP95Ms = metrics.p95Ms;
+      baselineSuccessRate = metrics.successRate;
+    }
+  }
+
   return {
     name: profile.name,
     description: profile.description,
@@ -403,6 +439,10 @@ function createToolFingerprint(
     errorPatterns: responseAnalysis.errorPatterns.length > 0
       ? responseAnalysis.errorPatterns
       : undefined,
+    // Performance baseline
+    baselineP50Ms,
+    baselineP95Ms,
+    baselineSuccessRate,
   };
 }
 

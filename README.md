@@ -48,6 +48,18 @@ jobs:
 
 No secrets needed. Free. Runs in seconds.
 
+### Exit Codes
+
+Check command returns granular exit codes for CI/CD pipelines:
+
+| Code | Meaning | CI Action |
+|:-----|:--------|:----------|
+| `0` | No changes detected | Pass |
+| `1` | Info-level changes only | Pass (or fail with `--fail-on-severity info`) |
+| `2` | Warning-level changes | Fail with `--fail-on-drift` |
+| `3` | Breaking changes | Always fail |
+| `4` | Runtime error | Fail |
+
 ## What Bellwether Detects
 
 Check mode detects when your MCP server changes:
@@ -59,6 +71,7 @@ Check mode detects when your MCP server changes:
 | **Schema changed** | Parameter `path` becomes required | Yes |
 | **Description changed** | Tool help text updated | Yes |
 | **Tool renamed** | `read` becomes `read_file` | Yes |
+| **Performance regression** | Tool latency increased >10% | Yes |
 
 This catches the changes that break AI agent workflows.
 
@@ -112,8 +125,9 @@ bellwether check
 - **Zero LLM** - No API keys required
 - **Free** - No token costs
 - **Deterministic** - Same input = same output
-- **Fast** - Runs in seconds
-- **Output** - Generates `CONTRACT.md` and baselines
+- **Fast** - Runs in seconds (even faster with `--parallel`)
+- **Output** - Generates `CONTRACT.md` with examples, error patterns, and performance baselines
+- **CI-Optimized** - Granular exit codes (0-4), JUnit/SARIF output formats
 
 ### Explore Command (Optional)
 
@@ -141,6 +155,10 @@ bellwether init --preset ci npx @mcp/server
 bellwether check                   # Uses server.command from config
 bellwether check npx @mcp/server   # Override server command
 bellwether check --fail-on-drift   # Fail if drift detected (for CI)
+bellwether check --parallel        # Parallel tool testing (faster)
+bellwether check --format junit    # JUnit XML output for CI
+bellwether check --format sarif    # SARIF output for GitHub Code Scanning
+bellwether check --incremental     # Only test tools with changed schemas
 
 # Explore behavior (LLM-powered)
 bellwether explore                 # Uses server.command from config

@@ -1,6 +1,7 @@
 import type { JSONRPCMessage } from './types.js';
 import { BaseTransport, type BaseTransportConfig } from './base-transport.js';
 import { TIME_CONSTANTS, TIMEOUTS } from '../constants.js';
+import { isLocalhost } from '../utils/index.js';
 
 /**
  * Validate that a URL uses HTTPS in production contexts.
@@ -9,9 +10,8 @@ import { TIME_CONSTANTS, TIMEOUTS } from '../constants.js';
 function validateSecureUrl(url: string): void {
   try {
     const parsed = new URL(url);
-    const isLocalhost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
 
-    if (parsed.protocol !== 'https:' && !isLocalhost) {
+    if (parsed.protocol !== 'https:' && !isLocalhost(parsed.hostname)) {
       throw new Error(
         `SSE transport requires HTTPS for remote servers. ` +
         `Got: ${parsed.protocol}//. Use HTTPS to protect session tokens in transit.`

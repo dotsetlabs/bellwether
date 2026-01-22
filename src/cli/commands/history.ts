@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { getSessionToken, getLinkedProject } from '../../cloud/auth.js';
 import { createCloudClient } from '../../cloud/client.js';
 import { formatDateLocale } from '../../utils/index.js';
+import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 import { getSeverityIcon, type DiffSummary } from '../output.js';
 
@@ -20,7 +21,7 @@ export const historyCommand = new Command('history')
     const sessionToken = options.session ?? getSessionToken();
     if (!sessionToken) {
       output.error('Not authenticated. Run `bellwether login` first.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Determine project ID
@@ -38,7 +39,7 @@ export const historyCommand = new Command('history')
       output.error('\nEither:');
       output.error('  - Provide a project ID as argument');
       output.error('  - Run `bellwether link` to link this directory to a project');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Create client and fetch history
@@ -46,7 +47,7 @@ export const historyCommand = new Command('history')
 
     if (!client.isAuthenticated()) {
       output.error('Authentication failed. Run `bellwether login` to re-authenticate.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     const limit = parseInt(options.limit, 10);
@@ -103,7 +104,7 @@ export const historyCommand = new Command('history')
       }
     } catch (error) {
       output.error('Failed to fetch history: ' + (error instanceof Error ? error.message : String(error)));
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
   });
 
@@ -150,7 +151,7 @@ export const diffCommand = new Command('diff')
     const sessionToken = options.session ?? getSessionToken();
     if (!sessionToken) {
       output.error('Not authenticated. Run `bellwether login` first.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Determine project ID
@@ -165,7 +166,7 @@ export const diffCommand = new Command('diff')
 
     if (!projectId) {
       output.error('No project specified. Use --project <id> or run `bellwether link`.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Parse versions
@@ -174,7 +175,7 @@ export const diffCommand = new Command('diff')
 
     if (isNaN(fromVersion) || isNaN(toVersion)) {
       output.error('Invalid version numbers. Provide integers (e.g., `bellwether diff 1 2`).');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Create client and fetch diff
@@ -182,7 +183,7 @@ export const diffCommand = new Command('diff')
 
     if (!client.isAuthenticated()) {
       output.error('Authentication failed. Run `bellwether login` to re-authenticate.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     try {
@@ -233,6 +234,6 @@ export const diffCommand = new Command('diff')
       }
     } catch (error) {
       output.error('Failed to compute diff: ' + (error instanceof Error ? error.message : String(error)));
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
   });

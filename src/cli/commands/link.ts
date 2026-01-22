@@ -14,6 +14,7 @@ import {
 } from '../../cloud/auth.js';
 import { createCloudClient } from '../../cloud/client.js';
 import type { ProjectLink } from '../../cloud/types.js';
+import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 
 export const linkCommand = new Command('link')
@@ -44,14 +45,14 @@ export const linkCommand = new Command('link')
     const sessionToken = getSessionToken();
     if (!sessionToken) {
       output.error('Not authenticated. Run `bellwether login` first.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
       output.error('Authentication failed. Run `bellwether login` to re-authenticate.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     let project;
@@ -65,7 +66,7 @@ export const linkCommand = new Command('link')
       if (!project) {
         output.error(`Project not found: ${projectIdArg}`);
         output.error('\nUse `bellwether link` without an ID to create a new project.');
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
 
       output.info(`Found project: ${project.name}`);
@@ -81,7 +82,7 @@ export const linkCommand = new Command('link')
         output.info(`Project created: ${project.id}`);
       } catch (error) {
         output.error('Failed to create project: ' + (error instanceof Error ? error.message : String(error)));
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
     }
 
@@ -155,14 +156,14 @@ export const projectsCommand = new Command('projects')
     const sessionToken = getSessionToken();
     if (!sessionToken) {
       output.error('Not authenticated. Run `bellwether login` first.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     const client = createCloudClient({ sessionToken });
 
     if (!client.isAuthenticated()) {
       output.error('Authentication failed. Run `bellwether login` to re-authenticate.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     const projects = await client.listProjects();

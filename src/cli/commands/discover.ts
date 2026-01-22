@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover, summarizeDiscovery } from '../../discovery/discovery.js';
+import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 
 interface DiscoverOptions {
@@ -22,17 +23,17 @@ async function discoverAction(command: string | undefined, args: string[], optio
   // Validate transport options
   if (isRemoteTransport && !options.url) {
     output.error(`Error: --url is required when using --transport ${transportType}`);
-    process.exit(1);
+    process.exit(EXIT_CODES.ERROR);
   }
 
   if (options.url && !isRemoteTransport) {
     output.error('Error: --url requires --transport sse or --transport streamable-http');
-    process.exit(1);
+    process.exit(EXIT_CODES.ERROR);
   }
 
   if (!isRemoteTransport && !command) {
     output.error('Error: Server command is required for stdio transport');
-    process.exit(1);
+    process.exit(EXIT_CODES.ERROR);
   }
 
   const serverIdentifier = isRemoteTransport ? options.url! : `${command} ${args.join(' ')}`;
@@ -61,7 +62,7 @@ async function discoverAction(command: string | undefined, args: string[], optio
     }
   } catch (error) {
     output.error('Discovery failed: ' + (error instanceof Error ? error.message : String(error)));
-    process.exit(1);
+    process.exit(EXIT_CODES.ERROR);
   } finally {
     await client.disconnect();
   }

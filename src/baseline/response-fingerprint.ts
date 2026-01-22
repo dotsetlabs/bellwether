@@ -10,6 +10,47 @@ import { createHash } from 'crypto';
 import type { MCPToolCallResult } from '../transport/types.js';
 
 /**
+ * Detect if content appears to be binary data.
+ * Checks for Base64 data URIs, control characters, and other binary patterns.
+ */
+function isBinaryContent(content: unknown): boolean {
+  if (typeof content !== 'string') return false;
+
+  // Sample only the first portion to avoid performance issues with large strings
+  const sample = content.slice(0, 1000);
+
+  // Check for Base64 data URI pattern
+  if (/^data:[^;]+;base64,/.test(sample)) {
+    return true;
+  }
+
+  // Check for control characters (excluding common whitespace)
+  // Control chars: 0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F
+  if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(sample)) {
+    return true;
+  }
+
+  // Check for high concentration of non-printable characters
+  const nonPrintable = sample.match(/[^\x20-\x7E\t\n\r]/g);
+  if (nonPrintable && nonPrintable.length > sample.length * 0.3) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Categorize binary content size for fingerprinting.
+ */
+function categorizeBinarySize(content: string): ResponseSize {
+  const size = Buffer.byteLength(content, 'utf-8');
+  if (size < 1024) return 'tiny';
+  if (size < 10 * 1024) return 'small';
+  if (size < 100 * 1024) return 'medium';
+  return 'large';
+}
+
+/**
  * Content type classification for responses.
  */
 export type ResponseContentType =
@@ -19,7 +60,8 @@ export type ResponseContentType =
   | 'primitive'
   | 'empty'
   | 'error'
-  | 'mixed';
+  | 'mixed'
+  | 'binary';
 
 /**
  * Size classification for responses.
@@ -218,6 +260,16 @@ function extractStructure(value: unknown, depth: number = 0): unknown {
     // Classify string patterns
     const str = value as string;
     if (str.length === 0) return { type: 'string', subtype: 'empty' };
+
+    // Check for binary content before other patterns
+    if (isBinaryContent(str)) {
+      return {
+        type: 'binary',
+        size: categorizeBinarySize(str),
+        byteLength: Buffer.byteLength(str, 'utf-8'),
+      };
+    }
+
     if (/^\d{4}-\d{2}-\d{2}/.test(str)) return { type: 'string', subtype: 'date' };
     if (/^https?:\/\//.test(str)) return { type: 'string', subtype: 'url' };
     if (/^[\w.-]+@[\w.-]+\.\w+$/.test(str)) return { type: 'string', subtype: 'email' };
@@ -352,6 +404,8 @@ function classifyContentType(content: unknown): ResponseContentType {
 
   if (typeof content === 'string') {
     if (content.trim().length === 0) return 'empty';
+    // Check for binary content
+    if (isBinaryContent(content)) return 'binary';
     return 'text';
   }
 

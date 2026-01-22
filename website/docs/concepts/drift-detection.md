@@ -220,6 +220,29 @@ Changes affecting security:
 | Vulnerability fixed | info | Injection prevented |
 | Permission change | warning | More restrictive |
 
+### Performance Drift
+
+Bellwether tracks tool latency and detects performance regressions:
+
+| Change | Severity | Example |
+|:-------|:---------|:--------|
+| P50 latency increased | warning | 45ms → 78ms (+73%) |
+| Success rate dropped | warning | 98% → 85% |
+| Timeout frequency | warning | More frequent timeouts |
+
+Configure the regression threshold:
+
+```yaml
+check:
+  performanceThreshold: 10  # Flag if P50 latency increases by >10%
+```
+
+Or via CLI:
+
+```bash
+bellwether check --performance-threshold 15
+```
+
 ## Handling Drift
 
 ### Intentional Changes
@@ -286,11 +309,38 @@ When drift is unexpected (regressions, bugs):
 
 ## Exit Codes
 
-| Code | Condition |
-|:-----|:----------|
-| `0` | No drift, or info-only drift |
-| `1` | Breaking or warning drift detected |
-| `2` | Test error (connection, LLM) |
+Bellwether uses granular exit codes for semantic CI/CD integration:
+
+| Code | Meaning | Description |
+|:-----|:--------|:------------|
+| `0` | Clean | No changes detected |
+| `1` | Info | Non-breaking changes (new tools, optional params) |
+| `2` | Warning | Behavioral changes to investigate |
+| `3` | Breaking | Critical changes (tool removed, type changed) |
+| `4` | Error | Runtime error (connection, config) |
+
+### Configurable Failure Threshold
+
+You can configure which severity level triggers CI failure:
+
+```yaml
+baseline:
+  severity:
+    failOnSeverity: breaking  # Only fail on breaking changes
+```
+
+Or via CLI flag:
+
+```bash
+# Fail on any drift (including info-level)
+bellwether check --fail-on-severity info
+
+# Fail only on warnings or breaking (default)
+bellwether check --fail-on-severity warning
+
+# Fail only on breaking changes
+bellwether check --fail-on-severity breaking
+```
 
 ## Cloud Integration
 

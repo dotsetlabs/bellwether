@@ -124,6 +124,43 @@ baseline:
   # Fail if drift is detected (useful for CI)
   failOnDrift: ${ciOptimized ? 'true' : 'false'}
 
+  # Severity thresholds for filtering and CI failure
+  severity:
+    # Minimum severity to include in reports: none, info, warning, breaking
+    minimumSeverity: none
+
+    # Severity at which to fail CI checks: none, info, warning, breaking
+    failOnSeverity: breaking
+
+    # Suppress warning-level changes from output
+    suppressWarnings: false
+
+    # Custom severity overrides per aspect (uncomment to use)
+    # aspectOverrides:
+    #   description: none        # Ignore description-only changes
+    #   response_structure: info # Downgrade response structure to info
+
+check:
+  # Enable incremental checking (only test tools with changed schemas)
+  # Requires an existing baseline for comparison
+  incremental: false
+
+  # Maximum age of cached results in hours (for incremental checking)
+  # Default: 168 (1 week), Range: 1-720 (30 days)
+  incrementalCacheHours: 168
+
+  # Enable parallel tool testing for faster checks
+  # Useful for servers with many tools
+  parallel: ${ciOptimized ? 'true' : 'false'}
+
+  # Number of concurrent tool workers (1-10)
+  # Higher values = faster but more server load
+  parallelWorkers: 4
+
+  # Performance regression threshold percentage (0-100)
+  # Tool is flagged if p50 latency increases by more than this percentage
+  performanceThreshold: 10
+
 # =============================================================================
 # EXPLORE COMMAND SETTINGS
 # =============================================================================
@@ -271,6 +308,13 @@ export function getPresetOverrides(presetName: string): string | null {
 
 baseline:
   failOnDrift: true
+  severity:
+    failOnSeverity: breaking
+
+check:
+  parallel: true
+  parallelWorkers: 4
+  performanceThreshold: 10
 
 logging:
   level: warn

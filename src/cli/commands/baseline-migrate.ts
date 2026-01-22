@@ -8,6 +8,7 @@
 import { Command } from 'commander';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 import { formatVersion } from '../../baseline/version.js';
 import {
@@ -104,7 +105,7 @@ export const migrateCommand = new Command('migrate')
             `to ${formatVersion(info.targetVersion)}. ` +
             `This may require a newer version of the CLI.`
         );
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
 
       // Dry run mode
@@ -139,7 +140,7 @@ export const migrateCommand = new Command('migrate')
       if (outputPath !== fullPath && existsSync(outputPath) && !options.force) {
         output.error(`Output file already exists: ${outputPath}`);
         output.error('Use --force to overwrite or specify a different --output path.');
-        process.exit(1);
+        process.exit(EXIT_CODES.ERROR);
       }
 
       // Perform migration
@@ -172,6 +173,6 @@ export const migrateCommand = new Command('migrate')
       }
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
   });

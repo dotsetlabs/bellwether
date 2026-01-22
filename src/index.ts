@@ -52,7 +52,7 @@ export type { LLMClient, Message, CompletionOptions } from './llm/client.js';
 export { OpenAIClient, type OpenAIClientOptions } from './llm/openai.js';
 
 // Documentation
-export { generateAgentsMd, generateJsonReport } from './docs/generator.js';
+export { generateAgentsMd, generateContractMd, generateJsonReport } from './docs/generator.js';
 
 // Config
 export { loadConfig, ConfigNotFoundError } from './config/loader.js';

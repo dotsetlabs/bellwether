@@ -223,6 +223,13 @@ output:
 baseline:
   comparePath: "./bellwether-baseline.json"
   failOnDrift: true
+  severity:
+    failOnSeverity: breaking  # or "warning" for stricter checks
+
+check:
+  parallel: true              # Faster checks
+  parallelWorkers: 4          # Concurrent tool tests
+  performanceThreshold: 10    # Flag >10% latency regression
 
 logging:
   level: warn
@@ -252,11 +259,84 @@ Use in CI:
 
 ## Exit Codes
 
+Bellwether uses granular exit codes for semantic CI/CD integration:
+
 | Code | Meaning | Action |
 |:-----|:--------|:-------|
-| `0` | Success | Pipeline passes |
-| `1` | Drift detected or test failed | Pipeline fails |
-| `2` | Configuration or connection error | Pipeline fails |
+| `0` | No changes detected | Pipeline passes |
+| `1` | Info-level changes (non-breaking) | Pipeline passes by default |
+| `2` | Warning-level changes | Pipeline fails with `--fail-on-drift` |
+| `3` | Breaking changes detected | Pipeline always fails |
+| `4` | Runtime error (connection, config) | Pipeline fails |
+
+### Handling Exit Codes
+
+```bash
+bellwether check npx @mcp/server
+case $? in
+  0) echo "Clean - no drift" ;;
+  1) echo "Info changes only" ;;
+  2) echo "Warnings detected" ;;
+  3) echo "BREAKING CHANGES!" && exit 1 ;;
+  4) echo "Error occurred" && exit 1 ;;
+esac
+```
+
+### Configurable Failure Threshold
+
+```bash
+# Fail on any drift (including info-level)
+bellwether check --fail-on-severity info
+
+# Fail only on breaking changes (ignore warnings)
+bellwether check --fail-on-severity breaking
+```
+
+---
+
+## Output Formats for CI
+
+### JUnit XML (Jenkins, GitLab CI, CircleCI)
+
+```yaml
+- name: Run Check with JUnit Output
+  run: npx @dotsetlabs/bellwether check --format junit > bellwether-results.xml
+
+- name: Publish Test Results
+  uses: mikepenz/action-junit-report@v4
+  with:
+    report_paths: 'bellwether-results.xml'
+```
+
+### SARIF (GitHub Code Scanning)
+
+```yaml
+- name: Run Check with SARIF Output
+  run: npx @dotsetlabs/bellwether check --format sarif > bellwether.sarif
+
+- name: Upload SARIF to GitHub
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: bellwether.sarif
+```
+
+### Parallel Testing
+
+Speed up checks for servers with many tools:
+
+```yaml
+- name: Fast Parallel Check
+  run: npx @dotsetlabs/bellwether check --parallel --parallel-workers 4 --fail-on-drift
+```
+
+### Incremental Checking
+
+Only test tools with changed schemas (requires existing baseline):
+
+```yaml
+- name: Incremental Check
+  run: npx @dotsetlabs/bellwether check --incremental --fail-on-drift
+```
 
 ---
 
@@ -382,14 +462,29 @@ Sync with Bellwether Cloud for history and team visibility:
 
 ## Troubleshooting
 
-### Exit Code 1
+### Exit Code 1 (Info Changes)
 
-Drift or test failure detected:
+Non-breaking changes detected:
+- New optional parameters added
+- Description updates
+- Usually safe to proceed
+
+### Exit Code 2 (Warnings)
+
+Warning-level changes detected:
 - Check the diff output for what changed
-- Update baseline if changes are intentional
-- Fix server if changes are unintentional
+- May indicate behavioral changes
+- Review before deploying
 
-### Exit Code 2
+### Exit Code 3 (Breaking Changes)
+
+Breaking changes detected:
+- Tool removed
+- Required parameter added
+- Type changed
+- Update baseline only after careful review
+
+### Exit Code 4 (Error)
 
 Configuration or connection error:
 - Verify `bellwether.yaml` exists

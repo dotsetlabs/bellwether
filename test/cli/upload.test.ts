@@ -153,7 +153,7 @@ describe('upload command', () => {
 
       await expect(
         uploadCommand.parseAsync(['node', 'test'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('Not authenticated'))).toBe(true);
     });
@@ -169,7 +169,7 @@ describe('upload command', () => {
 
       await expect(
         uploadCommand.parseAsync(['node', 'test'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('not found'))).toBe(true);
     });
@@ -236,7 +236,7 @@ describe('upload command', () => {
 
       await expect(
         uploadCommand.parseAsync(['node', 'test'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('Failed to load baseline'))).toBe(true);
     });
@@ -291,7 +291,7 @@ describe('upload command', () => {
 
       await expect(
         uploadCommand.parseAsync(['node', 'test'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('No project specified'))).toBe(true);
     });
@@ -405,7 +405,7 @@ describe('upload command', () => {
 
       await expect(
         uploadCommand.parseAsync(['node', 'test', '--ci'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('Breaking changes'))).toBe(true);
     });
@@ -431,7 +431,7 @@ describe('upload command', () => {
 
       await expect(
         uploadCommand.parseAsync(['node', 'test', '--ci', '--fail-on-drift'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('drift detected'))).toBe(true);
     });
@@ -444,7 +444,7 @@ describe('upload command', () => {
 
       await expect(
         uploadCommand.parseAsync(['node', 'test', '--ci'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors[0]).toBe('BELLWETHER_SESSION not set');
     });
@@ -462,7 +462,7 @@ describe('upload command', () => {
 
       await expect(
         uploadCommand.parseAsync(['node', 'test'])
-      ).rejects.toThrow('Process exit: 1');
+      ).rejects.toThrow('Process exit: 4');
 
       expect(consoleErrors.some(line => line.includes('Upload failed'))).toBe(true);
     });

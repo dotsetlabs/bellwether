@@ -24,7 +24,7 @@ import {
 } from '../../baseline/index.js';
 import type { InterviewResult } from '../../interview/types.js';
 import { loadConfig, ConfigNotFoundError } from '../../config/loader.js';
-import { PATHS } from '../../constants.js';
+import { PATHS, EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 
 /**
@@ -107,7 +107,7 @@ export const acceptCommand = new Command('accept')
       output.error(`Baseline not found: ${baselinePath}`);
       output.error('\nNo baseline exists to compare against.');
       output.error('Run `bellwether check` followed by `bellwether baseline save` first.');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     let previousBaseline;
@@ -115,7 +115,7 @@ export const acceptCommand = new Command('accept')
       previousBaseline = loadBaseline(baselinePath);
     } catch (error) {
       output.error(`Failed to load baseline: ${error instanceof Error ? error.message : error}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Load the current test results
@@ -124,7 +124,7 @@ export const acceptCommand = new Command('accept')
       result = loadInterviewResult(reportPath);
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Create current baseline from test results
@@ -182,7 +182,7 @@ export const acceptCommand = new Command('accept')
       output.warn('Make sure you have updated any dependent systems accordingly.');
       output.warn('');
       output.warn('To proceed, run again with --force');
-      process.exit(1);
+      process.exit(EXIT_CODES.ERROR);
     }
 
     // Accept the drift

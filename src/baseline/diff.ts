@@ -83,10 +83,31 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
     }
   }
 
+  // Performance regressions
+  if (diff.performanceReport?.hasRegressions) {
+    lines.push(red('─── Performance Regressions ───'));
+    for (const regression of diff.performanceReport.regressions) {
+      const percentStr = (regression.regressionPercent * 100).toFixed(1);
+      lines.push(
+        `  ${red('!')} ${regression.toolName}: ` +
+          `${regression.previousP50Ms.toFixed(0)}ms → ` +
+          `${regression.currentP50Ms.toFixed(0)}ms (+${percentStr}%)`
+      );
+    }
+    lines.push('');
+  } else if (diff.performanceReport?.improvementCount ?? 0 > 0) {
+    lines.push(green('─── Performance ───'));
+    lines.push(`  ${green('✓')} ${diff.performanceReport?.improvementCount} tool(s) improved`);
+    lines.push('');
+  }
+
   lines.push('─── Statistics ───');
   lines.push(`  Breaking changes: ${diff.breakingCount}`);
   lines.push(`  Warnings: ${diff.warningCount}`);
   lines.push(`  Info: ${diff.infoCount}`);
+  if (diff.performanceReport) {
+    lines.push(`  Performance regressions: ${diff.performanceReport.regressionCount}`);
+  }
   lines.push('');
 
   return lines.join('\n');
@@ -118,6 +139,9 @@ export function formatDiffCompact(diff: BehavioralDiff): string {
   }
   if (diff.toolsModified.length > 0) {
     parts.push(`modified=[${diff.toolsModified.map((t) => t.tool).join(',')}]`);
+  }
+  if (diff.performanceReport?.regressionCount ?? 0 > 0) {
+    parts.push(`perf_regressions=${diff.performanceReport?.regressionCount}`);
   }
 
   return parts.join(' ');
@@ -211,6 +235,307 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
   lines.push(`- Info: **${diff.infoCount}**`);
 
   return lines.join('\n');
+}
+
+/**
+ * Format diff as JUnit XML for CI dashboard integration.
+ *
+ * JUnit XML is widely supported by CI/CD systems (Jenkins, GitLab CI,
+ * CircleCI, Azure DevOps, etc.) for test result visualization.
+ *
+ * @param diff - The behavioral diff to format
+ * @param suiteName - Name for the test suite (default: 'bellwether')
+ * @returns JUnit XML string
+ */
+export function formatDiffJUnit(diff: BehavioralDiff, suiteName: string = 'bellwether'): string {
+  const timestamp = new Date().toISOString();
+  const totalTests =
+    diff.toolsAdded.length +
+    diff.toolsRemoved.length +
+    diff.behaviorChanges.length;
+  const failures = diff.breakingCount;
+  const errors = 0;
+  const skipped = 0;
+
+  const lines: string[] = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    `<testsuites name="${escapeXml(suiteName)}" tests="${totalTests}" failures="${failures}" errors="${errors}" skipped="${skipped}" timestamp="${timestamp}">`,
+    `  <testsuite name="drift-detection" tests="${totalTests}" failures="${failures}" errors="${errors}" skipped="${skipped}">`,
+  ];
+
+  // Test case for each removed tool (failure - breaking)
+  for (const tool of diff.toolsRemoved) {
+    const name = escapeXml(`tool-present-${tool}`);
+    lines.push(`    <testcase name="${name}" classname="drift.tools">`);
+    lines.push(`      <failure message="Tool removed: ${escapeXml(tool)}" type="breaking">`);
+    lines.push(`Tool "${escapeXml(tool)}" was present in baseline but is now missing.`);
+    lines.push('This is a breaking change that may affect consumers.');
+    lines.push('      </failure>');
+    lines.push('    </testcase>');
+  }
+
+  // Test case for each added tool (passes - info)
+  for (const tool of diff.toolsAdded) {
+    const name = escapeXml(`tool-new-${tool}`);
+    lines.push(`    <testcase name="${name}" classname="drift.tools">`);
+    lines.push(`      <system-out>New tool added: ${escapeXml(tool)}</system-out>`);
+    lines.push('    </testcase>');
+  }
+
+  // Test case for each behavior change
+  for (const change of diff.behaviorChanges) {
+    const name = escapeXml(`${change.tool}-${change.aspect}`);
+    lines.push(`    <testcase name="${name}" classname="drift.behavior">`);
+
+    if (change.severity === 'breaking') {
+      lines.push(`      <failure message="${escapeXml(change.description)}" type="breaking">`);
+      lines.push(`Tool: ${escapeXml(change.tool)}`);
+      lines.push(`Aspect: ${escapeXml(change.aspect)}`);
+      if (change.before) {
+        lines.push(`Before: ${escapeXml(change.before)}`);
+      }
+      if (change.after) {
+        lines.push(`After: ${escapeXml(change.after)}`);
+      }
+      lines.push('      </failure>');
+    } else if (change.severity === 'warning') {
+      lines.push(`      <system-err>[WARNING] ${escapeXml(change.description)}</system-err>`);
+    } else {
+      lines.push(`      <system-out>[INFO] ${escapeXml(change.description)}</system-out>`);
+    }
+
+    lines.push('    </testcase>');
+  }
+
+  lines.push('  </testsuite>');
+  lines.push('</testsuites>');
+
+  return lines.join('\n');
+}
+
+/**
+ * SARIF result for type checking.
+ */
+interface SarifResult {
+  ruleId: string;
+  level: 'note' | 'warning' | 'error';
+  message: { text: string };
+  locations: Array<{
+    physicalLocation: {
+      artifactLocation: { uri: string };
+      region: { startLine: number };
+    };
+  }>;
+  properties?: Record<string, unknown>;
+}
+
+/**
+ * Format diff as SARIF (Static Analysis Results Interchange Format) for GitHub Code Scanning.
+ *
+ * SARIF is the standard format for GitHub's code scanning feature and can be
+ * uploaded to show drift detection results in pull request reviews.
+ *
+ * @see https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
+ *
+ * @param diff - The behavioral diff to format
+ * @param baselinePath - Path to the baseline file (for location references)
+ * @returns SARIF JSON string
+ */
+export function formatDiffSarif(
+  diff: BehavioralDiff,
+  baselinePath: string = 'bellwether-baseline.json'
+): string {
+  const sarif = {
+    $schema:
+      'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
+    version: '2.1.0',
+    runs: [
+      {
+        tool: {
+          driver: {
+            name: 'bellwether',
+            version: '1.0.0',
+            informationUri: 'https://github.com/dotsetlabs/bellwether',
+            rules: [
+              {
+                id: 'BWH001',
+                name: 'ToolRemoved',
+                shortDescription: { text: 'Tool was removed from server' },
+                fullDescription: {
+                  text: 'A tool that existed in the baseline is no longer present. This is a breaking change that may affect consumers relying on this tool.',
+                },
+                defaultConfiguration: { level: 'error' },
+                help: {
+                  text: 'Ensure the tool removal was intentional and update consumers. Consider deprecation warnings before removal.',
+                },
+              },
+              {
+                id: 'BWH002',
+                name: 'SchemaBreakingChange',
+                shortDescription: { text: 'Breaking schema change detected' },
+                fullDescription: {
+                  text: 'A breaking change was detected in a tool schema, such as a removed parameter, type change, or new required field.',
+                },
+                defaultConfiguration: { level: 'error' },
+                help: {
+                  text: 'Review schema changes and update consumers accordingly. Breaking changes require version bumps.',
+                },
+              },
+              {
+                id: 'BWH003',
+                name: 'SchemaWarningChange',
+                shortDescription: { text: 'Schema warning change detected' },
+                fullDescription: {
+                  text: 'A warning-level change was detected in a tool schema that may affect some consumers.',
+                },
+                defaultConfiguration: { level: 'warning' },
+                help: {
+                  text: 'Review schema changes for potential impact on consumers.',
+                },
+              },
+              {
+                id: 'BWH004',
+                name: 'ToolAdded',
+                shortDescription: { text: 'New tool added to server' },
+                fullDescription: {
+                  text: 'A new tool was added that did not exist in the baseline. This is typically safe but should be documented.',
+                },
+                defaultConfiguration: { level: 'note' },
+                help: {
+                  text: 'Document the new tool and notify consumers of new functionality.',
+                },
+              },
+              {
+                id: 'BWH005',
+                name: 'ResponseStructureChanged',
+                shortDescription: { text: 'Response structure changed' },
+                fullDescription: {
+                  text: 'The structure of a tool response has changed, which may affect consumers parsing the response.',
+                },
+                defaultConfiguration: { level: 'warning' },
+                help: {
+                  text: 'Review response structure changes and update consumers that depend on specific fields.',
+                },
+              },
+              {
+                id: 'BWH006',
+                name: 'ErrorPatternChanged',
+                shortDescription: { text: 'Error pattern changed' },
+                fullDescription: {
+                  text: 'The error behavior of a tool has changed, with new or modified error patterns.',
+                },
+                defaultConfiguration: { level: 'warning' },
+                help: {
+                  text: 'Review error handling changes and ensure consumers handle new error cases.',
+                },
+              },
+            ],
+          },
+        },
+        results: [] as SarifResult[],
+      },
+    ],
+  };
+
+  const results = sarif.runs[0].results;
+
+  // Add results for removed tools (breaking)
+  for (const tool of diff.toolsRemoved) {
+    results.push({
+      ruleId: 'BWH001',
+      level: 'error',
+      message: { text: `Tool "${tool}" was removed from the server` },
+      locations: [
+        {
+          physicalLocation: {
+            artifactLocation: { uri: baselinePath },
+            region: { startLine: 1 },
+          },
+        },
+      ],
+      properties: { tool, changeType: 'removed' },
+    });
+  }
+
+  // Add results for added tools (info)
+  for (const tool of diff.toolsAdded) {
+    results.push({
+      ruleId: 'BWH004',
+      level: 'note',
+      message: { text: `New tool "${tool}" was added to the server` },
+      locations: [
+        {
+          physicalLocation: {
+            artifactLocation: { uri: baselinePath },
+            region: { startLine: 1 },
+          },
+        },
+      ],
+      properties: { tool, changeType: 'added' },
+    });
+  }
+
+  // Add results for behavior changes
+  for (const change of diff.behaviorChanges) {
+    let ruleId: string;
+    let level: 'note' | 'warning' | 'error';
+
+    // Map aspect and severity to appropriate rule
+    if (change.aspect === 'schema') {
+      ruleId = change.severity === 'breaking' ? 'BWH002' : 'BWH003';
+      level = change.severity === 'breaking' ? 'error' : 'warning';
+    } else if (change.aspect === 'response_structure') {
+      ruleId = 'BWH005';
+      level = change.severity === 'breaking' ? 'error' : 'warning';
+    } else if (change.aspect === 'error_pattern' || change.aspect === 'error_handling') {
+      ruleId = 'BWH006';
+      level = change.severity === 'breaking' ? 'error' : 'warning';
+    } else {
+      // Default to schema rules for other aspects
+      ruleId = change.severity === 'breaking' ? 'BWH002' : 'BWH003';
+      level =
+        change.severity === 'breaking'
+          ? 'error'
+          : change.severity === 'warning'
+            ? 'warning'
+            : 'note';
+    }
+
+    results.push({
+      ruleId,
+      level,
+      message: { text: `${change.tool}: ${change.description}` },
+      locations: [
+        {
+          physicalLocation: {
+            artifactLocation: { uri: baselinePath },
+            region: { startLine: 1 },
+          },
+        },
+      ],
+      properties: {
+        tool: change.tool,
+        aspect: change.aspect,
+        before: change.before,
+        after: change.after,
+        severity: change.severity,
+      },
+    });
+  }
+
+  return JSON.stringify(sarif, null, 2);
+}
+
+/**
+ * Escape XML special characters to prevent injection.
+ */
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 const colors = {

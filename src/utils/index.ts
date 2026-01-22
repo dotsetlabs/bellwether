@@ -51,3 +51,4 @@ export {
   type JsonCodeBlockOptions,
   type JsonCodeBlockResult,
 } from './markdown.js';
+export { isLocalhost } from './network.js';

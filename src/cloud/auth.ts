@@ -10,6 +10,7 @@ import { join } from 'path';
 import { homedir, platform } from 'os';
 import type { StoredSession, ProjectLink, SessionTeam } from './types.js';
 import { URLS, PATHS, PATTERNS, CLI_SECURITY } from '../constants.js';
+import { isLocalhost } from '../utils/index.js';
 import * as output from '../cli/output.js';
 
 /**
@@ -212,9 +213,8 @@ export function getBaseUrl(): string {
     try {
       const url = new URL(envUrl);
 
-      // Allow HTTP only for localhost/127.0.0.1 (development)
-      const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
-      if (url.protocol !== 'https:' && !isLocalhost) {
+      // Allow HTTP only for localhost (development)
+      if (url.protocol !== 'https:' && !isLocalhost(url.hostname)) {
         output.warn(`Warning: ${BASE_URL_ENV_VAR} uses insecure HTTP protocol.`);
         output.warn('HTTPS is required for production use to protect authentication tokens.');
         output.warn('Use HTTPS or localhost for secure communication.\n');

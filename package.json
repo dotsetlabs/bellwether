@@ -1,6 +1,6 @@
 {
   "name": "@dotsetlabs/bellwether",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Structural drift detection for MCP servers. Zero-LLM check mode by default, optional multi-persona exploration with OpenAI/Anthropic. Auto-generate CONTRACT.md or AGENTS.md documentation.",
   "type": "module",
   "main": "dist/index.js",
@@ -28,10 +28,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "test:e2e:watch": "vitest --config vitest.e2e.config.ts",
-    "test:all": "npm run test && npm run test:e2e",
-    "pretest:e2e": "npm run build",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run build"
@@ -63,6 +59,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
+    "chalk": "^5.4.1",
     "cli-progress": "^3.12.0",
     "commander": "^14.0.2",
     "dotenv": "^17.2.3",
