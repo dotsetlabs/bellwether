@@ -26,6 +26,7 @@ function isBinaryContent(content: unknown): boolean {
 
   // Check for control characters (excluding common whitespace)
   // Control chars: 0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F
+  // eslint-disable-next-line no-control-regex
   if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(sample)) {
     return true;
   }
