@@ -123,10 +123,8 @@ export class StdioTransport extends BaseTransport {
               const message = JSON.parse(line) as JSONRPCMessage;
               this.emit('message', message);
             } catch (error) {
-              // Invalid JSON - log at warn level for visibility
-              // This helps diagnose issues with malformed server responses
-              const preview = line.length > DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW ? line.substring(0, DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW) + '...' : line;
-              this.logger.warn({ preview, error: error instanceof Error ? error.message : String(error) }, 'Skipping invalid JSON message');
+              // Emit error for invalid JSON for consistent behavior with Content-Length mode
+              this.emit('error', new Error(`Invalid JSON in newline-delimited message: ${error instanceof Error ? error.message : String(error)}`));
             }
           }
           continue;
@@ -154,10 +152,8 @@ export class StdioTransport extends BaseTransport {
               const message = JSON.parse(line) as JSONRPCMessage;
               this.emit('message', message);
             } catch (error) {
-              // Invalid JSON - log at warn level for visibility
-              // This helps diagnose issues with malformed server responses
-              const preview = line.length > DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW ? line.substring(0, DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW) + '...' : line;
-              this.logger.warn({ preview, error: error instanceof Error ? error.message : String(error) }, 'Skipping invalid JSON message');
+              // Emit error for invalid JSON for consistent behavior with Content-Length mode
+              this.emit('error', new Error(`Invalid JSON in newline-delimited message: ${error instanceof Error ? error.message : String(error)}`));
             }
           }
           continue;

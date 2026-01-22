@@ -283,6 +283,12 @@ async function showStatus(): Promise<void> {
         case 'env':
           sourceDesc = `Environment variable (${s.envVar})`;
           break;
+        case 'project-env':
+          sourceDesc = `Project .env file (${s.envVar})`;
+          break;
+        case 'global-env':
+          sourceDesc = `Global .env file (~/.bellwether/.env)`;
+          break;
         default:
           sourceDesc = s.source;
       }

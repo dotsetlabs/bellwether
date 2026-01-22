@@ -1,8 +1,18 @@
 /**
  * Credential resolution - unified API key retrieval from multiple sources.
- * Resolution order: config > env var > keychain
+ *
+ * Resolution order (highest to lowest priority):
+ * 1. Direct config (apiKey in config)
+ * 2. Custom environment variable (apiKeyEnvVar in config)
+ * 3. Standard environment variable (OPENAI_API_KEY, ANTHROPIC_API_KEY)
+ * 4. Project .env file (./env in current working directory)
+ * 5. Global .env file (~/.bellwether/.env)
+ * 6. System keychain (via bellwether auth)
  */
 
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 import type { LLMProviderId, LLMConfig } from '../llm/client.js';
 import { getKeychainService } from './keychain.js';
 
@@ -20,12 +30,87 @@ export const DEFAULT_ENV_VARS: Record<LLMProviderId, string> = {
  */
 export interface CredentialResult {
   apiKey: string | undefined;
-  source: 'config' | 'env' | 'keychain' | 'none';
+  source: 'config' | 'env' | 'project-env' | 'global-env' | 'keychain' | 'none';
   envVar?: string;
+  envFile?: string;
+}
+
+/**
+ * Read a specific environment variable from a .env file.
+ * Returns undefined if the file doesn't exist or the variable isn't found.
+ */
+function readEnvFile(filePath: string, envVar: string): string | undefined {
+  try {
+    if (!existsSync(filePath)) {
+      return undefined;
+    }
+
+    const content = readFileSync(filePath, 'utf-8');
+    const lines = content.split('\n');
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      // Skip empty lines and comments
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+
+      // Parse KEY=VALUE format
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex === -1) {
+        continue;
+      }
+
+      const key = trimmed.substring(0, eqIndex).trim();
+      if (key !== envVar) {
+        continue;
+      }
+
+      let value = trimmed.substring(eqIndex + 1).trim();
+
+      // Remove surrounding quotes if present
+      if ((value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+
+      if (value) {
+        return value;
+      }
+    }
+
+    return undefined;
+  } catch {
+    // File read error - return undefined
+    return undefined;
+  }
+}
+
+/**
+ * Get the path to the global Bellwether .env file.
+ */
+function getGlobalEnvPath(): string {
+  return join(homedir(), '.bellwether', '.env');
+}
+
+/**
+ * Get the path to the project .env file.
+ */
+function getProjectEnvPath(): string {
+  return join(process.cwd(), '.env');
 }
 
 /**
  * Resolve API key from all available sources.
+ *
+ * Resolution order (highest to lowest priority):
+ * 1. Direct config (apiKey in config)
+ * 2. Custom environment variable (apiKeyEnvVar in config)
+ * 3. Standard environment variable (OPENAI_API_KEY, ANTHROPIC_API_KEY)
+ * 4. Project .env file (./env in current working directory)
+ * 5. Global .env file (~/.bellwether/.env)
+ * 6. System keychain (via bellwether auth)
  *
  * @param config - LLM configuration
  * @returns The resolved API key and its source
@@ -33,10 +118,12 @@ export interface CredentialResult {
 export async function resolveCredentials(
   config: Pick<LLMConfig, 'provider' | 'apiKey' | 'apiKeyEnvVar'>
 ): Promise<CredentialResult> {
+  // 1. Direct config
   if (config.apiKey) {
     return { apiKey: config.apiKey, source: 'config' };
   }
 
+  // 2. Custom environment variable
   if (config.apiKeyEnvVar) {
     const key = process.env[config.apiKeyEnvVar];
     if (key) {
@@ -44,6 +131,7 @@ export async function resolveCredentials(
     }
   }
 
+  // 3. Standard environment variable (already in process.env)
   const defaultEnvVar = DEFAULT_ENV_VARS[config.provider];
   if (defaultEnvVar) {
     const key = process.env[defaultEnvVar];
@@ -52,6 +140,25 @@ export async function resolveCredentials(
     }
   }
 
+  // 4. Project .env file
+  if (defaultEnvVar) {
+    const projectEnvPath = getProjectEnvPath();
+    const key = readEnvFile(projectEnvPath, defaultEnvVar);
+    if (key) {
+      return { apiKey: key, source: 'project-env', envVar: defaultEnvVar, envFile: projectEnvPath };
+    }
+  }
+
+  // 5. Global .env file (~/.bellwether/.env)
+  if (defaultEnvVar) {
+    const globalEnvPath = getGlobalEnvPath();
+    const key = readEnvFile(globalEnvPath, defaultEnvVar);
+    if (key) {
+      return { apiKey: key, source: 'global-env', envVar: defaultEnvVar, envFile: globalEnvPath };
+    }
+  }
+
+  // 6. System keychain
   if (config.provider !== 'ollama') {
     try {
       const keychain = getKeychainService();
@@ -118,6 +225,10 @@ export async function describeCredentialSource(provider: LLMProviderId): Promise
       return 'Provided in configuration';
     case 'env':
       return `Environment variable: ${result.envVar}`;
+    case 'project-env':
+      return `Project .env file: ${result.envFile}`;
+    case 'global-env':
+      return `Global .env file: ${result.envFile}`;
     case 'keychain':
       return 'System keychain';
     case 'none':
