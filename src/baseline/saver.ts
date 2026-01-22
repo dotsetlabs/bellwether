@@ -3,7 +3,7 @@
  */
 
 import { createHash } from 'crypto';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, statSync } from 'fs';
 import { z } from 'zod';
 import type { InterviewResult, ToolProfile } from '../interview/types.js';
 import type {
@@ -553,9 +553,17 @@ function hashString(input: string): string {
 
 /**
  * Check if a baseline file exists.
+ * Returns false for directories - baselines must be files.
  */
 export function baselineExists(path: string): boolean {
-  return existsSync(path);
+  if (!existsSync(path)) {
+    return false;
+  }
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
 }
 
 /**

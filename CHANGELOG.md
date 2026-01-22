@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.1] - 2026-01-22
+
+### Features
+
+- **Expanded credential resolution**: API keys can now be loaded from `.env` files
+  - Project `.env` file (`./.env` in current working directory)
+  - Global `.env` file (`~/.bellwether/.env`)
+  - Resolution order: config → custom env var → standard env var → project .env → global .env → keychain
+  - `bellwether auth status` now shows which `.env` file provided the key
+
+### Fixes
+
+- **Fixed check mode LLM dependency**: Check mode no longer creates an LLM orchestrator, removing unnecessary dependency on LLM configuration for schema-only validation
+- **Fixed parallel tool testing config**: The `parallelTools` config flag is now properly respected; when disabled, uses sequential execution (concurrency=1)
+- **Fixed `baselineExists()` for directories**: Now correctly returns `false` for directories instead of `true`
+- **Fixed stdio transport error handling**: Invalid JSON in newline-delimited mode now emits an error event for consistent behavior with Content-Length mode
+- **Fixed baseline-accept command tests**: Resolved 13 failing tests in `baseline-accept.test.ts`
+  - Fixed schema hash mismatches by using computed `'empty'` hash for tools with empty interactions
+  - Fixed integrity hash verification by computing valid hashes with `recalculateIntegrityHash()`
+  - Fixed property order in test baselines to match Zod schema order (required for deterministic JSON serialization)
+  - Fixed report path from `.bellwether/bellwether-check.json` to `bellwether-check.json`
+  - Added missing `responseFingerprint` field to baseline fixtures to match `createBaseline()` output
+
 ## [0.8.0] - 2026-01-22
 
 ### Features

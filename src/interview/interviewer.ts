@@ -453,9 +453,13 @@ export class Interviewer {
 
       allScenarioResults = aggregated.allScenarioResults;
 
-    } else if (this.config.checkMode && this.config.parallelTools) {
-      // Parallel tool testing in check mode
-      this.logger.info('Using parallel tool testing in check mode');
+    } else if (this.config.checkMode) {
+      // Check mode tool testing (parallel or sequential based on config)
+      // This path doesn't require an LLM - uses fallback questions and simple analysis
+      const effectiveConcurrency = this.config.parallelTools
+        ? (this.config.toolConcurrency ?? INTERVIEW.DEFAULT_TOOL_CONCURRENCY)
+        : 1; // Sequential when parallelTools is disabled
+      this.logger.info({ parallel: this.config.parallelTools, concurrency: effectiveConcurrency }, 'Using check mode tool testing');
 
       const parallelResult = await this.interviewToolsInParallel(
         client,
@@ -660,7 +664,8 @@ export class Interviewer {
       progress.promptsCompleted = 0;
       onProgress?.(progress);
 
-      const primaryOrchestrator = this.createOrchestrator(this.personas[0]);
+      // Only create orchestrator if NOT in check mode (requires LLM)
+      const primaryOrchestrator = this.isCheckMode() ? null : this.createOrchestrator(this.personas[0]);
 
       for (const prompt of discovery.prompts) {
         progress.currentTool = `prompt:${prompt.name}`;
@@ -690,11 +695,11 @@ export class Interviewer {
           }));
 
           // If not custom-only mode and not fast CI mode, also generate LLM questions
-          if (!this.config.customScenariosOnly && !this.config.checkMode) {
+          if (!this.config.customScenariosOnly && !this.config.checkMode && primaryOrchestrator) {
             const llmQuestions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
             questions = [...questions, ...llmQuestions];
           }
-        } else if (!this.config.customScenariosOnly && !this.config.checkMode) {
+        } else if (!this.config.customScenariosOnly && !this.config.checkMode && primaryOrchestrator) {
           // No custom scenarios - generate LLM questions as usual
           questions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
         } else if (this.config.checkMode) {
@@ -716,7 +721,7 @@ export class Interviewer {
 
           // Skip LLM analysis in scenarios-only mode and fast CI mode
           let analysis: string;
-          if (this.isCheckMode()) {
+          if (this.isCheckMode() || !primaryOrchestrator) {
             analysis = this.generateSimpleAnalysis(error, !!response, 'Prompt call succeeded.');
           } else {
             analysis = await primaryOrchestrator.analyzePromptResponse(
@@ -743,7 +748,7 @@ export class Interviewer {
         // Synthesize prompt profile
         // Skip LLM synthesis in scenarios-only mode and fast CI mode
         let profile: { name: string; description: string; arguments: Array<{ name: string; description?: string; required?: boolean }>; behavioralNotes: string[]; limitations: string[] };
-        if (this.config.customScenariosOnly || this.config.checkMode) {
+        if (this.config.customScenariosOnly || this.config.checkMode || !primaryOrchestrator) {
           // Check mode: minimal profile, no misleading error counts
           profile = {
             name: prompt.name,
@@ -788,7 +793,8 @@ export class Interviewer {
       progress.resourcesCompleted = 0;
       onProgress?.(progress);
 
-      const primaryOrchestrator = this.createOrchestrator(this.personas[0]);
+      // Only create orchestrator if NOT in check mode (requires LLM)
+      const primaryOrchestrator = this.isCheckMode() ? null : this.createOrchestrator(this.personas[0]);
 
       for (const resource of discoveredResources) {
         progress.currentTool = `resource:${resource.name}`;
@@ -798,7 +804,7 @@ export class Interviewer {
 
         // Generate resource questions (skip LLM in fast CI mode)
         let questions: ResourceQuestion[];
-        if (this.config.checkMode) {
+        if (this.config.checkMode || !primaryOrchestrator) {
           // Fast CI mode: use simple fallback question
           questions = [{ description: 'Basic resource read test', category: 'happy_path' as const }];
         } else {
@@ -825,7 +831,7 @@ export class Interviewer {
 
           // Skip LLM analysis in fast CI mode
           let analysis: string;
-          if (this.isCheckMode()) {
+          if (this.isCheckMode() || !primaryOrchestrator) {
             analysis = this.generateSimpleAnalysis(error, !!response, 'Resource read succeeded.');
           } else {
             analysis = await primaryOrchestrator.analyzeResourceResponse(
@@ -852,7 +858,7 @@ export class Interviewer {
 
         // Synthesize resource profile (skip LLM in fast CI mode)
         let profile;
-        if (this.config.checkMode) {
+        if (this.config.checkMode || !primaryOrchestrator) {
           // Check mode: minimal profile, no misleading error counts
           profile = {
             name: resource.name,
@@ -1593,13 +1599,17 @@ export class Interviewer {
     totalErrorCount: number;
     totalQuestionsAsked: number;
   }> {
-    const concurrency = this.config.toolConcurrency ?? INTERVIEW.DEFAULT_TOOL_CONCURRENCY;
+    // Use concurrency=1 for sequential execution when parallelTools is disabled
+    const concurrency = this.config.parallelTools
+      ? (this.config.toolConcurrency ?? INTERVIEW.DEFAULT_TOOL_CONCURRENCY)
+      : 1;
     const toolCallMutex = createMutex(); // Shared mutex for serializing MCP client calls
 
     this.logger.info({
       toolCount: tools.length,
       concurrency,
-    }, 'Running parallel tool testing');
+      parallel: this.config.parallelTools,
+    }, 'Running check mode tool testing');
 
     // Create tasks for each tool
     const toolTasks = tools.map(tool => async () => {

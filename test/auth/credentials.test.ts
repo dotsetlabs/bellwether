@@ -3,9 +3,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, rmSync } from 'fs';
+import { mkdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { tmpdir } from 'os';
+import { tmpdir, homedir } from 'os';
 
 describe('credentials', () => {
   let testDir: string;
@@ -123,6 +123,176 @@ describe('credentials', () => {
 
       expect(result.apiKey).toBe('sk-keychain-key');
       expect(result.source).toBe('keychain');
+    });
+
+    it('should read from project .env file', async () => {
+      // Create project .env file in current working directory
+      const projectEnvPath = join(process.cwd(), '.env');
+      const originalCwd = process.cwd();
+
+      // Create a temp directory and make it the cwd
+      const tempProjectDir = join(testDir, 'project');
+      mkdirSync(tempProjectDir, { recursive: true });
+      process.chdir(tempProjectDir);
+
+      try {
+        writeFileSync(join(tempProjectDir, '.env'), 'OPENAI_API_KEY=sk-project-env-key\n');
+
+        const { resolveCredentials } = await import('../../src/auth/credentials.js');
+
+        const result = await resolveCredentials({
+          provider: 'openai',
+        });
+
+        expect(result.apiKey).toBe('sk-project-env-key');
+        expect(result.source).toBe('project-env');
+        expect(result.envVar).toBe('OPENAI_API_KEY');
+      } finally {
+        process.chdir(originalCwd);
+      }
+    });
+
+    it('should read from global .env file (~/.bellwether/.env)', async () => {
+      // Create global .env file
+      const bellwetherDir = join(testDir, '.bellwether');
+      mkdirSync(bellwetherDir, { recursive: true });
+      writeFileSync(join(bellwetherDir, '.env'), 'OPENAI_API_KEY=sk-global-env-key\n');
+
+      const { resolveCredentials } = await import('../../src/auth/credentials.js');
+
+      const result = await resolveCredentials({
+        provider: 'openai',
+      });
+
+      expect(result.apiKey).toBe('sk-global-env-key');
+      expect(result.source).toBe('global-env');
+      expect(result.envVar).toBe('OPENAI_API_KEY');
+    });
+
+    it('should prefer env var over project .env', async () => {
+      // Set env var
+      process.env.OPENAI_API_KEY = 'sk-env-priority';
+
+      // Create project .env
+      const tempProjectDir = join(testDir, 'project2');
+      mkdirSync(tempProjectDir, { recursive: true });
+      const originalCwd = process.cwd();
+      process.chdir(tempProjectDir);
+
+      try {
+        writeFileSync(join(tempProjectDir, '.env'), 'OPENAI_API_KEY=sk-project-env-key\n');
+
+        const { resolveCredentials } = await import('../../src/auth/credentials.js');
+
+        const result = await resolveCredentials({
+          provider: 'openai',
+        });
+
+        expect(result.apiKey).toBe('sk-env-priority');
+        expect(result.source).toBe('env');
+      } finally {
+        process.chdir(originalCwd);
+      }
+    });
+
+    it('should prefer project .env over global .env', async () => {
+      // Create global .env file
+      const bellwetherDir = join(testDir, '.bellwether');
+      mkdirSync(bellwetherDir, { recursive: true });
+      writeFileSync(join(bellwetherDir, '.env'), 'OPENAI_API_KEY=sk-global-env-key\n');
+
+      // Create project .env
+      const tempProjectDir = join(testDir, 'project3');
+      mkdirSync(tempProjectDir, { recursive: true });
+      const originalCwd = process.cwd();
+      process.chdir(tempProjectDir);
+
+      try {
+        writeFileSync(join(tempProjectDir, '.env'), 'OPENAI_API_KEY=sk-project-env-key\n');
+
+        const { resolveCredentials } = await import('../../src/auth/credentials.js');
+
+        const result = await resolveCredentials({
+          provider: 'openai',
+        });
+
+        expect(result.apiKey).toBe('sk-project-env-key');
+        expect(result.source).toBe('project-env');
+      } finally {
+        process.chdir(originalCwd);
+      }
+    });
+
+    it('should prefer .env files over keychain', async () => {
+      const { getKeychainService } = await import('../../src/auth/keychain.js');
+
+      // Store key in keychain
+      const keychain = getKeychainService();
+      keychain.enableFileBackend();
+      await keychain.setApiKey('openai', 'sk-keychain-key');
+
+      // Create global .env file
+      const bellwetherDir = join(testDir, '.bellwether');
+      mkdirSync(bellwetherDir, { recursive: true });
+      writeFileSync(join(bellwetherDir, '.env'), 'OPENAI_API_KEY=sk-global-env-key\n');
+
+      const { resolveCredentials } = await import('../../src/auth/credentials.js');
+
+      const result = await resolveCredentials({
+        provider: 'openai',
+      });
+
+      expect(result.apiKey).toBe('sk-global-env-key');
+      expect(result.source).toBe('global-env');
+    });
+
+    it('should handle .env files with quoted values', async () => {
+      const bellwetherDir = join(testDir, '.bellwether');
+      mkdirSync(bellwetherDir, { recursive: true });
+      writeFileSync(join(bellwetherDir, '.env'), 'OPENAI_API_KEY="sk-quoted-key"\n');
+
+      const { resolveCredentials } = await import('../../src/auth/credentials.js');
+
+      const result = await resolveCredentials({
+        provider: 'openai',
+      });
+
+      expect(result.apiKey).toBe('sk-quoted-key');
+    });
+
+    it('should handle .env files with single-quoted values', async () => {
+      const bellwetherDir = join(testDir, '.bellwether');
+      mkdirSync(bellwetherDir, { recursive: true });
+      writeFileSync(join(bellwetherDir, '.env'), "OPENAI_API_KEY='sk-single-quoted'\n");
+
+      const { resolveCredentials } = await import('../../src/auth/credentials.js');
+
+      const result = await resolveCredentials({
+        provider: 'openai',
+      });
+
+      expect(result.apiKey).toBe('sk-single-quoted');
+    });
+
+    it('should skip comments and empty lines in .env files', async () => {
+      const bellwetherDir = join(testDir, '.bellwether');
+      mkdirSync(bellwetherDir, { recursive: true });
+      writeFileSync(join(bellwetherDir, '.env'), `
+# This is a comment
+OTHER_VAR=something
+
+OPENAI_API_KEY=sk-after-comment
+
+# Another comment
+`);
+
+      const { resolveCredentials } = await import('../../src/auth/credentials.js');
+
+      const result = await resolveCredentials({
+        provider: 'openai',
+      });
+
+      expect(result.apiKey).toBe('sk-after-comment');
     });
   });
 

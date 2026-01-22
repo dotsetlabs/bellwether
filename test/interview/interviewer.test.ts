@@ -634,3 +634,285 @@ describe('parallel tool testing (check mode)', () => {
     expect(result.metadata).toBeDefined();
   });
 });
+
+/**
+ * Tests for check mode WITHOUT parallelTools (the default configuration).
+ * This is critical because bellwether check runs with parallelTools=false by default.
+ */
+describe('check mode without parallelTools (default config)', () => {
+  let mockClient: MCPClient;
+
+  beforeEach(() => {
+    mockClient = createMockMCPClient();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should complete interview with checkMode=true and no parallelTools (default)', async () => {
+    // This is the EXACT configuration used by bellwether check without --parallel flag
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      // parallelTools NOT set (defaults to false/undefined)
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [
+        { name: 'tool_a', description: 'Tool A' },
+        { name: 'tool_b', description: 'Tool B' },
+      ],
+    });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    expect(result).toBeDefined();
+    expect(result.toolProfiles).toHaveLength(2);
+    expect(result.metadata.model).toBe('check');
+  });
+
+  it('should complete interview with checkMode=true and parallelTools=false explicitly', async () => {
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      parallelTools: false, // Explicitly false
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [
+        { name: 'tool_a', description: 'Tool A' },
+        { name: 'tool_b', description: 'Tool B' },
+        { name: 'tool_c', description: 'Tool C' },
+      ],
+    });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    expect(result).toBeDefined();
+    expect(result.toolProfiles).toHaveLength(3);
+  });
+
+  it('should work with tools that have required parameters in sequential mode', async () => {
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      // parallelTools NOT set
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [
+        {
+          name: 'parameterized_tool',
+          description: 'Tool with required params',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string' },
+              limit: { type: 'number' },
+            },
+            required: ['query'],
+          },
+        },
+      ],
+    });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    expect(result).toBeDefined();
+    expect(result.toolProfiles).toHaveLength(1);
+    expect(result.toolProfiles[0].interactions.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Tests for check mode with prompts (ensures orchestrator is not required).
+ */
+describe('check mode with prompts', () => {
+  let mockClient: MCPClient;
+
+  beforeEach(() => {
+    mockClient = createMockMCPClient();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should handle prompts in check mode without parallelTools', async () => {
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      // parallelTools NOT set
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [{ name: 'test_tool', description: 'Test tool' }],
+      prompts: [
+        {
+          name: 'summarize',
+          description: 'Summarize text',
+          arguments: [{ name: 'text', required: true }],
+        },
+      ],
+    });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    expect(result).toBeDefined();
+    expect(result.toolProfiles).toHaveLength(1);
+    expect(result.promptProfiles).toBeDefined();
+    expect(result.promptProfiles?.length).toBe(1);
+    // In check mode, prompts should still be profiled with simple analysis
+    expect(result.promptProfiles?.[0].name).toBe('summarize');
+  });
+
+  it('should handle multiple prompts in check mode', async () => {
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      parallelTools: true, // Test with parallel too
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [{ name: 'test_tool', description: 'Test tool' }],
+      prompts: [
+        { name: 'prompt_a', description: 'Prompt A' },
+        { name: 'prompt_b', description: 'Prompt B' },
+        { name: 'prompt_c', description: 'Prompt C', arguments: [{ name: 'input' }] },
+      ],
+    });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    expect(result).toBeDefined();
+    expect(result.promptProfiles).toBeDefined();
+    expect(result.promptProfiles?.length).toBe(3);
+  });
+});
+
+/**
+ * Tests for check mode with resources (ensures orchestrator is not required).
+ */
+describe('check mode with resources', () => {
+  let mockClient: MCPClient;
+
+  beforeEach(() => {
+    mockClient = createMockMCPClient();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should handle resources in check mode without parallelTools', async () => {
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      // parallelTools NOT set
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [{ name: 'test_tool', description: 'Test tool' }],
+      resources: [
+        {
+          uri: 'file:///test/doc.txt',
+          name: 'Test Document',
+          description: 'A test document',
+          mimeType: 'text/plain',
+        },
+      ],
+    });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    expect(result).toBeDefined();
+    expect(result.toolProfiles).toHaveLength(1);
+    expect(result.resourceProfiles).toBeDefined();
+    expect(result.resourceProfiles?.length).toBe(1);
+    expect(result.resourceProfiles?.[0].name).toBe('Test Document');
+  });
+
+  it('should handle multiple resources in check mode', async () => {
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      parallelTools: true,
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [{ name: 'test_tool', description: 'Test tool' }],
+      resources: [
+        { uri: 'file:///a.txt', name: 'Resource A', mimeType: 'text/plain' },
+        { uri: 'file:///b.json', name: 'Resource B', mimeType: 'application/json' },
+      ],
+    });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    expect(result).toBeDefined();
+    expect(result.resourceProfiles).toBeDefined();
+    expect(result.resourceProfiles?.length).toBe(2);
+  });
+});
+
+/**
+ * Tests for check mode with tools, prompts, AND resources together.
+ * This is the comprehensive integration test for check mode.
+ */
+describe('check mode comprehensive (tools + prompts + resources)', () => {
+  let mockClient: MCPClient;
+
+  beforeEach(() => {
+    mockClient = createMockMCPClient();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should handle full discovery result in check mode without parallelTools', async () => {
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      // parallelTools NOT set - this is the critical test case
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [
+        { name: 'tool_a', description: 'Tool A' },
+        { name: 'tool_b', description: 'Tool B', inputSchema: { type: 'object', properties: { x: { type: 'string' } }, required: ['x'] } },
+      ],
+      prompts: [
+        { name: 'prompt_a', description: 'Prompt A' },
+      ],
+      resources: [
+        { uri: 'file:///test.txt', name: 'Test Resource', mimeType: 'text/plain' },
+      ],
+    });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    // Verify all components were processed
+    expect(result).toBeDefined();
+    expect(result.toolProfiles).toHaveLength(2);
+    expect(result.promptProfiles).toBeDefined();
+    expect(result.promptProfiles?.length).toBe(1);
+    expect(result.resourceProfiles).toBeDefined();
+    expect(result.resourceProfiles?.length).toBe(1);
+    expect(result.metadata.model).toBe('check');
+  });
+
+  it('should complete with progress callbacks in check mode', async () => {
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [{ name: 'tool_a', description: 'Tool A' }],
+      prompts: [{ name: 'prompt_a', description: 'Prompt A' }],
+      resources: [{ uri: 'file:///test.txt', name: 'Test', mimeType: 'text/plain' }],
+    });
+
+    const progressUpdates: string[] = [];
+    const result = await interviewer.interview(mockClient, discovery, (progress) => {
+      progressUpdates.push(progress.phase);
+    });
+
+    expect(result).toBeDefined();
+    expect(progressUpdates).toContain('starting');
+    expect(progressUpdates).toContain('complete');
+  });
+});

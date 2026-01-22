@@ -105,7 +105,7 @@ describe('StdioTransport', () => {
       expect(handler).toHaveBeenCalledWith(message);
     });
 
-    it('should skip invalid JSON lines', () => {
+    it('should emit error for invalid JSON lines', () => {
       const messageHandler = vi.fn();
       const errorHandler = vi.fn();
       transport.on('message', messageHandler);
@@ -114,8 +114,10 @@ describe('StdioTransport', () => {
       input.push('invalid json\n');
       input.push('{"jsonrpc":"2.0","id":1,"method":"valid"}\n');
 
-      // Invalid JSON is silently skipped, not an error
-      expect(errorHandler).not.toHaveBeenCalled();
+      // Invalid JSON emits error (consistent with Content-Length mode)
+      expect(errorHandler).toHaveBeenCalledTimes(1);
+      expect(errorHandler.mock.calls[0][0].message).toContain('Invalid JSON');
+      // Valid message still processed
       expect(messageHandler).toHaveBeenCalledTimes(1);
     });
 
