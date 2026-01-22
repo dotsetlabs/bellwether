@@ -1,11 +1,22 @@
 /**
- * Login command for Bellwether Cloud authentication using GitHub OAuth.
+ * Login command for Bellwether Cloud authentication using OAuth.
+ * Supports GitHub and Google as authentication providers.
  */
 
 import { Command } from 'commander';
 import { execFile } from 'child_process';
 import { platform } from 'os';
 import { createInterface } from 'readline';
+
+/**
+ * Supported OAuth providers for authentication.
+ */
+type OAuthProvider = 'github' | 'google';
+
+const PROVIDER_NAMES: Record<OAuthProvider, string> = {
+  github: 'GitHub',
+  google: 'Google',
+};
 import {
   getStoredSession,
   saveSession,
@@ -25,11 +36,12 @@ import { TIME_CONSTANTS } from '../../constants.js';
 const BETA_INVITE_TOKEN_HEADER = 'x-beta-invite-token';
 
 export const loginCommand = new Command('login')
-  .description('Authenticate with Bellwether Cloud via GitHub')
+  .description('Authenticate with Bellwether Cloud')
   .option('--logout', 'Remove stored credentials')
   .option('--mock', 'Generate a mock session for development')
   .option('--status', 'Show current authentication status')
   .option('--no-browser', 'Do not automatically open browser')
+  .option('--provider <provider>', 'OAuth provider to use (github, google)')
   .action(async (options) => {
     // Handle --status
     if (options.status) {
@@ -71,7 +83,45 @@ export const loginCommand = new Command('login')
 
     // Start OAuth device flow
     output.info('Bellwether Cloud Authentication\n');
-    output.info('Signing in with GitHub...\n');
+
+    // Determine OAuth provider
+    let provider: OAuthProvider;
+    if (options.provider) {
+      const p = options.provider.toLowerCase();
+      if (p !== 'github' && p !== 'google') {
+        output.error(`Invalid provider: ${options.provider}`);
+        output.info('Supported providers: github, google');
+        process.exit(1);
+      }
+      provider = p as OAuthProvider;
+    } else {
+      // Prompt user to select provider
+      const rl = createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
+
+      output.info('Select authentication provider:');
+      output.info('  1. GitHub');
+      output.info('  2. Google\n');
+
+      const selection = await new Promise<string>((resolve) => {
+        rl.question('Enter choice (1 or 2): ', resolve);
+      });
+      rl.close();
+
+      if (selection === '1' || selection.toLowerCase() === 'github') {
+        provider = 'github';
+      } else if (selection === '2' || selection.toLowerCase() === 'google') {
+        provider = 'google';
+      } else {
+        output.error('Invalid selection. Please enter 1 or 2.');
+        process.exit(1);
+      }
+      output.info('');
+    }
+
+    output.info(`Signing in with ${PROVIDER_NAMES[provider]}...\n`);
 
     try {
       // Check if beta mode is enabled and get invite code if needed
@@ -105,7 +155,7 @@ export const loginCommand = new Command('login')
           }
           output.info('Invitation verified! Proceeding with login...');
           if (verifyResult.email) {
-            output.info(`Note: Please sign in with a GitHub account that has the email: ${verifyResult.email}\n`);
+            output.info(`Note: Please sign in with an account that has the email: ${verifyResult.email}\n`);
           } else {
             output.info('');
           }
@@ -119,7 +169,7 @@ export const loginCommand = new Command('login')
       }
 
       // Start OAuth device flow
-      const deviceAuth = await startDeviceFlow(inviteToken);
+      const deviceAuth = await startDeviceFlow(provider, inviteToken);
 
       output.info('To authenticate, visit:\n');
       output.info(`  ${deviceAuth.verification_uri}\n`);
@@ -133,6 +183,7 @@ export const loginCommand = new Command('login')
       // Poll for authorization completion
       output.info('Waiting for authorization...');
       const result = await pollForCompletion(
+        provider,
         deviceAuth.device_code,
         deviceAuth.interval,
         deviceAuth.expires_in,
@@ -162,7 +213,8 @@ export const loginCommand = new Command('login')
       };
       saveSession(session);
 
-      output.info(`\nLogged in as ${result.user.githubLogin}`);
+      const displayLogin = result.user.githubLogin || result.user.email || 'User';
+      output.info(`\nLogged in as ${displayLogin}`);
       if (result.user.email) {
         output.info(`Email: ${result.user.email}`);
       }
@@ -244,7 +296,7 @@ async function verifyBetaInvite(code: string): Promise<{ valid: boolean; token?:
 /**
  * Start OAuth device flow.
  */
-async function startDeviceFlow(inviteToken?: string): Promise<DeviceAuthorizationResponse> {
+async function startDeviceFlow(provider: OAuthProvider, inviteToken?: string): Promise<DeviceAuthorizationResponse> {
   const baseUrl = getBaseUrl();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -254,7 +306,7 @@ async function startDeviceFlow(inviteToken?: string): Promise<DeviceAuthorizatio
     headers[BETA_INVITE_TOKEN_HEADER] = inviteToken;
   }
 
-  const response = await fetch(`${baseUrl}/auth/github/device`, {
+  const response = await fetch(`${baseUrl}/auth/${provider}/device`, {
     method: 'POST',
     headers,
     body: JSON.stringify({}),
@@ -272,6 +324,7 @@ async function startDeviceFlow(inviteToken?: string): Promise<DeviceAuthorizatio
  * Poll for device authorization completion.
  */
 async function pollForCompletion(
+  provider: OAuthProvider,
   deviceCode: string,
   intervalSec: number,
   expiresInSec: number,
@@ -298,7 +351,7 @@ async function pollForCompletion(
     dots++;
 
     // Poll for status
-    const response = await fetch(`${baseUrl}/auth/github/device/poll`, {
+    const response = await fetch(`${baseUrl}/auth/${provider}/device/poll`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ device_code: deviceCode }),
@@ -327,12 +380,12 @@ async function pollForCompletion(
     }
 
     if (result.error === 'email_mismatch') {
-      // SECURITY: GitHub email doesn't match invitation email
+      // SECURITY: OAuth email doesn't match invitation email
       process.stdout.write('\r                                    \r');
       throw new Error(
         `Email mismatch: This invitation was sent to ${result.expected_email}, ` +
-        `but you signed in with a GitHub account using ${result.actual_email}. ` +
-        `Please sign in with a GitHub account that has the email ${result.expected_email}.`
+        `but you signed in with an account using ${result.actual_email}. ` +
+        `Please sign in with an account that has the email ${result.expected_email}.`
       );
     }
 
@@ -402,11 +455,13 @@ function isValidBrowserUrl(url: string): boolean {
       return false;
     }
 
-    // Allow bellwether.sh and github.com domains
+    // Allow bellwether.sh, github.com, and google.com domains
     const trustedDomains = [
       'bellwether.sh',
       'api.bellwether.sh',
       'github.com',
+      'google.com',
+      'accounts.google.com',
       'localhost',
       '127.0.0.1',
     ];
@@ -474,15 +529,18 @@ async function showStatus(): Promise<void> {
 
   if (!session) {
     output.info('Not logged in.');
-    output.info('\nRun `bellwether login` to authenticate with GitHub.');
+    output.info('\nRun `bellwether login` to authenticate.');
     return;
   }
 
+  const displayLogin = session.user.providerLogin || session.user.githubLogin || session.user.email || 'User';
+  const displayName = session.user.displayName || session.user.githubName;
+
   output.info('Authentication Status');
   output.info('---------------------');
-  output.info(`GitHub: ${session.user.githubLogin}`);
-  if (session.user.githubName) {
-    output.info(`Name:   ${session.user.githubName}`);
+  output.info(`User:   ${displayLogin}`);
+  if (displayName) {
+    output.info(`Name:   ${displayName}`);
   }
   if (session.user.email) {
     output.info(`Email:  ${session.user.email}`);

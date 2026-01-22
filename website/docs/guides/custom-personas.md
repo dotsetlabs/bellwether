@@ -210,37 +210,28 @@ additionalContext: |
 
 ## Using Custom Personas
 
-### From Configuration
+:::note Coming Soon
+Custom persona file support is planned for a future release. Currently, you can use the four built-in personas: `technical_writer`, `security_tester`, `qa_engineer`, and `novice_user`.
+:::
+
+### Current: Built-in Personas
+
+Configure built-in personas in `bellwether.yaml`:
 
 ```yaml
 # bellwether.yaml
-interview:
-  personaFiles:
-    - ./personas/api_documenter.persona.yaml
-    - ./personas/database_security.persona.yaml
+explore:
   personas:
-    - api_documenter
-    - database_security
+    - technical_writer
+    - security_tester
+    - qa_engineer
+    - novice_user
 ```
 
-### From Directory
-
-Place persona files in `personas/` directory:
-
-```
-project/
-  personas/
-    api_documenter.persona.yaml
-    database_security.persona.yaml
-  bellwether.yaml
-```
-
-### Via Command Line
+Then run explore (not check - personas only work with explore):
 
 ```bash
-bellwether check \
-  --persona-file ./my-persona.persona.yaml \
-  npx your-server
+bellwether explore npx your-server
 ```
 
 ## Writing Effective Prompts
@@ -293,20 +284,18 @@ systemPrompt: |
 Error: Unknown persona: my_persona
 ```
 
-- Ensure file has `.persona.yaml` extension
-- Check `id` field matches what you're referencing
-- Verify path in `personaFiles` is correct
+- Verify the persona ID is one of the built-in personas: `technical_writer`, `security_tester`, `qa_engineer`, `novice_user`
+- Check spelling in your `bellwether.yaml` config
 
 ### Ineffective Testing
 
-If persona isn't finding expected issues:
-1. Review `systemPrompt` - is it specific enough?
-2. Check `questionBias` - are weights appropriate?
-3. Add `additionalContext` with specific patterns
-4. Increase `maxQuestionsPerTool`
+If testing isn't finding expected issues:
+1. Try adding more personas (e.g., `security_tester` for security issues)
+2. Increase `maxQuestionsPerTool` in your config
+3. Consider using the `security` or `thorough` presets: `bellwether init --preset security`
 
 ## See Also
 
 - [Personas](/concepts/personas) - Built-in personas
 - [Configuration](/guides/configuration) - Using personas in config
-- [check](/cli/check) - CLI options
+- [explore](/cli/explore) - Explore command reference (uses personas)

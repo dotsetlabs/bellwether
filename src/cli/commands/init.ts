@@ -193,7 +193,7 @@ export const initCommand = new Command('init')
     if (provider === 'ollama') {
       output.info('For explore command, ensure Ollama is running:');
       output.info('  ollama serve');
-      output.info('  ollama pull llama3.2');
+      output.info('  ollama pull qwen3:8b');
     } else if (provider === 'openai') {
       output.info('For explore command, set up your OpenAI API key:');
       output.info('  bellwether auth');

@@ -277,10 +277,18 @@ bellwether check
 bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
-Or in one command:
+Or configure baseline comparison in `bellwether.yaml`:
+
+```yaml
+baseline:
+  comparePath: "./bellwether-baseline.json"
+  failOnDrift: true
+```
+
+Then run check (comparison happens automatically):
 
 ```bash
-bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
+bellwether check --fail-on-drift
 ```
 
 ### Version Comparison
@@ -368,7 +376,7 @@ baseline:
   # Default path for baseline file (used by save/compare when no path specified)
   path: "./bellwether-baseline.json"
 
-  # Path to baseline for comparison (used by check --baseline)
+  # Path to baseline for automatic comparison during check
   comparePath: "./bellwether-baseline.json"
 
   # Fail if drift is detected (for CI/CD)
