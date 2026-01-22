@@ -201,7 +201,7 @@ export function checkToolDeprecation(
   }
 
   // Generate message
-  const message = generateDeprecationMessage(tool, status, daysUntilRemoval, isInGracePeriod);
+  const message = generateDeprecationMessage(tool, status, daysUntilRemoval);
 
   return {
     toolName: tool.name,
@@ -253,8 +253,7 @@ export function clearDeprecation(tool: ToolFingerprint): ToolFingerprint {
 function generateDeprecationMessage(
   tool: ToolFingerprint,
   status: DeprecationStatus,
-  daysUntilRemoval: number | undefined,
-  _isInGracePeriod: boolean
+  daysUntilRemoval: number | undefined
 ): string {
   const parts: string[] = [];
 

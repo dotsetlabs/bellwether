@@ -25,7 +25,7 @@ export function createCloudClient(config?: Partial<CloudConfig>): BellwetherClou
   const timeout = config?.timeout ?? TIMEOUTS.CLOUD_API;
 
   // Determine which client to use
-  const useMock = shouldUseMockClient(baseUrl, sessionToken);
+  const useMock = shouldUseMockClient(sessionToken);
 
   if (useMock) {
     return new MockCloudClient(sessionToken);
@@ -49,7 +49,7 @@ export function createCloudClient(config?: Partial<CloudConfig>): BellwetherClou
  * Uses HTTP client when:
  * - A real session is provided (even for localhost - allows local server testing)
  */
-function shouldUseMockClient(_baseUrl: string, sessionToken?: string): boolean {
+function shouldUseMockClient(sessionToken?: string): boolean {
   // Use mock if session is a mock session
   if (sessionToken && isMockSession(sessionToken)) {
     return true;
