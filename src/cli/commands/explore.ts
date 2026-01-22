@@ -14,7 +14,7 @@ import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
 import type { LLMClient } from '../../llm/index.js';
 import { Interviewer } from '../../interview/interviewer.js';
-import type { ServerContext, WorkflowConfig, InterviewStreamingCallbacks } from '../../interview/types.js';
+import type { WorkflowConfig, InterviewStreamingCallbacks } from '../../interview/types.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
 import { generateAgentsMd, generateJsonReport } from '../../docs/generator.js';
 import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
@@ -38,6 +38,7 @@ import { loadWorkflowsFromFile, tryLoadDefaultWorkflows, DEFAULT_WORKFLOWS_FILE 
 import * as output from '../output.js';
 import { StreamingDisplay } from '../output.js';
 import { suppressLogs, restoreLogLevel } from '../../logging/logger.js';
+import { extractServerContextFromArgs, isCI } from './shared.js';
 
 /**
  * Wrapper to parse personas with warning output.
@@ -48,61 +49,11 @@ function parsePersonasWithWarning(personaList: string[]) {
   });
 }
 
-/**
- * Extract server context from command and arguments.
- */
-function extractServerContextFromArgs(command: string, args: string[]): ServerContext {
-  const context: ServerContext = {
-    allowedDirectories: [],
-    constraints: [],
-    hints: [],
-  };
-
-  const fullCommand = `${command} ${args.join(' ')}`.toLowerCase();
-  const pathArgs = args.filter((arg) => arg.startsWith('/') && !arg.startsWith('--'));
-
-  if (fullCommand.includes('filesystem') || fullCommand.includes('file-system')) {
-    context.allowedDirectories = pathArgs;
-    if (context.allowedDirectories.length > 0) {
-      context.hints!.push(`Filesystem server with allowed directories: ${context.allowedDirectories.join(', ')}`);
-    }
-    context.constraints!.push('Operations limited to specified directories');
-  } else if (fullCommand.includes('postgres') || fullCommand.includes('mysql') || fullCommand.includes('sqlite')) {
-    context.hints!.push('Database server - SQL operations expected');
-    context.constraints!.push('Database operations only');
-  } else if (fullCommand.includes('git')) {
-    context.allowedDirectories = pathArgs;
-    context.hints!.push('Git server - repository operations expected');
-  } else {
-    context.allowedDirectories = pathArgs;
-  }
-
-  return context;
-}
-
-/**
- * Detect if running in a CI environment.
- */
-function isCI(): boolean {
-  return !!(
-    process.env.CI ||
-    process.env.CONTINUOUS_INTEGRATION ||
-    process.env.GITHUB_ACTIONS ||
-    process.env.GITLAB_CI ||
-    process.env.CIRCLECI ||
-    process.env.JENKINS_URL ||
-    process.env.TRAVIS ||
-    process.env.BUILDKITE
-  );
-}
-
 export const exploreCommand = new Command('explore')
   .description('Explore MCP server behavior with LLM-powered testing')
   .argument('[server-command]', 'Server command (overrides config)')
   .argument('[args...]', 'Server arguments')
   .option('-c, --config <path>', 'Path to config file', 'bellwether.yaml')
-  .option('--provider <provider>', 'Override LLM provider (ollama, openai, anthropic)')
-  .option('--model <model>', 'Override LLM model')
   .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
     // Load configuration
     let config: BellwetherConfig;
@@ -141,9 +92,9 @@ export const exploreCommand = new Command('explore')
     const maxQuestions = config.explore.maxQuestionsPerTool;
     const parallelPersonas = config.explore.parallelPersonas;
 
-    // Get LLM settings (CLI overrides config)
-    const provider = options.provider || config.llm.provider;
-    const model = options.model || config.llm.model || undefined;
+    // Get LLM settings from config
+    const provider = config.llm.provider;
+    const model = config.llm.model || undefined;
 
     // Display startup banner
     const banner = formatExploreBanner({
@@ -376,7 +327,7 @@ export const exploreCommand = new Command('explore')
         personaConcurrency: INTERVIEW.DEFAULT_PERSONA_CONCURRENCY,
         cache,
         workflowConfig,
-        contractOnly: false, // Full exploration mode with LLM
+        checkMode: false, // Full exploration mode with LLM
         serverCommand: fullServerCommand,
       });
 

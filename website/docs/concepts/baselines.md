@@ -18,8 +18,11 @@ A baseline is a JSON file containing:
 ## Creating a Baseline
 
 ```bash
-# Run test first
-bellwether check npx your-server
+# Initialize config (first time only)
+bellwether init npx your-server
+
+# Run check
+bellwether check
 
 # Then save baseline
 bellwether baseline save
@@ -32,7 +35,7 @@ This generates `bellwether-baseline.json`:
   "formatVersion": "1.0.0",
   "createdAt": "2026-01-12T10:30:00Z",
   "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
-  "mode": "contract",
+  "mode": "check",
   "integrityHash": "abc123...",
   "server": {
     "name": "@modelcontextprotocol/server-filesystem",
@@ -54,8 +57,7 @@ This generates `bellwether-baseline.json`:
       "tool": "read_file",
       "aspect": "behavior",
       "assertion": "Returns UTF-8 text for text files",
-      "isPositive": true,
-      "confidence": 90
+      "isPositive": true
     }
   ]
 }
@@ -65,12 +67,18 @@ This generates `bellwether-baseline.json`:
 
 ```bash
 # Save to specific path
-bellwether check npx your-server
 bellwether baseline save ./baselines/v1.json
 
 # Compare against specific baseline
-bellwether check npx your-server
 bellwether baseline compare ./baselines/v1.json
+```
+
+Or configure paths in `bellwether.yaml`:
+
+```yaml
+baseline:
+  comparePath: "./baselines/v1.json"
+  savePath: "./baselines/current.json"
 ```
 
 ## Baseline in CI/CD
@@ -79,40 +87,115 @@ bellwether baseline compare ./baselines/v1.json
 
 ```bash
 # Create baseline
-bellwether check npx your-server
+bellwether check
 bellwether baseline save
 
-# Commit
-git add bellwether-baseline.json
+# Commit both config and baseline
+git add bellwether.yaml bellwether-baseline.json
 git commit -m "Update behavioral baseline"
 ```
 
 ### Check in CI
 
+Configure baseline path in `bellwether.yaml`:
+
+```yaml
+baseline:
+  comparePath: "./bellwether-baseline.json"
+  failOnDrift: true
+```
+
 ```yaml
 # GitHub Actions
 - name: Check Behavioral Drift
-  run: |
-    npx @dotsetlabs/bellwether check npx your-server
-    npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+  run: npx @dotsetlabs/bellwether check --fail-on-drift
 ```
 
-## Updating Baselines
+## Accepting Intentional Changes
 
-When intentional changes are made:
+When you intentionally change your MCP server (adding features, modifying behavior), you need to update the baseline. Bellwether provides two ways to do this:
+
+### Option 1: Accept Command (Recommended)
+
+The `baseline accept` command marks drift as intentional and records metadata for audit trails:
 
 ```bash
-# Run test and review changes
-bellwether check npx your-server
-bellwether baseline compare ./bellwether-baseline.json
+# Run check to detect drift
+bellwether check
 
-# Update baseline if changes are intentional
+# Review the drift, then accept it with a reason
+bellwether baseline accept --reason "Added new delete_file tool"
+
+# For breaking changes, use --force
+bellwether baseline accept --reason "Major API update" --force
+
+# Commit
+git add bellwether-baseline.json
+git commit -m "Update baseline: added delete_file tool"
+```
+
+#### Accept Command Options
+
+| Option | Description |
+|:-------|:------------|
+| `--reason <text>` | Why the drift was accepted |
+| `--accepted-by <name>` | Who accepted (for audit trail) |
+| `--dry-run` | Preview what would be accepted |
+| `--force` | Required for breaking changes |
+
+### Option 2: Accept During Check
+
+You can also accept drift as part of the check command:
+
+```bash
+# Check and accept in one command
+bellwether check --accept-drift --accept-reason "Improved error handling"
+
+# Commit
+git add bellwether-baseline.json
+git commit -m "Update baseline: improved error handling"
+```
+
+### Option 3: Force Save
+
+For simple cases, you can overwrite the baseline directly:
+
+```bash
+# Run check and review changes
+bellwether check
+
+# Overwrite baseline (no acceptance metadata)
 bellwether baseline save --force
 
 # Commit
 git add bellwether-baseline.json
 git commit -m "Update baseline: added delete_file tool"
 ```
+
+### Acceptance Metadata
+
+When using `baseline accept` or `--accept-drift`, the baseline records acceptance metadata:
+
+```json
+{
+  "acceptance": {
+    "acceptedAt": "2026-01-21T10:30:00Z",
+    "acceptedBy": "dev-team",
+    "reason": "Added new delete_file tool",
+    "acceptedDiff": {
+      "toolsAdded": ["delete_file"],
+      "toolsRemoved": [],
+      "toolsModified": [],
+      "severity": "info",
+      "breakingCount": 0,
+      "warningCount": 0,
+      "infoCount": 1
+    }
+  }
+}
+```
+
+This creates an audit trail of intentional changes.
 
 ## Baseline Cloud Sync
 
@@ -150,10 +233,11 @@ When comparing baselines with incompatible versions, use `bellwether baseline mi
 |:---------|:--------|
 | **Server Info** | Name, version, protocol version, capabilities |
 | **Tools** | Name, description, schema hash, security notes, limitations |
-| **Assertions** | Behavioral assertions with confidence scores |
+| **Assertions** | Behavioral assertions |
 | **Workflows** | Workflow signatures and results |
 | **Integrity** | Hash for detecting file tampering |
 | **Metadata** | Timestamp, mode, server command |
+| **Acceptance** | Optional: when/why drift was accepted |
 
 ## Baseline Comparison
 

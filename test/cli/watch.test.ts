@@ -108,8 +108,9 @@ describe('watch command', () => {
           parallelPersonas: false,
           skipErrorTests: false,
         },
-        output: { dir: '.', format: 'agents.md' },
-        baseline: { failOnDrift: false, confidenceThreshold: 80 },
+        output: { dir: '.', docsDir: '.', format: 'agents.md' },
+        baseline: { failOnDrift: false },
+        watch: { path: '.', interval: 5000, extensions: ['.ts', '.js', '.json', '.py', '.go'] },
         cache: { enabled: true, dir: '.bellwether/cache' },
         logging: { level: 'info', verbose: false },
         scenarios: { only: false },
@@ -193,38 +194,32 @@ describe('watch command', () => {
       expect(configOpt).toBeDefined();
     });
 
-    it('should have watch-path option with default', async () => {
+    it('should not have watch-path option (uses config)', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
+      // watch-path was removed - now reads from config.watch.path
       const watchPathOpt = watchCommand.options.find(o => o.long === '--watch-path');
-      expect(watchPathOpt).toBeDefined();
-      expect(watchPathOpt?.defaultValue).toBe('.');
+      expect(watchPathOpt).toBeUndefined();
     });
 
-    it('should have interval option with default', async () => {
+    it('should not have interval option (uses config)', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
+      // interval was removed - now reads from config.watch.interval
       const intervalOpt = watchCommand.options.find(o => o.long === '--interval');
-      expect(intervalOpt).toBeDefined();
-      expect(intervalOpt?.defaultValue).toBe('5000');
+      expect(intervalOpt).toBeUndefined();
     });
 
-    it('should not have max-questions option (uses config)', async () => {
+    it('should not have baseline option (uses config)', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
-      // max-questions was removed - now reads from config
-      const maxQuestionsOpt = watchCommand.options.find(o => o.long === '--max-questions');
-      expect(maxQuestionsOpt).toBeUndefined();
-    });
-
-    it('should have baseline option with default', async () => {
-      const { watchCommand } = await import('../../src/cli/commands/watch.js');
+      // baseline was removed - now reads from config.baseline.savePath
       const baselineOpt = watchCommand.options.find(o => o.long === '--baseline');
-      expect(baselineOpt).toBeDefined();
-      expect(baselineOpt?.defaultValue).toBe('bellwether-baseline.json');
+      expect(baselineOpt).toBeUndefined();
     });
 
-    it('should have on-change option', async () => {
+    it('should not have on-change option (uses config)', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
+      // on-change was removed - now reads from config.watch.onDrift
       const onChangeOpt = watchCommand.options.find(o => o.long === '--on-change');
-      expect(onChangeOpt).toBeDefined();
+      expect(onChangeOpt).toBeUndefined();
     });
   });
 
@@ -250,22 +245,24 @@ describe('watch command', () => {
       expect(consoleOutput.some(line => line.includes('node server.js'))).toBe(true);
     });
 
-    it('should show watch path', async () => {
+    it('should show watch path from config', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
 
-      const promise = watchCommand.parseAsync(['node', 'test', 'echo', '--watch-path', '/custom/path']);
+      const promise = watchCommand.parseAsync(['node', 'test', 'echo']);
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      expect(consoleOutput.some(line => line.includes('/custom/path'))).toBe(true);
+      // Watch path comes from config.watch.path (default '.')
+      expect(consoleOutput.some(line => line.includes('Watching:'))).toBe(true);
     });
 
-    it('should show poll interval', async () => {
+    it('should show poll interval from config', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
 
-      const promise = watchCommand.parseAsync(['node', 'test', 'echo', '--interval', '10000']);
+      const promise = watchCommand.parseAsync(['node', 'test', 'echo']);
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      expect(consoleOutput.some(line => line.includes('10000ms'))).toBe(true);
+      // Interval comes from config.watch.interval (default 5000ms)
+      expect(consoleOutput.some(line => line.includes('5000ms'))).toBe(true);
     });
   });
 });

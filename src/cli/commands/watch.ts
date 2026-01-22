@@ -10,7 +10,7 @@
 
 import { Command } from 'commander';
 import { existsSync, readdirSync, statSync } from 'fs';
-import { join, resolve } from 'path';
+import { resolve, join } from 'path';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
 import { Interviewer } from '../../interview/interviewer.js';
@@ -31,11 +31,6 @@ export const watchCommand = new Command('watch')
   .argument('[server-command]', 'Server command (overrides config)')
   .argument('[args...]', 'Server arguments')
   .option('-c, --config <path>', 'Path to config file')
-  .option('-w, --watch-path <path>', 'Path to watch for changes', '.')
-  .option('-i, --interval <ms>', 'Polling interval in milliseconds', '5000')
-  .option('--baseline <path>', 'Baseline file path', 'bellwether-baseline.json')
-  .option('--on-change <command>', 'Command to run after detecting drift')
-  .option('--debug', 'Show debug output for file scanning')
   .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
     // Load configuration (required)
     let config: BellwetherConfig;
@@ -61,12 +56,18 @@ export const watchCommand = new Command('watch')
       process.exit(1);
     }
 
-    const watchPath = resolve(options.watchPath);
-    const interval = parseInt(options.interval, 10);
-    const baselinePath = resolve(options.baseline);
+    // Get watch settings from config
+    const watchPath = resolve(config.watch.path);
+    const interval = config.watch.interval;
+    const extensions = config.watch.extensions;
+    const onDriftCommand = config.watch.onDrift;
+
+    // Baseline path for watch mode (use savePath or default)
+    const baselinePath = resolve(config.baseline.savePath || join(config.output.dir, 'bellwether-baseline.json'));
 
     // Extract settings from config
     const timeout = config.server.timeout;
+    const verbose = config.logging.verbose;
 
     output.info('Bellwether Watch Mode\n');
     output.info(`Server: ${serverCommand} ${args.join(' ')}`);
@@ -108,14 +109,13 @@ export const watchCommand = new Command('watch')
 
         const fullServerCommand = `${serverCommand} ${args.join(' ')}`.trim();
         // Watch mode uses check (no LLM) for fast, deterministic drift detection
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Contract mode doesn't use LLM
-        const interviewer = new Interviewer(null as any, {
+        const interviewer = new Interviewer(null, {
           maxQuestionsPerTool: 3,
           timeout,
           skipErrorTests: false,
           model: 'check',
           personas: [],
-          contractOnly: true, // Always check mode in watch
+          checkMode: true, // Required when passing null for LLM
           serverCommand: fullServerCommand,
         });
 
@@ -137,25 +137,28 @@ export const watchCommand = new Command('watch')
             output.info('\n--- Behavioral Drift Detected ---');
             output.info(formatDiffText(diff));
 
-            // Run on-change command if specified
-            if (options.onChange) {
-              output.info(`\nRunning: ${options.onChange}`);
+            // Run on-drift command if configured
+            if (onDriftCommand) {
+              output.info(`\nRunning: ${onDriftCommand}`);
               const { spawnSync } = await import('child_process');
               try {
                 // Parse command safely - split on spaces but respect quoted strings
-                const parts = options.onChange.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
-                const cmd = parts[0];
-                const cmdArgs = parts.slice(1).map((arg: string) => arg.replace(/^"|"$/g, ''));
+                const parts = onDriftCommand.match(/(?:[^\s"]+|"[^"]*")+/g);
+                if (!parts || parts.length === 0) {
+                  throw new Error('Empty on-drift command');
+                }
+                const [cmd, ...rest] = parts;
+                const cmdArgs = rest.map((arg: string) => arg.replace(/^"|"$/g, ''));
                 // Use spawnSync without shell to prevent command injection
                 const cmdResult = spawnSync(cmd, cmdArgs, { stdio: 'inherit' });
                 if (cmdResult.error) {
                   throw cmdResult.error;
                 }
                 if (cmdResult.status !== 0) {
-                  output.error(`On-change command exited with code ${cmdResult.status}`);
+                  output.error(`On-drift command exited with code ${cmdResult.status}`);
                 }
               } catch (e) {
-                output.error('On-change command failed: ' + (e instanceof Error ? e.message : String(e)));
+                output.error('On-drift command failed: ' + (e instanceof Error ? e.message : String(e)));
               }
             }
           } else {
@@ -177,7 +180,6 @@ export const watchCommand = new Command('watch')
 
     function checkForChanges(): boolean {
       // Simple file watcher - check if any source files changed
-      const extensions = ['.ts', '.js', '.json', '.py', '.go'];
       let changed = false;
 
       function walkDir(dir: string): void {
@@ -210,7 +212,7 @@ export const watchCommand = new Command('watch')
             }
           }
         } catch (error) {
-          if (options.debug) {
+          if (verbose) {
             output.error(`Warning: Error scanning ${dir}: ` + (error instanceof Error ? error.message : String(error)));
           }
         }

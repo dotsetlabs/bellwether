@@ -92,7 +92,7 @@ export interface InterviewConfig {
   /** Workflow testing configuration */
   workflowConfig?: WorkflowConfig;
   /** Skip LLM analysis for fast CI runs (uses fallback questions, skips synthesis) */
-  contractOnly?: boolean;
+  checkMode?: boolean;
   /** Server command (for metadata tracking) */
   serverCommand?: string;
 }

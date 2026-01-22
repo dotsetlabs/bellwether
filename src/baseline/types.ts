@@ -65,9 +65,9 @@ export interface ToolDiff {
   changes: BehaviorChange[];
   schemaChanged: boolean;
   descriptionChanged: boolean;
-  /** Whether response structure changed (contract mode) */
+  /** Whether response structure changed (check mode) */
   responseStructureChanged: boolean;
-  /** Whether error patterns changed (contract mode) */
+  /** Whether error patterns changed (check mode) */
   errorPatternsChanged: boolean;
   previous?: ToolProfile;
   current?: ToolProfile;
@@ -117,7 +117,7 @@ export interface ToolFingerprint {
   securityNotes: string[];
   limitations: string[];
 
-  // Response fingerprinting (contract mode enhancement)
+  // Response fingerprinting (check mode enhancement)
   /** Fingerprint of the tool's response structure */
   responseFingerprint?: ResponseFingerprint;
   /** Inferred JSON schema of the tool's output */
@@ -158,10 +158,10 @@ export interface ServerFingerprint {
 
 /**
  * Mode used to create the baseline.
- * - document: Created with LLM analysis (rich behavioral data)
- * - contract: Created without LLM (CI mode, contract data only)
+ * Baselines are only created from check mode (deterministic, no LLM).
+ * Explore mode results are for documentation only and don't create baselines.
  */
-export type BaselineMode = 'document' | 'contract';
+export type BaselineMode = 'check';
 
 /**
  * Baseline for an MCP server.
@@ -178,6 +178,8 @@ export interface BehavioralBaseline {
   assertions: BehavioralAssertion[];
   workflowSignatures?: WorkflowSignature[];
   integrityHash: string;
+  /** Drift acceptance metadata - present when drift was intentionally accepted */
+  acceptance?: DriftAcceptance;
 }
 
 /**
@@ -205,4 +207,38 @@ export interface CompareOptions {
   tools?: string[];
   /** Force comparison even if baseline versions are incompatible */
   ignoreVersionMismatch?: boolean;
+}
+
+/**
+ * Metadata about baseline drift acceptance.
+ * Tracks when and why drift was intentionally accepted.
+ */
+export interface DriftAcceptance {
+  /** When the drift was accepted */
+  acceptedAt: Date;
+  /** Who accepted the drift (optional, for audit trail) */
+  acceptedBy?: string;
+  /** Reason for accepting the drift */
+  reason?: string;
+  /** The diff that was accepted */
+  acceptedDiff: AcceptedDiff;
+}
+
+/**
+ * Snapshot of the diff that was accepted.
+ * Used to verify that the accepted drift matches current state.
+ */
+export interface AcceptedDiff {
+  /** Tools that were added */
+  toolsAdded: string[];
+  /** Tools that were removed */
+  toolsRemoved: string[];
+  /** Tools that were modified */
+  toolsModified: string[];
+  /** Overall severity at time of acceptance */
+  severity: ChangeSeverity;
+  /** Counts at time of acceptance */
+  breakingCount: number;
+  warningCount: number;
+  infoCount: number;
 }

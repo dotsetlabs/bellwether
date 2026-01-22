@@ -100,20 +100,16 @@ function convertAssertions(assertions: BehavioralAssertion[]): CloudAssertion[] 
 }
 
 /**
- * Derive baseline mode from local mode or result metadata.
- * Maps 'contract' -> 'check', 'document' -> 'explore'
+ * Derive baseline mode from result metadata.
+ * Returns 'check' for check mode results, 'explore' for explore mode results.
+ * Note: Baselines should only be created from check mode results,
+ * but explore uploads are still supported for documentation tracking.
  */
-function deriveCloudMode(
-  localMode?: 'contract' | 'document',
-  resultModel?: string
-): BaselineMode {
-  // If we have a local mode, map it to cloud mode
-  if (localMode === 'contract') return 'check';
-  if (localMode === 'document') return 'explore';
+function deriveCloudMode(resultModel?: string): BaselineMode {
+  // Check mode results have model === 'check'
+  if (resultModel === 'check') return 'check';
 
-  // Otherwise derive from result metadata
-  if (resultModel === 'check' || resultModel === 'contract') return 'check';
-
+  // Everything else (explore mode with LLM model names) is explore
   return 'explore';
 }
 
@@ -125,8 +121,8 @@ export function convertToCloudBaseline(
   discovery?: DiscoveryResult,
   interviewResult?: InterviewResult
 ): BellwetherBaseline {
-  // Derive mode from baseline or result
-  const mode = deriveCloudMode(baseline.mode, interviewResult?.metadata.model);
+  // Derive mode from result metadata
+  const mode = deriveCloudMode(interviewResult?.metadata.model);
 
   // Build metadata
   const metadata: BaselineMetadata = {
@@ -222,7 +218,7 @@ function buildCapabilities(
       ? getToolSchema(discovery, tool.name)
       : (tool.inputSchema ?? {}),
     schemaHash: tool.schemaHash,
-    // Response fingerprinting (contract mode enhancement)
+    // Response fingerprinting (check mode enhancement)
     responseFingerprint: tool.responseFingerprint,
     inferredOutputSchema: tool.inferredOutputSchema,
     errorPatterns: tool.errorPatterns,
@@ -469,7 +465,7 @@ export function createCloudBaseline(
   serverCommand: string
 ): BellwetherBaseline {
   // Derive mode from result metadata
-  const mode = deriveCloudMode(undefined, result.metadata.model);
+  const mode = deriveCloudMode(result.metadata.model);
 
   // Build metadata
   const metadata: BaselineMetadata = {
@@ -509,7 +505,7 @@ export function createCloudBaseline(
       description: tool.description ?? '',
       inputSchema: tool.inputSchema ?? {},
       schemaHash: hashString(JSON.stringify(tool.inputSchema ?? {})),
-      // Response fingerprinting (contract mode enhancement)
+      // Response fingerprinting (check mode enhancement)
       responseFingerprint: analysis?.fingerprint,
       inferredOutputSchema: analysis?.inferredSchema,
       errorPatterns: analysis?.errorPatterns.length ? analysis.errorPatterns : undefined,

@@ -115,14 +115,14 @@ baseline:
   # Path to baseline file for upload (default: bellwether-check.json in output.dir)
   # path: "./bellwether-check.json"
 
-  # Path to baseline file for comparison (drift detection)
+  # Auto-save baseline after each check (set path to enable)
+  # savePath: "./bellwether-baseline.json"
+
+  # Path to baseline for drift comparison (enables drift detection)
   # comparePath: "./bellwether-baseline.json"
 
   # Fail if drift is detected (useful for CI)
   failOnDrift: ${ciOptimized ? 'true' : 'false'}
-
-  # Confidence threshold (0-100) for CI failure
-  confidenceThreshold: 80
 
 # =============================================================================
 # EXPLORE COMMAND SETTINGS
@@ -172,6 +172,29 @@ workflows:
 
   # Track state changes between workflow steps
   trackState: false
+
+# =============================================================================
+# WATCH MODE SETTINGS
+# =============================================================================
+# Settings for 'bellwether watch' - continuous drift monitoring.
+
+watch:
+  # Path to watch for file changes
+  path: "."
+
+  # Polling interval in milliseconds (1000-60000)
+  interval: 5000
+
+  # File extensions to watch for changes
+  extensions:
+    - ".ts"
+    - ".js"
+    - ".json"
+    - ".py"
+    - ".go"
+
+  # Command to run when drift is detected (optional)
+  # onDrift: "npm test"
 
 # =============================================================================
 # COMMON SETTINGS

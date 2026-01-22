@@ -12,11 +12,11 @@ Bellwether uses a config-first approach where all settings are defined in `bellw
 Create a configuration file with `bellwether init`:
 
 ```bash
-bellwether init                    # Default contract mode (free, fast)
+bellwether init                    # Default check mode (free, fast)
 bellwether init --preset ci        # Optimized for CI/CD
 bellwether init --preset security  # Security-focused testing
 bellwether init --preset thorough  # Comprehensive testing
-bellwether init --preset local     # Document mode with local Ollama
+bellwether init --preset local     # Explore mode with local Ollama
 ```
 
 The generated file includes all options with helpful comments.
@@ -65,17 +65,9 @@ server:
   #   LOG_LEVEL: "${LOG_LEVEL:-info}"
 
 # =============================================================================
-# TEST MODE
-# =============================================================================
-# contract: Fast, free, deterministic - compares tool schemas only (recommended)
-# document: Uses LLM to generate intelligent test scenarios (requires API key)
-
-mode: contract
-
-# =============================================================================
 # LLM SETTINGS
 # =============================================================================
-# Only used when mode is "document". Ignored in contract mode.
+# Only used by `bellwether explore`. Not needed for `bellwether check`.
 
 llm:
   # Provider: ollama (local, free), openai, or anthropic
@@ -99,11 +91,11 @@ llm:
   # Or:  export OPENAI_API_KEY=sk-xxx
 
 # =============================================================================
-# TEST SETTINGS
+# EXPLORE SETTINGS
 # =============================================================================
-# Only used when mode is "document". Ignored in contract mode.
+# Only used by `bellwether explore`. Not needed for `bellwether check`.
 
-test:
+explore:
   # Personas provide different testing perspectives:
   # - technical_writer: Documentation quality, clarity, completeness
   # - security_tester: Security vulnerabilities, input validation
@@ -140,7 +132,7 @@ scenarios:
 # =============================================================================
 # WORKFLOWS
 # =============================================================================
-# Multi-step workflow testing (requires mode: document).
+# Multi-step workflow testing (only used by `bellwether explore`).
 
 workflows:
   # Path to workflow definitions YAML file
@@ -180,16 +172,34 @@ baseline:
   # Path to baseline file for comparison
   # comparePath: "./bellwether-baseline.json"
 
+  # Auto-save baseline after each check (set path to enable)
+  # savePath: "./bellwether-baseline.json"
+
   # Fail if drift is detected (useful for CI)
   failOnDrift: false
 
-  # Minimum confidence score (0-100) to report a change
-  # Changes below this threshold are filtered out
-  minConfidence: 0
+# =============================================================================
+# WATCH MODE
+# =============================================================================
+# Settings for `bellwether watch` - continuous drift monitoring.
 
-  # Confidence threshold (0-100) for CI failure
-  # Breaking changes below this may be LLM non-determinism
-  confidenceThreshold: 80
+watch:
+  # Directory to watch for file changes
+  path: "."
+
+  # Polling interval in milliseconds (1000-60000)
+  interval: 5000
+
+  # File extensions to watch for changes
+  extensions:
+    - ".ts"
+    - ".js"
+    - ".json"
+    - ".py"
+    - ".go"
+
+  # Command to run when drift is detected (optional)
+  # onDrift: "npm test"
 
 # =============================================================================
 # CACHE
@@ -219,13 +229,13 @@ logging:
 
 Presets provide pre-configured settings for common use cases:
 
-| Preset | Mode | Description |
-|:-------|:-----|:------------|
-| (default) | contract | Zero LLM, free, deterministic |
-| `ci` | contract | Optimized for CI/CD, fails on drift |
-| `security` | document | Security + technical personas, Anthropic |
-| `thorough` | document | All 4 personas, workflow discovery, Anthropic |
-| `local` | document | Local Ollama, free, private |
+| Preset | Use With | Description |
+|:-------|:---------|:------------|
+| (default) | `check` | Zero LLM, free, deterministic |
+| `ci` | `check` | Optimized for CI/CD, fails on drift |
+| `security` | `explore` | Security + technical personas, Anthropic |
+| `thorough` | `explore` | All 4 personas, workflow discovery, Anthropic |
+| `local` | `explore` | Local Ollama, free, private |
 
 Use presets with `bellwether init`:
 
@@ -238,8 +248,7 @@ bellwether init --preset ci
 ### Ollama (Local, Free)
 
 ```yaml
-mode: document
-
+# bellwether.yaml - for use with `bellwether explore`
 llm:
   provider: ollama
   model: qwen3:8b
@@ -252,8 +261,7 @@ No API key required. Make sure Ollama is running locally.
 ### Anthropic (Recommended)
 
 ```yaml
-mode: document
-
+# bellwether.yaml - for use with `bellwether explore`
 llm:
   provider: anthropic
   model: claude-haiku-4-5  # or claude-sonnet-4-5
@@ -270,8 +278,7 @@ bellwether auth
 ### OpenAI
 
 ```yaml
-mode: document
-
+# bellwether.yaml - for use with `bellwether explore`
 llm:
   provider: openai
   model: gpt-4.1-nano  # or gpt-4.1
@@ -285,10 +292,10 @@ export OPENAI_API_KEY=sk-xxx
 bellwether auth
 ```
 
-## Mode Comparison
+## Command Comparison
 
-| Feature | Contract Mode | Document Mode |
-|:--------|:----------------|:----------|
+| Feature | `bellwether check` | `bellwether explore` |
+|:--------|:-------------------|:---------------------|
 | Cost | Free | API costs apply |
 | Speed | Fast (seconds) | Slower (minutes) |
 | LLM Required | No | Yes |
@@ -296,18 +303,19 @@ bellwether auth
 | Tool Schema Testing | Yes | Yes |
 | Behavioral Testing | No | Yes |
 | Security Analysis | No | Yes |
-| AGENTS.md Quality | Basic | Comprehensive |
+| Drift Detection | Yes | No |
+| Output | CONTRACT.md | AGENTS.md |
 
-### When to Use Each Mode
+### When to Use Each Command
 
-**Contract Mode (Default)**
+**`bellwether check` (Default)**
 - CI/CD pipelines
 - PR checks
-- Automated testing
+- Drift detection and baselines
 - When you need deterministic results
 - When you want to avoid API costs
 
-**Document Mode**
+**`bellwether explore`**
 - Local development
 - Deep exploration of server capabilities
 - Security audits
@@ -417,15 +425,14 @@ Bellwether validates your config on startup and shows helpful errors:
 
 ```
 Invalid configuration:
-  - mode: Must be "contract" or "document"
   - llm.provider: Must be one of: ollama, openai, anthropic
-  - test.maxQuestionsPerTool: Must be between 1 and 10
+  - explore.maxQuestionsPerTool: Must be between 1 and 10
 ```
 
 ## Best Practices
 
 1. **Version control your config** - Commit `bellwether.yaml` to your repo
-2. **Use contract mode for CI** - Deterministic, free, fast
+2. **Use `bellwether check` for CI** - Deterministic, free, fast
 3. **Never commit API keys** - Use environment variables or `bellwether auth`
 4. **Use presets as starting points** - Customize from there
 5. **Enable JSON output for baselines** - Set `output.format: both` or `json`

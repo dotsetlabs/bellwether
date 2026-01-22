@@ -8,11 +8,14 @@ import { z } from 'zod';
 import type { InterviewResult, ToolProfile } from '../interview/types.js';
 import type {
   BehavioralBaseline,
+  BehavioralDiff,
   BaselineMode,
   ToolFingerprint,
   ServerFingerprint,
   BehavioralAssertion,
   WorkflowSignature,
+  DriftAcceptance,
+  AcceptedDiff,
 } from './types.js';
 import { computeConsensusSchemaHash } from './schema-compare.js';
 import {
@@ -93,7 +96,7 @@ const toolFingerprintSchema = z.object({
   assertions: z.array(behavioralAssertionSchema),
   securityNotes: z.array(z.string()),
   limitations: z.array(z.string()),
-  // Response fingerprinting fields (contract mode enhancement)
+  // Response fingerprinting fields (check mode enhancement)
   responseFingerprint: responseFingerprintSchema.optional(),
   inferredOutputSchema: inferredSchemaSchema.optional(),
   errorPatterns: z.array(errorPatternSchema).optional(),
@@ -121,6 +124,29 @@ const workflowSignatureSchema = z.object({
 });
 
 /**
+ * Zod schema for accepted diff validation.
+ */
+const acceptedDiffSchema = z.object({
+  toolsAdded: z.array(z.string()),
+  toolsRemoved: z.array(z.string()),
+  toolsModified: z.array(z.string()),
+  severity: z.enum(['none', 'info', 'warning', 'breaking']),
+  breakingCount: z.number(),
+  warningCount: z.number(),
+  infoCount: z.number(),
+});
+
+/**
+ * Zod schema for drift acceptance validation.
+ */
+const driftAcceptanceSchema = z.object({
+  acceptedAt: z.string().or(z.date()),
+  acceptedBy: z.string().optional(),
+  reason: z.string().optional(),
+  acceptedDiff: acceptedDiffSchema,
+});
+
+/**
  * Zod schema for baseline validation.
  * Validates untrusted JSON to prevent injection attacks.
  *
@@ -134,7 +160,7 @@ const baselineSchema = z.object({
     z.number().int().positive(), // Legacy format support
   ]),
   createdAt: z.string().or(z.date()),
-  mode: z.enum(['document', 'contract']).optional(),
+  mode: z.enum(['check']).optional(),
   serverCommand: z.string(),
   server: serverFingerprintSchema,
   tools: z.array(toolFingerprintSchema),
@@ -142,6 +168,7 @@ const baselineSchema = z.object({
   assertions: z.array(behavioralAssertionSchema),
   workflowSignatures: z.array(workflowSignatureSchema).optional(),
   integrityHash: z.string(),
+  acceptance: driftAcceptanceSchema.optional(),
 });
 
 /**
@@ -167,17 +194,15 @@ export interface LoadBaselineOptions {
 /**
  * Create a behavioral baseline from interview results.
  *
- * Mode is automatically derived from the result metadata:
- * - 'check' mode (contractOnly=true) -> 'contract'
- * - 'explore' mode (LLM-powered) -> 'document'
+ * Baselines can only be created from check mode results.
+ * Explore mode results are for documentation only.
  */
 export function createBaseline(
   result: InterviewResult,
-  serverCommand: string,
-  mode?: BaselineMode
+  serverCommand: string
 ): BehavioralBaseline {
-  // Derive mode from result metadata if not explicitly provided
-  const effectiveMode = mode ?? (result.metadata.model === 'check' || result.metadata.model === 'contract' ? 'contract' : 'document');
+  // Baselines are always check mode
+  const effectiveMode: BaselineMode = 'check';
 
   const server = createServerFingerprint(result);
   // Create a map of tool name -> inputSchema from discovery
@@ -284,6 +309,9 @@ export function loadBaseline(
 
   // Restore Date objects
   typedBaseline.createdAt = new Date(typedBaseline.createdAt);
+  if (typedBaseline.acceptance?.acceptedAt) {
+    typedBaseline.acceptance.acceptedAt = new Date(typedBaseline.acceptance.acceptedAt);
+  }
 
   // Verify integrity (unless skipped or just migrated)
   if (!skipIntegrityCheck && !needsMigration(result.data as unknown as Record<string, unknown>)) {
@@ -353,7 +381,7 @@ function createToolFingerprint(
   const interactions = profile.interactions.map(i => ({ args: i.question.args }));
   const { hash: schemaHash } = computeConsensusSchemaHash(interactions);
 
-  // Analyze responses to create fingerprint (contract mode enhancement)
+  // Analyze responses to create fingerprint (check mode enhancement)
   const responseData = profile.interactions.map(i => ({
     response: i.response,
     error: i.error,
@@ -487,4 +515,95 @@ function hashString(input: string): string {
  */
 export function baselineExists(path: string): boolean {
   return existsSync(path);
+}
+
+/**
+ * Options for accepting drift.
+ */
+export interface AcceptDriftOptions {
+  /** Who is accepting the drift (for audit trail) */
+  acceptedBy?: string;
+  /** Reason for accepting the drift */
+  reason?: string;
+}
+
+/**
+ * Accept drift by updating a baseline with drift acceptance metadata.
+ *
+ * This marks the current state of the server as the new expected baseline,
+ * acknowledging that the detected changes were intentional.
+ *
+ * @param currentBaseline - The new baseline from the current server state
+ * @param diff - The diff that is being accepted
+ * @param options - Acceptance options (reason, acceptedBy)
+ * @returns The baseline with acceptance metadata attached
+ */
+export function acceptDrift(
+  currentBaseline: BehavioralBaseline,
+  diff: BehavioralDiff,
+  options: AcceptDriftOptions = {}
+): BehavioralBaseline {
+  // Create the accepted diff snapshot
+  const acceptedDiff: AcceptedDiff = {
+    toolsAdded: [...diff.toolsAdded],
+    toolsRemoved: [...diff.toolsRemoved],
+    toolsModified: diff.toolsModified.map(t => t.tool),
+    severity: diff.severity,
+    breakingCount: diff.breakingCount,
+    warningCount: diff.warningCount,
+    infoCount: diff.infoCount,
+  };
+
+  // Create acceptance metadata
+  const acceptance: DriftAcceptance = {
+    acceptedAt: new Date(),
+    acceptedBy: options.acceptedBy,
+    reason: options.reason,
+    acceptedDiff,
+  };
+
+  // Create new baseline with acceptance metadata
+  const baselineWithAcceptance: Omit<BehavioralBaseline, 'integrityHash'> = {
+    version: currentBaseline.version,
+    createdAt: currentBaseline.createdAt,
+    mode: currentBaseline.mode,
+    serverCommand: currentBaseline.serverCommand,
+    server: currentBaseline.server,
+    tools: currentBaseline.tools,
+    summary: currentBaseline.summary,
+    assertions: currentBaseline.assertions,
+    workflowSignatures: currentBaseline.workflowSignatures,
+    acceptance,
+  };
+
+  // Recalculate integrity hash with acceptance metadata
+  const integrityHash = calculateIntegrityHash(baselineWithAcceptance);
+
+  return {
+    ...baselineWithAcceptance,
+    integrityHash,
+  };
+}
+
+/**
+ * Check if a baseline has acceptance metadata.
+ */
+export function hasAcceptance(baseline: BehavioralBaseline): boolean {
+  return baseline.acceptance !== undefined;
+}
+
+/**
+ * Clear acceptance metadata from a baseline.
+ * Useful when re-running checks after the accepted changes are no longer relevant.
+ * Returns a new baseline without acceptance, with recalculated integrity hash.
+ */
+export function clearAcceptance(baseline: BehavioralBaseline): BehavioralBaseline {
+  // Destructure to exclude acceptance (and integrityHash which needs recalculating)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { acceptance: _removed, integrityHash: _oldHash, ...baselineWithoutAcceptance } = baseline;
+
+  return {
+    ...baselineWithoutAcceptance,
+    integrityHash: calculateIntegrityHash(baselineWithoutAcceptance),
+  };
 }

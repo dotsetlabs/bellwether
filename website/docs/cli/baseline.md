@@ -14,6 +14,7 @@ bellwether baseline save [path]
 bellwether baseline compare <path>
 bellwether baseline show [path]
 bellwether baseline diff <path1> <path2>
+bellwether baseline accept
 bellwether baseline migrate [path]
 ```
 
@@ -37,7 +38,6 @@ bellwether baseline save [path]
 | `-c, --config <path>` | Path to config file | `bellwether.yaml` |
 | `--report <path>` | Path to check report JSON file | `bellwether-check.json` |
 | `--cloud` | Save in cloud-compatible format | `false` |
-| `--contract` | Create contract-only baseline | `false` |
 | `-f, --force` | Overwrite existing baseline | `false` |
 
 **Examples:**
@@ -153,6 +153,68 @@ bellwether baseline diff old.json new.json --format markdown
 bellwether baseline diff old.json new.json --format json
 ```
 
+### accept
+
+Accept detected drift as intentional and update the baseline with acceptance metadata. This creates an audit trail for intentional changes.
+
+```bash
+bellwether baseline accept
+```
+
+| Option | Description | Default |
+|:-------|:------------|:--------|
+| `-c, --config <path>` | Path to config file | `bellwether.yaml` |
+| `--reason <text>` | Why the drift was accepted | - |
+| `--accepted-by <name>` | Who accepted the drift (for audit trail) | - |
+| `--dry-run` | Preview what would be accepted without writing | `false` |
+| `-f, --force` | Required for accepting breaking changes | `false` |
+
+**Examples:**
+
+```bash
+# Accept drift with a reason
+bellwether baseline accept --reason "Added new delete_file tool"
+
+# Accept breaking changes (requires --force)
+bellwether baseline accept --reason "Major API update" --force
+
+# Preview acceptance without writing
+bellwether baseline accept --reason "Testing" --dry-run
+
+# Include who accepted for audit trail
+bellwether baseline accept --reason "Bug fix" --accepted-by "release-bot"
+```
+
+:::warning Breaking Changes
+When drift includes breaking changes (tool removals, incompatible schema changes), you must use `--force` to confirm acceptance.
+:::
+
+**Acceptance Metadata:**
+
+When you accept drift, the baseline records:
+- **When** the drift was accepted
+- **Who** accepted it (if `--accepted-by` provided)
+- **Why** it was accepted (the reason)
+- **What** changes were accepted (snapshot of the diff)
+
+This creates an audit trail for compliance and team visibility:
+
+```json
+{
+  "acceptance": {
+    "acceptedAt": "2026-01-21T10:30:00Z",
+    "acceptedBy": "dev-team",
+    "reason": "Added new delete_file tool",
+    "acceptedDiff": {
+      "toolsAdded": ["delete_file"],
+      "toolsRemoved": [],
+      "toolsModified": [],
+      "severity": "info"
+    }
+  }
+}
+```
+
 ### migrate
 
 Migrate a baseline to the current format version.
@@ -239,6 +301,7 @@ A baseline file captures:
 | **Security Notes** | Security observations per tool |
 | **Limitations** | Known limitations per tool |
 | **Integrity Hash** | Hash for detecting file tampering |
+| **Acceptance** | Optional: when/why drift was accepted (audit trail) |
 
 ### Sample Baseline Structure
 
@@ -247,7 +310,7 @@ A baseline file captures:
   "version": "0.14.0",
   "createdAt": "2024-01-15T10:30:00Z",
   "serverCommand": "npx @mcp/your-server",
-  "mode": "contract",
+  "mode": "check",
   "integrityHash": "abc123...",
   "server": {
     "name": "your-server",
@@ -318,31 +381,31 @@ baseline:
 | `baseline.comparePath` | Baseline to compare against during check | - |
 | `baseline.failOnDrift` | Exit with error if drift detected | `false` |
 
-### Contract-Only Mode
+### Check Mode vs Explore Mode
 
-The `--contract` flag creates a lightweight baseline containing only structural data (no behavioral exploration results). This is useful for:
+Baselines can only be created from **check mode** results. Check mode provides deterministic, structural testing:
 
-- **CI/CD pipelines**: Smaller files, faster comparisons
-- **Version control**: Clean diffs, smaller commits
-- **Check command**: Contract-only is the default for `bellwether check`
+```bash
+# Run check and save baseline
+bellwether check npx @mcp/your-server
+bellwether baseline save
+```
 
-Contract-only baselines contain:
+Check mode baselines contain:
 - Tool schemas and fingerprints
 - Server capabilities
 - Integrity hashes
 
-They exclude:
-- Interview results (from `explore`)
-- Behavioral assertions
-- Persona-specific findings
+Explore mode (`bellwether explore`) is for **documentation only** and cannot be used for baselines. Explore results are LLM-powered and non-deterministic, making them unsuitable for drift detection.
 
 ```bash
-# Create contract-only baseline
-bellwether baseline save --contract
-
-# Full baseline with behavioral data (from explore)
-bellwether explore
+# This works - check mode creates baselines
+bellwether check
 bellwether baseline save
+
+# This fails - explore mode cannot create baselines
+bellwether explore
+bellwether baseline save  # Error: baseline operations only work with check mode
 ```
 
 ## See Also

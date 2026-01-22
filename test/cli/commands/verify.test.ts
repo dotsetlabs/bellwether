@@ -30,7 +30,7 @@ vi.mock('../../../src/config/loader.js', async (importOriginal) => {
       llm: { provider: 'ollama', model: '', ollama: { baseUrl: 'http://localhost:11434' } },
       explore: { personas: [], maxQuestionsPerTool: 3, parallelPersonas: false, skipErrorTests: false },
       output: { dir: '.', format: 'agents.md' },
-      baseline: { failOnDrift: false, confidenceThreshold: 80 },
+      baseline: { failOnDrift: false },
       cache: { enabled: true, dir: '.bellwether/cache' },
       logging: { level: 'info', verbose: false },
       scenarios: { only: false },
@@ -208,14 +208,24 @@ describe('Verify Command', () => {
       const securityOption = options.find(o => o.long === '--security');
       const jsonOption = options.find(o => o.long === '--json');
       const badgeOnlyOption = options.find(o => o.long === '--badge-only');
-      const providerOption = options.find(o => o.long === '--provider');
 
       expect(outputOption).toBeDefined();
       expect(tierOption).toBeDefined();
       expect(securityOption).toBeDefined();
       expect(jsonOption).toBeDefined();
       expect(badgeOnlyOption).toBeDefined();
-      expect(providerOption).toBeDefined();
+    });
+
+    it('should not have provider or model options (uses config)', () => {
+      const command = createVerifyCommand();
+      const options = command.options;
+
+      // Provider and model were removed - now read from config
+      const providerOption = options.find(o => o.long === '--provider');
+      const modelOption = options.find(o => o.long === '--model');
+
+      expect(providerOption).toBeUndefined();
+      expect(modelOption).toBeUndefined();
     });
   });
 

@@ -9,7 +9,7 @@ Integrate Bellwether into your CI/CD pipeline for automated behavioral testing o
 
 ## Quick Start
 
-The simplest CI/CD setup uses contract mode (free, fast, deterministic):
+The simplest CI/CD setup uses check mode (free, fast, deterministic):
 
 ```yaml
 # .github/workflows/bellwether.yml
@@ -21,11 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npx @dotsetlabs/bellwether check npx @mcp/your-server
-      - run: npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+      - run: npx @dotsetlabs/bellwether check --fail-on-drift
 ```
 
-No API keys required. Free. Runs in seconds.
+No API keys required. Free. Runs in seconds. Configure baseline paths in `bellwether.yaml`.
 
 ## Setup
 
@@ -38,7 +37,7 @@ bellwether init --preset ci
 ```
 
 This creates `bellwether.yaml` with:
-- Contract mode (free, deterministic)
+- Check mode (free, deterministic)
 - JSON output enabled
 - Fail on drift enabled
 
@@ -75,10 +74,18 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Bellwether Check
-        run: npx @dotsetlabs/bellwether check npx @mcp/your-server
+        run: npx @dotsetlabs/bellwether check --fail-on-drift
+```
 
-      - name: Check for Drift
-        run: npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+Configure your server command and baseline paths in `bellwether.yaml`:
+
+```yaml
+server:
+  command: "npx @mcp/your-server"
+
+baseline:
+  comparePath: "./bellwether-baseline.json"
+  failOnDrift: true
 ```
 
 ### Using GitHub Action
@@ -92,9 +99,9 @@ jobs:
     fail-on-drift: 'true'
 ```
 
-### Document Mode with LLM (Optional)
+### Explore Mode with LLM (Documentation Only)
 
-For comprehensive testing with LLM-generated scenarios:
+For generating comprehensive documentation with LLM-powered analysis:
 
 ```yaml
 jobs:
@@ -103,12 +110,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Document Mode Exploration
+      - name: Run Explore Mode
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           npx @dotsetlabs/bellwether explore npx @mcp/your-server
 ```
+
+:::note
+Explore mode generates `AGENTS.md` documentation but **cannot be used for drift detection or baselines**. For CI/CD drift detection, use `bellwether check`.
+:::
 
 ---
 
@@ -118,15 +129,14 @@ jobs:
 bellwether:
   image: node:20
   script:
-    - npx @dotsetlabs/bellwether check npx @mcp/your-server
-    - npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+    - npx @dotsetlabs/bellwether check --fail-on-drift
 ```
 
 ---
 
 ## Workflow Patterns
 
-### PR Checks (Contract Mode)
+### PR Checks (Check Mode)
 
 Fast, free checks on every pull request:
 
@@ -139,16 +149,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npx @dotsetlabs/bellwether check npx @mcp/your-server
-      - run: npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+      - run: npx @dotsetlabs/bellwether check --fail-on-drift
 ```
 
-### Nightly Document Mode Tests
+### Nightly Explore Mode Documentation
 
-Comprehensive testing with LLM:
+Generate comprehensive documentation with LLM analysis:
 
 ```yaml
-name: Nightly Tests
+name: Nightly Documentation
 on:
   schedule:
     - cron: '0 0 * * *'
@@ -159,12 +168,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Use thorough preset config
-      - run: npx @dotsetlabs/bellwether check --config ./configs/thorough.yaml npx @mcp/your-server
+      # Generate documentation with explore mode
+      - run: npx @dotsetlabs/bellwether explore
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - run: npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+      # Drift detection still uses check mode
+      - run: npx @dotsetlabs/bellwether check --fail-on-drift
 ```
 
 ### Update Baseline on Release
@@ -183,7 +193,7 @@ jobs:
 
       - name: Generate New Baseline
         run: |
-          npx @dotsetlabs/bellwether check npx @mcp/your-server
+          npx @dotsetlabs/bellwether check
           npx @dotsetlabs/bellwether baseline save --force
 
       - name: Commit Baseline
@@ -207,13 +217,11 @@ server:
   command: "npx @mcp/your-server"
   timeout: 30000
 
-mode: contract
-
 output:
   dir: "."
-  format: both  # Generate JSON for baseline comparison
 
 baseline:
+  comparePath: "./bellwether-baseline.json"
   failOnDrift: true
 
 logging:
@@ -260,7 +268,7 @@ Commit baselines to version control:
 
 ```bash
 # Generate baseline
-bellwether check npx @mcp/your-server
+bellwether check
 bellwether baseline save
 
 # Commit
@@ -270,18 +278,54 @@ git commit -m "Add behavioral baseline"
 
 ### Updating Baselines
 
-When you intentionally change your server:
+When you intentionally change your server, you have three options:
+
+#### Option 1: Accept Command (Recommended)
+
+The `baseline accept` command records acceptance metadata for audit trail:
 
 ```bash
-# Update baseline
-bellwether check npx @mcp/your-server
-bellwether baseline save --force
+# Run check to detect drift
+bellwether check
 
-# Review and commit
-bellwether baseline show
+# Review the drift, then accept with a reason
+bellwether baseline accept --reason "Added new delete_file tool"
+
+# Commit
+git add bellwether-baseline.json
+git commit -m "Update baseline: added delete_file tool"
+```
+
+For breaking changes, use `--force`:
+
+```bash
+bellwether baseline accept --reason "Major API update" --force
+```
+
+#### Option 2: Accept During Check
+
+Accept drift as part of the check command:
+
+```bash
+bellwether check --accept-drift --accept-reason "Improved error handling"
+git add bellwether-baseline.json
+git commit -m "Update baseline: improved error handling"
+```
+
+#### Option 3: Force Save (No Audit Trail)
+
+For simple cases without acceptance metadata:
+
+```bash
+bellwether check
+bellwether baseline save --force
 git add bellwether-baseline.json
 git commit -m "Update baseline for new feature X"
 ```
+
+:::tip Audit Trail
+Using `baseline accept` or `--accept-drift` creates an audit trail recording when, why, and who accepted the changes. This is valuable for compliance and team visibility.
+:::
 
 ### Comparing Versions
 
@@ -301,7 +345,7 @@ Sync with Bellwether Cloud for history and team visibility:
   env:
     BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
   run: |
-    npx @dotsetlabs/bellwether check npx @mcp/your-server
+    npx @dotsetlabs/bellwether check
     npx @dotsetlabs/bellwether baseline save
     npx @dotsetlabs/bellwether upload --ci --fail-on-drift
 ```
@@ -312,11 +356,11 @@ Sync with Bellwether Cloud for history and team visibility:
 
 | Mode | Cost | Speed | Use Case |
 |:-----|:-----|:------|:---------|
-| Contract (default) | Free | Seconds | PR checks, CI gates |
-| Document with Ollama | Free | Minutes | Local dev |
-| Document with OpenAI | ~$0.01-0.10 | Minutes | Comprehensive testing |
+| Check (default) | Free | Seconds | PR checks, CI gates |
+| Explore with Ollama | Free | Minutes | Local dev |
+| Explore with OpenAI | ~$0.01-0.10 | Minutes | Comprehensive documentation |
 
-### Contract Mode Benefits
+### Check Mode Benefits
 
 - **Free** - No API costs
 - **Fast** - Completes in seconds
@@ -329,8 +373,8 @@ Sync with Bellwether Cloud for history and team visibility:
 
 | Variable | Description | Required |
 |:---------|:------------|:---------|
-| `OPENAI_API_KEY` | OpenAI API key | For document mode with OpenAI |
-| `ANTHROPIC_API_KEY` | Anthropic API key | For document mode with Anthropic |
+| `OPENAI_API_KEY` | OpenAI API key | For explore mode with OpenAI |
+| `ANTHROPIC_API_KEY` | Anthropic API key | For explore mode with Anthropic |
 | `BELLWETHER_SESSION` | Cloud session token | For cloud upload |
 | `BELLWETHER_TEAM_ID` | Team ID for multi-team organizations | For cloud upload with specific team |
 
@@ -365,7 +409,7 @@ server:
 
 ```yaml
 - run: |
-    npx @dotsetlabs/bellwether check npx @mcp/your-server 2>&1 | tee bellwether.log
+    npx @dotsetlabs/bellwether check 2>&1 | tee bellwether.log
   env:
     LOG_LEVEL: debug
 

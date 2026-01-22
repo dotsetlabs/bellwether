@@ -16,6 +16,8 @@ export type {
   CompareOptions,
   BaselineMode,
   VersionCompatibilityInfo,
+  DriftAcceptance,
+  AcceptedDiff,
 } from './types.js';
 
 export {
@@ -25,7 +27,11 @@ export {
   verifyIntegrity,
   baselineExists,
   recalculateIntegrityHash,
+  acceptDrift,
+  hasAcceptance,
+  clearAcceptance,
   type LoadBaselineOptions,
+  type AcceptDriftOptions,
 } from './saver.js';
 
 export {

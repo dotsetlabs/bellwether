@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2026-01-21
+
+### Features
+
+- **Drift acceptance workflow**: New `baseline accept` command to accept detected drift as intentional with full audit trail
+  - Records who, when, why, and what changes were accepted
+  - `--reason` option to document why drift was accepted
+  - `--accepted-by` option to record who accepted (for CI/CD bots)
+  - `--dry-run` option to preview acceptance without writing
+  - `--force` flag required for accepting breaking changes
+- **Accept drift during check**: New `--accept-drift` and `--accept-reason` flags for the check command to accept drift in one step
+- **Acceptance metadata in baselines**: Baselines now include optional `acceptance` field with full audit trail for compliance and team visibility
+
+### Fixes
+
+- Fixed Date deserialization for `acceptance.acceptedAt` when loading baselines from JSON
+
+### Documentation
+
+- Added `baseline accept` subcommand documentation
+- Updated `check` command docs with `--accept-drift` and `--accept-reason` options
+- Added acceptance workflow options to CI/CD integration guide
+
 ## [0.6.1] - 2026-01-21
 
 ### Features
@@ -32,8 +55,8 @@ Initial public beta release of Bellwether CLI.
 ### Features
 
 - **Two testing modes**: `bellwether check` for free, deterministic schema validation and `bellwether explore` for LLM-powered behavioral exploration
-- **Contract mode**: Zero-cost structural drift detection without LLM dependencies, generates `CONTRACT.md`
-- **Document mode**: Multi-persona exploration with OpenAI, Anthropic, or Ollama, generates `AGENTS.md`
+- **Check mode**: Zero-cost structural drift detection without LLM dependencies, generates `CONTRACT.md`
+- **Explore mode**: Multi-persona exploration with OpenAI, Anthropic, or Ollama, generates `AGENTS.md`
 - **Four built-in personas**: Technical Writer, Security Tester, QA Engineer, and Novice User for comprehensive coverage
 - **Baseline management**: Save, compare, and track schema changes over time with `bellwether baseline` commands
 - **Drift detection**: Catch breaking changes before production with configurable severity levels

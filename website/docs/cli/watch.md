@@ -31,11 +31,10 @@ Watch mode uses `bellwether check` under the hood—it's free, fast, and determi
 | Option | Description | Default |
 |:-------|:------------|:--------|
 | `-c, --config <path>` | Path to config file | `bellwether.yaml` |
-| `-w, --watch-path <path>` | Directory to watch for changes | `.` |
-| `-i, --interval <ms>` | Polling interval in milliseconds | `5000` |
-| `--baseline <path>` | Baseline file path | `bellwether-baseline.json` |
-| `--on-change <command>` | Command to run after detecting drift | - |
-| `--debug` | Show debug output for file scanning | `false` |
+
+:::tip Config-First Design
+Watch settings are configured in `bellwether.yaml` under the `watch` section. This keeps all configuration in one place.
+:::
 
 ## Examples
 
@@ -45,25 +44,8 @@ Watch mode uses `bellwether check` under the hood—it's free, fast, and determi
 # Watch using settings from bellwether.yaml
 bellwether watch
 
-# Watch a specific directory
-bellwether watch --watch-path ./src
-
 # Override the server command
 bellwether watch npx @mcp/your-server /data
-```
-
-### Custom Polling Interval
-
-```bash
-# Check every 10 seconds instead of default 5
-bellwether watch --interval 10000
-```
-
-### Run Command on Drift
-
-```bash
-# Run a notification script when drift is detected
-bellwether watch --on-change "notify-send 'Drift detected!'"
 ```
 
 ## Configuration
@@ -75,7 +57,27 @@ server:
   command: "npx @mcp/your-server"
   timeout: 30000
 
-# Watch settings are typically configured via CLI flags
+watch:
+  # Directory to watch for changes
+  path: "./src"
+
+  # Polling interval in milliseconds (1000-60000)
+  interval: 5000
+
+  # File extensions to watch
+  extensions:
+    - ".ts"
+    - ".js"
+    - ".json"
+    - ".py"
+    - ".go"
+
+  # Command to run when drift is detected (optional)
+  onDrift: "notify-send 'Drift detected!'"
+
+baseline:
+  # Path to save/compare baselines
+  savePath: "./bellwether-baseline.json"
 ```
 
 ## Behavior

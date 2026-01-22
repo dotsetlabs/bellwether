@@ -638,16 +638,16 @@ export function generateAgentsMd(result: InterviewResult): string {
   lines.push('---');
   lines.push('');
 
-  // Check if contract mode (no LLM, deterministic)
-  const isContractMode = metadata.model === 'contract';
+  // Check if check mode (no LLM, deterministic)
+  const isCheckMode = metadata.model === 'check';
 
-  // Basic stats - simpler for contract mode
+  // Basic stats - simpler for check mode
   let statsLine: string;
-  if (isContractMode) {
-    statsLine = `*Contract analysis completed in ${formatDuration(metadata.durationMs)}.*`;
+  if (isCheckMode) {
+    statsLine = `*Check analysis completed in ${formatDuration(metadata.durationMs)}.*`;
     lines.push(statsLine);
   } else {
-    // Document mode: show more details
+    // Explore mode: show more details
     statsLine = `*Interview completed in ${formatDuration(metadata.durationMs)} with ${metadata.toolCallCount} tool interactions`;
 
     // Add persona breakdown if multiple personas

@@ -30,7 +30,9 @@ bellwether --version
 Run Bellwether directly without global installation:
 
 ```bash
-npx @dotsetlabs/bellwether check <server-command>
+# Initialize and run check
+npx @dotsetlabs/bellwether init npx @mcp/your-server
+npx @dotsetlabs/bellwether check
 ```
 
 This is useful for CI/CD pipelines or one-off usage.
@@ -133,8 +135,11 @@ ollama serve
 # Pull a model
 ollama pull qwen3:8b
 
+# Initialize config for local Ollama
+bellwether init --preset local npx @modelcontextprotocol/server-filesystem /tmp
+
 # Run explore (no API key needed)
-bellwether explore npx @modelcontextprotocol/server-filesystem /tmp
+bellwether explore
 ```
 
 Default model: `qwen3:8b`
@@ -153,10 +158,11 @@ Bellwether automatically detects which provider to use based on environment vari
 | 2 | `OPENAI_API_KEY` | OpenAI |
 | 3 | (none) | Ollama |
 
-Override with the `--provider` flag:
+Override in `bellwether.yaml`:
 
-```bash
-bellwether explore --provider openai npx server
+```yaml
+llm:
+  provider: openai
 ```
 
 ## Configuration File
@@ -189,12 +195,15 @@ Or in your home directory at `~/.bellwether/bellwether.yaml` for global defaults
 Test your installation:
 
 ```bash
+# Initialize with a test server
+bellwether init npx @modelcontextprotocol/server-memory
+
 # Check mode (free, no API key needed)
-bellwether check npx @modelcontextprotocol/server-memory
+bellwether check
 
 # Explore mode with Ollama (free)
 ollama serve &
-bellwether explore npx @modelcontextprotocol/server-memory
+bellwether explore
 ```
 
 For check mode, you should see:

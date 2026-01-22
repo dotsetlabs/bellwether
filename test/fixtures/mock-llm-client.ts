@@ -2,7 +2,7 @@
  * Mock LLM client for deterministic testing.
  */
 
-import type { LLMClient, Message, CompletionOptions } from '../../src/llm/client.js';
+import type { LLMClient, Message, CompletionOptions, ProviderInfo, StreamingOptions, StreamingResult } from '../../src/llm/client.js';
 
 /**
  * Response handler type for custom mock behavior.
@@ -104,6 +104,30 @@ export class MockLLMClient implements LLMClient {
 
   async complete(prompt: string, options?: CompletionOptions): Promise<string> {
     return this.chat([{ role: 'user', content: prompt }], options);
+  }
+
+  getProviderInfo(): ProviderInfo {
+    return {
+      id: 'mock',
+      name: 'Mock Provider',
+      supportsJSON: true,
+      supportsStreaming: true,
+      defaultModel: 'mock-model',
+    };
+  }
+
+  async stream(prompt: string, options?: StreamingOptions): Promise<StreamingResult> {
+    const text = await this.complete(prompt, options);
+    options?.onChunk?.(text);
+    options?.onComplete?.(text);
+    return { text, completed: true };
+  }
+
+  async streamChat(messages: Message[], options?: StreamingOptions): Promise<StreamingResult> {
+    const text = await this.chat(messages, options);
+    options?.onChunk?.(text);
+    options?.onComplete?.(text);
+    return { text, completed: true };
   }
 
   parseJSON<T>(response: string): T {

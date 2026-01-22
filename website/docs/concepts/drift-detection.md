@@ -61,27 +61,38 @@ Behavioral changes in responses use LLM analysis:
 
 ### Achieving 100% Determinism
 
-For CI/CD pipelines requiring deterministic results:
+For CI/CD pipelines requiring deterministic results, use `bellwether check`:
+
+```bash
+# Initialize config (if not already done)
+bellwether init npx your-server
+
+# Run check (free, deterministic, no LLM)
+bellwether check --fail-on-drift
+```
+
+Configure baseline path in `bellwether.yaml`:
 
 ```yaml
-# bellwether.yaml - scenarios-only mode
-mode: contract
+baseline:
+  comparePath: "./bellwether-baseline.json"
+  failOnDrift: true
+```
+
+Check mode:
+- No LLM calls = no non-determinism
+- Consistent pass/fail results every time
+- Zero API costs
+- Fast execution
+
+Optionally add custom test scenarios for even more control:
+
+```yaml
+# bellwether.yaml - with custom scenarios
 scenarios:
   path: "./bellwether-tests.yaml"
   only: true
 ```
-
-```bash
-# Run tests then compare
-bellwether check npx your-server
-bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
-```
-
-This mode:
-- Runs only your predefined test scenarios
-- No LLM calls = no non-determinism
-- Consistent pass/fail results every time
-- Zero API costs
 
 ### Recommendations by Use Case
 
@@ -106,126 +117,52 @@ This mode:
 ### Local Development
 
 ```bash
-# Run test and save initial baseline
-bellwether check npx your-server
+# Initialize config (first time only)
+bellwether init npx your-server
+
+# Run check and save initial baseline
+bellwether check
 bellwether baseline save
 
 # Make changes to server...
 
-# Compare against baseline
-bellwether check npx your-server
-bellwether baseline compare ./bellwether-baseline.json
+# Re-run check (uses baseline from config)
+bellwether check
 ```
 
 ### CI/CD Pipeline
 
-```bash
-# Run test then compare with fail-on-drift
-bellwether check npx your-server
-bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
-```
-
-### Contract Mode (100% Deterministic)
-
-**Contract mode** provides 100% deterministic drift detection by only comparing tool schemas:
+Configure baseline comparison in `bellwether.yaml`:
 
 ```yaml
-# bellwether.yaml
-mode: contract
-```
-
-```bash
-bellwether check npx your-server
-bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
-```
-
-In contract mode:
-- Only contract changes are reported (tool presence, schema changes)
-- No LLM calls required
-- Results are 100% reproducible across runs
-- Free and fast
-
-Use contract mode for:
-- CI/CD deployment gates requiring determinism
-- Compliance environments with audit requirements
-- Detecting breaking API changes only
-
-## Confidence Scores
-
-Every detected change includes a confidence score (0-100%) indicating how certain we are about the change:
-
-### Confidence Levels
-
-| Confidence | Label | Meaning |
-|:-----------|:------|:--------|
-| 85-100% | High | Very confident this is a real change |
-| 60-84% | Medium | Likely a real change, worth investigating |
-| 40-59% | Low | May be LLM non-determinism |
-| 0-39% | Very Low | Likely false positive from LLM variance |
-
-### Structural vs Semantic Confidence
-
-| Change Type | Method | Confidence | Examples |
-|:------------|:-------|:-----------|:---------|
-| Tool added/removed | Structural | 100% | Tool list differs |
-| Schema changed | Structural | 100% | Hash differs |
-| Description changed | Structural | 100% | Text differs exactly |
-| Assertion changed | Semantic | 60-95% | LLM-generated text comparison |
-| Security finding | Semantic | 70-95% | Category-based matching |
-| Limitation changed | Semantic | 65-90% | Category + keyword matching |
-
-### Using Confidence Thresholds
-
-There are two threshold options with different purposes:
-
-| Option | Purpose | Default |
-|:-------|:--------|:--------|
-| `--min-confidence <n>` | **Filter**: Only report changes above this confidence | `0` |
-| `--confidence-threshold <n>` | **CI gate**: Only fail on breaking changes above this confidence | `80` |
-
-**Filter example** - hide low-confidence changes from output:
-
-```yaml
-# bellwether.yaml
 baseline:
-  minConfidence: 80  # Only report changes with >80% confidence
-```
-
-```bash
-bellwether check npx your-server
-bellwether baseline compare ./bellwether-baseline.json
-```
-
-**CI gate example** - only fail when confident about breaking changes:
-
-```yaml
-# bellwether.yaml
-baseline:
-  confidenceThreshold: 90  # Only fail CI if breaking changes have 90%+ confidence
+  comparePath: "./bellwether-baseline.json"
   failOnDrift: true
 ```
 
 ```bash
-bellwether check npx your-server
-bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+# CI command
+bellwether check --fail-on-drift
 ```
 
-### Confidence in Output
+### Check Mode (100% Deterministic)
 
+**Check mode** (`bellwether check`) provides 100% deterministic drift detection by comparing tool schemas without any LLM involvement:
+
+```bash
+bellwether check --fail-on-drift
 ```
-Drift Detection Results
-=======================
-Overall Confidence: 92% (high)
-Structural changes: 3 (avg 100%)
-Semantic changes: 2 (avg 78%)
 
-BREAKING (1):
-  - Tool "legacy_read" was removed [100% structural]
+In check mode:
+- Only structural changes are reported (tool presence, schema changes)
+- No LLM calls required
+- Results are 100% reproducible across runs
+- Free and fast
 
-WARNING (2):
-  - read_file: Maximum file size changed [85% semantic]
-  - write_file: Error message format changed [72% semantic]
-```
+Use check mode for:
+- CI/CD deployment gates requiring determinism
+- Compliance environments with audit requirements
+- Detecting breaking API changes only
 
 ## Understanding Drift Output
 
@@ -287,14 +224,40 @@ Changes affecting security:
 
 ### Intentional Changes
 
-When drift is expected (new features, fixes):
+When drift is expected (new features, bug fixes, refactoring), you can accept the changes and update the baseline:
+
+#### Option 1: Accept command (recommended)
 
 ```bash
-# Run test and review the changes
-bellwether check npx your-server
-bellwether baseline compare ./bellwether-baseline.json
+# Run check to detect drift
+bellwether check
 
-# Update baseline if changes are correct
+# Review and accept the drift with a reason
+bellwether baseline accept --reason "Added new delete_file tool"
+
+# Commit updated baseline
+git add bellwether-baseline.json
+git commit -m "Update baseline: added delete_file tool"
+```
+
+#### Option 2: Accept during check
+
+```bash
+# Accept drift in a single command
+bellwether check --accept-drift --accept-reason "Improved error handling"
+
+# Commit updated baseline
+git add bellwether-baseline.json
+git commit -m "Update baseline: improved error handling"
+```
+
+#### Option 3: Force save baseline
+
+```bash
+# Run check and review the changes
+bellwether check
+
+# Overwrite baseline without acceptance metadata
 bellwether baseline save --force
 
 # Commit updated baseline
@@ -302,14 +265,24 @@ git add bellwether-baseline.json
 git commit -m "Update baseline: improved error handling"
 ```
 
+### Acceptance Metadata
+
+When you use `baseline accept` or `--accept-drift`, the baseline records:
+- **When** the drift was accepted
+- **Who** accepted it (if `--accepted-by` provided)
+- **Why** it was accepted (the reason)
+- **What** changes were accepted (snapshot of the diff)
+
+This creates an audit trail for intentional changes.
+
 ### Unintentional Changes
 
-When drift is unexpected:
+When drift is unexpected (regressions, bugs):
 
 1. Review the diff output
 2. Identify the root cause
 3. Fix the regression
-4. Re-run test to verify
+4. Re-run check to verify the fix
 
 ## Exit Codes
 
@@ -324,10 +297,10 @@ When drift is unexpected:
 Track drift history with Bellwether Cloud:
 
 ```bash
-# Run test, save baseline, and upload
-bellwether check npx your-server
+# Run check, save baseline, and upload
+bellwether check
 bellwether baseline save
-bellwether upload --ci --fail-on-drift
+bellwether upload
 ```
 
 Cloud provides:

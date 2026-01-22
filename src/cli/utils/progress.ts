@@ -5,6 +5,7 @@
 import cliProgress from 'cli-progress';
 import type { InterviewProgress } from '../../interview/interviewer.js';
 import { suppressLogs, restoreLogLevel } from '../../logging/logger.js';
+import { DISPLAY_LIMITS } from '../../constants.js';
 
 export interface ProgressBarOptions {
   /** Whether to show the progress bar (false for verbose mode) */
@@ -161,7 +162,7 @@ export function formatCheckBanner(options: {
   const { serverCommand, toolCount } = options;
 
   // Truncate server command if too long
-  const maxCmdLen = 45;
+  const maxCmdLen = DISPLAY_LIMITS.BANNER_COMMAND_MAX_LENGTH;
   const displayCmd =
     serverCommand.length > maxCmdLen
       ? serverCommand.substring(0, maxCmdLen - 3) + '...'
@@ -205,7 +206,7 @@ export function formatExploreBanner(options: {
   } = options;
 
   // Truncate server command if too long
-  const maxCmdLen = 45;
+  const maxCmdLen = DISPLAY_LIMITS.BANNER_COMMAND_MAX_LENGTH;
   const displayCmd =
     serverCommand.length > maxCmdLen
       ? serverCommand.substring(0, maxCmdLen - 3) + '...'

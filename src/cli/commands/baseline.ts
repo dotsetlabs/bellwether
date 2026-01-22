@@ -6,6 +6,8 @@
  *   - compare <path>       Compare test results against baseline
  *   - show [path]          Display baseline contents
  *   - diff <path1> <path2> Compare two baseline files
+ *   - accept               Accept detected drift as intentional
+ *   - migrate              Upgrade baseline to current format
  */
 
 import { Command } from 'commander';
@@ -25,6 +27,7 @@ import {
 import { createCloudBaseline } from '../../baseline/converter.js';
 import { BaselineVersionError } from '../../baseline/version.js';
 import { migrateCommand } from './baseline-migrate.js';
+import { acceptCommand } from './baseline-accept.js';
 import type { InterviewResult } from '../../interview/types.js';
 import { loadConfig, ConfigNotFoundError } from '../../config/loader.js';
 import { PATHS } from '../../constants.js';
@@ -34,10 +37,11 @@ import * as output from '../output.js';
  * Default paths for baseline files.
  */
 const DEFAULT_BASELINE_PATH = PATHS.DEFAULT_BASELINE_FILE;
-const DEFAULT_REPORT_PATH = PATHS.DEFAULT_CHECK_REPORT_FILE || PATHS.DEFAULT_EXPLORE_REPORT_FILE;
+const DEFAULT_REPORT_PATH = PATHS.DEFAULT_CHECK_REPORT_FILE;
 
 /**
  * Load interview result from JSON report.
+ * Only accepts check mode results - explore results are for documentation only.
  */
 function loadInterviewResult(reportPath: string): InterviewResult {
   if (!existsSync(reportPath)) {
@@ -51,13 +55,28 @@ function loadInterviewResult(reportPath: string): InterviewResult {
   }
 
   const content = readFileSync(reportPath, 'utf-8');
+  let result: InterviewResult;
   try {
-    return JSON.parse(content) as InterviewResult;
+    result = JSON.parse(content) as InterviewResult;
   } catch (error) {
     throw new Error(
       `Invalid JSON in report file ${reportPath}: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
+
+  // Validate that this is a check mode result, not explore
+  if (result.metadata.model && result.metadata.model !== 'check') {
+    throw new Error(
+      `Baseline operations only work with check mode results.\n\n` +
+      `The report at ${reportPath} was created with explore mode (model: ${result.metadata.model}).\n` +
+      `Explore results are for documentation only and cannot be used for baselines.\n\n` +
+      'To create a baseline:\n' +
+      '  1. Run `bellwether check` to generate a check mode report\n' +
+      '  2. Run `bellwether baseline save` to create the baseline'
+    );
+  }
+
+  return result;
 }
 
 /**
@@ -85,12 +104,15 @@ Examples:
   $ bellwether baseline compare ./baseline.json # Compare test against baseline
   $ bellwether baseline show                    # Show current baseline
   $ bellwether baseline diff v1.json v2.json    # Compare two baselines
+  $ bellwether baseline accept                  # Accept drift as intentional
+  $ bellwether baseline accept --reason "Added new feature"
   $ bellwether baseline migrate                 # Upgrade baseline to current format
   $ bellwether baseline migrate --info          # Check if migration is needed
 `
   );
 
 baselineCommand.addCommand(migrateCommand);
+baselineCommand.addCommand(acceptCommand);
 
 // baseline save
 
@@ -101,7 +123,6 @@ baselineCommand
   .option('-c, --config <path>', 'Path to config file')
   .option('--report <path>', 'Path to test report JSON file')
   .option('--cloud', 'Save in cloud-compatible format')
-  .option('--contract', 'Create contract-only baseline (no LLM assertions)')
   .option('-f, --force', 'Overwrite existing baseline without prompting')
   .action(async (baselinePath: string, options) => {
     const outputDir = getOutputDir(options.config);
@@ -130,9 +151,6 @@ baselineCommand
       process.exit(1);
     }
 
-    // Determine mode
-    const mode = options.contract ? 'contract' : 'document';
-
     // Extract server command from result metadata
     const serverCommand = result.metadata.serverCommand || 'unknown';
 
@@ -142,9 +160,9 @@ baselineCommand
       writeFileSync(finalPath, JSON.stringify(cloudBaseline, null, 2));
       output.success(`Cloud baseline saved: ${finalPath}`);
     } else {
-      const baseline = createBaseline(result, serverCommand, mode);
+      const baseline = createBaseline(result, serverCommand);
       saveBaseline(baseline, finalPath);
-      output.success(`Baseline saved: ${finalPath} (mode: ${mode})`);
+      output.success(`Baseline saved: ${finalPath}`);
     }
 
     // Show summary
@@ -197,8 +215,7 @@ baselineCommand
 
     // Create current baseline for comparison
     const serverCommand = result.metadata.serverCommand || 'unknown';
-    const mode = previousBaseline.mode || 'document';
-    const currentBaseline = createBaseline(result, serverCommand, mode);
+    const currentBaseline = createBaseline(result, serverCommand);
 
     // Compare baselines
     let diff;
@@ -306,7 +323,7 @@ baselineCommand
     output.info(`File: ${fullPath}`);
     output.info(`Format Version: ${baseline.version}`);
     output.info(`Created: ${baseline.createdAt instanceof Date ? baseline.createdAt.toISOString() : baseline.createdAt}`);
-    output.info(`Mode: ${baseline.mode || 'document'}`);
+    output.info(`Mode: ${baseline.mode || 'check'}`);
     output.info(`Server Command: ${baseline.serverCommand}`);
     output.newline();
 

@@ -49,13 +49,6 @@ Like `bellwether check` and `bellwether explore`, the `verify` command reads con
 | `--version <version>` | Server version to verify | Auto-detect |
 | `--security` | Include security testing (required for gold+ tiers) | `false` |
 
-### LLM Options
-
-| Option | Description | Default |
-|:-------|:------------|:--------|
-| `--provider <provider>` | LLM provider: `ollama`, `openai`, `anthropic` | `ollama` (or config) |
-| `--model <model>` | LLM model to use | Provider default |
-
 ### Output Options
 
 | Option | Description | Default |
@@ -129,20 +122,20 @@ bellwether verify --tier gold --security
 bellwether verify --tier platinum
 ```
 
-### Use Different LLM Providers
+### Configure LLM Provider
+
+Configure your LLM provider in `bellwether.yaml`:
+
+```yaml
+llm:
+  provider: anthropic  # or openai, ollama
+  model: claude-haiku-4-5
+```
+
+Then run:
 
 ```bash
-# Use local Ollama (default, free) - configured in bellwether.yaml
 bellwether verify
-
-# Override provider from command line
-bellwether verify --provider openai
-
-# Use Anthropic Claude
-bellwether verify --provider anthropic
-
-# Specify a particular model
-bellwether verify --provider anthropic --model claude-sonnet-4-5
 ```
 
 ### Submit to Cloud
