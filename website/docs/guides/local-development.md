@@ -19,7 +19,7 @@ Testing locally allows you to:
 - **Shift-left testing** - Catch behavioral regressions before they're deployed
 - **Fast iteration** - No waiting for deployments between tests
 - **CI/CD integration** - Gate deployments on drift detection
-- **Free testing** - Use contract mode or Ollama for completely free testing
+- **Free testing** - Use check mode or Ollama for completely free testing
 
 ## Quick Start
 
@@ -33,8 +33,8 @@ bellwether check
 # 3. Save baseline
 bellwether baseline save
 
-# 4. Watch for changes
-bellwether watch --watch-path ./src
+# 4. Watch for changes (uses watch settings from bellwether.yaml)
+bellwether watch
 ```
 
 ## Running Against Local Servers
@@ -88,10 +88,10 @@ server:
 First, create your configuration file:
 
 ```bash
-# Default contract mode (free, fast)
+# Default check mode (free, fast)
 bellwether init "node ./src/mcp-server.js"
 
-# Or document mode with Ollama (free)
+# Or explore mode with Ollama (free)
 bellwether init --preset local "node ./src/mcp-server.js"
 ```
 
@@ -118,7 +118,16 @@ This saves `bellwether-baseline.json` with:
 Run watch mode in a terminal while developing:
 
 ```bash
-bellwether watch --watch-path ./src
+bellwether watch
+```
+
+Configure watch settings in `bellwether.yaml`:
+
+```yaml
+watch:
+  path: "./src"
+  interval: 5000
+  extensions: [".ts", ".js", ".json"]
 ```
 
 Watch mode:
@@ -197,8 +206,6 @@ bellwether check
 The generated `bellwether.yaml` will be configured for Ollama:
 
 ```yaml
-mode: document
-
 llm:
   provider: ollama
   model: ""  # Uses qwen3:8b by default
@@ -276,29 +283,29 @@ jobs:
         run: npx @dotsetlabs/bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
-## Two Testing Modes
+## Two Commands
 
-Choose the right mode for your workflow:
+Choose the right command for your workflow:
 
-### Contract Mode (Default)
+### Check Command (Default)
 
 - **Cost**: Free
 - **Speed**: Fast (seconds)
-- **Use case**: CI/CD, quick checks, schema verification
+- **Use case**: CI/CD, quick checks, schema verification, drift detection
 
 ```bash
-bellwether init "node ./src/mcp-server.js"  # Default contract mode
+bellwether check "node ./src/mcp-server.js"  # Free, deterministic
 ```
 
-### Document Mode
+### Explore Command
 
 - **Cost**: Free with Ollama, ~$0.01-0.15 with API
 - **Speed**: Slower (minutes)
-- **Use case**: Thorough testing, documentation, security audits
+- **Use case**: Deep exploration, documentation generation, security audits
 
 ```bash
 bellwether init --preset local "node ./src/mcp-server.js"   # Free with Ollama
-bellwether init --preset thorough "node ./src/mcp-server.js"  # Premium models
+bellwether explore  # Generates AGENTS.md documentation
 ```
 
 ## Environment Variables
@@ -335,14 +342,15 @@ logging:
 
 ### Watch Mode Not Detecting Changes
 
-Ensure you're watching the right directory:
+Ensure you've configured the right directory in `bellwether.yaml`:
 
-```bash
-# Watch a specific directory
-bellwether watch --watch-path ./src
-
-# Watch multiple directories
-bellwether watch --watch-path ./src --watch-path ./lib
+```yaml
+watch:
+  path: "./src"  # Directory to watch
+  extensions:
+    - ".ts"
+    - ".js"
+    - ".json"
 ```
 
 ## See Also

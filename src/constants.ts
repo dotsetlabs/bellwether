@@ -194,91 +194,6 @@ export const DISPLAY_LIMITS = {
   BANNER_COMMAND_MAX_LENGTH: 45,
 } as const;
 
-// ==================== Confidence Thresholds ====================
-
-/**
- * Confidence scoring thresholds for baseline comparison and drift detection.
- */
-export const CONFIDENCE = {
-  /** Threshold for CI failure (changes above this are significant) */
-  CI_FAILURE_THRESHOLD: 80,
-  /** Minimum confidence to report a change */
-  REPORTING_THRESHOLD: 50,
-  /** Score considered "high confidence" */
-  HIGH_CONFIDENCE: 85,
-  /** Score considered "medium confidence" */
-  MEDIUM_CONFIDENCE: 60,
-  /** Score considered "low confidence" */
-  LOW_CONFIDENCE: 40,
-  /** Category match threshold for security findings */
-  CATEGORY_MATCH_HIGH: 80,
-  /** Category partial match threshold */
-  CATEGORY_MATCH_MEDIUM: 60,
-  /** Minimum category match for consideration */
-  CATEGORY_MATCH_LOW: 20,
-  /** Statistical confidence level for A/B testing (95%) */
-  STATISTICAL_CONFIDENCE: 0.95,
-  /** Maximum acceptable false positive rate (5%) */
-  MAX_FALSE_POSITIVE_RATE: 5,
-} as const;
-
-// ==================== Semantic Comparison Weights ====================
-
-/**
- * Weight factors for semantic comparison algorithms.
- * Weights in each category should generally sum to 1.0 for normalization.
- */
-export const SEMANTIC_WEIGHTS = {
-  // Security finding comparison weights
-  SECURITY: {
-    SHARED_TERMS: 0.25,
-    SYNONYM_SIMILARITY: 0.15,
-    CATEGORY_MATCH: 0.25,
-    TOOL_MATCH: 0.1,
-    SEVERITY_MATCH: 0.15,
-    SPECIFICITY: 0.1,
-  },
-  // Response format comparison weights
-  RESPONSE_FORMAT: {
-    STRUCTURE: 0.25,
-    CONTENT_TYPE: 0.2,
-    FIELD_OVERLAP: 0.25,
-    VALUE_SIMILARITY: 0.15,
-    SCHEMA_MATCH: 0.15,
-  },
-  // Error handling comparison weights
-  ERROR_HANDLING: {
-    ERROR_TYPE: 0.25,
-    MESSAGE_SIMILARITY: 0.2,
-    RECOVERY_BEHAVIOR: 0.2,
-    CONTEXT_MATCH: 0.15,
-    SEVERITY: 0.2,
-  },
-  // Performance comparison weights
-  PERFORMANCE: {
-    LATENCY: 0.25,
-    THROUGHPUT: 0.2,
-    ERROR_RATE: 0.25,
-    CONSISTENCY: 0.15,
-    RESOURCE_USAGE: 0.15,
-  },
-  // Description comparison weights
-  DESCRIPTION: {
-    SEMANTIC_SIMILARITY: 0.3,
-    KEYWORD_OVERLAP: 0.2,
-    LENGTH_SIMILARITY: 0.1,
-    STRUCTURE: 0.2,
-    SPECIFICITY: 0.2,
-  },
-  // Confidence scoring component weights (tuned for paraphrase detection)
-  CONFIDENCE_SCORING: {
-    keywordOverlap: 0.35,
-    structuralAlignment: 0.15,
-    semanticSimilarity: 0.30,
-    categoryConsistency: 0.20,
-  },
-} as const;
-
 // ==================== Mathematical Factors ====================
 
 /**
@@ -524,11 +439,6 @@ export const VALIDATION_BOUNDS = {
   QUESTIONS_PER_TOOL: {
     MIN: 1,
     MAX: 10,
-  },
-  /** Confidence score bounds */
-  CONFIDENCE: {
-    MIN: 0,
-    MAX: 100,
   },
   /** Persona concurrency bounds */
   PERSONA_CONCURRENCY: {
@@ -786,6 +696,37 @@ export const DEPRECATION = {
     /** Critical warning within this many days */
     criticalRemovalDays: 7,
   },
+} as const;
+
+/**
+ * Verification tier thresholds for the Verified by Bellwether program.
+ * Used by verifier.ts to determine verification tier based on test coverage.
+ */
+export const VERIFICATION_TIERS = {
+  /** Platinum tier requirements: security testing + all personas + high pass rate */
+  PLATINUM: {
+    MIN_PERSONAS: 4,
+    MIN_PASS_RATE: 90,
+    REQUIRES_SECURITY: true,
+  },
+  /** Gold tier requirements: multiple personas + good coverage + high pass rate */
+  GOLD: {
+    MIN_PERSONAS: 3,
+    MIN_PASS_RATE: 85,
+    REQUIRES_PROMPTS_OR_RESOURCES: true,
+  },
+  /** Silver tier requirements: error handling tested + decent pass rate */
+  SILVER: {
+    MIN_PERSONAS: 2,
+    MIN_PASS_RATE: 75,
+  },
+  /** Bronze tier is the default when other thresholds aren't met */
+  BRONZE: {
+    MIN_PERSONAS: 1,
+    MIN_PASS_RATE: 0,
+  },
+  /** Minimum pass rate required for any verification to pass */
+  MIN_PASS_RATE_FOR_VERIFICATION: 50,
 } as const;
 
 /**

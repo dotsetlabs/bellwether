@@ -193,7 +193,7 @@ function compareTool(
     });
   }
 
-  // Compare response structure fingerprints (contract mode enhancement)
+  // Compare response structure fingerprints (check mode enhancement)
   if (!options.ignoreResponseStructureChanges) {
     const fingerprintDiff = compareFingerprints(
       previous.responseFingerprint,
@@ -216,7 +216,7 @@ function compareTool(
     }
   }
 
-  // Compare error patterns (contract mode enhancement)
+  // Compare error patterns (check mode enhancement)
   if (!options.ignoreErrorPatternChanges) {
     const errorDiff = compareErrorPatterns(
       previous.errorPatterns,

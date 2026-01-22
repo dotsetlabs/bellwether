@@ -14,7 +14,7 @@ import type {
 import type { InterviewResult } from '../interview/types.js';
 import { getLogger } from '../logging/logger.js';
 import { VERSION } from '../version.js';
-import { TIME_CONSTANTS, DISPLAY_LIMITS } from '../constants.js';
+import { TIME_CONSTANTS, DISPLAY_LIMITS, VERIFICATION_TIERS } from '../constants.js';
 
 const logger = getLogger('verification');
 
@@ -275,9 +275,6 @@ function calculateTestStats(interview: InterviewResult): {
   return { testsPassed, testsTotal, toolStats };
 }
 
-/**
- * Determine verification tier based on coverage and pass rate.
- */
 function determineTier(
   interview: InterviewResult,
   passRate: number
@@ -291,17 +288,28 @@ function determineTier(
   const hasResources = (interview.resourceProfiles?.length ?? 0) > 0;
 
   // Platinum: Security testing + all personas + high pass rate
-  if (hasSecurityTesting && personaCount >= 4 && passRate >= 90) {
+  if (
+    hasSecurityTesting &&
+    personaCount >= VERIFICATION_TIERS.PLATINUM.MIN_PERSONAS &&
+    passRate >= VERIFICATION_TIERS.PLATINUM.MIN_PASS_RATE
+  ) {
     return 'platinum';
   }
 
   // Gold: Multiple personas + good coverage + high pass rate
-  if (personaCount >= 3 && passRate >= 85 && (hasPrompts || hasResources)) {
+  if (
+    personaCount >= VERIFICATION_TIERS.GOLD.MIN_PERSONAS &&
+    passRate >= VERIFICATION_TIERS.GOLD.MIN_PASS_RATE &&
+    (hasPrompts || hasResources)
+  ) {
     return 'gold';
   }
 
   // Silver: Error handling tested + decent pass rate
-  if (personaCount >= 2 && passRate >= 75) {
+  if (
+    personaCount >= VERIFICATION_TIERS.SILVER.MIN_PERSONAS &&
+    passRate >= VERIFICATION_TIERS.SILVER.MIN_PASS_RATE
+  ) {
     return 'silver';
   }
 
@@ -318,7 +326,7 @@ function determineStatus(
   targetTier?: VerificationTier
 ): VerificationStatus {
   // Minimum pass rate for verification
-  if (passRate < 50) {
+  if (passRate < VERIFICATION_TIERS.MIN_PASS_RATE_FOR_VERIFICATION) {
     return 'failed';
   }
 

@@ -11,8 +11,7 @@ Check an MCP server for schema validation and drift detection. Free, fast, and d
 
 ```bash
 bellwether check [server-command] [args...]
-bellwether check --baseline <path>
-bellwether check --save-baseline
+bellwether check --fail-on-drift
 ```
 
 ## Description
@@ -36,9 +35,13 @@ This is the recommended command for CI/CD pipelines because it's:
 | Option | Description | Default |
 |:-------|:------------|:--------|
 | `-c, --config <path>` | Path to config file | `bellwether.yaml` |
-| `--baseline <path>` | Compare against baseline file | - |
-| `--save-baseline [path]` | Save baseline after check | - |
-| `--fail-on-drift` | Exit with error if drift detected | `false` |
+| `--fail-on-drift` | Exit with error if drift detected (overrides config) | From config |
+| `--accept-drift` | Accept detected drift as intentional and update baseline | `false` |
+| `--accept-reason <reason>` | Reason for accepting drift (used with `--accept-drift`) | - |
+
+:::tip Config-First Design
+Baseline paths are configured in `bellwether.yaml` under `baseline.comparePath` and `baseline.savePath`. The `--fail-on-drift` flag is the only CLI override, useful for CI pipelines.
+:::
 
 ## Examples
 
@@ -52,32 +55,53 @@ bellwether check npx @modelcontextprotocol/server-filesystem /tmp
 bellwether check
 ```
 
-### Save Baseline
+### Drift Detection with Config
 
-```bash
-# Check and save baseline in one command
-bellwether check --save-baseline
+Configure baseline comparison in `bellwether.yaml`:
 
-# Or save to specific path
-bellwether check --save-baseline ./baselines/v1.0.0.json
+```yaml
+baseline:
+  comparePath: "./bellwether-baseline.json"  # Compare against this baseline
+  savePath: "./bellwether-baseline.json"     # Auto-save after check
+  failOnDrift: true                          # Fail if drift detected
 ```
 
-### Drift Detection
+Then run:
 
 ```bash
-# Compare against baseline
-bellwether check --baseline ./bellwether-baseline.json
-
-# Fail CI if drift detected
-bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
+bellwether check
 ```
 
 ### CI/CD Pipeline
 
 ```bash
-# Quick drift check in CI
-bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
+# Quick drift check in CI (--fail-on-drift overrides config)
+bellwether check --fail-on-drift
 ```
+
+### Save Baseline Separately
+
+Use the baseline command to save baselines:
+
+```bash
+bellwether check
+bellwether baseline save
+```
+
+### Accept Drift During Check
+
+When you intentionally change your server, you can accept drift as part of the check:
+
+```bash
+# Accept drift in one command
+bellwether check --accept-drift --accept-reason "Added new delete_file tool"
+```
+
+This updates the baseline and records acceptance metadata (who, when, why) for audit trail.
+
+:::note
+The `--accepted-by` option is only available in `bellwether baseline accept`. When using `--accept-drift` with the check command, the acceptor is recorded automatically from your system username.
+:::
 
 ## Output Files
 
@@ -108,7 +132,8 @@ output:
   dir: "."
 
 baseline:
-  comparePath: "./bellwether-baseline.json"  # Auto-compare
+  comparePath: "./bellwether-baseline.json"  # Compare against this baseline
+  savePath: "./bellwether-baseline.json"     # Auto-save after check
   failOnDrift: false
 
 scenarios:

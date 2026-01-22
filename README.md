@@ -6,7 +6,7 @@
 
 > **Catch MCP server drift before your users do. Zero LLM required.**
 
-Bellwether detects behavioral changes in your [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server using **contract comparison**. No LLM needed. Free. Deterministic.
+Bellwether detects structural changes in your [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server using **schema comparison**. No LLM needed. Free. Deterministic.
 
 ## Quick Start
 
@@ -43,14 +43,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npx @dotsetlabs/bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
+      - run: npx @dotsetlabs/bellwether check --fail-on-drift
 ```
 
 No secrets needed. Free. Runs in seconds.
 
 ## What Bellwether Detects
 
-Contract mode detects when your MCP server changes:
+Check mode detects when your MCP server changes:
 
 | Change Type | Example | Detected |
 |:------------|:--------|:---------|
@@ -140,7 +140,7 @@ bellwether init --preset ci npx @mcp/server
 # Check for drift (free, fast, deterministic)
 bellwether check                   # Uses server.command from config
 bellwether check npx @mcp/server   # Override server command
-bellwether check --save-baseline   # Save baseline after check
+bellwether check --fail-on-drift   # Fail if drift detected (for CI)
 
 # Explore behavior (LLM-powered)
 bellwether explore                 # Uses server.command from config
@@ -149,15 +149,15 @@ bellwether explore npx @mcp/server # Override server command
 # Discover server capabilities
 bellwether discover npx @mcp/server
 
-# Watch mode (re-check on file changes)
-bellwether watch --watch-path ./src
+# Watch mode (re-check on file changes, uses config)
+bellwether watch
 
 # Search MCP Registry
 bellwether registry filesystem
 bellwether registry database --limit 5
 
 # Generate verification report
-bellwether verify npx @mcp/server --tier gold
+bellwether verify --tier gold
 ```
 
 ### Baseline Commands
@@ -168,8 +168,7 @@ bellwether baseline save
 bellwether baseline save ./my-baseline.json
 
 # Compare test results against baseline
-bellwether baseline compare ./bellwether-baseline.json
-bellwether baseline compare ./baseline.json --fail-on-drift
+bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 bellwether baseline compare ./baseline.json --ignore-version-mismatch  # Force compare incompatible versions
 
 # Show baseline contents

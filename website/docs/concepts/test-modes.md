@@ -29,11 +29,12 @@ The check command validates tool schemas, parameter types, and descriptions with
 - **Output** - Generates `CONTRACT.md`
 
 ```bash
-# Run check
-bellwether check npx @mcp/server
+# Initialize config and run check
+bellwether init npx @mcp/server
+bellwether check
 
-# With baseline comparison
-bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
+# With baseline comparison (configure in bellwether.yaml)
+bellwether check --fail-on-drift
 ```
 
 ### What Check Detects
@@ -59,11 +60,13 @@ The explore command uses an LLM to intelligently probe your server from multiple
 - **Rich documentation** - Generates detailed `AGENTS.md` with observed behavior
 
 ```bash
-# Run explore with Ollama (free)
-bellwether explore npx @mcp/server
+# Initialize with local preset and run explore
+bellwether init --preset local npx @mcp/server
+bellwether explore
 
-# Or with OpenAI/Anthropic
-bellwether explore --provider openai npx @mcp/server
+# Configure provider in bellwether.yaml
+# llm:
+#   provider: openai  # or anthropic
 ```
 
 ### What Explore Provides
@@ -104,8 +107,8 @@ A common pattern is to use both commands:
 2. **Local dev**: `bellwether explore` for comprehensive testing and documentation
 
 ```bash
-# CI/CD pipeline
-bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
+# CI/CD pipeline (baseline path configured in bellwether.yaml)
+bellwether check --fail-on-drift
 
 # Local development
 bellwether explore  # Uses config from bellwether.yaml

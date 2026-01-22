@@ -13,7 +13,6 @@ import {
   LLM_DEFAULTS,
   PATHS,
   VALIDATION_BOUNDS,
-  CONFIDENCE,
 } from '../constants.js';
 
 /**
@@ -123,17 +122,12 @@ export const outputConfigSchema = z.object({
 export const baselineConfigSchema = z.object({
   /** Path to baseline file for upload (relative to output.dir or absolute) */
   path: z.string().optional(),
-  /** Path to baseline for comparison */
+  /** Path to save baseline after check (enables auto-save) */
+  savePath: z.string().optional(),
+  /** Path to baseline for comparison (drift detection) */
   comparePath: z.string().optional(),
   /** Fail if drift is detected */
   failOnDrift: z.boolean().default(false),
-  /** Confidence threshold for CI failure (0-100) */
-  confidenceThreshold: z
-    .number()
-    .int()
-    .min(VALIDATION_BOUNDS.CONFIDENCE.MIN)
-    .max(VALIDATION_BOUNDS.CONFIDENCE.MAX)
-    .default(CONFIDENCE.CI_FAILURE_THRESHOLD),
 }).default({});
 
 /**
@@ -157,6 +151,20 @@ export const loggingConfigSchema = z.object({
 }).default({});
 
 /**
+ * Watch mode configuration schema.
+ */
+export const watchConfigSchema = z.object({
+  /** Path to watch for changes */
+  path: z.string().default('.'),
+  /** Polling interval in milliseconds */
+  interval: z.number().int().min(1000).max(60000).default(5000),
+  /** File extensions to watch */
+  extensions: z.array(z.string()).default(['.ts', '.js', '.json', '.py', '.go']),
+  /** Command to run when drift is detected */
+  onDrift: z.string().optional(),
+}).default({});
+
+/**
  * Complete bellwether.yaml configuration schema.
  *
  * This config is used by both 'bellwether check' and 'bellwether explore' commands.
@@ -177,6 +185,8 @@ export const bellwetherConfigSchema = z.object({
   output: outputConfigSchema,
   /** Baseline comparison (used by check command) */
   baseline: baselineConfigSchema,
+  /** Watch mode settings (used by watch command) */
+  watch: watchConfigSchema,
   /** Caching (used by both commands) */
   cache: cacheConfigSchema,
   /** Logging (used by both commands) */

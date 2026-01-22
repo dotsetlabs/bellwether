@@ -100,7 +100,7 @@ export interface ToolCapability {
   inputSchema: Record<string, unknown>;
   /** Hash of the schema for change detection */
   schemaHash: string;
-  // Response fingerprinting (contract mode enhancement)
+  // Response fingerprinting (check mode enhancement)
   /** Fingerprint of the tool's response structure */
   responseFingerprint?: ResponseFingerprint;
   /** Inferred JSON schema of the tool's output */

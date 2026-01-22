@@ -13,7 +13,6 @@ import { join } from 'path';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
 import { Interviewer } from '../../interview/interviewer.js';
-import type { ServerContext } from '../../interview/types.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
 import { generateContractMd, generateJsonReport } from '../../docs/generator.js';
 import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
@@ -21,7 +20,9 @@ import { validateConfigForCheck } from '../../config/validator.js';
 import {
   createBaseline,
   loadBaseline,
+  saveBaseline,
   compareBaselines,
+  acceptDrift,
   formatDiffText,
 } from '../../baseline/index.js';
 import { getMetricsCollector, resetMetricsCollector } from '../../metrics/collector.js';
@@ -29,38 +30,7 @@ import { getGlobalCache, resetGlobalCache } from '../../cache/response-cache.js'
 import { InterviewProgressBar, formatCheckBanner } from '../utils/progress.js';
 import { loadScenariosFromFile, tryLoadDefaultScenarios, DEFAULT_SCENARIOS_FILE } from '../../scenarios/index.js';
 import * as output from '../output.js';
-
-/**
- * Extract server context from command and arguments.
- */
-function extractServerContextFromArgs(command: string, args: string[]): ServerContext {
-  const context: ServerContext = {
-    allowedDirectories: [],
-    constraints: [],
-    hints: [],
-  };
-
-  const fullCommand = `${command} ${args.join(' ')}`.toLowerCase();
-  const pathArgs = args.filter((arg) => arg.startsWith('/') && !arg.startsWith('--'));
-
-  if (fullCommand.includes('filesystem') || fullCommand.includes('file-system')) {
-    context.allowedDirectories = pathArgs;
-    if (context.allowedDirectories.length > 0) {
-      context.hints!.push(`Filesystem server with allowed directories: ${context.allowedDirectories.join(', ')}`);
-    }
-    context.constraints!.push('Operations limited to specified directories');
-  } else if (fullCommand.includes('postgres') || fullCommand.includes('mysql') || fullCommand.includes('sqlite')) {
-    context.hints!.push('Database server - SQL operations expected');
-    context.constraints!.push('Database operations only');
-  } else if (fullCommand.includes('git')) {
-    context.allowedDirectories = pathArgs;
-    context.hints!.push('Git server - repository operations expected');
-  } else {
-    context.allowedDirectories = pathArgs;
-  }
-
-  return context;
-}
+import { extractServerContextFromArgs } from './shared.js';
 
 
 export const checkCommand = new Command('check')
@@ -68,9 +38,9 @@ export const checkCommand = new Command('check')
   .argument('[server-command]', 'Server command (overrides config)')
   .argument('[args...]', 'Server arguments')
   .option('-c, --config <path>', 'Path to config file', 'bellwether.yaml')
-  .option('--baseline <path>', 'Compare against baseline file')
-  .option('--save-baseline [path]', 'Save baseline after check')
-  .option('--fail-on-drift', 'Exit with error if drift detected')
+  .option('--fail-on-drift', 'Exit with error if drift detected (overrides config)')
+  .option('--accept-drift', 'Accept detected drift as intentional and update baseline')
+  .option('--accept-reason <reason>', 'Reason for accepting drift (used with --accept-drift)')
   .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
     // Load configuration
     let config: BellwetherConfig;
@@ -104,8 +74,9 @@ export const checkCommand = new Command('check')
     const verbose = config.logging.verbose;
     const logLevel = config.logging.level;
 
-    // Resolve baseline options (CLI overrides config)
-    const baselinePath = options.baseline || config.baseline.comparePath;
+    // Resolve baseline options from config (--fail-on-drift CLI flag can override)
+    const baselinePath = config.baseline.comparePath;
+    const saveBaselinePath = config.baseline.savePath;
     const failOnDrift = options.failOnDrift || config.baseline.failOnDrift;
 
     // Display startup banner
@@ -182,10 +153,9 @@ export const checkCommand = new Command('check')
         }
       }
 
-      // Create interviewer for check mode
+      // Create interviewer for check mode (no LLM required)
       const fullServerCommand = `${serverCommand} ${args.join(' ')}`.trim();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Contract mode doesn't use LLM
-      const interviewer = new Interviewer(null as any, {
+      const interviewer = new Interviewer(null, {
         maxQuestionsPerTool: 3, // Default for schema-based tests
         timeout,
         skipErrorTests: false,
@@ -196,7 +166,7 @@ export const checkCommand = new Command('check')
         enableStreaming: false,
         parallelPersonas: false,
         cache,
-        contractOnly: true, // Skip LLM calls for fast, deterministic checking
+        checkMode: true, // Required when passing null for LLM
         serverCommand: fullServerCommand,
       });
 
@@ -291,11 +261,8 @@ export const checkCommand = new Command('check')
       // Create baseline from results
       const currentBaseline = createBaseline(result, fullServerCommand);
 
-      // Save baseline if requested
-      if (options.saveBaseline) {
-        const saveBaselinePath = typeof options.saveBaseline === 'string'
-          ? options.saveBaseline
-          : join(outputDir, 'bellwether-baseline.json');
+      // Save baseline if configured
+      if (saveBaselinePath) {
         writeFileSync(saveBaselinePath, JSON.stringify(currentBaseline, null, 2));
         output.info(`\nBaseline saved: ${saveBaselinePath}`);
       }
@@ -313,12 +280,25 @@ export const checkCommand = new Command('check')
         output.info('\n--- Drift Report ---');
         output.info(formatDiffText(diff));
 
-        if (failOnDrift) {
+        // Handle --accept-drift flag
+        if (options.acceptDrift && diff.severity !== 'none') {
+          const acceptedBaseline = acceptDrift(currentBaseline, diff, {
+            reason: options.acceptReason,
+          });
+          saveBaseline(acceptedBaseline, baselinePath);
+          output.success(`\nDrift accepted and baseline updated: ${baselinePath}`);
+          if (options.acceptReason) {
+            output.info(`Reason: ${options.acceptReason}`);
+          }
+          output.info('Future checks will compare against this new baseline.');
+        } else if (failOnDrift && !options.acceptDrift) {
           if (diff.severity === 'breaking') {
             output.error('\nBreaking changes detected!');
+            output.error('Use --accept-drift to accept these changes as intentional.');
             process.exit(1);
           } else if (diff.severity === 'warning') {
             output.warn('\nWarning-level changes detected.');
+            output.warn('Use --accept-drift to accept these changes as intentional.');
             process.exit(1);
           }
         }

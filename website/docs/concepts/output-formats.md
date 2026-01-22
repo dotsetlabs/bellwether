@@ -199,7 +199,7 @@ bellwether baseline compare ./bellwether-baseline.json
   "formatVersion": "1.0.0",
   "createdAt": "2026-01-12T10:30:00Z",
   "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
-  "mode": "contract",
+  "mode": "check",
   "integrityHash": "a1b2c3d4e5f6...",
   "server": {
     "name": "@modelcontextprotocol/server-filesystem",

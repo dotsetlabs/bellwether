@@ -240,7 +240,7 @@ Add these CI/CD variables in GitLab:
 |:---------|:------------|
 | `BELLWETHER_SESSION` | Bellwether Cloud session token (masked) |
 | `GITLAB_TOKEN` | GitLab personal access token (for committing baselines) |
-| `OPENAI_API_KEY` | Your OpenAI API key (masked, only for document mode) |
+| `OPENAI_API_KEY` | Your OpenAI API key (masked, only for explore mode) |
 
 ---
 

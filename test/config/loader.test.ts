@@ -194,13 +194,11 @@ server:
         `
 baseline:
   failOnDrift: true
-  confidenceThreshold: 90
 `
       );
 
       const config = loadConfig();
       expect(config.baseline.failOnDrift).toBe(true);
-      expect(config.baseline.confidenceThreshold).toBe(90);
     });
 
     it('should handle skipErrorTests boolean', () => {

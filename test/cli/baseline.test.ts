@@ -57,9 +57,9 @@ describe('baseline command', () => {
       startTime: new Date().toISOString(),
       endTime: new Date().toISOString(),
       duration: 1000,
-      mode: 'contract',
-      provider: 'ollama',
-      model: 'llama3.2',
+      mode: 'check',
+      provider: 'none',
+      model: 'check',
       serverCommand: 'npx @mcp/test-server',
     },
     metrics: {
@@ -76,7 +76,7 @@ describe('baseline command', () => {
     version: '1.0.0',
     createdAt: new Date().toISOString(),
     serverCommand: 'npx @mcp/test-server',
-    mode: 'contract',
+    mode: 'check',
     integrityHash: 'abc123def456',
     server: {
       name: 'test-server',
@@ -134,11 +134,11 @@ describe('baseline command', () => {
     vi.doMock('../../src/config/loader.js', () => ({
       loadConfig: vi.fn().mockReturnValue({
         server: { command: '', args: [], timeout: 30000, env: {} },
-        mode: 'contract',
+        mode: 'check',
         llm: { provider: 'ollama', model: '', ollama: { baseUrl: 'http://localhost:11434' } },
         explore: { personas: [], maxQuestionsPerTool: 3, parallelPersonas: false, skipErrorTests: false },
         output: { dir: '.', format: 'agents.md' },
-        baseline: { failOnDrift: false, confidenceThreshold: 80 },
+        baseline: { failOnDrift: false },
         cache: { enabled: true, dir: '.bellwether/cache' },
         logging: { level: 'info', verbose: false },
         scenarios: { only: false },
@@ -220,6 +220,18 @@ describe('baseline command', () => {
       const diffCmd = baselineCommand.commands.find(c => c.name() === 'diff');
       expect(diffCmd).toBeDefined();
     });
+
+    it('should have accept subcommand', async () => {
+      const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
+      const acceptCmd = baselineCommand.commands.find(c => c.name() === 'accept');
+      expect(acceptCmd).toBeDefined();
+    });
+
+    it('should have migrate subcommand', async () => {
+      const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
+      const migrateCmd = baselineCommand.commands.find(c => c.name() === 'migrate');
+      expect(migrateCmd).toBeDefined();
+    });
   });
 
   describe('save subcommand', () => {
@@ -252,12 +264,6 @@ describe('baseline command', () => {
       expect(cloudOpt).toBeDefined();
     });
 
-    it('should have contract option', async () => {
-      const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
-      const saveCmd = baselineCommand.commands.find(c => c.name() === 'save');
-      const contractOpt = saveCmd?.options.find(o => o.long === '--contract');
-      expect(contractOpt).toBeDefined();
-    });
 
     it('should have force option', async () => {
       const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
@@ -434,6 +440,51 @@ describe('baseline command', () => {
       await baselineCommand.parseAsync(['node', 'test', 'diff', 'baseline1.json', 'baseline2.json']);
 
       expect(consoleOutput.some(line => line.includes('Comparing baselines'))).toBe(true);
+    });
+  });
+
+  describe('accept subcommand', () => {
+    it('should have config option', async () => {
+      const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
+      const acceptCmd = baselineCommand.commands.find(c => c.name() === 'accept');
+      const configOpt = acceptCmd?.options.find(o => o.long === '--config');
+      expect(configOpt).toBeDefined();
+    });
+
+    it('should have reason option', async () => {
+      const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
+      const acceptCmd = baselineCommand.commands.find(c => c.name() === 'accept');
+      const reasonOpt = acceptCmd?.options.find(o => o.long === '--reason');
+      expect(reasonOpt).toBeDefined();
+    });
+
+    it('should have dry-run option', async () => {
+      const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
+      const acceptCmd = baselineCommand.commands.find(c => c.name() === 'accept');
+      const dryRunOpt = acceptCmd?.options.find(o => o.long === '--dry-run');
+      expect(dryRunOpt).toBeDefined();
+    });
+
+    it('should have force option', async () => {
+      const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
+      const acceptCmd = baselineCommand.commands.find(c => c.name() === 'accept');
+      const forceOpt = acceptCmd?.options.find(o => o.long === '--force');
+      expect(forceOpt).toBeDefined();
+    });
+
+    it('should have accepted-by option', async () => {
+      const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
+      const acceptCmd = baselineCommand.commands.find(c => c.name() === 'accept');
+      const acceptedByOpt = acceptCmd?.options.find(o => o.long === '--accepted-by');
+      expect(acceptedByOpt).toBeDefined();
+    });
+
+    it('should error when baseline not found', async () => {
+      const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
+
+      await expect(
+        baselineCommand.parseAsync(['node', 'test', 'accept'])
+      ).rejects.toThrow('Process exit: 1');
     });
   });
 });

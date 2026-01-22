@@ -11,8 +11,6 @@ Explore an MCP server's behavior using LLM-powered multi-persona testing. Genera
 
 ```bash
 bellwether explore [server-command] [args...]
-bellwether explore --provider <provider>
-bellwether explore --model <model>
 ```
 
 ## Description
@@ -38,8 +36,10 @@ This generates AGENTS.md—rich behavioral documentation that captures how your 
 | Option | Description | Default |
 |:-------|:------------|:--------|
 | `-c, --config <path>` | Path to config file | `bellwether.yaml` |
-| `--provider <provider>` | Override LLM provider (ollama, openai, anthropic) | From config |
-| `--model <model>` | Override LLM model | From config |
+
+:::tip Config-First Design
+LLM provider and model are configured in `bellwether.yaml` under `llm.provider` and `llm.model`. This keeps your configuration in one place and avoids needing to remember CLI flags.
+:::
 
 ## Examples
 
@@ -53,27 +53,31 @@ bellwether explore npx @modelcontextprotocol/server-filesystem /tmp
 bellwether explore
 ```
 
-### With Specific Provider
+### Configure LLM Provider
 
-```bash
+Configure your LLM provider in `bellwether.yaml`:
+
+```yaml
 # Use OpenAI
-bellwether explore --provider openai npx server
+llm:
+  provider: openai
+  model: gpt-4.1-nano  # or gpt-4.1 for better quality
 
 # Use Anthropic
-bellwether explore --provider anthropic npx server
+llm:
+  provider: anthropic
+  model: claude-haiku-4-5  # or claude-sonnet-4-5 for better quality
 
 # Use local Ollama (free)
-bellwether explore --provider ollama npx server
+llm:
+  provider: ollama
+  model: qwen3:8b
 ```
 
-### With Specific Model
+Then run:
 
 ```bash
-# Claude Sonnet for better quality
-bellwether explore --provider anthropic --model claude-sonnet-4-5 npx server
-
-# GPT-4.1 for higher quality OpenAI
-bellwether explore --provider openai --model gpt-4.1 npx server
+bellwether explore
 ```
 
 ## Output Files

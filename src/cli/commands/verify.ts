@@ -48,8 +48,6 @@ export function createVerifyCommand(): Command {
     .option('--security', 'Include security testing (required for gold+ tiers)')
     .option('--json', 'Output verification result as JSON')
     .option('--badge-only', 'Only output badge URL')
-    .option('--provider <provider>', 'LLM provider (ollama, openai, anthropic)')
-    .option('--model <model>', 'LLM model to use')
     .option('-p, --project <id>', 'Project ID to submit verification to (requires login)')
     .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
       await handleVerify(serverCommandArg, serverArgs, options);
@@ -70,8 +68,6 @@ async function handleVerify(
     security?: boolean;
     json?: boolean;
     badgeOnly?: boolean;
-    provider?: string;
-    model?: string;
     project?: string;
   }
 ): Promise<void> {
@@ -99,10 +95,9 @@ async function handleVerify(
     process.exit(1);
   }
 
-  // Get settings from config (CLI options override config)
-  // Use || for model to treat empty string as undefined (falls back to provider default)
-  const provider = options.provider || bellwetherConfig.llm.provider || 'ollama';
-  const model = options.model || bellwetherConfig.llm.model || undefined;
+  // Get LLM settings from config
+  const provider = bellwetherConfig.llm.provider || 'ollama';
+  const model = bellwetherConfig.llm.model || undefined;
   const outputDir = options.output ?? bellwetherConfig.output.dir ?? '.';
   const serverTimeout = bellwetherConfig.server.timeout ?? TIMEOUTS.DEFAULT;
   const serverEnv = bellwetherConfig.server.env;

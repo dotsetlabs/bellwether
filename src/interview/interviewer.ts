@@ -92,18 +92,44 @@ interface PersonaInterviewData {
  * Supports streaming output for real-time feedback during LLM operations.
  * Supports parallel persona execution for improved performance.
  * Supports caching tool responses and LLM analysis for efficiency.
+ *
+ * Two modes of operation:
+ * - Check mode: No LLM required, uses fallback questions and simple analysis
+ * - Explore mode: LLM required for question generation and behavioral analysis
  */
 export class Interviewer {
-  private llm: LLMClient;
+  private llm: LLMClient | null;
   private config: InterviewConfig;
   private personas: Persona[];
   private logger = getLogger('interviewer');
   private serverContext?: ServerContext;
   private cache?: ToolResponseCache;
 
-  constructor(llm: LLMClient, config?: Partial<InterviewConfig>) {
+  /**
+   * Create an Interviewer for explore mode (LLM-powered behavioral analysis).
+   *
+   * @param llm - LLM client for question generation and analysis
+   * @param config - Interview configuration
+   */
+  constructor(llm: LLMClient, config?: Partial<InterviewConfig>);
+
+  /**
+   * Create an Interviewer for check mode (no LLM, deterministic).
+   *
+   * @param llm - null for check mode
+   * @param config - Interview configuration (must have checkMode: true)
+   */
+  constructor(llm: null, config: Partial<InterviewConfig> & { checkMode: true });
+
+  constructor(llm: LLMClient | null, config?: Partial<InterviewConfig>) {
     this.llm = llm;
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Validate: if no LLM provided, must be in check mode
+    if (!llm && !this.config.checkMode) {
+      throw new Error('LLM client is required for explore mode. Use checkMode: true for check mode.');
+    }
+
     // Use multiple personas by default for better coverage
     this.personas = config?.personas ?? DEFAULT_PERSONAS;
     // Store cache reference for tool response and analysis caching
@@ -112,8 +138,12 @@ export class Interviewer {
 
   /**
    * Create an orchestrator with streaming and caching enabled if configured.
+   * Throws an error if called in check mode since orchestrator requires LLM.
    */
   private createOrchestrator(persona: Persona): Orchestrator {
+    if (!this.llm) {
+      throw new Error('Cannot create orchestrator in check mode - LLM client is required');
+    }
     const orchestrator = new Orchestrator(this.llm, persona, this.serverContext, this.cache);
 
     // Enable streaming if configured
@@ -125,7 +155,7 @@ export class Interviewer {
   }
 
   /**
-   * Generate simple analysis for contract/fast mode.
+   * Generate simple analysis for check/fast mode.
    * Avoids LLM calls by providing basic success/error messages.
    */
   private generateSimpleAnalysis(
@@ -143,10 +173,10 @@ export class Interviewer {
   }
 
   /**
-   * Check if we're in fast/contract mode (no LLM calls).
+   * Check if we're in fast/check mode (no LLM calls).
    */
-  private isContractMode(): boolean {
-    return this.config.customScenariosOnly || this.config.contractOnly || false;
+  private isCheckMode(): boolean {
+    return this.config.customScenariosOnly || this.config.checkMode || false;
   }
 
   /**
@@ -447,7 +477,7 @@ export class Interviewer {
             questions = customScenarios.map(s => this.scenarioToQuestion(s));
 
             // If not custom-only mode, also generate LLM questions (skip in fast CI mode)
-            if (!this.config.customScenariosOnly && !this.config.contractOnly) {
+            if (!this.config.customScenariosOnly && !this.config.checkMode) {
               const llmQuestions = await orchestrator.generateQuestions(
                 tool,
                 this.config.maxQuestionsPerTool,
@@ -457,7 +487,7 @@ export class Interviewer {
             }
           } else if (!this.config.customScenariosOnly) {
             // No custom scenarios - generate questions
-            if (this.config.contractOnly) {
+            if (this.config.checkMode) {
               // Fast CI mode: use fallback questions (no LLM call)
               questions = orchestrator.getFallbackQuestions(tool, this.config.skipErrorTests)
                 .slice(0, this.config.maxQuestionsPerTool);
@@ -494,7 +524,7 @@ export class Interviewer {
 
               // If we have multiple failures, regenerate remaining questions with error context
               // Skip in scenarios-only mode and fast CI mode
-              if (!this.config.customScenariosOnly && !this.config.contractOnly &&
+              if (!this.config.customScenariosOnly && !this.config.checkMode &&
                 previousErrors.length >= 2 && personaInteractions.length < questions.length) {
                 const remaining = this.config.maxQuestionsPerTool - personaInteractions.length;
                 if (remaining > 0) {
@@ -520,8 +550,8 @@ export class Interviewer {
           // Synthesize this persona's findings for this tool
           // Skip LLM synthesis in scenarios-only mode and fast CI mode
           let personaProfile: { behavioralNotes: string[]; limitations: string[]; securityNotes: string[] };
-          if (this.config.customScenariosOnly || this.config.contractOnly) {
-            // Contract mode: minimal profile, no misleading error counts
+          if (this.config.customScenariosOnly || this.config.checkMode) {
+            // Check mode: minimal profile, no misleading error counts
             personaProfile = {
               behavioralNotes: [],
               limitations: [],
@@ -611,14 +641,14 @@ export class Interviewer {
           }));
 
           // If not custom-only mode and not fast CI mode, also generate LLM questions
-          if (!this.config.customScenariosOnly && !this.config.contractOnly) {
+          if (!this.config.customScenariosOnly && !this.config.checkMode) {
             const llmQuestions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
             questions = [...questions, ...llmQuestions];
           }
-        } else if (!this.config.customScenariosOnly && !this.config.contractOnly) {
+        } else if (!this.config.customScenariosOnly && !this.config.checkMode) {
           // No custom scenarios - generate LLM questions as usual
           questions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
-        } else if (this.config.contractOnly) {
+        } else if (this.config.checkMode) {
           // Fast CI mode: use simple fallback question for prompt
           questions = [{ description: 'Basic prompt test', args: {} }];
         }
@@ -637,7 +667,7 @@ export class Interviewer {
 
           // Skip LLM analysis in scenarios-only mode and fast CI mode
           let analysis: string;
-          if (this.isContractMode()) {
+          if (this.isCheckMode()) {
             analysis = this.generateSimpleAnalysis(error, !!response, 'Prompt call succeeded.');
           } else {
             analysis = await primaryOrchestrator.analyzePromptResponse(
@@ -664,8 +694,8 @@ export class Interviewer {
         // Synthesize prompt profile
         // Skip LLM synthesis in scenarios-only mode and fast CI mode
         let profile: { name: string; description: string; arguments: Array<{ name: string; description?: string; required?: boolean }>; behavioralNotes: string[]; limitations: string[] };
-        if (this.config.customScenariosOnly || this.config.contractOnly) {
-          // Contract mode: minimal profile, no misleading error counts
+        if (this.config.customScenariosOnly || this.config.checkMode) {
+          // Check mode: minimal profile, no misleading error counts
           profile = {
             name: prompt.name,
             description: prompt.description || prompt.name,
@@ -719,7 +749,7 @@ export class Interviewer {
 
         // Generate resource questions (skip LLM in fast CI mode)
         let questions: ResourceQuestion[];
-        if (this.config.contractOnly) {
+        if (this.config.checkMode) {
           // Fast CI mode: use simple fallback question
           questions = [{ description: 'Basic resource read test', category: 'happy_path' as const }];
         } else {
@@ -746,7 +776,7 @@ export class Interviewer {
 
           // Skip LLM analysis in fast CI mode
           let analysis: string;
-          if (this.isContractMode()) {
+          if (this.isCheckMode()) {
             analysis = this.generateSimpleAnalysis(error, !!response, 'Resource read succeeded.');
           } else {
             analysis = await primaryOrchestrator.analyzeResourceResponse(
@@ -773,8 +803,8 @@ export class Interviewer {
 
         // Synthesize resource profile (skip LLM in fast CI mode)
         let profile;
-        if (this.config.contractOnly) {
-          // Contract mode: minimal profile, no misleading error counts
+        if (this.config.checkMode) {
+          // Check mode: minimal profile, no misleading error counts
           profile = {
             name: resource.name,
             uri: resource.uri,
@@ -848,8 +878,8 @@ export class Interviewer {
     onProgress?.(progress);
 
     let overall: { summary: string; limitations: string[]; recommendations: string[] };
-    if (this.config.customScenariosOnly || this.config.contractOnly) {
-      // Contract mode: simple summary focused on verification, not pass/fail
+    if (this.config.customScenariosOnly || this.config.checkMode) {
+      // Check mode: simple summary focused on verification, not pass/fail
       const serverName = discovery.serverInfo.name || 'This MCP server';
       overall = {
         summary: `${serverName} provides ${toolProfiles.length} tool(s) for MCP integration.`,
@@ -877,7 +907,7 @@ export class Interviewer {
       toolCallCount: totalToolCallCount,
       resourceReadCount: resourceReadCount > 0 ? resourceReadCount : undefined,
       errorCount: totalErrorCount,
-      model: this.config.contractOnly ? 'contract' : this.config.model,
+      model: this.config.checkMode ? 'check' : this.config.model,
       personas: Array.from(personaStats.values()),
       workflows: workflowSummary,
       serverCommand: this.config.serverCommand,
@@ -1032,7 +1062,7 @@ export class Interviewer {
     // Skip LLM analysis in scenarios-only mode and fast CI mode
     let analysis: string;
     const llmAnalysisStart = Date.now();
-    if (this.isContractMode()) {
+    if (this.isCheckMode()) {
       // In fast mode, generate simple analysis (no LLM call)
       analysis = this.generateSimpleAnalysis(error, !!response, 'Tool call succeeded.');
       llmAnalysisMs = 0; // No LLM call in fast mode
@@ -1494,8 +1524,8 @@ export class Interviewer {
       this.logger.info({ count: loadedCount }, 'Using workflows loaded from file');
     }
 
-    // Discover workflows using LLM if enabled
-    if (workflowConfig.discoverWorkflows && discovery.tools.length >= 2) {
+    // Discover workflows using LLM if enabled (requires LLM - skip in check mode)
+    if (workflowConfig.discoverWorkflows && discovery.tools.length >= 2 && this.llm) {
       this.logger.info('Discovering workflows using LLM analysis');
 
       const discoverer = new WorkflowDiscoverer(this.llm, {
@@ -1526,7 +1556,8 @@ export class Interviewer {
     // Execute all workflows
     const results: WorkflowResult[] = [];
 
-    if (allWorkflows.length > 0 && !workflowConfig.skipWorkflowExecution) {
+    // Execute workflows (requires LLM for analysis - skip in check mode unless analyzeSteps is disabled)
+    if (allWorkflows.length > 0 && !workflowConfig.skipWorkflowExecution && this.llm) {
       this.logger.info({ count: allWorkflows.length }, 'Executing workflows');
 
       progress.totalWorkflows = allWorkflows.length;

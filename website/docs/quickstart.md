@@ -56,16 +56,24 @@ Creates `bellwether-baseline.json` for drift detection.
 
 ## 5. Detect Drift
 
-After making changes, compare against baseline:
+Configure baseline comparison in `bellwether.yaml`:
 
-```bash
-bellwether check --baseline ./bellwether-baseline.json
+```yaml
+baseline:
+  comparePath: "./bellwether-baseline.json"
+  failOnDrift: true  # For CI/CD
 ```
 
-For CI/CD, fail on drift:
+Then run:
 
 ```bash
-bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
+bellwether check
+```
+
+Or override in CI/CD:
+
+```bash
+bellwether check --fail-on-drift
 ```
 
 ## 6. Explore with LLM (Optional)
@@ -94,13 +102,13 @@ This generates:
 bellwether init "node ./src/server.js"
 bellwether check                         # Validate schemas
 bellwether baseline save                 # Save baseline
-bellwether watch --watch-path ./src      # Re-check on file changes
+bellwether watch                         # Re-check on file changes (uses config)
 ```
 
 ### CI/CD Pipeline
 
 ```bash
-bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
+bellwether check --fail-on-drift
 ```
 
 ### Security Audit

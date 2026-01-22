@@ -48,8 +48,8 @@ See [Test Modes](/concepts/test-modes) for details.
 # Install
 npm install -g @dotsetlabs/bellwether
 
-# Initialize configuration
-bellwether init
+# Initialize configuration with your server command
+bellwether init npx @mcp/your-server
 
 # Run check (free, fast, deterministic)
 bellwether check
@@ -57,8 +57,8 @@ bellwether check
 # Save baseline for drift detection
 bellwether baseline save
 
-# Detect drift in CI
-bellwether check --baseline ./bellwether-baseline.json --fail-on-drift
+# Detect drift in CI (configure baseline path in bellwether.yaml)
+bellwether check --fail-on-drift
 ```
 
 ## What You Get

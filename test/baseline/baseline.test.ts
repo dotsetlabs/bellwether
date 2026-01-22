@@ -18,6 +18,9 @@ import {
   hasBreakingChanges,
   hasSecurityChanges,
   filterByMinimumSeverity,
+  acceptDrift,
+  hasAcceptance,
+  clearAcceptance,
 } from '../../src/baseline/index.js';
 import type { InterviewResult, ToolProfile } from '../../src/interview/types.js';
 import type { BehavioralBaseline } from '../../src/baseline/types.js';
@@ -591,6 +594,151 @@ describe('Baseline Comparison', () => {
       const allChanges = filterByMinimumSeverity(diff, 'info');
 
       expect(warningAndAbove.length).toBeLessThanOrEqual(allChanges.length);
+    });
+  });
+
+  describe('acceptDrift', () => {
+    it('should add acceptance metadata to baseline', () => {
+      const result1 = createMockInterviewResult({
+        tools: [{
+          name: 'test_tool',
+          description: 'Original',
+          interactions: [],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+      const result2 = createMockInterviewResult({
+        tools: [{
+          name: 'test_tool',
+          description: 'Updated',
+          interactions: [],
+          behavioralNotes: [],
+          limitations: [],
+          securityNotes: [],
+        }],
+      });
+
+      const baseline1 = createBaseline(result1, 'npx test-server');
+      const baseline2 = createBaseline(result2, 'npx test-server');
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const accepted = acceptDrift(baseline2, diff, {
+        reason: 'Intentional update',
+        acceptedBy: 'test-user',
+      });
+
+      expect(accepted.acceptance).toBeDefined();
+      expect(accepted.acceptance?.reason).toBe('Intentional update');
+      expect(accepted.acceptance?.acceptedBy).toBe('test-user');
+      expect(accepted.acceptance?.acceptedAt).toBeInstanceOf(Date);
+    });
+
+    it('should capture diff snapshot in acceptance', () => {
+      const result1 = createMockInterviewResult({
+        tools: [
+          { name: 'tool_a', description: 'A', interactions: [], behavioralNotes: [], limitations: [], securityNotes: [] },
+        ],
+      });
+      const result2 = createMockInterviewResult({
+        tools: [
+          { name: 'tool_a', description: 'A modified', interactions: [], behavioralNotes: [], limitations: [], securityNotes: [] },
+          { name: 'tool_b', description: 'B', interactions: [], behavioralNotes: [], limitations: [], securityNotes: [] },
+        ],
+      });
+
+      const baseline1 = createBaseline(result1, 'npx test-server');
+      const baseline2 = createBaseline(result2, 'npx test-server');
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const accepted = acceptDrift(baseline2, diff);
+
+      expect(accepted.acceptance?.acceptedDiff.toolsAdded).toContain('tool_b');
+      expect(accepted.acceptance?.acceptedDiff.toolsModified).toContain('tool_a');
+      expect(accepted.acceptance?.acceptedDiff.severity).toBe(diff.severity);
+    });
+
+    it('should recalculate integrity hash after acceptance', () => {
+      const result = createMockInterviewResult();
+      const baseline = createBaseline(result, 'npx test-server');
+      const diff = compareBaselines(baseline, baseline);
+
+      const accepted = acceptDrift(baseline, diff);
+
+      expect(accepted.integrityHash).toBeDefined();
+      expect(accepted.integrityHash).not.toBe(baseline.integrityHash);
+      expect(verifyIntegrity(accepted)).toBe(true);
+    });
+  });
+
+  describe('hasAcceptance', () => {
+    it('should return true for baseline with acceptance', () => {
+      const result = createMockInterviewResult();
+      const baseline = createBaseline(result, 'npx test-server');
+      const diff = compareBaselines(baseline, baseline);
+      const accepted = acceptDrift(baseline, diff);
+
+      expect(hasAcceptance(accepted)).toBe(true);
+    });
+
+    it('should return false for baseline without acceptance', () => {
+      const result = createMockInterviewResult();
+      const baseline = createBaseline(result, 'npx test-server');
+
+      expect(hasAcceptance(baseline)).toBe(false);
+    });
+  });
+
+  describe('clearAcceptance', () => {
+    it('should remove acceptance metadata from baseline', () => {
+      const result = createMockInterviewResult();
+      const baseline = createBaseline(result, 'npx test-server');
+      const diff = compareBaselines(baseline, baseline);
+      const accepted = acceptDrift(baseline, diff);
+
+      expect(hasAcceptance(accepted)).toBe(true);
+
+      const cleared = clearAcceptance(accepted);
+
+      expect(hasAcceptance(cleared)).toBe(false);
+      expect(verifyIntegrity(cleared)).toBe(true);
+    });
+  });
+
+  describe('save and load baseline with acceptance', () => {
+    let testDir: string;
+
+    beforeEach(() => {
+      testDir = join(tmpdir(), `bellwether-acceptance-test-${Date.now()}`);
+      mkdirSync(testDir, { recursive: true });
+    });
+
+    afterEach(() => {
+      try {
+        rmSync(testDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    });
+
+    it('should preserve acceptance metadata through save/load', () => {
+      const result = createMockInterviewResult();
+      const baseline = createBaseline(result, 'npx test-server');
+      const diff = compareBaselines(baseline, baseline);
+      const accepted = acceptDrift(baseline, diff, {
+        reason: 'Test acceptance',
+        acceptedBy: 'test-user',
+      });
+
+      const path = join(testDir, 'accepted-baseline.json');
+      saveBaseline(accepted, path);
+
+      const loaded = loadBaseline(path);
+
+      expect(loaded.acceptance).toBeDefined();
+      expect(loaded.acceptance?.reason).toBe('Test acceptance');
+      expect(loaded.acceptance?.acceptedBy).toBe('test-user');
     });
   });
 });
