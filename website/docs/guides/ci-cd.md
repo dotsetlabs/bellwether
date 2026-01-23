@@ -21,10 +21,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: npx @dotsetlabs/bellwether init --preset ci npx @mcp/your-server
       - run: npx @dotsetlabs/bellwether check --fail-on-drift
 ```
 
-No API keys required. Free. Runs in seconds. Configure baseline paths in `bellwether.yaml`.
+Commit `bellwether.yaml` to your repo so CI always has your configuration. No API keys required. Free. Runs in seconds.
 
 ## Setup
 
@@ -77,7 +78,7 @@ jobs:
         run: npx @dotsetlabs/bellwether check --fail-on-drift
 ```
 
-Configure your server command and baseline paths in `bellwether.yaml`:
+Ensure `bellwether.yaml` is committed. Configure your server command and baseline paths in `bellwether.yaml`:
 
 ```yaml
 server:
@@ -92,7 +93,7 @@ baseline:
 
 ```yaml
 - name: Detect Behavioral Drift
-  uses: dotsetlabs/bellwether/action@v1
+  uses: dotsetlabs/bellwether@v1
   with:
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
@@ -230,6 +231,7 @@ check:
   parallel: true              # Faster checks
   parallelWorkers: 4          # Concurrent tool tests
   performanceThreshold: 10    # Flag >10% latency regression
+  security: false             # Enable security testing (optional)
 
 logging:
   level: warn
@@ -326,7 +328,15 @@ Speed up checks for servers with many tools:
 
 ```yaml
 - name: Fast Parallel Check
-  run: npx @dotsetlabs/bellwether check --parallel --parallel-workers 4 --fail-on-drift
+  run: npx @dotsetlabs/bellwether check --fail-on-drift
+```
+
+Configure parallelism in `bellwether.yaml`:
+
+```yaml
+check:
+  parallel: true
+  parallelWorkers: 4
 ```
 
 ### Incremental Checking
@@ -335,8 +345,43 @@ Only test tools with changed schemas (requires existing baseline):
 
 ```yaml
 - name: Incremental Check
-  run: npx @dotsetlabs/bellwether check --incremental --fail-on-drift
+  run: npx @dotsetlabs/bellwether check --fail-on-drift
 ```
+
+Configure incremental checking in `bellwether.yaml`:
+
+```yaml
+check:
+  incremental: true
+  incrementalCacheHours: 168
+```
+
+### Security Testing
+
+Enable security vulnerability scanning:
+
+```yaml
+- name: Security Check
+  run: npx @dotsetlabs/bellwether check --fail-on-drift
+```
+
+Configure security testing in `bellwether.yaml`:
+
+```yaml
+check:
+  security:
+    enabled: true
+    categories: [sql_injection, xss, path_traversal, command_injection, ssrf]
+```
+
+Security testing detects:
+- SQL injection vulnerabilities
+- Path traversal attacks
+- Command injection
+- XSS vulnerabilities
+- SSRF attacks
+
+Security findings are included in SARIF output for GitHub Code Scanning integration.
 
 ---
 

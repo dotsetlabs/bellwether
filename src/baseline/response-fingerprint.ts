@@ -8,6 +8,8 @@
 
 import { createHash } from 'crypto';
 import type { MCPToolCallResult } from '../transport/types.js';
+import type { EnhancedErrorAnalysis } from './error-analyzer.js';
+import { analyzeErrorPatterns as analyzeErrorPatternsEnhanced } from './error-analyzer.js';
 
 /**
  * Detect if content appears to be binary data.
@@ -140,6 +142,9 @@ export interface ResponseAnalysis {
   /** Error patterns observed */
   errorPatterns: ErrorPattern[];
 
+  /** Enhanced error analyses with root cause and remediation */
+  enhancedErrorAnalyses?: EnhancedErrorAnalysis[];
+
   /** Whether responses were consistent across samples */
   isConsistent: boolean;
 }
@@ -174,6 +179,10 @@ export function analyzeResponses(
   // Analyze error patterns
   const errorPatterns = analyzeErrorPatterns(errorResponses);
 
+  // Generate enhanced error analyses
+  const enhancedErrorAnalyses =
+    errorPatterns.length > 0 ? analyzeErrorPatternsEnhanced(errorPatterns) : undefined;
+
   // Build fingerprint
   const fingerprint = buildFingerprint(successfulResponses, structures);
 
@@ -189,6 +198,7 @@ export function analyzeResponses(
     fingerprint,
     inferredSchema,
     errorPatterns,
+    enhancedErrorAnalyses,
     isConsistent,
   };
 }

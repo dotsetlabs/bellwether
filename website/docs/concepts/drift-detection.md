@@ -229,6 +229,7 @@ Bellwether tracks tool latency and detects performance regressions:
 | P50 latency increased | warning | 45ms → 78ms (+73%) |
 | Success rate dropped | warning | 98% → 85% |
 | Timeout frequency | warning | More frequent timeouts |
+| Confidence degraded | info | high → medium (more variability) |
 
 Configure the regression threshold:
 
@@ -242,6 +243,51 @@ Or via CLI:
 ```bash
 bellwether check --performance-threshold 15
 ```
+
+#### Performance Confidence
+
+Bellwether calculates statistical confidence for performance metrics based on sample count and variability:
+
+| Confidence | Criteria | Meaning |
+|:-----------|:---------|:--------|
+| High | 10+ samples, CV < 0.3 | Reliable baseline |
+| Medium | 5+ samples, CV < 0.5 | Somewhat reliable |
+| Low | Few samples or high variability | Needs more data |
+
+Tools with low confidence are flagged in reports, and regressions are marked as unreliable.
+
+### Error Pattern Drift
+
+Changes in error behavior across runs:
+
+| Change | Severity | Example |
+|:-------|:---------|:--------|
+| New error category | warning | VALIDATION errors appearing |
+| Error resolved | info | TIMEOUT errors no longer occur |
+| Error rate increased | warning | NotFound errors up 50% |
+| Root cause changed | info | Different error messages |
+
+### Response Schema Drift
+
+Changes to response structure:
+
+| Change | Severity | Example |
+|:-------|:---------|:--------|
+| Fields added | info | New `metadata` field in response |
+| Fields removed | warning | `timestamp` field removed |
+| Type changed | breaking | `count` changed from number to string |
+| Schema became unstable | warning | Response structure varies between calls |
+
+### Documentation Drift
+
+Changes to documentation quality:
+
+| Change | Severity | Example |
+|:-------|:---------|:--------|
+| Score degraded | warning | 85 → 65 (B → D) |
+| Score improved | info | 70 → 90 (C → A) |
+| New issues | info | Missing parameter descriptions |
+| Issues fixed | info | Descriptions added |
 
 ## Handling Drift
 

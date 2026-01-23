@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2026-01-23
+
+### Documentation
+
+- **Full documentation alignment**: Updated CLI docs, website guides, and README to match the config-first workflow and current command structure
+- **New CLI references**: Added documentation for `bellwether golden` and `bellwether contract`
+- **Cloud + registry updates**: Clarified config requirements, defaults, and registry overrides across cloud/registry pages
+
+### GitHub Action
+
+- **Action docs refresh**: Updated inputs, examples, and output filenames to match current action behavior
+- **Config-first guidance**: Clarified config requirements and output directory expectations
+
+### Developer Experience
+
+- **Comprehensive .env example**: Added registry URL override and updated guidance for environment configuration
+
 ## [0.8.1] - 2026-01-22
 
 ### Features

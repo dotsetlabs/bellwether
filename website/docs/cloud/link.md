@@ -17,6 +17,10 @@ bellwether link [project-id]
 
 The `link` command connects your local directory to a Bellwether Cloud project. This enables automatic baseline uploads, history tracking, and verification badges.
 
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `link`.
+:::
+
 ## Arguments
 
 | Argument | Description |

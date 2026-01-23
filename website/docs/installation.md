@@ -35,7 +35,7 @@ npx @dotsetlabs/bellwether init npx @mcp/your-server
 npx @dotsetlabs/bellwether check
 ```
 
-This is useful for CI/CD pipelines or one-off usage.
+This is useful for CI/CD pipelines or one-off usage. All commands (except `init`) require a config file, so `init` is always the first step.
 
 ## LLM Provider Setup (Optional)
 
@@ -111,6 +111,10 @@ export OPENAI_API_KEY=sk-your-key-here
 
 :::tip
 Use `bellwether auth` for the best experience. It stores your API key securely in the system keychain (macOS Keychain, Windows Credential Manager, or Linux Secret Service) and works across all your projects.
+:::
+
+:::note Config Required
+The CLI requires `bellwether.yaml` to exist before running commands like `bellwether auth`. Run `bellwether init` once in your project root.
 :::
 
 ### Checking Auth Status

@@ -2,9 +2,11 @@ import { Command } from 'commander';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover, summarizeDiscovery } from '../../discovery/discovery.js';
 import { EXIT_CODES } from '../../constants.js';
+import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
 import * as output from '../output.js';
 
 interface DiscoverOptions {
+  config?: string;
   json?: boolean;
   timeout?: string;
   transport?: string;
@@ -16,17 +18,31 @@ interface DiscoverOptions {
  * Action handler for the discover command.
  */
 async function discoverAction(command: string | undefined, args: string[], options: DiscoverOptions): Promise<void> {
-  const timeout = parseInt(options.timeout ?? '30000', 10);
-  const transportType = (options.transport ?? 'stdio') as 'stdio' | 'sse' | 'streamable-http';
+  let config: BellwetherConfig;
+  try {
+    config = loadConfig(options.config);
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      output.error(error.message);
+      process.exit(EXIT_CODES.ERROR);
+    }
+    throw error;
+  }
+
+  const timeout = parseInt(options.timeout ?? String(config.discovery.timeout), 10);
+  const transportType = (options.transport ?? config.discovery.transport) as 'stdio' | 'sse' | 'streamable-http';
   const isRemoteTransport = transportType === 'sse' || transportType === 'streamable-http';
+  const outputJson = options.json ? true : config.discovery.json;
+  const remoteUrl = options.url ?? config.discovery.url;
+  const sessionId = options.sessionId ?? config.discovery.sessionId;
 
   // Validate transport options
-  if (isRemoteTransport && !options.url) {
+  if (isRemoteTransport && !remoteUrl) {
     output.error(`Error: --url is required when using --transport ${transportType}`);
     process.exit(EXIT_CODES.ERROR);
   }
 
-  if (options.url && !isRemoteTransport) {
+  if (remoteUrl && !isRemoteTransport) {
     output.error('Error: --url requires --transport sse or --transport streamable-http');
     process.exit(EXIT_CODES.ERROR);
   }
@@ -36,16 +52,16 @@ async function discoverAction(command: string | undefined, args: string[], optio
     process.exit(EXIT_CODES.ERROR);
   }
 
-  const serverIdentifier = isRemoteTransport ? options.url! : `${command} ${args.join(' ')}`;
+  const serverIdentifier = isRemoteTransport ? remoteUrl! : `${command} ${args.join(' ')}`;
   output.info(`Connecting to MCP server: ${serverIdentifier}`);
 
   const client = new MCPClient({ timeout, transport: transportType });
 
   try {
     if (isRemoteTransport) {
-      await client.connectRemote(options.url!, {
+      await client.connectRemote(remoteUrl!, {
         transport: transportType,
-        sessionId: options.sessionId,
+        sessionId,
       });
     } else {
       await client.connect(command!, args);
@@ -55,7 +71,7 @@ async function discoverAction(command: string | undefined, args: string[], optio
 
     const result = await discover(client, command ?? options.url!, args);
 
-    if (options.json) {
+    if (outputJson) {
       output.json(result);
     } else {
       output.info(summarizeDiscovery(result));
@@ -72,9 +88,10 @@ export const discoverCommand = new Command('discover')
   .description('Discover MCP server capabilities (tools, prompts, resources)')
   .argument('[command]', 'Command to start the MCP server (not required for remote)')
   .argument('[args...]', 'Arguments to pass to the server')
+  .option('-c, --config <path>', 'Path to config file')
   .option('--json', 'Output as JSON')
-  .option('--timeout <ms>', 'Connection timeout in milliseconds', '30000')
-  .option('--transport <type>', 'Transport type: stdio, sse, streamable-http', 'stdio')
+  .option('--timeout <ms>', 'Connection timeout in milliseconds')
+  .option('--transport <type>', 'Transport type: stdio, sse, streamable-http')
   .option('--url <url>', 'URL for remote MCP server (requires --transport sse or streamable-http)')
   .option('--session-id <id>', 'Session ID for remote server authentication')
   .action(discoverAction);

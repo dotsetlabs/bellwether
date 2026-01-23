@@ -48,7 +48,7 @@ See [Test Modes](/concepts/test-modes) for details.
 # Install
 npm install -g @dotsetlabs/bellwether
 
-# Initialize configuration with your server command
+# Initialize configuration with your server command (required before any other command)
 bellwether init npx @mcp/your-server
 
 # Run check (free, fast, deterministic)
@@ -64,13 +64,13 @@ bellwether check --fail-on-drift
 ## What You Get
 
 ### From `bellwether check` (free, no LLM):
-- **CONTRACT.md** - Structural documentation of tool schemas and parameters
-- **bellwether-check.json** - Machine-readable validation results
-- **bellwether-baseline.json** - Baseline for future drift comparison
+- **CONTRACT.md** - Structural documentation of tool schemas and parameters (configurable via `output.files.contractDoc`)
+- **bellwether-check.json** - Machine-readable validation results (configurable via `output.files.checkReport`)
+- **bellwether-baseline.json** - Baseline for drift comparison (configurable via `baseline.path` / `baseline.savePath`)
 
 ### From `bellwether explore` (requires LLM):
-- **AGENTS.md** - Behavioral documentation from multi-persona exploration
-- **bellwether-explore.json** - Detailed exploration results
+- **AGENTS.md** - Behavioral documentation from multi-persona exploration (configurable via `output.files.agentsDoc`)
+- **bellwether-explore.json** - Detailed exploration results (configurable via `output.files.exploreReport`)
 
 ## Next Steps
 

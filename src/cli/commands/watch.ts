@@ -24,7 +24,7 @@ import {
   compareBaselines,
   formatDiffText,
 } from '../../baseline/index.js';
-import { EXIT_CODES } from '../../constants.js';
+import { EXIT_CODES, CHECK_SAMPLING } from '../../constants.js';
 import * as output from '../output.js';
 
 export const watchCommand = new Command('watch')
@@ -62,9 +62,16 @@ export const watchCommand = new Command('watch')
     const interval = config.watch.interval;
     const extensions = config.watch.extensions;
     const onDriftCommand = config.watch.onDrift;
+    const minSamplesForConfidence = CHECK_SAMPLING.SAMPLES_FOR_CONFIDENCE[
+      config.check.sampling.targetConfidence as 'low' | 'medium' | 'high'
+    ];
+    const minSamples = Math.max(config.check.sampling.minSamples, minSamplesForConfidence);
 
-    // Baseline path for watch mode (use savePath or default)
-    const baselinePath = resolve(config.baseline.savePath || join(config.output.dir, 'bellwether-baseline.json'));
+    // Baseline path for watch mode (use savePath or baseline default)
+    const baselinePathValue = config.baseline.savePath ?? config.baseline.path;
+    const baselinePath = baselinePathValue.startsWith('/')
+      ? baselinePathValue
+      : resolve(join(config.output.dir, baselinePathValue));
 
     // Extract settings from config
     const timeout = config.server.timeout;
@@ -111,12 +118,14 @@ export const watchCommand = new Command('watch')
         const fullServerCommand = `${serverCommand} ${args.join(' ')}`.trim();
         // Watch mode uses check (no LLM) for fast, deterministic drift detection
         const interviewer = new Interviewer(null, {
-          maxQuestionsPerTool: 3,
+          maxQuestionsPerTool: minSamples,
           timeout,
           skipErrorTests: false,
           model: 'check',
           personas: [],
           checkMode: true, // Required when passing null for LLM
+          parallelTools: config.check.parallel,
+          toolConcurrency: config.check.parallelWorkers,
           serverCommand: fullServerCommand,
         });
 

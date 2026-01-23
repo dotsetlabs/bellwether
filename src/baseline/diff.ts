@@ -6,7 +6,12 @@ import type {
   BehavioralDiff,
   BehaviorChange,
   ChangeSeverity,
+  SchemaEvolutionReport,
 } from './types.js';
+import type { SecurityDiff, RiskLevel } from '../security/types.js';
+import { formatSchemaEvolutionDiff } from './response-schema-tracker.js';
+import { formatErrorTrendReport } from './error-analyzer.js';
+import { getGradeIndicator } from './documentation-scorer.js';
 
 /**
  * Format diff for human-readable console output.
@@ -88,17 +93,154 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
     lines.push(red('─── Performance Regressions ───'));
     for (const regression of diff.performanceReport.regressions) {
       const percentStr = (regression.regressionPercent * 100).toFixed(1);
+      const confidenceNote = regression.isReliable
+        ? ''
+        : ` ${yellow('(low confidence)')}`;
       lines.push(
         `  ${red('!')} ${regression.toolName}: ` +
           `${regression.previousP50Ms.toFixed(0)}ms → ` +
-          `${regression.currentP50Ms.toFixed(0)}ms (+${percentStr}%)`
+          `${regression.currentP50Ms.toFixed(0)}ms (+${percentStr}%)${confidenceNote}`
       );
     }
     lines.push('');
+
+    // Show low confidence tools warning
+    if (diff.performanceReport.lowConfidenceTools && diff.performanceReport.lowConfidenceTools.length > 0) {
+      lines.push(yellow('  Note: Some tools have low confidence metrics.'));
+      lines.push(yellow(`  Run with more samples for reliable baselines: ${diff.performanceReport.lowConfidenceTools.join(', ')}`));
+      lines.push('');
+    }
   } else if (diff.performanceReport?.improvementCount ?? 0 > 0) {
     lines.push(green('─── Performance ───'));
     lines.push(`  ${green('✓')} ${diff.performanceReport?.improvementCount} tool(s) improved`);
     lines.push('');
+  }
+
+  // Performance confidence changes
+  if (diff.performanceReport?.confidenceChanges && diff.performanceReport.confidenceChanges.length > 0) {
+    lines.push(cyan('─── Confidence Changes ───'));
+    for (const change of diff.performanceReport.confidenceChanges) {
+      const icon = change.improved ? green('↑') : change.degraded ? yellow('↓') : '→';
+      lines.push(`  ${icon} ${change.toolName}: ${change.summary}`);
+    }
+    lines.push('');
+  }
+
+  // Security findings
+  if (diff.securityReport) {
+    const secReport = diff.securityReport;
+    if (secReport.degraded || secReport.newFindings.length > 0) {
+      lines.push(red('─── Security Findings ───'));
+      lines.push(`  ${secReport.summary}`);
+      lines.push('');
+
+      if (secReport.newFindings.length > 0) {
+        lines.push(red('  New Findings:'));
+        for (const finding of secReport.newFindings) {
+          const riskColor = getRiskLevelColor(finding.riskLevel, useColors);
+          lines.push(
+            `    ${riskColor('●')} [${finding.riskLevel.toUpperCase()}] ${finding.title}`
+          );
+          lines.push(`      Tool: ${finding.tool}, Parameter: ${finding.parameter}`);
+          lines.push(`      ${finding.cweId}: ${finding.description}`);
+        }
+        lines.push('');
+      }
+    } else if (secReport.resolvedFindings.length > 0) {
+      lines.push(green('─── Security Improvements ───'));
+      lines.push(`  ${green('✓')} ${secReport.resolvedFindings.length} finding(s) resolved`);
+      lines.push('');
+    }
+
+    // Show risk score change
+    if (secReport.riskScoreChange !== 0) {
+      const changeIcon = secReport.riskScoreChange > 0 ? red('↑') : green('↓');
+      lines.push(
+        `  Risk score: ${secReport.previousRiskScore} → ${secReport.currentRiskScore} (${changeIcon} ${Math.abs(secReport.riskScoreChange)})`
+      );
+      lines.push('');
+    }
+  }
+
+  // Schema evolution issues
+  if (diff.schemaEvolutionReport) {
+    const schemaReport = diff.schemaEvolutionReport;
+    if (schemaReport.hasBreakingChanges || schemaReport.unstableCount > 0) {
+      lines.push(red('─── Schema Evolution Issues ───'));
+      lines.push(`  ${formatSchemaEvolutionSummary(schemaReport)}`);
+      lines.push('');
+
+      for (const issue of schemaReport.toolsWithIssues) {
+        const issueIcon = issue.isBreaking ? red('✗') : yellow('⚠');
+        lines.push(`  ${issueIcon} ${bold(issue.toolName)}`);
+        lines.push(`      ${issue.summary}`);
+
+        if (issue.fieldsRemoved.length > 0) {
+          lines.push(`      ${red('- Removed: ' + issue.fieldsRemoved.join(', '))}`);
+        }
+        if (issue.fieldsAdded.length > 0) {
+          lines.push(`      ${green('+ Added: ' + issue.fieldsAdded.join(', '))}`);
+        }
+      }
+      lines.push('');
+    } else if (schemaReport.stableCount > 0) {
+      lines.push(green('─── Schema Stability ───'));
+      lines.push(`  ${green('✓')} ${schemaReport.stableCount} tool(s) with stable response schemas`);
+      lines.push('');
+    }
+  }
+
+  // Add schema evolution diff lines for modified tools
+  for (const toolDiff of diff.toolsModified) {
+    if (toolDiff.schemaEvolutionDiff?.structureChanged) {
+      const diffLines = formatSchemaEvolutionDiff(toolDiff.schemaEvolutionDiff, useColors);
+      if (diffLines.length > 0) {
+        lines.push(yellow(`─── ${toolDiff.tool} Schema Evolution ───`));
+        lines.push(...diffLines);
+        lines.push('');
+      }
+    }
+  }
+
+  // Error trend report
+  if (diff.errorTrendReport) {
+    const errorReport = diff.errorTrendReport;
+    if (errorReport.significantChange) {
+      lines.push(yellow('─── Error Trend Analysis ───'));
+      lines.push(formatErrorTrendReport(errorReport, useColors));
+      lines.push('');
+    } else if (errorReport.trends.length > 0) {
+      lines.push(green('─── Error Patterns ───'));
+      lines.push(`  ${green('✓')} Error patterns stable`);
+      lines.push('');
+    }
+  }
+
+  // Documentation score report
+  if (diff.documentationScoreReport) {
+    const docReport = diff.documentationScoreReport;
+    const indicator = getGradeIndicator(docReport.currentGrade);
+    if (docReport.degraded) {
+      lines.push(yellow('─── Documentation Quality ───'));
+      lines.push(
+        `  ${yellow(indicator)} Score: ${docReport.previousScore} → ${docReport.currentScore} (${docReport.change})`
+      );
+      lines.push(`  ${yellow('Grade:')} ${docReport.previousGrade} → ${docReport.currentGrade}`);
+      if (docReport.newIssues > 0) {
+        lines.push(`  ${red('!')} New issues: ${docReport.newIssues}`);
+      }
+      lines.push('');
+    } else if (docReport.improved) {
+      lines.push(green('─── Documentation Quality ───'));
+      lines.push(
+        `  ${green(indicator)} Score: ${docReport.previousScore} → ${docReport.currentScore} (+${docReport.change})`
+      );
+      lines.push(`  ${green('Grade:')} ${docReport.previousGrade} → ${docReport.currentGrade}`);
+      if (docReport.issuesFixed > 0) {
+        lines.push(`  ${green('✓')} Issues fixed: ${docReport.issuesFixed}`);
+      }
+      lines.push('');
+    }
   }
 
   lines.push('─── Statistics ───');
@@ -107,6 +249,39 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
   lines.push(`  Info: ${diff.infoCount}`);
   if (diff.performanceReport) {
     lines.push(`  Performance regressions: ${diff.performanceReport.regressionCount}`);
+    if (diff.performanceReport.lowConfidenceTools && diff.performanceReport.lowConfidenceTools.length > 0) {
+      lines.push(`  Low confidence tools: ${diff.performanceReport.lowConfidenceTools.length}`);
+    }
+  }
+  if (diff.securityReport) {
+    lines.push(`  New security findings: ${diff.securityReport.newFindings.length}`);
+    lines.push(`  Resolved findings: ${diff.securityReport.resolvedFindings.length}`);
+  }
+  if (diff.schemaEvolutionReport) {
+    lines.push(`  Schema stability: ${diff.schemaEvolutionReport.stableCount} stable, ${diff.schemaEvolutionReport.unstableCount} unstable`);
+    if (diff.schemaEvolutionReport.structureChangedCount > 0) {
+      lines.push(`  Schema structure changes: ${diff.schemaEvolutionReport.structureChangedCount}`);
+    }
+  }
+  if (diff.errorTrendReport) {
+    const et = diff.errorTrendReport;
+    if (et.newCategories.length > 0) {
+      lines.push(`  New error types: ${et.newCategories.length}`);
+    }
+    if (et.resolvedCategories.length > 0) {
+      lines.push(`  Resolved error types: ${et.resolvedCategories.length}`);
+    }
+    if (et.increasingCategories.length > 0) {
+      lines.push(`  Increasing errors: ${et.increasingCategories.length}`);
+    }
+  }
+  if (diff.documentationScoreReport) {
+    const doc = diff.documentationScoreReport;
+    lines.push(`  Documentation score: ${doc.currentScore}/100 (${doc.currentGrade})`);
+    if (doc.change !== 0) {
+      const sign = doc.change > 0 ? '+' : '';
+      lines.push(`  Documentation change: ${sign}${doc.change}`);
+    }
   }
   lines.push('');
 
@@ -143,6 +318,49 @@ export function formatDiffCompact(diff: BehavioralDiff): string {
   if (diff.performanceReport?.regressionCount ?? 0 > 0) {
     parts.push(`perf_regressions=${diff.performanceReport?.regressionCount}`);
   }
+  if (diff.performanceReport?.lowConfidenceTools && diff.performanceReport.lowConfidenceTools.length > 0) {
+    parts.push(`low_confidence_tools=${diff.performanceReport.lowConfidenceTools.length}`);
+  }
+  if (diff.securityReport) {
+    if (diff.securityReport.newFindings.length > 0) {
+      parts.push(`new_security_findings=${diff.securityReport.newFindings.length}`);
+    }
+    if (diff.securityReport.resolvedFindings.length > 0) {
+      parts.push(`resolved_findings=${diff.securityReport.resolvedFindings.length}`);
+    }
+    if (diff.securityReport.degraded) {
+      parts.push(`security_degraded=true`);
+    }
+  }
+  if (diff.schemaEvolutionReport) {
+    if (diff.schemaEvolutionReport.unstableCount > 0) {
+      parts.push(`schema_unstable=${diff.schemaEvolutionReport.unstableCount}`);
+    }
+    if (diff.schemaEvolutionReport.structureChangedCount > 0) {
+      parts.push(`schema_changed=${diff.schemaEvolutionReport.structureChangedCount}`);
+    }
+    if (diff.schemaEvolutionReport.hasBreakingChanges) {
+      parts.push(`schema_breaking=true`);
+    }
+  }
+  if (diff.errorTrendReport) {
+    if (diff.errorTrendReport.newCategories.length > 0) {
+      parts.push(`new_error_types=${diff.errorTrendReport.newCategories.length}`);
+    }
+    if (diff.errorTrendReport.resolvedCategories.length > 0) {
+      parts.push(`resolved_error_types=${diff.errorTrendReport.resolvedCategories.length}`);
+    }
+    if (diff.errorTrendReport.significantChange) {
+      parts.push(`error_trend_change=true`);
+    }
+  }
+  if (diff.documentationScoreReport) {
+    parts.push(`doc_score=${diff.documentationScoreReport.currentScore}`);
+    parts.push(`doc_grade=${diff.documentationScoreReport.currentGrade}`);
+    if (diff.documentationScoreReport.degraded) {
+      parts.push(`doc_degraded=true`);
+    }
+  }
 
   return parts.join(' ');
 }
@@ -173,6 +391,81 @@ export function formatDiffGitHubActions(diff: BehavioralDiff): string {
 
   for (const tool of diff.toolsAdded) {
     lines.push(`::notice::Tool added: ${tool}`);
+  }
+
+  // Performance regressions with confidence
+  if (diff.performanceReport?.hasRegressions) {
+    for (const regression of diff.performanceReport.regressions) {
+      const percentStr = (regression.regressionPercent * 100).toFixed(1);
+      const confidenceNote = regression.isReliable ? '' : ' (low confidence)';
+      lines.push(
+        `::warning::Performance regression: ${regression.toolName} +${percentStr}%${confidenceNote}`
+      );
+    }
+  }
+
+  // Low confidence warning
+  if (diff.performanceReport?.lowConfidenceTools && diff.performanceReport.lowConfidenceTools.length > 0) {
+    lines.push(
+      `::notice::Low confidence metrics for ${diff.performanceReport.lowConfidenceTools.length} tool(s): ${diff.performanceReport.lowConfidenceTools.join(', ')}`
+    );
+  }
+
+  // Security findings
+  if (diff.securityReport) {
+    for (const finding of diff.securityReport.newFindings) {
+      const level = finding.riskLevel === 'critical' || finding.riskLevel === 'high'
+        ? 'error'
+        : finding.riskLevel === 'medium'
+          ? 'warning'
+          : 'notice';
+      lines.push(`::${level}::Security [${finding.riskLevel.toUpperCase()}] ${finding.tool}: ${finding.title} (${finding.cweId})`);
+    }
+
+    if (diff.securityReport.degraded) {
+      lines.push(`::warning::Security posture degraded - ${diff.securityReport.summary}`);
+    }
+  }
+
+  // Schema evolution issues
+  if (diff.schemaEvolutionReport) {
+    for (const issue of diff.schemaEvolutionReport.toolsWithIssues) {
+      const level = issue.isBreaking ? 'error' : 'warning';
+      lines.push(`::${level}::Schema evolution [${issue.toolName}]: ${issue.summary}`);
+    }
+
+    if (diff.schemaEvolutionReport.hasBreakingChanges) {
+      lines.push(`::error::Breaking schema changes detected in ${diff.schemaEvolutionReport.structureChangedCount} tool(s)`);
+    } else if (diff.schemaEvolutionReport.unstableCount > 0) {
+      lines.push(`::warning::${diff.schemaEvolutionReport.unstableCount} tool(s) have unstable response schemas`);
+    }
+  }
+
+  // Error trend analysis
+  if (diff.errorTrendReport) {
+    const et = diff.errorTrendReport;
+    if (et.newCategories.length > 0) {
+      lines.push(`::warning::New error types detected: ${et.newCategories.join(', ')}`);
+    }
+    if (et.increasingCategories.length > 0) {
+      lines.push(`::warning::Increasing errors: ${et.increasingCategories.join(', ')}`);
+    }
+    if (et.resolvedCategories.length > 0) {
+      lines.push(`::notice::Resolved error types: ${et.resolvedCategories.join(', ')}`);
+    }
+    if (et.significantChange) {
+      lines.push(`::warning::Error behavior significantly changed - ${et.summary}`);
+    }
+  }
+
+  // Documentation score changes
+  if (diff.documentationScoreReport) {
+    const doc = diff.documentationScoreReport;
+    if (doc.degraded) {
+      lines.push(`::warning::Documentation quality degraded: ${doc.previousScore} -> ${doc.currentScore} (${doc.currentGrade})`);
+    } else if (doc.improved) {
+      lines.push(`::notice::Documentation quality improved: ${doc.previousScore} -> ${doc.currentScore} (${doc.currentGrade})`);
+    }
   }
 
   return lines.join('\n');
@@ -228,13 +521,247 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
     lines.push('');
   }
 
+  // Security findings section
+  if (diff.securityReport) {
+    const secReport = diff.securityReport;
+    if (secReport.newFindings.length > 0 || secReport.resolvedFindings.length > 0) {
+      lines.push('### Security');
+      lines.push('');
+
+      if (secReport.degraded) {
+        lines.push(`⚠️ **Security posture degraded**: ${secReport.summary}`);
+        lines.push('');
+      }
+
+      if (secReport.newFindings.length > 0) {
+        lines.push('#### New Findings');
+        lines.push('');
+        lines.push('| Risk | Tool | Finding | CWE |');
+        lines.push('|------|------|---------|-----|');
+
+        for (const finding of secReport.newFindings) {
+          const riskEmoji = getRiskLevelEmoji(finding.riskLevel);
+          lines.push(
+            `| ${riskEmoji} ${finding.riskLevel} | ${finding.tool} | ${finding.title} | ${finding.cweId} |`
+          );
+        }
+        lines.push('');
+      }
+
+      if (secReport.resolvedFindings.length > 0) {
+        lines.push('#### Resolved Findings');
+        lines.push('');
+        lines.push(`✅ ${secReport.resolvedFindings.length} security finding(s) resolved`);
+        lines.push('');
+      }
+
+      lines.push(
+        `**Risk Score:** ${secReport.previousRiskScore} → ${secReport.currentRiskScore} (${secReport.riskScoreChange >= 0 ? '+' : ''}${secReport.riskScoreChange})`
+      );
+      lines.push('');
+    }
+  }
+
+  // Schema evolution section
+  if (diff.schemaEvolutionReport) {
+    const schemaReport = diff.schemaEvolutionReport;
+    if (schemaReport.toolsWithIssues.length > 0 || schemaReport.structureChangedCount > 0) {
+      lines.push('### Schema Evolution');
+      lines.push('');
+
+      if (schemaReport.hasBreakingChanges) {
+        lines.push('⚠️ **Breaking schema changes detected**');
+        lines.push('');
+      }
+
+      if (schemaReport.toolsWithIssues.length > 0) {
+        lines.push('| Tool | Status | Changes |');
+        lines.push('|------|--------|---------|');
+
+        for (const issue of schemaReport.toolsWithIssues) {
+          const statusIcon = issue.isBreaking ? '🔴' : issue.becameUnstable ? '🟡' : '🔵';
+          const status = issue.isBreaking ? 'Breaking' : issue.becameUnstable ? 'Unstable' : 'Changed';
+          lines.push(`| ${issue.toolName} | ${statusIcon} ${status} | ${issue.summary} |`);
+        }
+        lines.push('');
+      }
+
+      lines.push(`**Stability:** ${schemaReport.stableCount} stable, ${schemaReport.unstableCount} unstable`);
+      if (schemaReport.structureChangedCount > 0) {
+        lines.push(`**Structure changes:** ${schemaReport.structureChangedCount} tool(s)`);
+      }
+      lines.push('');
+    }
+  }
+
+  // Error trend section
+  if (diff.errorTrendReport) {
+    const et = diff.errorTrendReport;
+    if (et.significantChange || et.trends.length > 0) {
+      lines.push('### Error Trends');
+      lines.push('');
+
+      if (et.significantChange) {
+        lines.push(`⚠️ **Error behavior changed**: ${et.summary}`);
+        lines.push('');
+      }
+
+      if (et.newCategories.length > 0 || et.resolvedCategories.length > 0 ||
+          et.increasingCategories.length > 0 || et.decreasingCategories.length > 0) {
+        lines.push('| Category | Trend | Previous | Current | Change |');
+        lines.push('|----------|-------|----------|---------|--------|');
+
+        for (const trend of et.trends.filter(t => t.trend !== 'stable')) {
+          const trendEmoji = getTrendEmoji(trend.trend);
+          const changeStr = trend.changePercent !== 0
+            ? `${trend.changePercent > 0 ? '+' : ''}${trend.changePercent}%`
+            : '-';
+          lines.push(
+            `| ${trend.category} | ${trendEmoji} ${trend.trend} | ${trend.previousCount} | ${trend.currentCount} | ${changeStr} |`
+          );
+        }
+        lines.push('');
+      }
+    }
+  }
+
+  // Performance section
+  if (diff.performanceReport) {
+    const perfReport = diff.performanceReport;
+    if (perfReport.hasRegressions || perfReport.improvementCount > 0 ||
+        (perfReport.lowConfidenceTools && perfReport.lowConfidenceTools.length > 0)) {
+      lines.push('### Performance');
+      lines.push('');
+
+      if (perfReport.hasRegressions) {
+        lines.push('#### Regressions');
+        lines.push('');
+        lines.push('| Tool | Previous | Current | Change | Confidence |');
+        lines.push('|------|----------|---------|--------|------------|');
+
+        for (const regression of perfReport.regressions) {
+          const percentStr = (regression.regressionPercent * 100).toFixed(1);
+          const confidenceEmoji = regression.isReliable ? '✓' : '⚠️';
+          const confidenceLabel = regression.currentConfidence ?? 'unknown';
+          lines.push(
+            `| ${regression.toolName} | ${regression.previousP50Ms.toFixed(0)}ms | ${regression.currentP50Ms.toFixed(0)}ms | +${percentStr}% | ${confidenceEmoji} ${confidenceLabel} |`
+          );
+        }
+        lines.push('');
+      }
+
+      if (perfReport.lowConfidenceTools && perfReport.lowConfidenceTools.length > 0) {
+        lines.push(`> **⚠️ Low confidence metrics**: ${perfReport.lowConfidenceTools.join(', ')}`);
+        lines.push('> Consider running with more samples for reliable baselines.');
+        lines.push('');
+      }
+
+      if (perfReport.confidenceChanges && perfReport.confidenceChanges.length > 0) {
+        lines.push('#### Confidence Changes');
+        lines.push('');
+        lines.push('| Tool | Previous | Current | Status |');
+        lines.push('|------|----------|---------|--------|');
+
+        for (const change of perfReport.confidenceChanges) {
+          const statusEmoji = change.improved ? '📈' : change.degraded ? '📉' : '➡️';
+          lines.push(
+            `| ${change.toolName} | ${change.previousLevel ?? 'N/A'} | ${change.currentLevel} | ${statusEmoji} ${change.improved ? 'Improved' : change.degraded ? 'Degraded' : 'Changed'} |`
+          );
+        }
+        lines.push('');
+      }
+    }
+  }
+
+  // Documentation quality section
+  if (diff.documentationScoreReport) {
+    const doc = diff.documentationScoreReport;
+    lines.push('### Documentation Quality');
+    lines.push('');
+
+    const changeIcon = doc.improved ? '📈' : doc.degraded ? '📉' : '➡️';
+    const sign = doc.change > 0 ? '+' : '';
+    lines.push(`**Score:** ${doc.currentScore}/100 (${doc.currentGrade}) ${changeIcon}`);
+
+    if (doc.change !== 0) {
+      lines.push(`**Change:** ${doc.previousScore} → ${doc.currentScore} (${sign}${doc.change})`);
+      lines.push(`**Grade:** ${doc.previousGrade} → ${doc.currentGrade}`);
+    }
+
+    if (doc.issuesFixed > 0) {
+      lines.push(`**Issues fixed:** ${doc.issuesFixed}`);
+    }
+    if (doc.newIssues > 0) {
+      lines.push(`**New issues:** ${doc.newIssues}`);
+    }
+    lines.push('');
+  }
+
   lines.push('### Statistics');
   lines.push('');
   lines.push(`- Breaking changes: **${diff.breakingCount}**`);
   lines.push(`- Warnings: **${diff.warningCount}**`);
   lines.push(`- Info: **${diff.infoCount}**`);
+  if (diff.performanceReport) {
+    lines.push(`- Performance regressions: **${diff.performanceReport.regressionCount}**`);
+    if (diff.performanceReport.lowConfidenceTools && diff.performanceReport.lowConfidenceTools.length > 0) {
+      lines.push(`- Low confidence tools: **${diff.performanceReport.lowConfidenceTools.length}**`);
+    }
+  }
+  if (diff.securityReport) {
+    lines.push(`- New security findings: **${diff.securityReport.newFindings.length}**`);
+    lines.push(`- Resolved findings: **${diff.securityReport.resolvedFindings.length}**`);
+  }
+  if (diff.schemaEvolutionReport) {
+    lines.push(`- Stable schemas: **${diff.schemaEvolutionReport.stableCount}**`);
+    lines.push(`- Unstable schemas: **${diff.schemaEvolutionReport.unstableCount}**`);
+    if (diff.schemaEvolutionReport.structureChangedCount > 0) {
+      lines.push(`- Schema structure changes: **${diff.schemaEvolutionReport.structureChangedCount}**`);
+    }
+  }
+  if (diff.errorTrendReport) {
+    const et = diff.errorTrendReport;
+    if (et.newCategories.length > 0) {
+      lines.push(`- New error types: **${et.newCategories.length}**`);
+    }
+    if (et.resolvedCategories.length > 0) {
+      lines.push(`- Resolved error types: **${et.resolvedCategories.length}**`);
+    }
+    if (et.increasingCategories.length > 0) {
+      lines.push(`- Increasing errors: **${et.increasingCategories.length}**`);
+    }
+    if (et.decreasingCategories.length > 0) {
+      lines.push(`- Decreasing errors: **${et.decreasingCategories.length}**`);
+    }
+  }
+  if (diff.documentationScoreReport) {
+    const doc = diff.documentationScoreReport;
+    lines.push(`- Documentation score: **${doc.currentScore}/100** (${doc.currentGrade})`);
+    if (doc.change !== 0) {
+      const sign = doc.change > 0 ? '+' : '';
+      lines.push(`- Documentation change: **${sign}${doc.change}**`);
+    }
+  }
 
   return lines.join('\n');
+}
+
+/**
+ * Get emoji for error trend direction.
+ */
+function getTrendEmoji(trend: 'increasing' | 'decreasing' | 'stable' | 'new' | 'resolved'): string {
+  switch (trend) {
+    case 'new':
+      return '🆕';
+    case 'resolved':
+      return '✅';
+    case 'increasing':
+      return '📈';
+    case 'decreasing':
+      return '📉';
+    case 'stable':
+      return '➡️';
+  }
 }
 
 /**
@@ -304,6 +831,160 @@ export function formatDiffJUnit(diff: BehavioralDiff, suiteName: string = 'bellw
       lines.push(`      <system-out>[INFO] ${escapeXml(change.description)}</system-out>`);
     }
 
+    lines.push('    </testcase>');
+  }
+
+  // Test cases for performance regressions
+  if (diff.performanceReport) {
+    for (const regression of diff.performanceReport.regressions) {
+      const name = escapeXml(`performance-${regression.toolName}`);
+      const percentStr = (regression.regressionPercent * 100).toFixed(1);
+      const confidenceNote = regression.isReliable ? '' : ' (low confidence)';
+
+      lines.push(`    <testcase name="${name}" classname="drift.performance">`);
+      lines.push(`      <failure message="Performance regression: +${percentStr}%${confidenceNote}" type="regression">`);
+      lines.push(`Tool: ${escapeXml(regression.toolName)}`);
+      lines.push(`Previous p50: ${regression.previousP50Ms.toFixed(0)}ms`);
+      lines.push(`Current p50: ${regression.currentP50Ms.toFixed(0)}ms`);
+      lines.push(`Regression: +${percentStr}%`);
+      lines.push(`Confidence: ${regression.currentConfidence ?? 'unknown'}${regression.isReliable ? '' : ' (unreliable)'}`);
+      lines.push('      </failure>');
+      lines.push('    </testcase>');
+    }
+
+    // Low confidence tools
+    if (diff.performanceReport.lowConfidenceTools && diff.performanceReport.lowConfidenceTools.length > 0) {
+      for (const tool of diff.performanceReport.lowConfidenceTools) {
+        const name = escapeXml(`confidence-${tool}`);
+        lines.push(`    <testcase name="${name}" classname="drift.confidence">`);
+        lines.push(`      <system-err>[NOTICE] Low confidence metrics for ${escapeXml(tool)}. Run with more samples for reliable baselines.</system-err>`);
+        lines.push('    </testcase>');
+      }
+    }
+  }
+
+  // Test cases for security findings
+  if (diff.securityReport) {
+    for (const finding of diff.securityReport.newFindings) {
+      const name = escapeXml(`security-${finding.tool}-${finding.category}`);
+      const isFailure = finding.riskLevel === 'critical' || finding.riskLevel === 'high';
+
+      lines.push(`    <testcase name="${name}" classname="drift.security">`);
+      if (isFailure) {
+        lines.push(`      <failure message="${escapeXml(finding.title)}" type="${finding.riskLevel}">`);
+        lines.push(`Tool: ${escapeXml(finding.tool)}`);
+        lines.push(`Parameter: ${escapeXml(finding.parameter)}`);
+        lines.push(`CWE: ${escapeXml(finding.cweId)}`);
+        lines.push(`Description: ${escapeXml(finding.description)}`);
+        lines.push(`Remediation: ${escapeXml(finding.remediation)}`);
+        lines.push('      </failure>');
+      } else {
+        lines.push(`      <system-err>[${finding.riskLevel.toUpperCase()}] ${escapeXml(finding.title)}</system-err>`);
+      }
+      lines.push('    </testcase>');
+    }
+
+    // Show resolved findings as passing tests
+    for (const finding of diff.securityReport.resolvedFindings) {
+      const name = escapeXml(`security-resolved-${finding.tool}-${finding.category}`);
+      lines.push(`    <testcase name="${name}" classname="drift.security">`);
+      lines.push(`      <system-out>Resolved: ${escapeXml(finding.title)} (${escapeXml(finding.cweId)})</system-out>`);
+      lines.push('    </testcase>');
+    }
+  }
+
+  // Test cases for schema evolution issues
+  if (diff.schemaEvolutionReport) {
+    for (const issue of diff.schemaEvolutionReport.toolsWithIssues) {
+      const name = escapeXml(`schema-evolution-${issue.toolName}`);
+
+      lines.push(`    <testcase name="${name}" classname="drift.schema">`);
+      if (issue.isBreaking) {
+        lines.push(`      <failure message="${escapeXml(issue.summary)}" type="breaking">`);
+        lines.push(`Tool: ${escapeXml(issue.toolName)}`);
+        if (issue.fieldsRemoved.length > 0) {
+          lines.push(`Fields removed: ${escapeXml(issue.fieldsRemoved.join(', '))}`);
+        }
+        if (issue.fieldsAdded.length > 0) {
+          lines.push(`Fields added: ${escapeXml(issue.fieldsAdded.join(', '))}`);
+        }
+        lines.push('      </failure>');
+      } else if (issue.becameUnstable) {
+        lines.push(`      <system-err>[WARNING] Schema became unstable: ${escapeXml(issue.summary)}</system-err>`);
+      } else {
+        lines.push(`      <system-out>[INFO] Schema changed: ${escapeXml(issue.summary)}</system-out>`);
+      }
+      lines.push('    </testcase>');
+    }
+
+    // Show stable schemas as passing tests
+    if (diff.schemaEvolutionReport.stableCount > 0 && diff.schemaEvolutionReport.toolsWithIssues.length === 0) {
+      lines.push(`    <testcase name="schema-stability-check" classname="drift.schema">`);
+      lines.push(`      <system-out>${diff.schemaEvolutionReport.stableCount} tool(s) have stable response schemas</system-out>`);
+      lines.push('    </testcase>');
+    }
+  }
+
+  // Test cases for error trend changes
+  if (diff.errorTrendReport) {
+    const et = diff.errorTrendReport;
+
+    // New error types (warnings)
+    for (const category of et.newCategories) {
+      const name = escapeXml(`error-trend-new-${category}`);
+      lines.push(`    <testcase name="${name}" classname="drift.errors">`);
+      lines.push(`      <system-err>[WARNING] New error type detected: ${escapeXml(category)}</system-err>`);
+      lines.push('    </testcase>');
+    }
+
+    // Resolved error types (info)
+    for (const category of et.resolvedCategories) {
+      const name = escapeXml(`error-trend-resolved-${category}`);
+      lines.push(`    <testcase name="${name}" classname="drift.errors">`);
+      lines.push(`      <system-out>Resolved: ${escapeXml(category)} error type no longer occurs</system-out>`);
+      lines.push('    </testcase>');
+    }
+
+    // Increasing error types (warnings)
+    for (const category of et.increasingCategories) {
+      const trend = et.trends.find(t => t.category === category);
+      const name = escapeXml(`error-trend-increasing-${category}`);
+      lines.push(`    <testcase name="${name}" classname="drift.errors">`);
+      lines.push(`      <system-err>[WARNING] Error frequency increasing: ${escapeXml(category)}${trend ? ` (+${trend.changePercent}%)` : ''}</system-err>`);
+      lines.push('    </testcase>');
+    }
+
+    // Overall error trend summary
+    if (et.significantChange) {
+      lines.push(`    <testcase name="error-trend-summary" classname="drift.errors">`);
+      lines.push(`      <system-err>[WARNING] ${escapeXml(et.summary)}</system-err>`);
+      lines.push('    </testcase>');
+    } else if (et.trends.length > 0) {
+      lines.push(`    <testcase name="error-trend-summary" classname="drift.errors">`);
+      lines.push(`      <system-out>Error patterns stable</system-out>`);
+      lines.push('    </testcase>');
+    }
+  }
+
+  // Test case for documentation quality
+  if (diff.documentationScoreReport) {
+    const doc = diff.documentationScoreReport;
+    const name = 'documentation-quality-score';
+
+    lines.push(`    <testcase name="${name}" classname="drift.documentation">`);
+    if (doc.degraded) {
+      lines.push(`      <system-err>[WARNING] Documentation quality degraded: ${doc.previousScore} -> ${doc.currentScore} (${doc.currentGrade})</system-err>`);
+      if (doc.newIssues > 0) {
+        lines.push(`      <system-err>New documentation issues: ${doc.newIssues}</system-err>`);
+      }
+    } else if (doc.improved) {
+      lines.push(`      <system-out>Documentation quality improved: ${doc.previousScore} -> ${doc.currentScore} (${doc.currentGrade})</system-out>`);
+      if (doc.issuesFixed > 0) {
+        lines.push(`      <system-out>Issues fixed: ${doc.issuesFixed}</system-out>`);
+      }
+    } else {
+      lines.push(`      <system-out>Documentation quality: ${doc.currentScore}/100 (${doc.currentGrade})</system-out>`);
+    }
     lines.push('    </testcase>');
   }
 
@@ -429,6 +1110,114 @@ export function formatDiffSarif(
                   text: 'Review error handling changes and ensure consumers handle new error cases.',
                 },
               },
+              {
+                id: 'BWH007',
+                name: 'SecurityFinding',
+                shortDescription: { text: 'Security vulnerability detected' },
+                fullDescription: {
+                  text: 'A security vulnerability was detected during testing. The tool may be susceptible to injection attacks or other security issues.',
+                },
+                defaultConfiguration: { level: 'error' },
+                help: {
+                  text: 'Review the security finding and implement appropriate input validation, sanitization, or other mitigations.',
+                },
+              },
+              {
+                id: 'BWH008',
+                name: 'SchemaEvolutionBreaking',
+                shortDescription: { text: 'Breaking response schema change' },
+                fullDescription: {
+                  text: 'A breaking change was detected in a tool response schema, such as removed fields or type changes that may affect consumers.',
+                },
+                defaultConfiguration: { level: 'error' },
+                help: {
+                  text: 'Review the schema changes and update consumers accordingly. Consider versioning or migration paths for breaking changes.',
+                },
+              },
+              {
+                id: 'BWH009',
+                name: 'SchemaEvolutionUnstable',
+                shortDescription: { text: 'Unstable response schema detected' },
+                fullDescription: {
+                  text: 'The tool response schema is inconsistent across samples, indicating potential reliability issues.',
+                },
+                defaultConfiguration: { level: 'warning' },
+                help: {
+                  text: 'Investigate why the response schema varies. Consider normalizing responses or documenting optional fields.',
+                },
+              },
+              {
+                id: 'BWH010',
+                name: 'ErrorTrendNew',
+                shortDescription: { text: 'New error type detected' },
+                fullDescription: {
+                  text: 'A new type of error was detected that did not occur in the previous baseline.',
+                },
+                defaultConfiguration: { level: 'warning' },
+                help: {
+                  text: 'Review the new error type and ensure consumers handle it appropriately.',
+                },
+              },
+              {
+                id: 'BWH011',
+                name: 'ErrorTrendIncreasing',
+                shortDescription: { text: 'Error frequency increasing' },
+                fullDescription: {
+                  text: 'The frequency of a specific error type has significantly increased compared to the baseline.',
+                },
+                defaultConfiguration: { level: 'warning' },
+                help: {
+                  text: 'Investigate why errors are increasing. This may indicate a regression or environmental issue.',
+                },
+              },
+              {
+                id: 'BWH012',
+                name: 'PerformanceRegression',
+                shortDescription: { text: 'Performance regression detected' },
+                fullDescription: {
+                  text: 'A tool has significantly slower response times compared to the baseline.',
+                },
+                defaultConfiguration: { level: 'warning' },
+                help: {
+                  text: 'Investigate the cause of the performance regression. Review recent changes that may have impacted response times.',
+                },
+              },
+              {
+                id: 'BWH013',
+                name: 'LowConfidenceMetrics',
+                shortDescription: { text: 'Low confidence performance metrics' },
+                fullDescription: {
+                  text: 'Performance metrics have low statistical confidence due to insufficient samples or high variability.',
+                },
+                defaultConfiguration: { level: 'note' },
+                help: {
+                  text: 'Run with more samples (--samples flag) to establish reliable performance baselines.',
+                },
+              },
+              {
+                id: 'BWH014',
+                name: 'DocumentationQualityDegraded',
+                shortDescription: { text: 'Documentation quality degraded' },
+                fullDescription: {
+                  text: 'The documentation quality score has decreased compared to the baseline, indicating potential documentation issues.',
+                },
+                defaultConfiguration: { level: 'warning' },
+                help: {
+                  text: 'Review tool and parameter descriptions. Ensure all tools have meaningful descriptions and parameters are documented.',
+                },
+              },
+              {
+                id: 'BWH015',
+                name: 'DocumentationQualityLow',
+                shortDescription: { text: 'Low documentation quality score' },
+                fullDescription: {
+                  text: 'The documentation quality score is below acceptable thresholds (grade D or F).',
+                },
+                defaultConfiguration: { level: 'warning' },
+                help: {
+                  text: 'Add descriptions to tools and parameters. Consider adding examples to improve documentation.',
+                },
+              },
             ],
           },
         },
@@ -521,6 +1310,239 @@ export function formatDiffSarif(
         severity: change.severity,
       },
     });
+  }
+
+  // Add results for security findings
+  if (diff.securityReport) {
+    for (const finding of diff.securityReport.newFindings) {
+      const level: 'note' | 'warning' | 'error' =
+        finding.riskLevel === 'critical' || finding.riskLevel === 'high'
+          ? 'error'
+          : finding.riskLevel === 'medium'
+            ? 'warning'
+            : 'note';
+
+      results.push({
+        ruleId: 'BWH007',
+        level,
+        message: { text: `[${finding.riskLevel.toUpperCase()}] ${finding.tool}: ${finding.title}` },
+        locations: [
+          {
+            physicalLocation: {
+              artifactLocation: { uri: baselinePath },
+              region: { startLine: 1 },
+            },
+          },
+        ],
+        properties: {
+          tool: finding.tool,
+          parameter: finding.parameter,
+          category: finding.category,
+          riskLevel: finding.riskLevel,
+          cweId: finding.cweId,
+          description: finding.description,
+          remediation: finding.remediation,
+          evidence: finding.evidence,
+        },
+      });
+    }
+  }
+
+  // Add results for schema evolution issues
+  if (diff.schemaEvolutionReport) {
+    for (const issue of diff.schemaEvolutionReport.toolsWithIssues) {
+      const ruleId = issue.isBreaking ? 'BWH008' : 'BWH009';
+      const level: 'note' | 'warning' | 'error' = issue.isBreaking
+        ? 'error'
+        : issue.becameUnstable
+          ? 'warning'
+          : 'note';
+
+      results.push({
+        ruleId,
+        level,
+        message: { text: `${issue.toolName}: ${issue.summary}` },
+        locations: [
+          {
+            physicalLocation: {
+              artifactLocation: { uri: baselinePath },
+              region: { startLine: 1 },
+            },
+          },
+        ],
+        properties: {
+          tool: issue.toolName,
+          isBreaking: issue.isBreaking,
+          becameUnstable: issue.becameUnstable,
+          fieldsAdded: issue.fieldsAdded,
+          fieldsRemoved: issue.fieldsRemoved,
+        },
+      });
+    }
+  }
+
+  // Add results for performance regressions and confidence
+  if (diff.performanceReport) {
+    // Performance regressions
+    for (const regression of diff.performanceReport.regressions) {
+      const percentStr = (regression.regressionPercent * 100).toFixed(1);
+      const confidenceNote = regression.isReliable ? '' : ' (low confidence)';
+
+      results.push({
+        ruleId: 'BWH012',
+        level: 'warning',
+        message: {
+          text: `Performance regression: ${regression.toolName} +${percentStr}%${confidenceNote}`,
+        },
+        locations: [
+          {
+            physicalLocation: {
+              artifactLocation: { uri: baselinePath },
+              region: { startLine: 1 },
+            },
+          },
+        ],
+        properties: {
+          tool: regression.toolName,
+          previousP50Ms: regression.previousP50Ms,
+          currentP50Ms: regression.currentP50Ms,
+          regressionPercent: regression.regressionPercent,
+          isReliable: regression.isReliable,
+          currentConfidence: regression.currentConfidence,
+        },
+      });
+    }
+
+    // Low confidence tools
+    if (diff.performanceReport.lowConfidenceTools) {
+      for (const tool of diff.performanceReport.lowConfidenceTools) {
+        results.push({
+          ruleId: 'BWH013',
+          level: 'note',
+          message: {
+            text: `Low confidence metrics for "${tool}". Consider running with more samples.`,
+          },
+          locations: [
+            {
+              physicalLocation: {
+                artifactLocation: { uri: baselinePath },
+                region: { startLine: 1 },
+              },
+            },
+          ],
+          properties: {
+            tool,
+            recommendation: 'Run with --samples flag for reliable baselines',
+          },
+        });
+      }
+    }
+  }
+
+  // Add results for error trend changes
+  if (diff.errorTrendReport) {
+    const et = diff.errorTrendReport;
+
+    // New error types
+    for (const category of et.newCategories) {
+      results.push({
+        ruleId: 'BWH010',
+        level: 'warning',
+        message: { text: `New error type detected: ${category}` },
+        locations: [
+          {
+            physicalLocation: {
+              artifactLocation: { uri: baselinePath },
+              region: { startLine: 1 },
+            },
+          },
+        ],
+        properties: {
+          category,
+          trend: 'new',
+          significance: 'high',
+        },
+      });
+    }
+
+    // Increasing error types
+    for (const category of et.increasingCategories) {
+      const trend = et.trends.find(t => t.category === category);
+      results.push({
+        ruleId: 'BWH011',
+        level: 'warning',
+        message: { text: `Error frequency increasing: ${category}${trend ? ` (+${trend.changePercent}%)` : ''}` },
+        locations: [
+          {
+            physicalLocation: {
+              artifactLocation: { uri: baselinePath },
+              region: { startLine: 1 },
+            },
+          },
+        ],
+        properties: {
+          category,
+          trend: 'increasing',
+          previousCount: trend?.previousCount,
+          currentCount: trend?.currentCount,
+          changePercent: trend?.changePercent,
+        },
+      });
+    }
+  }
+
+  // Add results for documentation quality changes
+  if (diff.documentationScoreReport) {
+    const doc = diff.documentationScoreReport;
+
+    if (doc.degraded) {
+      results.push({
+        ruleId: 'BWH014',
+        level: 'warning',
+        message: {
+          text: `Documentation quality degraded: ${doc.previousScore} -> ${doc.currentScore} (${doc.currentGrade})`,
+        },
+        locations: [
+          {
+            physicalLocation: {
+              artifactLocation: { uri: baselinePath },
+              region: { startLine: 1 },
+            },
+          },
+        ],
+        properties: {
+          previousScore: doc.previousScore,
+          currentScore: doc.currentScore,
+          change: doc.change,
+          previousGrade: doc.previousGrade,
+          currentGrade: doc.currentGrade,
+          newIssues: doc.newIssues,
+        },
+      });
+    }
+
+    // Add warning for low documentation quality regardless of change
+    if (doc.currentGrade === 'D' || doc.currentGrade === 'F') {
+      results.push({
+        ruleId: 'BWH015',
+        level: 'warning',
+        message: {
+          text: `Low documentation quality: ${doc.currentScore}/100 (${doc.currentGrade})`,
+        },
+        locations: [
+          {
+            physicalLocation: {
+              artifactLocation: { uri: baselinePath },
+              region: { startLine: 1 },
+            },
+          },
+        ],
+        properties: {
+          score: doc.currentScore,
+          grade: doc.currentGrade,
+        },
+      });
+    }
   }
 
   return JSON.stringify(sarif, null, 2);
@@ -627,4 +1649,137 @@ function groupChangesByTool(changes: BehaviorChange[]): Map<string, BehaviorChan
   }
 
   return map;
+}
+
+/**
+ * Get color function for risk level.
+ */
+function getRiskLevelColor(
+  riskLevel: RiskLevel,
+  useColors: boolean
+): (s: string) => string {
+  const c = useColors ? colors : noColors;
+
+  switch (riskLevel) {
+    case 'critical':
+    case 'high':
+      return c.red;
+    case 'medium':
+      return c.yellow;
+    case 'low':
+      return c.cyan;
+    case 'info':
+    default:
+      return c.dim;
+  }
+}
+
+/**
+ * Get emoji for risk level (used in markdown output).
+ */
+function getRiskLevelEmoji(riskLevel: RiskLevel): string {
+  switch (riskLevel) {
+    case 'critical':
+      return '🔴';
+    case 'high':
+      return '🟠';
+    case 'medium':
+      return '🟡';
+    case 'low':
+      return '🔵';
+    case 'info':
+    default:
+      return '⚪';
+  }
+}
+
+/**
+ * Format a summary for schema evolution report.
+ */
+function formatSchemaEvolutionSummary(report: SchemaEvolutionReport): string {
+  const parts: string[] = [];
+
+  if (report.hasBreakingChanges) {
+    parts.push('Breaking schema changes detected');
+  }
+
+  if (report.unstableCount > 0) {
+    parts.push(`${report.unstableCount} unstable schema(s)`);
+  }
+
+  if (report.structureChangedCount > 0) {
+    parts.push(`${report.structureChangedCount} structure change(s)`);
+  }
+
+  if (parts.length === 0) {
+    return `${report.stableCount} stable schema(s)`;
+  }
+
+  return parts.join(', ');
+}
+
+/**
+ * Format a standalone security report for display.
+ * Used when only security data is available (not a full diff).
+ */
+export function formatSecurityReport(
+  report: SecurityDiff,
+  useColors: boolean = true
+): string {
+  const lines: string[] = [];
+  const { red, green, bold, dim } = useColors ? colors : noColors;
+
+  lines.push(bold('Security Report'));
+  lines.push('═'.repeat(50));
+  lines.push('');
+
+  // Summary
+  lines.push(report.summary);
+  lines.push('');
+
+  // Risk score
+  const scoreColor = report.degraded ? red : green;
+  const changeSymbol = report.riskScoreChange > 0 ? '↑' : report.riskScoreChange < 0 ? '↓' : '→';
+  lines.push(
+    `Risk Score: ${report.previousRiskScore} ${changeSymbol} ${scoreColor(String(report.currentRiskScore))}`
+  );
+  lines.push('');
+
+  // New findings
+  if (report.newFindings.length > 0) {
+    lines.push(red('─── New Findings ───'));
+    for (const finding of report.newFindings) {
+      const riskColor = getRiskLevelColor(finding.riskLevel, useColors);
+      lines.push(`  ${riskColor('●')} [${finding.riskLevel.toUpperCase()}] ${finding.title}`);
+      lines.push(`    Tool: ${finding.tool}`);
+      lines.push(`    Parameter: ${finding.parameter}`);
+      lines.push(`    ${finding.cweId}: ${finding.description}`);
+      lines.push(`    ${dim('Remediation:')} ${finding.remediation}`);
+      lines.push('');
+    }
+  }
+
+  // Resolved findings
+  if (report.resolvedFindings.length > 0) {
+    lines.push(green('─── Resolved Findings ───'));
+    for (const finding of report.resolvedFindings) {
+      lines.push(`  ${green('✓')} ${finding.title} (${finding.tool})`);
+    }
+    lines.push('');
+  }
+
+  // Statistics
+  lines.push('─── Statistics ───');
+  lines.push(`  New findings: ${report.newFindings.length}`);
+  lines.push(`  Resolved findings: ${report.resolvedFindings.length}`);
+
+  const criticalHigh = report.newFindings.filter(
+    (f) => f.riskLevel === 'critical' || f.riskLevel === 'high'
+  ).length;
+  if (criticalHigh > 0) {
+    lines.push(`  ${red('Critical/High severity:')} ${criticalHigh}`);
+  }
+  lines.push('');
+
+  return lines.join('\n');
 }

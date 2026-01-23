@@ -26,6 +26,8 @@ const sidebars: SidebarsConfig = {
         'cli/check',
         'cli/explore',
         'cli/baseline',
+        'cli/golden',
+        'cli/contract',
         'cli/watch',
         'cli/discover',
         'cli/verify',

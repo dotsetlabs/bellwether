@@ -172,6 +172,16 @@ describe('baseline accept command', () => {
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
+    writeFileSync(
+      join(testDir, 'bellwether.yaml'),
+      [
+        'output:',
+        '  dir: "."',
+        'baseline:',
+        '  path: "bellwether-baseline.json"',
+        '',
+      ].join('\n')
+    );
     vi.clearAllMocks();
   });
 
@@ -180,14 +190,6 @@ describe('baseline accept command', () => {
     if (existsSync(testDir)) {
       rmSync(testDir, { recursive: true, force: true });
     }
-  });
-
-  describe('getOutputDir helper', () => {
-    it('should return current directory when no config exists', async () => {
-      // Import dynamically to get fresh module
-      const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');
-      expect(acceptCommand).toBeDefined();
-    });
   });
 
   describe('loadInterviewResult helper', () => {

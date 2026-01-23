@@ -4,6 +4,12 @@
  * These templates include ALL possible options with comments,
  * making the config file self-documenting.
  */
+import { CONFIG_DEFAULTS } from './defaults.js';
+
+function formatYamlList(values: readonly string[], indent: number = 4): string {
+  const pad = ' '.repeat(indent);
+  return values.map((value) => `${pad}- ${value}`).join('\n');
+}
 
 /**
  * Configuration template options.
@@ -40,6 +46,7 @@ export function generateConfigTemplate(options: ConfigTemplateOptions = {}): str
     envVars = [],
     ciOptimized = false,
   } = options;
+  const defaults = CONFIG_DEFAULTS;
 
   const serverArgsYaml = serverArgs.length > 0
     ? `\n  args:\n${serverArgs.map(arg => `    - "${arg}"`).join('\n')}`
@@ -70,8 +77,8 @@ server:
   command: "${serverCommand}"
   # Arguments to pass to the server command${serverArgsYaml}
 
-  # Timeout for server startup and tool calls (milliseconds, default: 30000)
-  timeout: 30000
+  # Timeout for server startup and tool calls (milliseconds, default: ${defaults.server.timeout})
+  timeout: ${defaults.server.timeout}
 
   # Additional environment variables for the server process
   # Use \${VAR} syntax to reference environment variables${envVarsYaml}${envVars.length === 0 ? `
@@ -89,21 +96,42 @@ scenarios:
   # path: "./bellwether-tests.yaml"
 
   # Run ONLY scenarios (skip generated tests)
-  only: false
+  only: ${defaults.scenarios.only}
 
 # =============================================================================
 # OUTPUT (used by both commands)
 # =============================================================================
-# bellwether check outputs: CONTRACT.md, bellwether-check.json
-# bellwether explore outputs: AGENTS.md, bellwether-explore.json
+# bellwether outputs: documentation + JSON reports (configurable via output.files)
 
 output:
-  # Directory for JSON output files (bellwether-check.json, etc.)
-  dir: ".bellwether"
+  # Directory for JSON output files (see output.files)
+  dir: "${defaults.output.dir}"
 
   # Directory for documentation files (CONTRACT.md, AGENTS.md)
   # These are kept in root by default for visibility
-  docsDir: "."
+  docsDir: "${defaults.output.docsDir}"
+
+  # Output format: agents.md (markdown only), json (JSON only), or both
+  format: ${defaults.output.format}
+
+  # Example output settings (for CONTRACT.md and AGENTS.md)
+  examples:
+    # Include full (non-truncated) examples in documentation
+    full: ${defaults.output.examples.full}
+
+    # Maximum example length in characters (100-50000)
+    maxLength: ${defaults.output.examples.maxLength}
+
+    # Maximum examples per tool (1-20)
+    maxPerTool: ${defaults.output.examples.maxPerTool}
+
+  # Output file names (relative to output dirs above)
+  files:
+    checkReport: ${defaults.output.files.checkReport}
+    exploreReport: ${defaults.output.files.exploreReport}
+    contractDoc: ${defaults.output.files.contractDoc}
+    agentsDoc: ${defaults.output.files.agentsDoc}
+    verificationReport: ${defaults.output.files.verificationReport}
 
 # =============================================================================
 # CHECK COMMAND SETTINGS
@@ -112,8 +140,8 @@ output:
 # Free, fast, deterministic. No LLM required.
 
 baseline:
-  # Path to baseline file for upload (default: bellwether-check.json in output.dir)
-  # path: "./bellwether-check.json"
+  # Default baseline file path (relative to output.dir or absolute)
+  path: ${defaults.baseline.path}
 
   # Auto-save baseline after each check (set path to enable)
   # savePath: "./bellwether-baseline.json"
@@ -124,16 +152,19 @@ baseline:
   # Fail if drift is detected (useful for CI)
   failOnDrift: ${ciOptimized ? 'true' : 'false'}
 
+  # Default output format for baseline compare/diff: text, json, markdown, compact
+  outputFormat: ${defaults.baseline.outputFormat}
+
   # Severity thresholds for filtering and CI failure
   severity:
     # Minimum severity to include in reports: none, info, warning, breaking
-    minimumSeverity: none
+    minimumSeverity: ${defaults.baseline.severity.minimumSeverity}
 
     # Severity at which to fail CI checks: none, info, warning, breaking
-    failOnSeverity: breaking
+    failOnSeverity: ${defaults.baseline.severity.failOnSeverity}
 
     # Suppress warning-level changes from output
-    suppressWarnings: false
+    suppressWarnings: ${defaults.baseline.severity.suppressWarnings}
 
     # Custom severity overrides per aspect (uncomment to use)
     # aspectOverrides:
@@ -143,23 +174,48 @@ baseline:
 check:
   # Enable incremental checking (only test tools with changed schemas)
   # Requires an existing baseline for comparison
-  incremental: false
+  incremental: ${defaults.check.incremental}
 
   # Maximum age of cached results in hours (for incremental checking)
   # Default: 168 (1 week), Range: 1-720 (30 days)
-  incrementalCacheHours: 168
+  incrementalCacheHours: ${defaults.check.incrementalCacheHours}
 
   # Enable parallel tool testing for faster checks
-  # Useful for servers with many tools
-  parallel: ${ciOptimized ? 'true' : 'false'}
+  # Recommended for servers with multiple tools
+  parallel: ${defaults.check.parallel}
 
   # Number of concurrent tool workers (1-10)
   # Higher values = faster but more server load
-  parallelWorkers: 4
+  parallelWorkers: ${defaults.check.parallelWorkers}
 
   # Performance regression threshold percentage (0-100)
   # Tool is flagged if p50 latency increases by more than this percentage
-  performanceThreshold: 10
+  performanceThreshold: ${defaults.check.performanceThreshold}
+
+  # Diff output format: text, json, compact, github, markdown, junit, sarif
+  diffFormat: ${defaults.check.diffFormat}
+
+  # Security testing settings
+  security:
+    # Enable security vulnerability testing
+    # Tests for SQL injection, XSS, path traversal, command injection, SSRF
+    enabled: ${defaults.check.security.enabled}
+
+    # Security categories to test (when enabled)
+    categories:
+${formatYamlList(defaults.check.security.categories, 6)}
+
+  # Statistical sampling settings for performance baselines
+  sampling:
+    # Minimum samples per tool (1-50, default: 3)
+    # Higher values = more reliable baselines but longer test runs
+    minSamples: ${defaults.check.sampling.minSamples}
+
+    # Target confidence level: low (1+ samples), medium (5+), high (10+)
+    targetConfidence: ${defaults.check.sampling.targetConfidence}
+
+    # Fail if confidence is below target (useful for CI)
+    failOnLowConfidence: ${defaults.check.sampling.failOnLowConfidence}
 
 # =============================================================================
 # EXPLORE COMMAND SETTINGS
@@ -173,11 +229,11 @@ llm:
 
   # Model to use. Leave empty for provider default.
   # Defaults: ollama=qwen3:8b, openai=gpt-4.1-nano, anthropic=claude-haiku-4-5
-  model: ""
+  model: "${defaults.llm.model}"
 
   # Ollama settings (for local LLM)
   ollama:
-    baseUrl: "http://localhost:11434"
+    baseUrl: "${defaults.llm.ollama.baseUrl}"
 
   # API keys are loaded from environment variables or 'bellwether auth'.
   # SECURITY: Never put API keys directly in this file!
@@ -189,26 +245,43 @@ explore:
   # - qa_engineer: Edge cases, error handling, reliability
   # - novice_user: Usability, confusing behavior, missing guidance
   personas:
-    - technical_writer
+${formatYamlList(defaults.explore.personas, 4)}
 
   # Maximum questions to ask per tool (1-10)
-  maxQuestionsPerTool: 3
+  maxQuestionsPerTool: ${defaults.explore.maxQuestionsPerTool}
 
   # Run personas in parallel for faster execution
-  parallelPersonas: false
+  parallelPersonas: ${defaults.explore.parallelPersonas}
+
+  # Maximum concurrent persona interviews (1-10)
+  personaConcurrency: ${defaults.explore.personaConcurrency}
 
   # Skip error/edge case testing
-  skipErrorTests: false
+  skipErrorTests: ${defaults.explore.skipErrorTests}
 
 workflows:
   # Path to workflow definitions YAML file
   # path: "./bellwether-workflows.yaml"
 
   # Enable LLM-based workflow discovery
-  discover: false
+  discover: ${defaults.workflows.discover}
 
   # Track state changes between workflow steps
-  trackState: false
+  trackState: ${defaults.workflows.trackState}
+
+  # Auto-generate workflows from discovered tools
+  autoGenerate: ${defaults.workflows.autoGenerate}
+
+  # Timeout per workflow step in milliseconds (1000-300000)
+  stepTimeout: ${defaults.workflows.stepTimeout}
+
+  # Timeout configuration for workflow operations (ms)
+  timeouts:
+    toolCall: ${defaults.workflows.timeouts.toolCall}
+    stateSnapshot: ${defaults.workflows.timeouts.stateSnapshot}
+    probeTool: ${defaults.workflows.timeouts.probeTool}
+    llmAnalysis: ${defaults.workflows.timeouts.llmAnalysis}
+    llmSummary: ${defaults.workflows.timeouts.llmSummary}
 
 # =============================================================================
 # WATCH MODE SETTINGS
@@ -217,18 +290,14 @@ workflows:
 
 watch:
   # Path to watch for file changes
-  path: "."
+  path: "${defaults.watch.path}"
 
   # Polling interval in milliseconds (1000-60000)
-  interval: 5000
+  interval: ${defaults.watch.interval}
 
   # File extensions to watch for changes
   extensions:
-    - ".ts"
-    - ".js"
-    - ".json"
-    - ".py"
-    - ".go"
+${formatYamlList(defaults.watch.extensions, 4)}
 
   # Command to run when drift is detected (optional)
   # onDrift: "npm test"
@@ -239,17 +308,134 @@ watch:
 
 cache:
   # Enable response caching (recommended)
-  enabled: true
+  enabled: ${defaults.cache.enabled}
 
   # Cache directory
-  dir: ".bellwether/cache"
+  dir: "${defaults.cache.dir}"
 
 logging:
   # Log level: debug, info, warn, error, silent
-  level: info
+  level: ${defaults.logging.level}
 
   # Show verbose output
-  verbose: false
+  verbose: ${defaults.logging.verbose}
+
+# =============================================================================
+# DISCOVER COMMAND SETTINGS
+# =============================================================================
+# Settings for 'bellwether discover' - capability discovery.
+
+discovery:
+  # Output as JSON
+  json: ${defaults.discovery.json}
+
+  # Connection timeout in milliseconds
+  timeout: ${defaults.discovery.timeout}
+
+  # Transport type: stdio, sse, streamable-http
+  transport: ${defaults.discovery.transport}
+
+  # Remote MCP server URL (required for sse/streamable-http)
+  # url: "https://example.com/mcp"
+
+  # Session ID for remote server authentication
+  # sessionId: "session-id"
+
+# =============================================================================
+# REGISTRY COMMAND SETTINGS
+# =============================================================================
+# Settings for 'bellwether registry' - server lookup.
+
+registry:
+  # Maximum results to show
+  limit: ${defaults.registry.limit}
+
+  # Output as JSON
+  json: ${defaults.registry.json}
+
+# =============================================================================
+# HISTORY COMMAND SETTINGS
+# =============================================================================
+# Settings for 'bellwether history' and 'bellwether diff' (cloud history).
+
+history:
+  # Number of versions to show
+  limit: ${defaults.history.limit}
+
+  # Output as JSON
+  json: ${defaults.history.json}
+
+# =============================================================================
+# LINK COMMAND SETTINGS
+# =============================================================================
+# Settings for 'bellwether link' (cloud project linking).
+
+link:
+  # Default server command when creating new projects
+  defaultServerCommand: "${defaults.link.defaultServerCommand}"
+
+# =============================================================================
+# GOLDEN COMMAND SETTINGS
+# =============================================================================
+# Settings for 'bellwether golden' output validation.
+
+golden:
+  # Default JSON args for golden save
+  defaultArgs: '${defaults.golden.defaultArgs}'
+
+  # Default comparison mode: exact, structural, semantic
+  mode: ${defaults.golden.mode}
+
+  # Output format for compare: text, json, markdown
+  compareFormat: ${defaults.golden.compareFormat}
+
+  # Output format for list: text, json
+  listFormat: ${defaults.golden.listFormat}
+
+  # Normalize timestamps by default
+  normalizeTimestamps: ${defaults.golden.normalizeTimestamps}
+
+  # Normalize UUIDs by default
+  normalizeUuids: ${defaults.golden.normalizeUuids}
+
+# =============================================================================
+# VERIFY COMMAND SETTINGS
+# =============================================================================
+# Settings for 'bellwether verify' verification reports.
+
+verify:
+  # Default verification tier: bronze, silver, gold, platinum
+  tier: ${defaults.verify.tier}
+
+  # Include security testing by default
+  security: ${defaults.verify.security}
+
+  # Output as JSON by default
+  json: ${defaults.verify.json}
+
+  # Output badge URL only by default
+  badgeOnly: ${defaults.verify.badgeOnly}
+
+# =============================================================================
+# CONTRACT COMMAND SETTINGS
+# =============================================================================
+# Settings for 'bellwether contract' - contract validation/generation.
+
+contract:
+  # Default contract file path
+  # path: "./contract.bellwether.yaml"
+
+  # Validation mode: strict, lenient, report
+  mode: ${defaults.contract.mode}
+
+  # Output format: text, json, markdown
+  format: ${defaults.contract.format}
+
+  # Server startup timeout in milliseconds
+  timeout: ${defaults.contract.timeout}
+
+  # Exit with error when violations are found
+  failOnViolation: ${defaults.contract.failOnViolation}
 `;
 }
 
@@ -315,6 +501,15 @@ check:
   parallel: true
   parallelWorkers: 4
   performanceThreshold: 10
+  sampling:
+    minSamples: 5
+    targetConfidence: medium
+    failOnLowConfidence: true
+
+output:
+  examples:
+    full: false
+    maxLength: 1000
 
 logging:
   level: warn
@@ -323,7 +518,20 @@ logging:
     case 'security':
       return `
 # Security Preset Overrides
-# Optimized for 'bellwether explore' with security focus
+# Optimized for security-focused testing
+
+check:
+  security:
+    enabled: true
+    categories:
+      - sql_injection
+      - xss
+      - path_traversal
+      - command_injection
+      - ssrf
+  sampling:
+    minSamples: 5
+    targetConfidence: high
 
 llm:
   provider: anthropic
@@ -336,12 +544,33 @@ explore:
     - qa_engineer
   maxQuestionsPerTool: 5
   skipErrorTests: false
+
+output:
+  examples:
+    full: true
+    maxLength: 5000
 `;
 
     case 'thorough':
       return `
 # Thorough Preset Overrides
-# Comprehensive exploration with all personas
+# Comprehensive testing with all features enabled
+
+check:
+  parallel: true
+  parallelWorkers: 6
+  security:
+    enabled: true
+    categories:
+      - sql_injection
+      - xss
+      - path_traversal
+      - command_injection
+      - ssrf
+  sampling:
+    minSamples: 10
+    targetConfidence: high
+    failOnLowConfidence: true
 
 llm:
   provider: anthropic
@@ -359,6 +588,14 @@ explore:
 
 workflows:
   discover: true
+  trackState: true
+  autoGenerate: true
+
+output:
+  examples:
+    full: true
+    maxLength: 10000
+    maxPerTool: 10
 `;
 
     case 'local':

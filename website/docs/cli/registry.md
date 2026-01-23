@@ -21,6 +21,10 @@ bellwether registry [options] [query]
 
 The `registry` command searches the [MCP Registry](https://registry.modelcontextprotocol.io/) - the official directory of MCP servers. Use it to discover servers, find installation commands, and explore the MCP ecosystem.
 
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `registry`.
+:::
+
 ## Arguments
 
 | Argument | Description |
@@ -31,8 +35,9 @@ The `registry` command searches the [MCP Registry](https://registry.modelcontext
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `-l, --limit <n>` | Maximum number of results | `10` |
-| `--json` | Output as JSON | `false` |
+| `-c, --config <path>` | Path to config file | `bellwether.yaml` |
+| `-l, --limit <n>` | Maximum number of results | `registry.limit` |
+| `--json` | Output as JSON | `registry.json` |
 
 ## Examples
 
@@ -90,24 +95,21 @@ Output:
 The default output shows:
 
 ```
-╔════════════════════════════════════════════════════════════════╗
-║  MCP Registry - 3 servers found                                 ║
-╚════════════════════════════════════════════════════════════════╝
+Found 3 server(s)
+────────────────────────────────────────────────────────────
 
-  @modelcontextprotocol/server-filesystem
-  ────────────────────────────────────────
+@modelcontextprotocol/server-filesystem v1.0.0
   MCP server for filesystem operations
-
   Package: npm @modelcontextprotocol/server-filesystem
   Run:     npx @modelcontextprotocol/server-filesystem <path>
 
-  @modelcontextprotocol/server-postgres
-  ────────────────────────────────────────
+@modelcontextprotocol/server-postgres v1.0.0
   MCP server for PostgreSQL databases
-
   Package: npm @modelcontextprotocol/server-postgres
   Run:     npx @modelcontextprotocol/server-postgres <connection-string>
 ```
+
+You can override the registry base URL with `BELLWETHER_REGISTRY_URL`.
 
 ## Use Cases
 
@@ -157,7 +159,7 @@ The registry includes servers from various package managers:
 | Code | Meaning |
 |:-----|:--------|
 | `0` | Success - results found or empty results |
-| `2` | Error - network or API failure |
+| `4` | Error - network or API failure |
 
 ## See Also
 

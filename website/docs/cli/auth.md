@@ -19,6 +19,10 @@ The `auth` command manages API keys for LLM providers (OpenAI, Anthropic). It pr
 
 This is separate from `bellwether login` which handles Bellwether Cloud authentication.
 
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `auth`.
+:::
+
 ## Subcommands
 
 ### (default) - Interactive Setup

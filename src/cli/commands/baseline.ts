@@ -30,15 +30,8 @@ import { EXIT_CODES } from '../../constants.js';
 import { migrateCommand } from './baseline-migrate.js';
 import { acceptCommand } from './baseline-accept.js';
 import type { InterviewResult } from '../../interview/types.js';
-import { loadConfig, ConfigNotFoundError } from '../../config/loader.js';
-import { PATHS } from '../../constants.js';
+import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
 import * as output from '../output.js';
-
-/**
- * Default paths for baseline files.
- */
-const DEFAULT_BASELINE_PATH = PATHS.DEFAULT_BASELINE_FILE;
-const DEFAULT_REPORT_PATH = PATHS.DEFAULT_CHECK_REPORT_FILE;
 
 /**
  * Load interview result from JSON report.
@@ -83,13 +76,13 @@ function loadInterviewResult(reportPath: string): InterviewResult {
 /**
  * Get the output directory from config or use current directory.
  */
-function getOutputDir(configPath?: string): string {
+function loadConfigOrExit(configPath?: string): BellwetherConfig {
   try {
-    const config = loadConfig(configPath);
-    return config.output.dir;
+    return loadConfig(configPath);
   } catch (error) {
     if (error instanceof ConfigNotFoundError) {
-      return '.';
+      output.error(error.message);
+      process.exit(EXIT_CODES.ERROR);
     }
     throw error;
   }
@@ -120,16 +113,24 @@ baselineCommand.addCommand(acceptCommand);
 baselineCommand
   .command('save')
   .description('Save test results as a baseline for drift detection')
-  .argument('[path]', 'Output path for baseline file', DEFAULT_BASELINE_PATH)
+  .argument('[path]', 'Output path for baseline file')
   .option('-c, --config <path>', 'Path to config file')
   .option('--report <path>', 'Path to test report JSON file')
   .option('--cloud', 'Save in cloud-compatible format')
   .option('-f, --force', 'Overwrite existing baseline without prompting')
-  .action(async (baselinePath: string, options) => {
-    const outputDir = getOutputDir(options.config);
+  .action(async (baselinePath: string | undefined, options) => {
+    const config = loadConfigOrExit(options.config);
+    const outputDir = config.output.dir;
+    const defaultBaselinePath = config.baseline.savePath ?? config.baseline.path;
+    const resolvedBaselinePath = baselinePath ?? defaultBaselinePath;
+
+    if (!resolvedBaselinePath) {
+      output.error('No baseline path provided. Set baseline.path or baseline.savePath in config, or pass a path argument.');
+      process.exit(EXIT_CODES.ERROR);
+    }
 
     // Find the report file
-    const reportPath = options.report || join(outputDir, DEFAULT_REPORT_PATH);
+    const reportPath = options.report || join(outputDir, config.output.files.checkReport);
 
     // Load interview result
     let result: InterviewResult;
@@ -141,9 +142,9 @@ baselineCommand
     }
 
     // Determine baseline path (relative to output dir if not absolute)
-    const finalPath = baselinePath.startsWith('/')
-      ? baselinePath
-      : join(outputDir, baselinePath);
+    const finalPath = resolvedBaselinePath.startsWith('/')
+      ? resolvedBaselinePath
+      : join(outputDir, resolvedBaselinePath);
 
     // Check for existing baseline
     if (existsSync(finalPath) && !options.force) {
@@ -181,31 +182,45 @@ baselineCommand
 baselineCommand
   .command('compare')
   .description('Compare test results against a baseline')
-  .argument('<baseline-path>', 'Path to baseline file to compare against')
+  .argument('[baseline-path]', 'Path to baseline file to compare against')
   .option('-c, --config <path>', 'Path to config file')
   .option('--report <path>', 'Path to test report JSON file')
-  .option('--format <format>', 'Output format: text, json, markdown, compact', 'text')
+  .option('--format <format>', 'Output format: text, json, markdown, compact')
   .option('--fail-on-drift', 'Exit with error if drift is detected')
   .option('--ignore-version-mismatch', 'Force comparison even if format versions are incompatible')
-  .action(async (baselinePath: string, options) => {
-    const outputDir = getOutputDir(options.config);
+  .action(async (baselinePath: string | undefined, options) => {
+    const config = loadConfigOrExit(options.config);
+    const outputDir = config.output.dir;
+    const format = options.format ?? config.baseline.outputFormat;
+    const failOnDrift = options.failOnDrift ? true : config.baseline.failOnDrift;
+    const resolvedBaselinePath = baselinePath ?? config.baseline.comparePath ?? config.baseline.path;
 
     // Load baseline
-    if (!existsSync(baselinePath)) {
-      output.error(`Baseline not found: ${baselinePath}`);
+    if (!resolvedBaselinePath) {
+      output.error('No baseline path provided. Set baseline.path or baseline.comparePath in config, or pass a path argument.');
+      process.exit(EXIT_CODES.ERROR);
+    }
+
+    const baselineBaseDir = baselinePath ? process.cwd() : outputDir;
+    const fullBaselinePath = resolvedBaselinePath.startsWith('/')
+      ? resolvedBaselinePath
+      : join(baselineBaseDir, resolvedBaselinePath);
+
+    if (!existsSync(fullBaselinePath)) {
+      output.error(`Baseline not found: ${fullBaselinePath}`);
       process.exit(EXIT_CODES.ERROR);
     }
 
     let previousBaseline;
     try {
-      previousBaseline = loadBaseline(baselinePath);
+      previousBaseline = loadBaseline(fullBaselinePath);
     } catch (error) {
       output.error(`Failed to load baseline: ${error instanceof Error ? error.message : error}`);
       process.exit(EXIT_CODES.ERROR);
     }
 
     // Find and load the report file
-    const reportPath = options.report || join(outputDir, DEFAULT_REPORT_PATH);
+    const reportPath = options.report || join(outputDir, config.output.files.checkReport);
     let result: InterviewResult;
     try {
       result = loadInterviewResult(reportPath);
@@ -245,7 +260,7 @@ baselineCommand
     }
 
     // Format and output
-    switch (options.format) {
+    switch (format) {
       case 'json':
         console.log(formatDiffJson(diff));
         break;
@@ -270,7 +285,7 @@ baselineCommand
     }
 
     // Exit with error if drift detected and --fail-on-drift
-    if (options.failOnDrift) {
+    if (failOnDrift) {
       if (diff.severity === 'breaking') {
         output.error('\nBreaking changes detected!');
         process.exit(EXIT_CODES.ERROR);
@@ -286,18 +301,25 @@ baselineCommand
 baselineCommand
   .command('show')
   .description('Display baseline contents')
-  .argument('[path]', 'Path to baseline file', DEFAULT_BASELINE_PATH)
+  .argument('[path]', 'Path to baseline file')
   .option('-c, --config <path>', 'Path to config file')
   .option('--json', 'Output raw JSON')
   .option('--tools', 'Show only tool fingerprints')
   .option('--assertions', 'Show only assertions')
-  .action(async (baselinePath: string, options) => {
-    const outputDir = getOutputDir(options.config);
+  .action(async (baselinePath: string | undefined, options) => {
+    const config = loadConfigOrExit(options.config);
+    const outputDir = config.output.dir;
+    const resolvedBaselinePath = baselinePath ?? config.baseline.comparePath ?? config.baseline.path;
+
+    if (!resolvedBaselinePath) {
+      output.error('No baseline path provided. Set baseline.path or baseline.comparePath in config, or pass a path argument.');
+      process.exit(EXIT_CODES.ERROR);
+    }
 
     // Determine full path
-    const fullPath = baselinePath.startsWith('/')
-      ? baselinePath
-      : join(outputDir, baselinePath);
+    const fullPath = resolvedBaselinePath.startsWith('/')
+      ? resolvedBaselinePath
+      : join(outputDir, resolvedBaselinePath);
 
     if (!existsSync(fullPath)) {
       output.error(`Baseline not found: ${fullPath}`);
@@ -406,9 +428,12 @@ baselineCommand
   .description('Compare two baseline files')
   .argument('<path1>', 'Path to first baseline file')
   .argument('<path2>', 'Path to second baseline file')
-  .option('--format <format>', 'Output format: text, json, markdown, compact', 'text')
+  .option('-c, --config <path>', 'Path to config file')
+  .option('--format <format>', 'Output format: text, json, markdown, compact')
   .option('--ignore-version-mismatch', 'Force comparison even if format versions are incompatible')
   .action(async (path1: string, path2: string, options) => {
+    const config = loadConfigOrExit(options.config);
+    const format = options.format ?? config.baseline.outputFormat;
     // Load both baselines
     if (!existsSync(path1)) {
       output.error(`Baseline not found: ${path1}`);
@@ -461,7 +486,7 @@ baselineCommand
     }
 
     // Format and output
-    switch (options.format) {
+    switch (format) {
       case 'json':
         console.log(formatDiffJson(diff));
         break;

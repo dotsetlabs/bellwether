@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
-import { mkdirSync, rmSync, existsSync } from 'fs';
+import { mkdirSync, rmSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
@@ -62,6 +62,7 @@ describe('link command', () => {
     mkdirSync(join(testDir, 'my-project'), { recursive: true });
     originalCwd = process.cwd();
     process.chdir(join(testDir, 'my-project'));
+    writeFileSync(join(process.cwd(), 'bellwether.yaml'), '');
 
     // Override HOME to use test directory
     originalHome = process.env.HOME;
@@ -126,7 +127,7 @@ describe('link command', () => {
     it('should show not linked when no link exists', async () => {
       removeProjectLink();
 
-      const { linkCommand } = await import('../../src/cli/commands/link.js');
+      const { linkCommand } = await import('../../src/cli/commands/cloud/link.js');
       await linkCommand.parseAsync(['node', 'test', '--status']);
 
       expect(consoleOutput.some(line => line.includes('Not linked'))).toBe(true);
@@ -140,7 +141,7 @@ describe('link command', () => {
       };
       saveProjectLink(link);
 
-      const { linkCommand } = await import('../../src/cli/commands/link.js');
+      const { linkCommand } = await import('../../src/cli/commands/cloud/link.js');
       await linkCommand.parseAsync(['node', 'test', '--status']);
 
       expect(consoleOutput.some(line => line.includes('Test Project'))).toBe(true);
@@ -158,7 +159,7 @@ describe('link command', () => {
       saveProjectLink(link);
       expect(getLinkedProject()).not.toBeNull();
 
-      const { linkCommand } = await import('../../src/cli/commands/link.js');
+      const { linkCommand } = await import('../../src/cli/commands/cloud/link.js');
       await linkCommand.parseAsync(['node', 'test', '--unlink']);
 
       expect(getLinkedProject()).toBeNull();
@@ -168,7 +169,7 @@ describe('link command', () => {
     it('should handle no link to remove', async () => {
       removeProjectLink();
 
-      const { linkCommand } = await import('../../src/cli/commands/link.js');
+      const { linkCommand } = await import('../../src/cli/commands/cloud/link.js');
       await linkCommand.parseAsync(['node', 'test', '--unlink']);
 
       expect(consoleOutput.some(line => line.includes('No project link'))).toBe(true);
@@ -185,7 +186,7 @@ describe('link command', () => {
         serverCommand: 'npm start',
       });
 
-      const { linkCommand } = await import('../../src/cli/commands/link.js');
+      const { linkCommand } = await import('../../src/cli/commands/cloud/link.js');
       await linkCommand.parseAsync(['node', 'test', 'proj_existing']);
 
       const link = getLinkedProject();
@@ -199,7 +200,7 @@ describe('link command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockGetProject.mockResolvedValue(null);
 
-      const { linkCommand } = await import('../../src/cli/commands/link.js');
+      const { linkCommand } = await import('../../src/cli/commands/cloud/link.js');
 
       await expect(
         linkCommand.parseAsync(['node', 'test', 'proj_nonexistent'])
@@ -219,7 +220,7 @@ describe('link command', () => {
         serverCommand: 'node dist/server.js',
       });
 
-      const { linkCommand } = await import('../../src/cli/commands/link.js');
+      const { linkCommand } = await import('../../src/cli/commands/cloud/link.js');
       await linkCommand.parseAsync(['node', 'test']);
 
       expect(mockCreateProject).toHaveBeenCalledWith('my-project', 'node dist/server.js');
@@ -236,7 +237,7 @@ describe('link command', () => {
         serverCommand: 'npm start',
       });
 
-      const { linkCommand } = await import('../../src/cli/commands/link.js');
+      const { linkCommand } = await import('../../src/cli/commands/cloud/link.js');
       await linkCommand.parseAsync(['node', 'test', '--name', 'Custom Name', '--command', 'npm start']);
 
       expect(mockCreateProject).toHaveBeenCalledWith('Custom Name', 'npm start');
@@ -249,7 +250,7 @@ describe('link command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockCreateProject.mockRejectedValue(new Error('API error'));
 
-      const { linkCommand } = await import('../../src/cli/commands/link.js');
+      const { linkCommand } = await import('../../src/cli/commands/cloud/link.js');
 
       await expect(
         linkCommand.parseAsync(['node', 'test'])
@@ -263,7 +264,7 @@ describe('link command', () => {
     it('should fail when not authenticated', async () => {
       clearSession();
 
-      const { linkCommand } = await import('../../src/cli/commands/link.js');
+      const { linkCommand } = await import('../../src/cli/commands/cloud/link.js');
 
       await expect(
         linkCommand.parseAsync(['node', 'test'])
@@ -276,7 +277,7 @@ describe('link command', () => {
       saveSession(createTestSession('sess_invalid_token_1234567890123456'));
       mockIsAuthenticated.mockReturnValue(false);
 
-      const { linkCommand } = await import('../../src/cli/commands/link.js');
+      const { linkCommand } = await import('../../src/cli/commands/cloud/link.js');
 
       await expect(
         linkCommand.parseAsync(['node', 'test'])
@@ -305,7 +306,7 @@ describe('link command', () => {
         },
       ]);
 
-      const { projectsCommand } = await import('../../src/cli/commands/link.js');
+      const { projectsCommand } = await import('../../src/cli/commands/cloud/projects.js');
       await projectsCommand.parseAsync(['node', 'test']);
 
       expect(consoleOutput.some(line => line.includes('Project One'))).toBe(true);
@@ -320,7 +321,7 @@ describe('link command', () => {
         { id: 'proj_json', name: 'JSON Project', baselineCount: 1, lastUploadAt: null },
       ]);
 
-      const { projectsCommand } = await import('../../src/cli/commands/link.js');
+      const { projectsCommand } = await import('../../src/cli/commands/cloud/projects.js');
       await projectsCommand.parseAsync(['node', 'test', '--json']);
 
       const jsonOutput = consoleOutput.find(line => line.startsWith('['));
@@ -334,7 +335,7 @@ describe('link command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       mockListProjects.mockResolvedValue([]);
 
-      const { projectsCommand } = await import('../../src/cli/commands/link.js');
+      const { projectsCommand } = await import('../../src/cli/commands/cloud/projects.js');
       await projectsCommand.parseAsync(['node', 'test']);
 
       expect(consoleOutput.some(line => line.includes('No projects found'))).toBe(true);
@@ -353,7 +354,7 @@ describe('link command', () => {
         linkedAt: new Date().toISOString(),
       });
 
-      const { projectsCommand } = await import('../../src/cli/commands/link.js');
+      const { projectsCommand } = await import('../../src/cli/commands/cloud/projects.js');
       await projectsCommand.parseAsync(['node', 'test']);
 
       expect(consoleOutput.some(line => line.includes('Currently linked'))).toBe(true);

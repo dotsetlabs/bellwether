@@ -50,18 +50,25 @@ import { exploreCommand } from './commands/explore.js';
 import { discoverCommand } from './commands/discover.js';
 import { watchCommand } from './commands/watch.js';
 import { initCommand } from './commands/init.js';
-import { loginCommand } from './commands/login.js';
-import { linkCommand, projectsCommand } from './commands/link.js';
-import { uploadCommand } from './commands/upload.js';
-import { historyCommand, diffCommand } from './commands/history.js';
 import { authCommand } from './commands/auth.js';
-import { badgeCommand } from './commands/badge.js';
-import { teamsCommand } from './commands/teams.js';
 import { baselineCommand } from './commands/baseline.js';
+import { goldenCommand } from './commands/golden.js';
 import { registryCommand } from './commands/registry.js';
 import { verifyCommand } from './commands/verify.js';
+import { contractCommand } from './commands/contract.js';
+import { badgeCommand } from './commands/cloud/badge.js';
+import { diffCommand } from './commands/cloud/diff.js';
+import { historyCommand } from './commands/cloud/history.js';
+import { linkCommand } from './commands/cloud/link.js';
+import { loginCommand } from './commands/cloud/login.js';
+import { projectsCommand } from './commands/cloud/projects.js';
+import { teamsCommand } from './commands/cloud/teams.js';
+import { uploadCommand } from './commands/cloud/upload.js';
 import { configureLogger, type LogLevel } from '../logging/logger.js';
 import { VERSION } from '../version.js';
+import { findConfigFile } from '../config/validator.js';
+import { ConfigNotFoundError } from '../config/loader.js';
+import { EXIT_CODES, PATHS } from '../constants.js';
 
 const program = new Command();
 
@@ -115,14 +122,32 @@ Commands:
 For more information on a specific command, use:
   bellwether <command> --help`)
   .version(VERSION)
-  .option('--log-level <level>', 'Log level: debug, info, warn, error, silent', 'info')
+  .option('--log-level <level>', 'Log level: debug, info, warn, error, silent')
   .option('--log-file <path>', 'Write logs to file instead of stderr')
-  .hook('preAction', (thisCommand) => {
-    const opts = thisCommand.opts();
-    configureLogger({
-      level: opts.logLevel as LogLevel,
-      file: opts.logFile,
-    });
+  .hook('preAction', (thisCommand, actionCommand) => {
+    const activeCommand = actionCommand ?? thisCommand;
+    const commandName = activeCommand.name();
+    const opts = activeCommand.opts();
+
+    if (commandName !== 'init') {
+      const configPath = opts.config as string | undefined;
+      const found = findConfigFile(configPath);
+      if (!found) {
+        const searchedPaths = configPath
+          ? [configPath]
+          : PATHS.CONFIG_FILENAMES.map((name) => join(process.cwd(), name));
+        console.error(new ConfigNotFoundError(searchedPaths).message);
+        process.exit(EXIT_CODES.ERROR);
+      }
+    }
+
+    if (opts.logLevel || opts.logFile) {
+      process.env.BELLWETHER_LOG_OVERRIDE = '1';
+      configureLogger({
+        level: opts.logLevel as LogLevel,
+        file: opts.logFile,
+      });
+    }
   })
   .addHelpText('after', examples);
 
@@ -166,6 +191,11 @@ program.addCommand(
   )
 );
 program.addCommand(
+  goldenCommand.description(
+    'Manage golden outputs for tool validation (save, compare, list, delete)'
+  )
+);
+program.addCommand(
   registryCommand.description(
     'Search the MCP Registry for servers'
   )
@@ -173,6 +203,11 @@ program.addCommand(
 program.addCommand(
   verifyCommand.description(
     'Generate verification report for Verified by Bellwether program'
+  )
+);
+program.addCommand(
+  contractCommand.description(
+    'Validate MCP servers against contract definitions (validate, generate, show)'
   )
 );
 

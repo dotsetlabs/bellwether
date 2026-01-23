@@ -19,6 +19,20 @@ export type {
   DriftAcceptance,
   AcceptedDiff,
   SeverityConfig,
+  SchemaEvolutionReport,
+  SchemaEvolutionIssue,
+  PerformanceRegressionReport,
+  PerformanceRegression,
+  PerformanceConfidence,
+  PerformanceConfidenceChange,
+  ConfidenceLevel,
+  DocumentationScore,
+  DocumentationScoreSummary,
+  DocumentationScoreChange,
+  DocumentationIssue,
+  DocumentationGrade,
+  DocumentationComponents,
+  ToolDocumentationScore,
 } from './types.js';
 
 export {
@@ -57,6 +71,7 @@ export {
   formatDiffMarkdown,
   formatDiffJUnit,
   formatDiffSarif,
+  formatSecurityReport,
 } from './diff.js';
 
 export {
@@ -128,6 +143,21 @@ export {
   type ErrorPatternDiff,
 } from './response-fingerprint.js';
 
+// Response schema evolution tracking
+export {
+  compareInferredSchemas,
+  buildSchemaEvolution,
+  compareSchemaEvolution,
+  formatSchemaEvolution,
+  formatSchemaEvolutionDiff,
+  hasSchemaEvolutionIssues,
+  getSchemaStabilityGrade,
+  type ResponseSchemaEvolution,
+  type SchemaVersion as SchemaEvolutionVersion,
+  type SchemaEvolutionDiff,
+  type SchemaTypeChange,
+} from './response-schema-tracker.js';
+
 // Change impact analysis
 export {
   analyzeToolChangeImpact,
@@ -155,6 +185,10 @@ export {
   formatComparison,
   isPerformanceAcceptable,
   aggregateSamplesByTool,
+  calculatePerformanceConfidence,
+  calculateConfidenceFromMetrics,
+  formatConfidenceLevel,
+  hasReliableConfidence,
   PERFORMANCE,
   type LatencyTrend,
   type ToolPerformanceMetrics,
@@ -284,3 +318,114 @@ export {
   type PRComment,
   type PRCommentConfig,
 } from './pr-comment-generator.js';
+
+// Security testing (re-exported from security module for convenience)
+export type {
+  SecurityCategory,
+  RiskLevel,
+  SecurityPayload,
+  SecurityTestResult,
+  SecurityFinding,
+  SecurityFingerprint,
+  SecurityDiff,
+  SecurityTestOptions,
+  SecurityTestContext,
+  SecurityToolCallResult,
+  SecurityReport,
+} from '../security/types.js';
+
+export {
+  runSecurityTests,
+  compareSecurityFingerprints,
+  getRiskLevelFromScore,
+  parseSecurityCategories,
+  getPayloadsForCategory,
+  getAllSecurityPayloads,
+  getAllSecurityCategories,
+} from '../security/index.js';
+
+// Error analysis
+export type {
+  HttpStatusCategory,
+  ErrorSeverity,
+  EnhancedErrorAnalysis,
+  ErrorAnalysisSummary,
+  ErrorTrend,
+  ErrorTrendReport,
+} from './error-analyzer.js';
+
+export {
+  analyzeError,
+  analyzeErrorPatterns,
+  generateErrorSummary,
+  analyzeErrorTrends,
+  extractHttpStatus,
+  categorizeHttpStatus,
+  inferRootCause,
+  generateRemediation,
+  extractRelatedParameters,
+  isTransientError,
+  assessErrorSeverity,
+  mapStatusToErrorCategory,
+  formatEnhancedError,
+  formatErrorTrendReport,
+  formatCategoryName,
+} from './error-analyzer.js';
+
+// Documentation quality scoring
+export {
+  scoreDocumentation,
+  scoreToolDocumentation,
+  calculateDescriptionCoverage,
+  calculateDescriptionQuality,
+  calculateParameterDocumentation,
+  calculateExampleCoverage,
+  hasExamples,
+  scoreToGrade,
+  generateSuggestions,
+  compareDocumentationScores,
+  formatDocumentationScore,
+  formatDocumentationScoreCompact,
+  formatDocumentationScoreChange,
+  toDocumentationScoreSummary,
+  getGradeIndicator,
+  getGradeBadgeColor,
+  meetsDocumentationThreshold,
+  meetsDocumentationGrade,
+  type DocumentationIssueSeverity,
+  type DocumentationIssueType,
+} from './documentation-scorer.js';
+
+// AI Agent Compatibility Scoring
+export {
+  calculateAICompatibilityScore,
+  generateAICompatibilityMarkdown,
+  type AICompatibilityScore,
+  type ScoreComponent,
+  type AICompatibilityRecommendation,
+  type ToolAIScore,
+  type AICompatibilityInput,
+} from './ai-compatibility-scorer.js';
+
+// Regression Risk Scoring
+export {
+  calculateRiskScore,
+  generateRiskScoreMarkdown,
+  type RegressionRiskScore,
+  type RiskFactor,
+} from './risk-scorer.js';
+
+// Intelligent Test Pruning
+export {
+  calculatePruningDecisions,
+  calculateToolPruning,
+  prioritizeTools,
+  generatePruningSummary,
+  generatePruningMarkdown,
+  type TestCategory,
+  type TestCategoryDecision,
+  type ToolPruningDecision,
+  type ToolCharacteristics,
+  type PruningInput,
+  type PruningSummary,
+} from './test-pruner.js';

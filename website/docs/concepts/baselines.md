@@ -13,8 +13,12 @@ A baseline is a JSON file containing:
 - **Server capabilities** - Tools, prompts, and resources
 - **Tool schemas** - Parameter types and requirements
 - **Behavioral observations** - How tools actually behave
-- **Security findings** - Any identified vulnerabilities
-- **Performance metrics** - P50/P95 latency and success rates per tool
+- **Security findings** - Any identified vulnerabilities (when `check.security.enabled` is true)
+- **Performance metrics** - P50/P95 latency, success rates, and confidence levels
+- **Response fingerprints** - Content types, sizes, and structure hashes
+- **Error patterns** - Categorized errors with root cause analysis
+- **Schema evolution** - Response schema stability tracking
+- **Documentation quality** - Score and grade for tool documentation
 
 ## Creating a Baseline
 
@@ -55,9 +59,26 @@ This generates `bellwether-baseline.json`:
       "baselineP95Ms": 120,
       "baselineSuccessRate": 0.98,
       "lastTestedAt": "2026-01-22T10:30:00Z",
-      "inputSchemaHashAtTest": "def456..."
+      "inputSchemaHashAtTest": "def456...",
+      "performanceConfidence": {
+        "sampleCount": 15,
+        "standardDeviation": 12.5,
+        "coefficientOfVariation": 0.28,
+        "confidenceLevel": "high"
+      },
+      "responseFingerprint": {
+        "contentType": "text",
+        "sizeCategory": "small",
+        "structureHash": "ghi789..."
+      }
     }
   ],
+  "documentationScore": {
+    "overallScore": 85,
+    "grade": "B",
+    "toolCount": 3,
+    "issueCount": 2
+  },
   "assertions": [
     {
       "tool": "read_file",
@@ -239,7 +260,12 @@ When comparing baselines with incompatible versions, use `bellwether baseline mi
 |:---------|:--------|
 | **Server Info** | Name, version, protocol version, capabilities |
 | **Tools** | Name, description, schema hash, security notes, limitations |
-| **Performance** | P50/P95 latency, success rate per tool |
+| **Performance** | P50/P95 latency, success rate, confidence level per tool |
+| **Response Fingerprint** | Content type, size category, structure hash |
+| **Error Patterns** | Categorized errors with root cause and remediation |
+| **Schema Evolution** | Response schema stability and field changes |
+| **Security** | Vulnerability findings and risk scores (when `check.security.enabled` is true) |
+| **Documentation** | Quality score, grade, and improvement suggestions |
 | **Assertions** | Behavioral assertions |
 | **Workflows** | Workflow signatures and results |
 | **Integrity** | Hash for detecting file tampering |
@@ -259,6 +285,11 @@ When comparing baselines, Bellwether detects:
 | Behavior change | Error message format changed |
 | Security change | New vulnerability detected |
 | Performance regression | P50 latency increased by >10% |
+| Confidence change | Metrics reliability improved/degraded |
+| Response structure change | JSON schema fields added/removed |
+| Error pattern change | New error types or resolved errors |
+| Schema evolution | Response schema stability changes |
+| Documentation degradation | Quality score decreased |
 
 ### Performance Comparison
 
@@ -276,13 +307,7 @@ check:
 
 ## Incremental Checking
 
-Bellwether supports incremental checking to speed up CI runs. Only tools with changed schemas are re-tested:
-
-```bash
-bellwether check --incremental
-```
-
-Or configure in `bellwether.yaml`:
+Bellwether supports incremental checking to speed up CI runs. Only tools with changed schemas are re-tested. Configure in `bellwether.yaml`:
 
 ```yaml
 check:

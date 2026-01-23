@@ -8,55 +8,51 @@
 import { z } from 'zod';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import {
-  TIMEOUTS,
-  LLM_DEFAULTS,
-  PATHS,
-  VALIDATION_BOUNDS,
-} from '../constants.js';
+import { PATHS, VALIDATION_BOUNDS } from '../constants.js';
+import { CONFIG_DEFAULTS } from './defaults.js';
 
 /**
  * Server configuration schema.
  */
 export const serverConfigSchema = z.object({
   /** Command to start the MCP server */
-  command: z.string().default(''),
+  command: z.string().default(CONFIG_DEFAULTS.server.command),
   /** Arguments to pass to the server command */
-  args: z.array(z.string()).default([]),
+  args: z.array(z.string()).default(CONFIG_DEFAULTS.server.args),
   /** Timeout for server startup and tool calls (ms) */
   timeout: z
     .number()
     .int()
     .min(VALIDATION_BOUNDS.TIMEOUT.MIN_MS)
     .max(VALIDATION_BOUNDS.TIMEOUT.MAX_MS)
-    .default(TIMEOUTS.DEFAULT),
+    .default(CONFIG_DEFAULTS.server.timeout),
   /** Additional environment variables */
   env: z.record(z.string()).optional(),
-}).default({});
+}).default(CONFIG_DEFAULTS.server);
 
 /**
  * LLM Ollama-specific settings.
  */
 export const ollamaConfigSchema = z.object({
   /** Ollama server base URL */
-  baseUrl: z.string().url().default(LLM_DEFAULTS.OLLAMA_BASE_URL),
-}).default({});
+  baseUrl: z.string().url().default(CONFIG_DEFAULTS.llm.ollama.baseUrl),
+}).default(CONFIG_DEFAULTS.llm.ollama);
 
 /**
  * LLM configuration schema.
  */
 export const llmConfigSchema = z.object({
   /** LLM provider */
-  provider: z.enum(['ollama', 'openai', 'anthropic']).default('ollama'),
+  provider: z.enum(['ollama', 'openai', 'anthropic']).default(CONFIG_DEFAULTS.llm.provider),
   /** Model to use (empty = provider default) */
-  model: z.string().default(''),
+  model: z.string().default(CONFIG_DEFAULTS.llm.model),
   /** Ollama-specific settings */
   ollama: ollamaConfigSchema,
   /** Environment variable for OpenAI API key */
   openaiApiKeyEnvVar: z.string().optional(),
   /** Environment variable for Anthropic API key */
   anthropicApiKeyEnvVar: z.string().optional(),
-}).default({});
+}).default(CONFIG_DEFAULTS.llm);
 
 /**
  * Explore configuration schema (for bellwether explore command).
@@ -68,19 +64,32 @@ export const exploreConfigSchema = z.object({
     'security_tester',
     'qa_engineer',
     'novice_user',
-  ])).default(['technical_writer']),
+  ])).default([...CONFIG_DEFAULTS.explore.personas]),
   /** Maximum questions per tool */
   maxQuestionsPerTool: z
     .number()
     .int()
     .min(VALIDATION_BOUNDS.QUESTIONS_PER_TOOL.MIN)
     .max(VALIDATION_BOUNDS.QUESTIONS_PER_TOOL.MAX)
-    .default(3),
+    .default(CONFIG_DEFAULTS.explore.maxQuestionsPerTool),
   /** Run personas in parallel */
-  parallelPersonas: z.boolean().default(false),
+  parallelPersonas: z.boolean().default(CONFIG_DEFAULTS.explore.parallelPersonas),
+  /** Maximum concurrent persona interviews */
+  personaConcurrency: z
+    .number()
+    .int()
+    .min(VALIDATION_BOUNDS.PERSONA_CONCURRENCY.MIN)
+    .max(VALIDATION_BOUNDS.PERSONA_CONCURRENCY.MAX)
+    .default(CONFIG_DEFAULTS.explore.personaConcurrency),
   /** Skip error/edge case testing */
-  skipErrorTests: z.boolean().default(false),
-}).default({});
+  skipErrorTests: z.boolean().default(CONFIG_DEFAULTS.explore.skipErrorTests),
+}).default(() => ({
+  personas: [...CONFIG_DEFAULTS.explore.personas],
+  maxQuestionsPerTool: CONFIG_DEFAULTS.explore.maxQuestionsPerTool,
+  parallelPersonas: CONFIG_DEFAULTS.explore.parallelPersonas,
+  personaConcurrency: CONFIG_DEFAULTS.explore.personaConcurrency,
+  skipErrorTests: CONFIG_DEFAULTS.explore.skipErrorTests,
+}));
 
 /**
  * Scenarios configuration schema.
@@ -89,8 +98,8 @@ export const scenariosConfigSchema = z.object({
   /** Path to scenarios YAML file */
   path: z.string().optional(),
   /** Run only scenarios (no LLM tests) */
-  only: z.boolean().default(false),
-}).default({});
+  only: z.boolean().default(CONFIG_DEFAULTS.scenarios.only),
+}).default(CONFIG_DEFAULTS.scenarios);
 
 /**
  * Workflows configuration schema.
@@ -99,22 +108,66 @@ export const workflowsConfigSchema = z.object({
   /** Path to workflows YAML file */
   path: z.string().optional(),
   /** Enable LLM-based workflow discovery */
-  discover: z.boolean().default(false),
+  discover: z.boolean().default(CONFIG_DEFAULTS.workflows.discover),
   /** Track state between workflow steps */
-  trackState: z.boolean().default(false),
-}).default({});
+  trackState: z.boolean().default(CONFIG_DEFAULTS.workflows.trackState),
+  /** Auto-generate workflows from discovered tools */
+  autoGenerate: z.boolean().default(CONFIG_DEFAULTS.workflows.autoGenerate),
+  /** Timeout per workflow step in milliseconds */
+  stepTimeout: z.number().int().min(1000).max(300000).default(CONFIG_DEFAULTS.workflows.stepTimeout),
+  /** Timeout configuration for workflow operations */
+  timeouts: z.object({
+    toolCall: z.number().int().min(1000).max(300000).default(CONFIG_DEFAULTS.workflows.timeouts.toolCall),
+    stateSnapshot: z.number().int().min(1000).max(300000).default(CONFIG_DEFAULTS.workflows.timeouts.stateSnapshot),
+    probeTool: z.number().int().min(1000).max(300000).default(CONFIG_DEFAULTS.workflows.timeouts.probeTool),
+    llmAnalysis: z.number().int().min(1000).max(300000).default(CONFIG_DEFAULTS.workflows.timeouts.llmAnalysis),
+    llmSummary: z.number().int().min(1000).max(300000).default(CONFIG_DEFAULTS.workflows.timeouts.llmSummary),
+  }).default(CONFIG_DEFAULTS.workflows.timeouts),
+}).default(CONFIG_DEFAULTS.workflows);
+
+/**
+ * Example output configuration schema.
+ */
+export const examplesConfigSchema = z.object({
+  /** Include full (non-truncated) examples */
+  full: z.boolean().default(CONFIG_DEFAULTS.output.examples.full),
+  /** Maximum example length in characters */
+  maxLength: z.number().int().min(100).max(50000).default(CONFIG_DEFAULTS.output.examples.maxLength),
+  /** Maximum examples per tool */
+  maxPerTool: z.number().int().min(1).max(20).default(CONFIG_DEFAULTS.output.examples.maxPerTool),
+}).default(CONFIG_DEFAULTS.output.examples);
+
+/**
+ * Output file name configuration schema.
+ */
+export const outputFilesConfigSchema = z.object({
+  /** Check report JSON file name */
+  checkReport: z.string().default(CONFIG_DEFAULTS.output.files.checkReport),
+  /** Explore report JSON file name */
+  exploreReport: z.string().default(CONFIG_DEFAULTS.output.files.exploreReport),
+  /** Contract documentation file name */
+  contractDoc: z.string().default(CONFIG_DEFAULTS.output.files.contractDoc),
+  /** Agents documentation file name */
+  agentsDoc: z.string().default(CONFIG_DEFAULTS.output.files.agentsDoc),
+  /** Verification report JSON file name */
+  verificationReport: z.string().default(CONFIG_DEFAULTS.output.files.verificationReport),
+}).default(CONFIG_DEFAULTS.output.files);
 
 /**
  * Output configuration schema.
  */
 export const outputConfigSchema = z.object({
   /** Output directory for JSON files (bellwether-check.json, etc.) */
-  dir: z.string().default('.bellwether'),
+  dir: z.string().default(CONFIG_DEFAULTS.output.dir),
   /** Output directory for documentation files (CONTRACT.md, AGENTS.md) */
-  docsDir: z.string().default('.'),
+  docsDir: z.string().default(CONFIG_DEFAULTS.output.docsDir),
   /** Output format */
-  format: z.enum(['agents.md', 'json', 'both']).default('both'),
-}).default({});
+  format: z.enum(['agents.md', 'json', 'both']).default(CONFIG_DEFAULTS.output.format),
+  /** Example output settings */
+  examples: examplesConfigSchema,
+  /** Output file names */
+  files: outputFilesConfigSchema,
+}).default(CONFIG_DEFAULTS.output);
 
 /**
  * Severity levels for configuration.
@@ -141,17 +194,49 @@ const behaviorAspects = [
  */
 export const severityConfigSchema = z.object({
   /** Minimum severity level to include in reports */
-  minimumSeverity: z.enum(severityLevels).default('none'),
+  minimumSeverity: z.enum(severityLevels).default(CONFIG_DEFAULTS.baseline.severity.minimumSeverity),
   /** Severity level at which to fail CI checks */
-  failOnSeverity: z.enum(severityLevels).default('breaking'),
+  failOnSeverity: z.enum(severityLevels).default(CONFIG_DEFAULTS.baseline.severity.failOnSeverity),
   /** Suppress warning-level changes from output */
-  suppressWarnings: z.boolean().default(false),
+  suppressWarnings: z.boolean().default(CONFIG_DEFAULTS.baseline.severity.suppressWarnings),
   /** Custom severity overrides per aspect */
   aspectOverrides: z.record(
     z.enum(behaviorAspects),
     z.enum(severityLevels)
   ).optional(),
-}).default({});
+}).default(CONFIG_DEFAULTS.baseline.severity);
+
+/**
+ * Security testing configuration schema.
+ */
+export const securityConfigSchema = z.object({
+  /** Enable security vulnerability testing */
+  enabled: z.boolean().default(CONFIG_DEFAULTS.check.security.enabled),
+  /** Security categories to test */
+  categories: z.array(z.enum([
+    'sql_injection',
+    'xss',
+    'path_traversal',
+    'command_injection',
+    'ssrf',
+    'error_disclosure',
+  ])).default([...CONFIG_DEFAULTS.check.security.categories]),
+}).default(() => ({
+  enabled: CONFIG_DEFAULTS.check.security.enabled,
+  categories: [...CONFIG_DEFAULTS.check.security.categories],
+}));
+
+/**
+ * Statistical sampling configuration schema.
+ */
+export const samplingConfigSchema = z.object({
+  /** Minimum samples per tool for statistical confidence */
+  minSamples: z.number().int().min(1).max(50).default(CONFIG_DEFAULTS.check.sampling.minSamples),
+  /** Target confidence level */
+  targetConfidence: z.enum(['low', 'medium', 'high']).default(CONFIG_DEFAULTS.check.sampling.targetConfidence),
+  /** Fail if confidence is below target */
+  failOnLowConfidence: z.boolean().default(CONFIG_DEFAULTS.check.sampling.failOnLowConfidence),
+}).default(CONFIG_DEFAULTS.check.sampling);
 
 /**
  * Check command configuration schema.
@@ -159,66 +244,182 @@ export const severityConfigSchema = z.object({
  */
 export const checkConfigSchema = z.object({
   /** Enable incremental checking (only test tools with changed schemas) */
-  incremental: z.boolean().default(false),
+  incremental: z.boolean().default(CONFIG_DEFAULTS.check.incremental),
   /** Maximum age of cached results in hours (for incremental checking) */
-  incrementalCacheHours: z.number().int().min(1).max(720).default(168),
+  incrementalCacheHours: z.number().int().min(1).max(720).default(CONFIG_DEFAULTS.check.incrementalCacheHours),
   /** Enable parallel tool testing (faster checks) */
-  parallel: z.boolean().default(false),
+  parallel: z.boolean().default(CONFIG_DEFAULTS.check.parallel),
   /** Number of concurrent tool workers (1-10) */
-  parallelWorkers: z.number().int().min(1).max(10).default(4),
+  parallelWorkers: z.number().int().min(1).max(10).default(CONFIG_DEFAULTS.check.parallelWorkers),
   /** Performance regression threshold percentage (0-100, e.g., 10 = 10% slower triggers warning) */
-  performanceThreshold: z.number().min(0).max(100).default(10),
-}).default({});
+  performanceThreshold: z.number().min(0).max(100).default(CONFIG_DEFAULTS.check.performanceThreshold),
+  /** Default diff output format */
+  diffFormat: z.enum(['text', 'json', 'compact', 'github', 'markdown', 'junit', 'sarif']).default(CONFIG_DEFAULTS.check.diffFormat),
+  /** Security testing settings */
+  security: securityConfigSchema,
+  /** Statistical sampling settings */
+  sampling: samplingConfigSchema,
+}).default(() => ({
+  incremental: CONFIG_DEFAULTS.check.incremental,
+  incrementalCacheHours: CONFIG_DEFAULTS.check.incrementalCacheHours,
+  parallel: CONFIG_DEFAULTS.check.parallel,
+  parallelWorkers: CONFIG_DEFAULTS.check.parallelWorkers,
+  performanceThreshold: CONFIG_DEFAULTS.check.performanceThreshold,
+  diffFormat: CONFIG_DEFAULTS.check.diffFormat,
+  security: {
+    enabled: CONFIG_DEFAULTS.check.security.enabled,
+    categories: [...CONFIG_DEFAULTS.check.security.categories],
+  },
+  sampling: { ...CONFIG_DEFAULTS.check.sampling },
+}));
 
 /**
  * Baseline configuration schema.
  */
 export const baselineConfigSchema = z.object({
-  /** Path to baseline file for upload (relative to output.dir or absolute) */
-  path: z.string().optional(),
+  /** Default baseline file path (relative to output.dir or absolute) */
+  path: z.string().default(CONFIG_DEFAULTS.baseline.path),
   /** Path to save baseline after check (enables auto-save) */
   savePath: z.string().optional(),
   /** Path to baseline for comparison (drift detection) */
   comparePath: z.string().optional(),
   /** Fail if drift is detected */
-  failOnDrift: z.boolean().default(false),
+  failOnDrift: z.boolean().default(CONFIG_DEFAULTS.baseline.failOnDrift),
+  /** Default output format for baseline comparisons */
+  outputFormat: z.enum(['text', 'json', 'markdown', 'compact']).default(CONFIG_DEFAULTS.baseline.outputFormat),
   /** Severity thresholds for filtering and CI failure */
   severity: severityConfigSchema,
-}).default({});
+}).default(CONFIG_DEFAULTS.baseline);
 
 /**
  * Cache configuration schema.
  */
 export const cacheConfigSchema = z.object({
   /** Enable response caching */
-  enabled: z.boolean().default(true),
+  enabled: z.boolean().default(CONFIG_DEFAULTS.cache.enabled),
   /** Cache directory */
-  dir: z.string().default(PATHS.DEFAULT_CACHE_DIR),
-}).default({});
+  dir: z.string().default(CONFIG_DEFAULTS.cache.dir),
+}).default(CONFIG_DEFAULTS.cache);
 
 /**
  * Logging configuration schema.
  */
 export const loggingConfigSchema = z.object({
   /** Log level */
-  level: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
+  level: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default(CONFIG_DEFAULTS.logging.level),
   /** Verbose output */
-  verbose: z.boolean().default(false),
-}).default({});
+  verbose: z.boolean().default(CONFIG_DEFAULTS.logging.verbose),
+}).default(CONFIG_DEFAULTS.logging);
 
 /**
  * Watch mode configuration schema.
  */
 export const watchConfigSchema = z.object({
   /** Path to watch for changes */
-  path: z.string().default('.'),
+  path: z.string().default(CONFIG_DEFAULTS.watch.path),
   /** Polling interval in milliseconds */
-  interval: z.number().int().min(1000).max(60000).default(5000),
+  interval: z.number().int().min(1000).max(60000).default(CONFIG_DEFAULTS.watch.interval),
   /** File extensions to watch */
-  extensions: z.array(z.string()).default(['.ts', '.js', '.json', '.py', '.go']),
+  extensions: z.array(z.string()).default([...CONFIG_DEFAULTS.watch.extensions]),
   /** Command to run when drift is detected */
   onDrift: z.string().optional(),
-}).default({});
+}).default(() => ({
+  path: CONFIG_DEFAULTS.watch.path,
+  interval: CONFIG_DEFAULTS.watch.interval,
+  extensions: [...CONFIG_DEFAULTS.watch.extensions],
+}));
+
+/**
+ * Discovery configuration schema.
+ */
+export const discoveryConfigSchema = z.object({
+  /** Output as JSON */
+  json: z.boolean().default(CONFIG_DEFAULTS.discovery.json),
+  /** Connection timeout in ms */
+  timeout: z.number().int().min(VALIDATION_BOUNDS.TIMEOUT.MIN_MS).max(VALIDATION_BOUNDS.TIMEOUT.MAX_MS).default(CONFIG_DEFAULTS.discovery.timeout),
+  /** Transport type */
+  transport: z.enum(['stdio', 'sse', 'streamable-http']).default(CONFIG_DEFAULTS.discovery.transport),
+  /** Remote MCP server URL */
+  url: z.string().optional(),
+  /** Session ID for remote auth */
+  sessionId: z.string().optional(),
+}).default(CONFIG_DEFAULTS.discovery);
+
+/**
+ * Registry configuration schema.
+ */
+export const registryConfigSchema = z.object({
+  /** Maximum results to show */
+  limit: z.number().int().min(1).max(1000).default(CONFIG_DEFAULTS.registry.limit),
+  /** Output as JSON */
+  json: z.boolean().default(CONFIG_DEFAULTS.registry.json),
+}).default(CONFIG_DEFAULTS.registry);
+
+/**
+ * History command configuration schema.
+ */
+export const historyConfigSchema = z.object({
+  /** Number of versions to show */
+  limit: z.number().int().min(1).max(1000).default(CONFIG_DEFAULTS.history.limit),
+  /** Output as JSON */
+  json: z.boolean().default(CONFIG_DEFAULTS.history.json),
+}).default(CONFIG_DEFAULTS.history);
+
+/**
+ * Link command configuration schema.
+ */
+export const linkConfigSchema = z.object({
+  /** Default server command when creating new projects */
+  defaultServerCommand: z.string().default(CONFIG_DEFAULTS.link.defaultServerCommand),
+}).default(CONFIG_DEFAULTS.link);
+
+/**
+ * Golden command configuration schema.
+ */
+export const goldenConfigSchema = z.object({
+  /** Default JSON args for golden save */
+  defaultArgs: z.string().default(CONFIG_DEFAULTS.golden.defaultArgs),
+  /** Default comparison mode for golden save */
+  mode: z.enum(['exact', 'structural', 'semantic']).default(CONFIG_DEFAULTS.golden.mode),
+  /** Output format for compare */
+  compareFormat: z.enum(['text', 'json', 'markdown']).default(CONFIG_DEFAULTS.golden.compareFormat),
+  /** Output format for list */
+  listFormat: z.enum(['text', 'json']).default(CONFIG_DEFAULTS.golden.listFormat),
+  /** Normalize timestamps by default */
+  normalizeTimestamps: z.boolean().default(CONFIG_DEFAULTS.golden.normalizeTimestamps),
+  /** Normalize UUIDs by default */
+  normalizeUuids: z.boolean().default(CONFIG_DEFAULTS.golden.normalizeUuids),
+}).default(CONFIG_DEFAULTS.golden);
+
+/**
+ * Verify command configuration schema.
+ */
+export const verifyConfigSchema = z.object({
+  /** Default verification tier */
+  tier: z.enum(['bronze', 'silver', 'gold', 'platinum']).default(CONFIG_DEFAULTS.verify.tier),
+  /** Include security testing by default */
+  security: z.boolean().default(CONFIG_DEFAULTS.verify.security),
+  /** Output as JSON */
+  json: z.boolean().default(CONFIG_DEFAULTS.verify.json),
+  /** Output badge URL only */
+  badgeOnly: z.boolean().default(CONFIG_DEFAULTS.verify.badgeOnly),
+}).default(CONFIG_DEFAULTS.verify);
+
+/**
+ * Contract command configuration schema.
+ */
+export const contractConfigSchema = z.object({
+  /** Default contract file path */
+  path: z.string().optional(),
+  /** Validation mode */
+  mode: z.enum(['strict', 'lenient', 'report']).default(CONFIG_DEFAULTS.contract.mode),
+  /** Output format */
+  format: z.enum(['text', 'json', 'markdown']).default(CONFIG_DEFAULTS.contract.format),
+  /** Server startup timeout */
+  timeout: z.number().int().min(VALIDATION_BOUNDS.TIMEOUT.MIN_MS).max(VALIDATION_BOUNDS.TIMEOUT.MAX_MS).default(CONFIG_DEFAULTS.contract.timeout),
+  /** Exit with error when violations are found */
+  failOnViolation: z.boolean().default(CONFIG_DEFAULTS.contract.failOnViolation),
+}).default(CONFIG_DEFAULTS.contract);
 
 /**
  * Complete bellwether.yaml configuration schema.
@@ -249,6 +450,20 @@ export const bellwetherConfigSchema = z.object({
   cache: cacheConfigSchema,
   /** Logging (used by both commands) */
   logging: loggingConfigSchema,
+  /** Discovery defaults (used by discover command) */
+  discovery: discoveryConfigSchema,
+  /** Registry defaults (used by registry command) */
+  registry: registryConfigSchema,
+  /** History defaults (used by history command) */
+  history: historyConfigSchema,
+  /** Link defaults (used by link command) */
+  link: linkConfigSchema,
+  /** Golden command defaults */
+  golden: goldenConfigSchema,
+  /** Verify command defaults */
+  verify: verifyConfigSchema,
+  /** Contract command defaults */
+  contract: contractConfigSchema,
 });
 
 /**

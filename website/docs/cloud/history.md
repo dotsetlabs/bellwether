@@ -17,6 +17,10 @@ bellwether history [project-id] [options]
 
 The `history` command shows the baseline upload history for a project, including version numbers, timestamps, and drift summaries.
 
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `history`.
+:::
+
 ## Arguments
 
 | Argument | Description |
@@ -27,8 +31,9 @@ The `history` command shows the baseline upload history for a project, including
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `-n, --limit <n>` | Number of versions to show | `10` |
-| `--json` | Output as JSON | `false` |
+| `-c, --config <path>` | Path to config file | `bellwether.yaml` |
+| `-n, --limit <n>` | Number of versions to show | `history.limit` |
+| `--json` | Output as JSON | `history.json` |
 | `--session <session>` | Session token (overrides stored/env session) | - |
 
 ## Examples

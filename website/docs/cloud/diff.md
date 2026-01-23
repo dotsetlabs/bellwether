@@ -19,6 +19,10 @@ The `diff` command compares two baseline versions stored in Bellwether Cloud and
 
 For comparing **local** baseline files, use [`bellwether baseline diff`](/cli/baseline#diff) instead.
 
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `diff`.
+:::
+
 ## Arguments
 
 | Argument | Description |
@@ -30,8 +34,9 @@ For comparing **local** baseline files, use [`bellwether baseline diff`](/cli/ba
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
+| `-c, --config <path>` | Path to config file | `bellwether.yaml` |
 | `-p, --project <id>` | Project ID | Linked project |
-| `--json` | Output as JSON | `false` |
+| `--json` | Output as JSON | `history.json` |
 | `--session <session>` | Session token (overrides stored/env session) | - |
 
 ## Examples

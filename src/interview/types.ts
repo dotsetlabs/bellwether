@@ -6,7 +6,9 @@ import type {
 } from '../transport/types.js';
 import type { Persona, QuestionCategory } from '../persona/types.js';
 import type {
-  Workflow, WorkflowResult
+  Workflow,
+  WorkflowResult,
+  WorkflowTimeoutConfig,
 } from '../workflow/types.js';
 import type { LoadedScenarios, ScenarioResult } from '../scenarios/types.js';
 import type { ToolResponseCache } from '../cache/response-cache.js';
@@ -57,6 +59,10 @@ export interface WorkflowConfig {
   skipWorkflowExecution?: boolean;
   /** Enable state tracking during workflow execution */
   enableStateTracking?: boolean;
+  /** Timeout per workflow step in ms */
+  stepTimeout?: number;
+  /** Timeout configuration for workflow operations */
+  timeouts?: WorkflowTimeoutConfig;
 }
 
 /**
@@ -111,6 +117,15 @@ export interface InterviewQuestion {
   category: QuestionCategory;
   /** Arguments to pass to the tool */
   args: Record<string, unknown>;
+  /** Semantic validation metadata (for tests generated from semantic type inference) */
+  metadata?: {
+    /** The inferred semantic type being tested */
+    semanticType?: string;
+    /** Expected behavior: 'reject' for invalid values, 'accept' for valid */
+    expectedBehavior?: 'reject' | 'accept';
+    /** Confidence level of the semantic type inference (0-1) */
+    confidence?: number;
+  };
 }
 
 /**

@@ -66,7 +66,7 @@ describe('teams command', () => {
       const auth = await import('../../../src/cloud/auth.js');
       vi.mocked(auth.getStoredSession).mockReturnValue(null);
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await expect(teamsCommand.parseAsync(['node', 'test'])).rejects.toThrow('Process exit: 4');
 
       const output = await import('../../../src/cli/output.js');
@@ -79,7 +79,7 @@ describe('teams command', () => {
       vi.mocked(auth.getStoredSession).mockReturnValue(mockSession);
       vi.mocked(auth.getSessionTeams).mockReturnValue([]);
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test']);
 
       const output = await import('../../../src/cli/output.js');
@@ -92,7 +92,7 @@ describe('teams command', () => {
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
       vi.mocked(auth.getTeamId).mockReturnValue('team-1');
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test']);
 
       const output = await import('../../../src/cli/output.js');
@@ -107,7 +107,7 @@ describe('teams command', () => {
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
       vi.mocked(auth.getTeamId).mockReturnValue('team-1');
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test', '--json']);
 
       const output = await import('../../../src/cli/output.js');
@@ -125,7 +125,7 @@ describe('teams command', () => {
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
       vi.mocked(auth.getTeamId).mockReturnValue('team-2');
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test']);
 
       const output = await import('../../../src/cli/output.js');
@@ -138,7 +138,7 @@ describe('teams command', () => {
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
       vi.mocked(auth.getTeamId).mockReturnValue('team-1');
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test']);
 
       const output = await import('../../../src/cli/output.js');
@@ -151,7 +151,7 @@ describe('teams command', () => {
       const auth = await import('../../../src/cloud/auth.js');
       vi.mocked(auth.getStoredSession).mockReturnValue(null);
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await expect(teamsCommand.parseAsync(['node', 'test', 'switch', 'team-2'])).rejects.toThrow('Process exit: 4');
 
       const output = await import('../../../src/cli/output.js');
@@ -164,7 +164,7 @@ describe('teams command', () => {
       vi.mocked(auth.getStoredSession).mockReturnValue(mockSession);
       vi.mocked(auth.getSessionTeams).mockReturnValue([]);
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test', 'switch', 'team-2']);
 
       const output = await import('../../../src/cli/output.js');
@@ -176,7 +176,7 @@ describe('teams command', () => {
       vi.mocked(auth.getStoredSession).mockReturnValue(mockSession);
       vi.mocked(auth.getSessionTeams).mockReturnValue([mockTeams[0]]);
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test', 'switch', 'team-2']);
 
       const output = await import('../../../src/cli/output.js');
@@ -188,7 +188,7 @@ describe('teams command', () => {
       vi.mocked(auth.getStoredSession).mockReturnValue(mockSession);
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test', 'switch']);
 
       const output = await import('../../../src/cli/output.js');
@@ -202,7 +202,7 @@ describe('teams command', () => {
       vi.mocked(auth.getStoredSession).mockReturnValue(mockSession);
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await expect(teamsCommand.parseAsync(['node', 'test', 'switch', 'nonexistent'])).rejects.toThrow('Process exit: 4');
 
       const output = await import('../../../src/cli/output.js');
@@ -216,7 +216,7 @@ describe('teams command', () => {
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
       vi.mocked(auth.setActiveTeam).mockReturnValue(true);
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test', 'switch', 'other team']);
 
       const output = await import('../../../src/cli/output.js');
@@ -228,7 +228,7 @@ describe('teams command', () => {
       vi.mocked(auth.getStoredSession).mockReturnValue(mockSession);
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test', 'switch', 'team-1']);
 
       const output = await import('../../../src/cli/output.js');
@@ -241,7 +241,7 @@ describe('teams command', () => {
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
       vi.mocked(auth.setActiveTeam).mockReturnValue(true);
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test', 'switch', 'team-2']);
 
       expect(auth.setActiveTeam).toHaveBeenCalledWith('team-2');
@@ -257,7 +257,7 @@ describe('teams command', () => {
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
       vi.mocked(auth.setActiveTeam).mockReturnValue(true);
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test', 'switch', 'team-2']);
 
       const output = await import('../../../src/cli/output.js');
@@ -270,7 +270,7 @@ describe('teams command', () => {
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
       vi.mocked(auth.setActiveTeam).mockReturnValue(false);
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await expect(teamsCommand.parseAsync(['node', 'test', 'switch', 'team-2'])).rejects.toThrow('Process exit: 4');
 
       const output = await import('../../../src/cli/output.js');
@@ -284,7 +284,7 @@ describe('teams command', () => {
       const auth = await import('../../../src/cloud/auth.js');
       vi.mocked(auth.getStoredSession).mockReturnValue(null);
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await expect(teamsCommand.parseAsync(['node', 'test', 'current'])).rejects.toThrow('Process exit: 4');
 
       const output = await import('../../../src/cli/output.js');
@@ -298,7 +298,7 @@ describe('teams command', () => {
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
       vi.mocked(auth.getTeamId).mockReturnValue('team-1');
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test', 'current']);
 
       const output = await import('../../../src/cli/output.js');
@@ -314,7 +314,7 @@ describe('teams command', () => {
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
       vi.mocked(auth.getTeamId).mockReturnValue('team-1');
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test', 'current', '--json']);
 
       const output = await import('../../../src/cli/output.js');
@@ -332,7 +332,7 @@ describe('teams command', () => {
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
       vi.mocked(auth.getTeamId).mockReturnValue('nonexistent');
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test', 'current']);
 
       const output = await import('../../../src/cli/output.js');
@@ -345,7 +345,7 @@ describe('teams command', () => {
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
       vi.mocked(auth.getTeamId).mockReturnValue('nonexistent');
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test', 'current']);
 
       const output = await import('../../../src/cli/output.js');
@@ -360,7 +360,7 @@ describe('teams command', () => {
       vi.mocked(auth.getSessionTeams).mockReturnValue(mockTeams);
       vi.mocked(auth.getTeamId).mockReturnValue('team-1');
 
-      const { teamsCommand } = await import('../../../src/cli/commands/teams.js');
+      const { teamsCommand } = await import('../../../src/cli/commands/cloud/teams.js');
       await teamsCommand.parseAsync(['node', 'test', 'current']);
 
       const output = await import('../../../src/cli/output.js');

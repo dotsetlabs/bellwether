@@ -10,6 +10,7 @@ import {
 } from '../../registry/index.js';
 import type { RegistryServerEntry } from '../../registry/index.js';
 import { EXIT_CODES } from '../../constants.js';
+import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
 import * as output from '../output.js';
 
 /**
@@ -21,9 +22,10 @@ export function createRegistryCommand(): Command {
     .alias('lookup')
     .description('Search the MCP Registry for servers')
     .argument('[query]', 'Search query (server name or keyword)')
-    .option('-l, --limit <number>', 'Maximum results to show', '10')
+    .option('-c, --config <path>', 'Path to config file')
+    .option('-l, --limit <number>', 'Maximum results to show')
     .option('--json', 'Output as JSON')
-    .action(async (query: string | undefined, options: { limit: string; json: boolean }) => {
+    .action(async (query: string | undefined, options: { config?: string; limit?: string; json?: boolean }) => {
       await handleRegistry(query, options);
     });
 }
@@ -32,12 +34,24 @@ export const registryCommand = createRegistryCommand();
 
 async function handleRegistry(
   query: string | undefined,
-  options: { limit: string; json: boolean }
+  options: { config?: string; limit?: string; json?: boolean }
 ): Promise<void> {
+  let config: BellwetherConfig;
+  try {
+    config = loadConfig(options.config);
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      output.error(error.message);
+      process.exit(EXIT_CODES.ERROR);
+    }
+    throw error;
+  }
+
   // Allow overriding registry URL for testing
   const registryUrl = process.env.BELLWETHER_REGISTRY_URL;
   const client = new RegistryClient(registryUrl ? { baseUrl: registryUrl } : undefined);
-  const limit = parseInt(options.limit, 10) || 10;
+  const limit = parseInt(options.limit ?? String(config.registry.limit), 10) || config.registry.limit;
+  const outputJson = options.json ? true : config.registry.json;
 
   try {
     let servers: RegistryServerEntry[];
@@ -51,7 +65,7 @@ async function handleRegistry(
       servers = response.servers;
     }
 
-    if (options.json) {
+    if (outputJson) {
       output.json(servers);
       return;
     }

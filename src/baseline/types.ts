@@ -10,6 +10,29 @@ import type {
 } from './response-fingerprint.js';
 
 /**
+ * Re-export ErrorPattern for use by other modules.
+ */
+export type { ErrorPattern };
+import type {
+  SecurityFingerprint,
+  SecurityDiff,
+} from '../security/types.js';
+import type {
+  ResponseSchemaEvolution,
+  SchemaEvolutionDiff,
+} from './response-schema-tracker.js';
+import type {
+  DocumentationScoreSummary,
+  DocumentationScoreChange,
+} from './documentation-scorer.js';
+
+/**
+ * Confidence level for statistical metrics.
+ * Used to indicate reliability of performance baselines.
+ */
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
+
+/**
  * Severity of a change.
  * Used consistently throughout the codebase for change classification.
  *
@@ -26,6 +49,7 @@ export type ChangeSeverity = 'none' | 'info' | 'warning' | 'breaking';
 export type BehaviorAspect =
   | 'response_format'
   | 'response_structure'
+  | 'response_schema_evolution'
   | 'error_handling'
   | 'error_pattern'
   | 'security'
@@ -69,6 +93,12 @@ export interface ToolDiff {
   responseStructureChanged: boolean;
   /** Whether error patterns changed (check mode) */
   errorPatternsChanged: boolean;
+  /** Whether response schema evolution changed (check mode) */
+  responseSchemaEvolutionChanged: boolean;
+  /** Whether security findings changed (check mode --security) */
+  securityChanged: boolean;
+  /** Schema evolution diff details (when schema evolution changed) */
+  schemaEvolutionDiff?: SchemaEvolutionDiff;
   previous?: ToolProfile;
   current?: ToolProfile;
 }
@@ -90,6 +120,14 @@ export interface BehavioralDiff {
   versionCompatibility?: VersionCompatibilityInfo;
   /** Performance regression report (when performance data available) */
   performanceReport?: PerformanceRegressionReport;
+  /** Security diff report (when security testing was performed) */
+  securityReport?: SecurityDiff;
+  /** Schema evolution report (when schema evolution data available) */
+  schemaEvolutionReport?: SchemaEvolutionReport;
+  /** Error trend report (when comparing error patterns) */
+  errorTrendReport?: ErrorTrendReport;
+  /** Documentation score comparison report */
+  documentationScoreReport?: DocumentationScoreChange;
 }
 
 /**
@@ -104,6 +142,10 @@ export interface PerformanceRegressionReport {
   improvementCount: number;
   /** Overall has regressions beyond threshold */
   hasRegressions: boolean;
+  /** Confidence-related changes */
+  confidenceChanges?: PerformanceConfidenceChange[];
+  /** Tools with low confidence (unreliable baselines) */
+  lowConfidenceTools?: string[];
 }
 
 /**
@@ -120,6 +162,86 @@ export interface PerformanceRegression {
   regressionPercent: number;
   /** Whether this exceeds the threshold */
   exceedsThreshold: boolean;
+  /** Previous confidence level (if available) */
+  previousConfidence?: 'high' | 'medium' | 'low';
+  /** Current confidence level */
+  currentConfidence?: 'high' | 'medium' | 'low';
+  /** Whether regression is statistically reliable (based on confidence) */
+  isReliable: boolean;
+}
+
+/**
+ * Schema evolution report summary in diff.
+ * Tracks schema stability changes across tools.
+ */
+export interface SchemaEvolutionReport {
+  /** Tools with schema evolution issues */
+  toolsWithIssues: SchemaEvolutionIssue[];
+  /** Total tools with unstable schemas */
+  unstableCount: number;
+  /** Total tools with stable schemas */
+  stableCount: number;
+  /** Total tools with schema structure changes */
+  structureChangedCount: number;
+  /** Whether any tools have breaking schema changes */
+  hasBreakingChanges: boolean;
+}
+
+/**
+ * A single tool's schema evolution issue.
+ */
+export interface SchemaEvolutionIssue {
+  /** Tool name */
+  toolName: string;
+  /** Whether schema became unstable */
+  becameUnstable: boolean;
+  /** Fields added */
+  fieldsAdded: string[];
+  /** Fields removed */
+  fieldsRemoved: string[];
+  /** Whether this is a breaking change */
+  isBreaking: boolean;
+  /** Human-readable summary */
+  summary: string;
+}
+
+/**
+ * Error trend report comparing error patterns across baselines.
+ * Identifies new, resolved, increasing, and decreasing error categories.
+ */
+export interface ErrorTrendReport {
+  /** Error trends by category */
+  trends: ErrorTrend[];
+  /** Whether error behavior significantly changed */
+  significantChange: boolean;
+  /** Summary of changes */
+  summary: string;
+  /** Categories with increasing errors */
+  increasingCategories: string[];
+  /** Categories with decreasing errors */
+  decreasingCategories: string[];
+  /** New error categories */
+  newCategories: string[];
+  /** Resolved error categories */
+  resolvedCategories: string[];
+}
+
+/**
+ * A single error trend entry.
+ */
+export interface ErrorTrend {
+  /** Error category */
+  category: string;
+  /** Count in previous baseline */
+  previousCount: number;
+  /** Count in current baseline */
+  currentCount: number;
+  /** Trend direction */
+  trend: 'increasing' | 'decreasing' | 'stable' | 'new' | 'resolved';
+  /** Significance of the trend */
+  significance: 'high' | 'medium' | 'low';
+  /** Change percentage */
+  changePercent: number;
 }
 
 /**
@@ -182,6 +304,35 @@ export interface ToolFingerprint {
   lastTestedAt?: Date;
   /** Hash of the input schema at last test time */
   inputSchemaHashAtTest?: string;
+
+  // Security baseline fields (check mode --security flag)
+  /** Security testing fingerprint with findings and risk score */
+  securityFingerprint?: SecurityFingerprint;
+
+  // Semantic validation fields
+  /** Semantic type inferences for parameters (discovered during check) */
+  semanticInferences?: SemanticInferenceRecord[];
+
+  // Response schema evolution fields
+  /** Response schema evolution tracking for consistency analysis */
+  responseSchemaEvolution?: ResponseSchemaEvolution;
+
+  // Performance confidence fields
+  /** Statistical confidence metrics for performance baselines */
+  performanceConfidence?: PerformanceConfidence;
+}
+
+/**
+ * Record of a semantic type inference for a parameter.
+ * Stored in baseline to track inferred types across runs.
+ */
+export interface SemanticInferenceRecord {
+  /** Parameter name */
+  paramName: string;
+  /** Inferred semantic type */
+  inferredType: string;
+  /** Confidence level (0-1) */
+  confidence: number;
 }
 
 /**
@@ -218,6 +369,8 @@ export interface BehavioralBaseline {
   integrityHash: string;
   /** Drift acceptance metadata - present when drift was intentionally accepted */
   acceptance?: DriftAcceptance;
+  /** Documentation quality score summary */
+  documentationScore?: DocumentationScoreSummary;
 }
 
 /**
@@ -241,6 +394,8 @@ export interface CompareOptions {
   ignoreResponseStructureChanges?: boolean;
   /** Ignore changes in error patterns */
   ignoreErrorPatternChanges?: boolean;
+  /** Ignore changes in security findings */
+  ignoreSecurityChanges?: boolean;
   minimumSeverity?: ChangeSeverity;
   tools?: string[];
   /** Force comparison even if baseline versions are incompatible */
@@ -314,4 +469,69 @@ export interface SeverityConfig {
    * Use 'none' to completely ignore changes for an aspect.
    */
   aspectOverrides?: Partial<Record<BehaviorAspect, ChangeSeverity>>;
+}
+
+// Re-export security types for convenience
+export type { SecurityFingerprint, SecurityDiff } from '../security/types.js';
+
+// Re-export schema evolution types for convenience
+export type {
+  ResponseSchemaEvolution,
+  SchemaEvolutionDiff,
+  SchemaVersion,
+  SchemaTypeChange,
+} from './response-schema-tracker.js';
+
+// Re-export error analyzer types for convenience
+export type {
+  HttpStatusCategory,
+  ErrorSeverity,
+  EnhancedErrorAnalysis,
+  ErrorAnalysisSummary,
+} from './error-analyzer.js';
+
+// Re-export documentation scorer types for convenience
+export type {
+  DocumentationScore,
+  DocumentationScoreSummary,
+  DocumentationScoreChange,
+  DocumentationIssue,
+  DocumentationGrade,
+  DocumentationComponents,
+  ToolDocumentationScore,
+} from './documentation-scorer.js';
+
+/**
+ * Performance confidence metrics for a tool.
+ * Indicates statistical validity of performance baselines.
+ */
+export interface PerformanceConfidence {
+  /** Number of samples used to calculate metrics */
+  sampleCount: number;
+  /** Standard deviation of latency samples (ms) */
+  standardDeviation: number;
+  /** Coefficient of variation (stdDev / mean) - lower is more consistent */
+  coefficientOfVariation: number;
+  /** Confidence level based on sample count and CV */
+  confidenceLevel: ConfidenceLevel;
+  /** Recommendation if confidence is low */
+  recommendation?: string;
+}
+
+/**
+ * Performance confidence change between baselines.
+ */
+export interface PerformanceConfidenceChange {
+  /** Tool name */
+  toolName: string;
+  /** Previous confidence level */
+  previousLevel?: ConfidenceLevel;
+  /** Current confidence level */
+  currentLevel: ConfidenceLevel;
+  /** Whether confidence improved */
+  improved: boolean;
+  /** Whether confidence degraded */
+  degraded: boolean;
+  /** Human-readable summary */
+  summary: string;
 }

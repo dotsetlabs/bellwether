@@ -15,11 +15,11 @@ inputs:
     required: false
     default: ''
   config-path:
-    description: 'Path to bellwether.yaml config file. If not found, creates one with --preset ci'
+    description: 'Path to bellwether.yaml config file (required for all commands). If not found, creates one with --preset ci'
     required: false
     default: 'bellwether.yaml'
   baseline-path:
-    description: 'Path to baseline file for drift comparison'
+    description: 'Path to baseline file for drift comparison (relative to output.dir unless absolute)'
     required: false
     default: 'bellwether-baseline.json'
   fail-on-drift:
@@ -29,7 +29,7 @@ inputs:
     description: 'Save baseline after check'
     default: 'false'
   output-dir:
-    description: 'Directory for output files'
+    description: 'Directory for output files (must match bellwether.yaml output.dir/docsDir for artifacts)'
     default: '.'
   format:
     description: 'Output format: text, json, compact, github, markdown, junit, sarif'
@@ -75,6 +75,10 @@ inputs:
     description: 'Upload SARIF results to GitHub Code Scanning'
     required: false
     default: 'true'
+  security:
+    description: 'Enable security testing (injection, traversal, etc.)'
+    required: false
+    default: 'false'
 
 outputs:
   result:
@@ -104,6 +108,24 @@ outputs:
   junit-file:
     description: 'Path to JUnit XML file (when format includes junit)'
     value: ${{ steps.test.outputs.junit-file }}
+  doc-score:
+    description: 'Documentation quality score (0-100)'
+    value: ${{ steps.test.outputs.doc-score }}
+  doc-grade:
+    description: 'Documentation quality grade (A-F)'
+    value: ${{ steps.test.outputs.doc-grade }}
+  security-findings:
+    description: 'Number of security findings (when --security enabled)'
+    value: ${{ steps.test.outputs.security-findings }}
+  breaking-count:
+    description: 'Number of breaking changes detected'
+    value: ${{ steps.test.outputs.breaking-count }}
+  warning-count:
+    description: 'Number of warning-level changes detected'
+    value: ${{ steps.test.outputs.warning-count }}
+  info-count:
+    description: 'Number of info-level changes detected'
+    value: ${{ steps.test.outputs.info-count }}
 
 runs:
   using: 'composite'
@@ -175,6 +197,11 @@ runs:
           CHECK_FLAGS="$CHECK_FLAGS --fail-on-drift"
         fi
 
+        # Security testing
+        if [ "${{ inputs.security }}" = "true" ]; then
+          CHECK_FLAGS="$CHECK_FLAGS --security"
+        fi
+
         # Run check
         echo "Running: bellwether check $CHECK_FLAGS ${{ inputs.server-command }} ${{ inputs.server-args }}"
         CHECK_OUTPUT=$(bellwether check $CHECK_FLAGS ${{ inputs.server-command }} ${{ inputs.server-args }} 2>&1)
@@ -219,6 +246,28 @@ runs:
           DRIFT_DETECTED="false"
         fi
         echo "drift-detected=$DRIFT_DETECTED" >> $GITHUB_OUTPUT
+
+        # Extract documentation quality from output
+        DOC_SCORE=$(echo "$CHECK_OUTPUT" | grep -o 'doc_score=[0-9]*' | grep -o '[0-9]*' | head -1 || echo "")
+        if [ -n "$DOC_SCORE" ]; then
+          echo "doc-score=$DOC_SCORE" >> $GITHUB_OUTPUT
+        fi
+        DOC_GRADE=$(echo "$CHECK_OUTPUT" | grep -o 'doc_grade=[A-F]' | grep -o '[A-F]' | head -1 || echo "")
+        if [ -n "$DOC_GRADE" ]; then
+          echo "doc-grade=$DOC_GRADE" >> $GITHUB_OUTPUT
+        fi
+
+        # Extract security findings count
+        SECURITY_FINDINGS=$(echo "$CHECK_OUTPUT" | grep -o 'new_security_findings=[0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
+        echo "security-findings=$SECURITY_FINDINGS" >> $GITHUB_OUTPUT
+
+        # Extract change counts from output
+        BREAKING_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'Breaking changes: [0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
+        echo "breaking-count=$BREAKING_COUNT" >> $GITHUB_OUTPUT
+        WARNING_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'Warnings: [0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
+        echo "warning-count=$WARNING_COUNT" >> $GITHUB_OUTPUT
+        INFO_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'Info: [0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
+        echo "info-count=$INFO_COUNT" >> $GITHUB_OUTPUT
 
         # Save baseline if requested and check was clean
         if [ $CHECK_EXIT -eq 0 ] && [ "$SAVE_BASELINE" = "true" ]; then
