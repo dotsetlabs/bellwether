@@ -28,6 +28,12 @@ import {
   compareFingerprints,
   compareErrorPatterns,
 } from './response-fingerprint.js';
+import { analyzeErrorTrends } from './error-analyzer.js';
+import type { ErrorTrendReport } from './types.js';
+import { compareSecurityFingerprints } from '../security/security-tester.js';
+import type { SecurityDiff, SecurityFinding } from '../security/types.js';
+import { compareSchemaEvolution } from './response-schema-tracker.js';
+import type { SchemaEvolutionReport, SchemaEvolutionIssue, SchemaEvolutionDiff } from './types.js';
 import {
   checkVersionCompatibility,
   BaselineVersionError,
@@ -37,7 +43,9 @@ import {
 } from './version.js';
 import { compareSchemas } from './schema-compare.js';
 import { PERFORMANCE_TRACKING } from '../constants.js';
-import type { PerformanceRegressionReport, PerformanceRegression } from './types.js';
+import type { PerformanceRegressionReport, PerformanceRegression, PerformanceConfidenceChange, DocumentationScoreChange } from './types.js';
+import { hasReliableConfidence } from './performance-tracker.js';
+import { compareDocumentationScores, scoreDocumentation } from './documentation-scorer.js';
 
 /**
  * Compare current interview results against a baseline.
@@ -120,7 +128,13 @@ export function compareBaselines(
 
     const toolDiff = compareTool(previousTool, currentTool, options);
 
-    if (toolDiff.changes.length > 0 || toolDiff.schemaChanged || toolDiff.descriptionChanged) {
+    if (
+      toolDiff.changes.length > 0 ||
+      toolDiff.schemaChanged ||
+      toolDiff.descriptionChanged ||
+      toolDiff.securityChanged ||
+      toolDiff.responseSchemaEvolutionChanged
+    ) {
       toolsModified.push(toolDiff);
       behaviorChanges.push(...toolDiff.changes);
     }
@@ -154,6 +168,30 @@ export function compareBaselines(
     options.performanceThreshold ?? PERFORMANCE_TRACKING.DEFAULT_REGRESSION_THRESHOLD
   );
 
+  // Generate security diff report if security testing was performed
+  const securityReport = compareSecurityData(
+    previous,
+    current,
+    options.ignoreSecurityChanges ?? false
+  );
+
+  // Generate schema evolution report if schema evolution data is available
+  const schemaEvolutionReport = generateSchemaEvolutionReport(
+    toolsModified,
+    previous,
+    current
+  );
+
+  // Generate error trend report if error pattern data is available
+  const errorTrendReport = generateErrorTrendReport(
+    previous,
+    current,
+    options.ignoreErrorPatternChanges ?? false
+  );
+
+  // Generate documentation score comparison if documentation scores are available
+  const documentationScoreReport = compareDocumentationData(previous, current);
+
   return {
     toolsAdded,
     toolsRemoved,
@@ -166,6 +204,10 @@ export function compareBaselines(
     summary,
     versionCompatibility,
     performanceReport,
+    securityReport,
+    schemaEvolutionReport,
+    errorTrendReport,
+    documentationScoreReport,
   };
 }
 
@@ -179,6 +221,9 @@ function compareTool(
   let descriptionChanged = false;
   let responseStructureChanged = false;
   let errorPatternsChanged = false;
+  let responseSchemaEvolutionChanged = false;
+  let securityChanged = false;
+  let schemaEvolutionDiff: SchemaEvolutionDiff | undefined;
 
   // Compare input schema with detailed diff
   if (previous.schemaHash !== current.schemaHash && !options.ignoreSchemaChanges) {
@@ -286,6 +331,106 @@ function compareTool(
     }
   }
 
+  // Compare response schema evolution (check mode enhancement)
+  if (!options.ignoreResponseStructureChanges) {
+    schemaEvolutionDiff = compareSchemaEvolution(
+      previous.responseSchemaEvolution,
+      current.responseSchemaEvolution
+    );
+
+    if (schemaEvolutionDiff.structureChanged) {
+      responseSchemaEvolutionChanged = true;
+
+      // Add changes for removed fields (breaking)
+      if (schemaEvolutionDiff.fieldsRemoved.length > 0) {
+        changes.push({
+          tool: current.name,
+          aspect: 'response_schema_evolution',
+          before: schemaEvolutionDiff.fieldsRemoved.join(', '),
+          after: 'removed',
+          severity: 'breaking',
+          description: `Response fields removed: ${schemaEvolutionDiff.fieldsRemoved.join(', ')}`,
+        });
+      }
+
+      // Add changes for added fields (non-breaking)
+      if (schemaEvolutionDiff.fieldsAdded.length > 0) {
+        changes.push({
+          tool: current.name,
+          aspect: 'response_schema_evolution',
+          before: 'none',
+          after: schemaEvolutionDiff.fieldsAdded.join(', '),
+          severity: 'info',
+          description: `Response fields added: ${schemaEvolutionDiff.fieldsAdded.join(', ')}`,
+        });
+      }
+
+      // Add changes for type changes
+      for (const typeChange of schemaEvolutionDiff.typeChanges) {
+        changes.push({
+          tool: current.name,
+          aspect: 'response_schema_evolution',
+          before: typeChange.previousType,
+          after: typeChange.currentType,
+          severity: typeChange.backwardCompatible ? 'warning' : 'breaking',
+          description: `Response field "${typeChange.field}" type changed: ${typeChange.previousType} → ${typeChange.currentType}`,
+        });
+      }
+
+      // Add changes for new required fields (breaking)
+      if (schemaEvolutionDiff.newRequired.length > 0) {
+        changes.push({
+          tool: current.name,
+          aspect: 'response_schema_evolution',
+          before: 'optional',
+          after: 'required',
+          severity: 'breaking',
+          description: `Response fields now required: ${schemaEvolutionDiff.newRequired.join(', ')}`,
+        });
+      }
+    }
+  }
+
+  // Compare security fingerprints (check mode --security flag)
+  if (!options.ignoreSecurityChanges) {
+    const securityDiff = compareSecurityFingerprints(
+      previous.securityFingerprint,
+      current.securityFingerprint
+    );
+
+    if (securityDiff.newFindings.length > 0 || securityDiff.resolvedFindings.length > 0) {
+      securityChanged = true;
+
+      // Add changes for new security findings (security degradation)
+      for (const finding of securityDiff.newFindings) {
+        changes.push({
+          tool: current.name,
+          aspect: 'security',
+          before: 'no finding',
+          after: `${finding.riskLevel}: ${finding.title}`,
+          severity: finding.riskLevel === 'critical' || finding.riskLevel === 'high'
+            ? 'breaking'
+            : finding.riskLevel === 'medium'
+              ? 'warning'
+              : 'info',
+          description: `New security finding: ${finding.title} (${finding.cweId})`,
+        });
+      }
+
+      // Add changes for resolved security findings (security improvement)
+      for (const finding of securityDiff.resolvedFindings) {
+        changes.push({
+          tool: current.name,
+          aspect: 'security',
+          before: `${finding.riskLevel}: ${finding.title}`,
+          after: 'resolved',
+          severity: 'info',
+          description: `Security finding resolved: ${finding.title} (${finding.cweId})`,
+        });
+      }
+    }
+  }
+
   return {
     tool: current.name,
     changes,
@@ -293,6 +438,9 @@ function compareTool(
     descriptionChanged,
     responseStructureChanged,
     errorPatternsChanged,
+    responseSchemaEvolutionChanged,
+    securityChanged,
+    schemaEvolutionDiff,
   };
 }
 
@@ -616,6 +764,7 @@ export function checkBaselineVersionCompatibility(
 /**
  * Compare performance data between two baselines.
  * Detects performance regressions based on p50 latency threshold.
+ * Includes confidence information to indicate reliability of comparisons.
  *
  * @param previous - The previous baseline
  * @param current - The current baseline
@@ -628,15 +777,25 @@ function comparePerformanceData(
   threshold: number
 ): PerformanceRegressionReport | undefined {
   const regressions: PerformanceRegression[] = [];
+  const confidenceChanges: PerformanceConfidenceChange[] = [];
+  const lowConfidenceTools: string[] = [];
   let improvementCount = 0;
 
-  // Build map of previous tool performance
-  const previousPerf = new Map<string, { p50: number; p95: number }>();
+  // Build map of previous tool performance (including confidence)
+  const previousPerf = new Map<
+    string,
+    {
+      p50: number;
+      p95: number;
+      confidence?: 'high' | 'medium' | 'low';
+    }
+  >();
   for (const tool of previous.tools) {
     if (tool.baselineP50Ms !== undefined) {
       previousPerf.set(tool.name, {
         p50: tool.baselineP50Ms,
         p95: tool.baselineP95Ms ?? tool.baselineP50Ms,
+        confidence: tool.performanceConfidence?.confidenceLevel,
       });
     }
   }
@@ -647,15 +806,50 @@ function comparePerformanceData(
       continue; // No performance data
     }
 
+    const currentConfidence = tool.performanceConfidence;
+    const currentConfidenceLevel = currentConfidence?.confidenceLevel ?? 'low';
+
+    // Track low confidence tools
+    if (currentConfidence && !hasReliableConfidence(currentConfidence)) {
+      lowConfidenceTools.push(tool.name);
+    }
+
     const prev = previousPerf.get(tool.name);
     if (!prev) {
       continue; // New tool, no baseline to compare
     }
 
+    // Track confidence level changes
+    if (prev.confidence && currentConfidenceLevel !== prev.confidence) {
+      const previousLevel = prev.confidence;
+      const improved =
+        (previousLevel === 'low' && currentConfidenceLevel !== 'low') ||
+        (previousLevel === 'medium' && currentConfidenceLevel === 'high');
+      const degraded =
+        (previousLevel === 'high' && currentConfidenceLevel !== 'high') ||
+        (previousLevel === 'medium' && currentConfidenceLevel === 'low');
+
+      confidenceChanges.push({
+        toolName: tool.name,
+        previousLevel,
+        currentLevel: currentConfidenceLevel,
+        improved,
+        degraded,
+        summary: improved
+          ? `Confidence improved from ${previousLevel} to ${currentConfidenceLevel}`
+          : degraded
+            ? `Confidence degraded from ${previousLevel} to ${currentConfidenceLevel}`
+            : `Confidence changed from ${previousLevel} to ${currentConfidenceLevel}`,
+      });
+    }
+
     // Calculate regression percentage
-    const regressionPercent = prev.p50 > 0
-      ? (tool.baselineP50Ms - prev.p50) / prev.p50
-      : 0;
+    const regressionPercent =
+      prev.p50 > 0 ? (tool.baselineP50Ms - prev.p50) / prev.p50 : 0;
+
+    // Determine if the regression is reliable (based on confidence)
+    const isReliable =
+      currentConfidence !== undefined && hasReliableConfidence(currentConfidence);
 
     if (regressionPercent > threshold) {
       // Performance regression
@@ -665,6 +859,9 @@ function comparePerformanceData(
         currentP50Ms: tool.baselineP50Ms,
         regressionPercent,
         exceedsThreshold: true,
+        previousConfidence: prev.confidence,
+        currentConfidence: currentConfidenceLevel,
+        isReliable,
       });
     } else if (regressionPercent < -PERFORMANCE_TRACKING.WARNING_THRESHOLD) {
       // Performance improvement (> 5% faster)
@@ -682,5 +879,328 @@ function comparePerformanceData(
     regressionCount: regressions.length,
     improvementCount,
     hasRegressions: regressions.length > 0,
+    confidenceChanges: confidenceChanges.length > 0 ? confidenceChanges : undefined,
+    lowConfidenceTools: lowConfidenceTools.length > 0 ? lowConfidenceTools : undefined,
+  };
+}
+
+/**
+ * Compare security data between two baselines.
+ * Aggregates security findings across all tools to produce a server-level security diff.
+ *
+ * @param previous - The previous baseline
+ * @param current - The current baseline
+ * @param ignoreSecurityChanges - Whether to skip security comparison
+ * @returns Security diff report, or undefined if no security data
+ */
+function compareSecurityData(
+  previous: BehavioralBaseline,
+  current: BehavioralBaseline,
+  ignoreSecurityChanges: boolean
+): SecurityDiff | undefined {
+  if (ignoreSecurityChanges) {
+    return undefined;
+  }
+
+  // Check if either baseline has security data
+  const previousHasSecurity = previous.tools.some((t) => t.securityFingerprint?.tested);
+  const currentHasSecurity = current.tools.some((t) => t.securityFingerprint?.tested);
+
+  if (!previousHasSecurity && !currentHasSecurity) {
+    return undefined; // No security data to compare
+  }
+
+  // Aggregate findings from all tools
+  const previousFindings = new Map<string, SecurityFinding>();
+  const currentFindings = new Map<string, SecurityFinding>();
+
+  // Build finding maps keyed by a unique identifier (tool:category:cweId:parameter)
+  for (const tool of previous.tools) {
+    if (tool.securityFingerprint?.findings) {
+      for (const finding of tool.securityFingerprint.findings) {
+        const key = `${finding.tool}:${finding.category}:${finding.cweId}:${finding.parameter}`;
+        previousFindings.set(key, finding);
+      }
+    }
+  }
+
+  for (const tool of current.tools) {
+    if (tool.securityFingerprint?.findings) {
+      for (const finding of tool.securityFingerprint.findings) {
+        const key = `${finding.tool}:${finding.category}:${finding.cweId}:${finding.parameter}`;
+        currentFindings.set(key, finding);
+      }
+    }
+  }
+
+  // Calculate new and resolved findings
+  const newFindings: SecurityFinding[] = [];
+  const resolvedFindings: SecurityFinding[] = [];
+
+  for (const [key, finding] of currentFindings) {
+    if (!previousFindings.has(key)) {
+      newFindings.push(finding);
+    }
+  }
+
+  for (const [key, finding] of previousFindings) {
+    if (!currentFindings.has(key)) {
+      resolvedFindings.push(finding);
+    }
+  }
+
+  // Calculate aggregate risk scores
+  let previousRiskScore = 0;
+  let currentRiskScore = 0;
+  let previousToolCount = 0;
+  let currentToolCount = 0;
+
+  for (const tool of previous.tools) {
+    if (tool.securityFingerprint?.tested) {
+      previousRiskScore += tool.securityFingerprint.riskScore;
+      previousToolCount++;
+    }
+  }
+
+  for (const tool of current.tools) {
+    if (tool.securityFingerprint?.tested) {
+      currentRiskScore += tool.securityFingerprint.riskScore;
+      currentToolCount++;
+    }
+  }
+
+  // Average risk scores if there are tested tools
+  const avgPreviousRisk = previousToolCount > 0 ? previousRiskScore / previousToolCount : 0;
+  const avgCurrentRisk = currentToolCount > 0 ? currentRiskScore / currentToolCount : 0;
+  const riskScoreChange = avgCurrentRisk - avgPreviousRisk;
+
+  // Generate summary
+  const summaryParts: string[] = [];
+
+  if (newFindings.length > 0) {
+    const criticalHigh = newFindings.filter(
+      (f) => f.riskLevel === 'critical' || f.riskLevel === 'high'
+    ).length;
+    if (criticalHigh > 0) {
+      summaryParts.push(`${criticalHigh} critical/high severity findings detected`);
+    }
+    summaryParts.push(`${newFindings.length} new security finding(s)`);
+  }
+
+  if (resolvedFindings.length > 0) {
+    summaryParts.push(`${resolvedFindings.length} finding(s) resolved`);
+  }
+
+  if (riskScoreChange > 0) {
+    summaryParts.push(`risk score increased by ${riskScoreChange.toFixed(1)}`);
+  } else if (riskScoreChange < 0) {
+    summaryParts.push(`risk score decreased by ${Math.abs(riskScoreChange).toFixed(1)}`);
+  }
+
+  const summary =
+    summaryParts.length > 0 ? summaryParts.join('; ') : 'No security changes detected';
+
+  return {
+    newFindings,
+    resolvedFindings,
+    previousRiskScore: Math.round(avgPreviousRisk),
+    currentRiskScore: Math.round(avgCurrentRisk),
+    riskScoreChange: Math.round(riskScoreChange),
+    degraded: newFindings.length > 0 || riskScoreChange > 0,
+    summary,
+  };
+}
+
+/**
+ * Generate schema evolution report from tool diffs.
+ * Tracks schema stability changes across tools.
+ *
+ * @param toolsModified - Tools with modifications
+ * @param previous - The previous baseline
+ * @param current - The current baseline
+ * @returns Schema evolution report, or undefined if no schema evolution data
+ */
+function generateSchemaEvolutionReport(
+  toolsModified: ToolDiff[],
+  previous: BehavioralBaseline,
+  current: BehavioralBaseline
+): SchemaEvolutionReport | undefined {
+  // Check if either baseline has schema evolution data
+  const previousHasEvolution = previous.tools.some((t) => t.responseSchemaEvolution);
+  const currentHasEvolution = current.tools.some((t) => t.responseSchemaEvolution);
+
+  if (!previousHasEvolution && !currentHasEvolution) {
+    return undefined; // No schema evolution data to compare
+  }
+
+  const toolsWithIssues: SchemaEvolutionIssue[] = [];
+  let unstableCount = 0;
+  let stableCount = 0;
+  let structureChangedCount = 0;
+  let hasBreakingChanges = false;
+
+  // Analyze tools with schema evolution data
+  for (const tool of current.tools) {
+    const currEvolution = tool.responseSchemaEvolution;
+    if (!currEvolution) continue;
+
+    // Count stable vs unstable
+    if (currEvolution.isStable) {
+      stableCount++;
+    } else {
+      unstableCount++;
+    }
+
+    // Find corresponding tool diff
+    const toolDiff = toolsModified.find((td) => td.tool === tool.name);
+    if (toolDiff?.schemaEvolutionDiff?.structureChanged) {
+      structureChangedCount++;
+
+      if (toolDiff.schemaEvolutionDiff.isBreaking) {
+        hasBreakingChanges = true;
+      }
+
+      // Find previous tool
+      const prevTool = previous.tools.find((t) => t.name === tool.name);
+      const prevEvolution = prevTool?.responseSchemaEvolution;
+      const becameUnstable = (prevEvolution?.isStable ?? false) && !currEvolution.isStable;
+
+      toolsWithIssues.push({
+        toolName: tool.name,
+        becameUnstable,
+        fieldsAdded: toolDiff.schemaEvolutionDiff.fieldsAdded,
+        fieldsRemoved: toolDiff.schemaEvolutionDiff.fieldsRemoved,
+        isBreaking: toolDiff.schemaEvolutionDiff.isBreaking,
+        summary: toolDiff.schemaEvolutionDiff.summary,
+      });
+    } else if (!currEvolution.isStable && currEvolution.inconsistentFields.length > 0) {
+      // Tool with unstable schema (no change, but already unstable)
+      const prevTool = previous.tools.find((t) => t.name === tool.name);
+      const prevEvolution = prevTool?.responseSchemaEvolution;
+      const becameUnstable = (prevEvolution?.isStable ?? false) && !currEvolution.isStable;
+
+      if (becameUnstable) {
+        toolsWithIssues.push({
+          toolName: tool.name,
+          becameUnstable: true,
+          fieldsAdded: [],
+          fieldsRemoved: [],
+          isBreaking: false,
+          summary: `Schema became unstable: ${currEvolution.inconsistentFields.join(', ')}`,
+        });
+      }
+    }
+  }
+
+  return {
+    toolsWithIssues,
+    unstableCount,
+    stableCount,
+    structureChangedCount,
+    hasBreakingChanges,
+  };
+}
+
+/**
+ * Generate error trend report from baseline comparison.
+ * Aggregates error patterns across all tools to identify trends.
+ *
+ * @param previous - The previous baseline
+ * @param current - The current baseline
+ * @param ignoreErrorPatternChanges - Whether to skip error pattern comparison
+ * @returns Error trend report, or undefined if no error pattern data
+ */
+function generateErrorTrendReport(
+  previous: BehavioralBaseline,
+  current: BehavioralBaseline,
+  ignoreErrorPatternChanges: boolean
+): ErrorTrendReport | undefined {
+  if (ignoreErrorPatternChanges) {
+    return undefined;
+  }
+
+  // Check if either baseline has error pattern data
+  const previousHasErrors = previous.tools.some(
+    (t) => t.errorPatterns && t.errorPatterns.length > 0
+  );
+  const currentHasErrors = current.tools.some(
+    (t) => t.errorPatterns && t.errorPatterns.length > 0
+  );
+
+  if (!previousHasErrors && !currentHasErrors) {
+    return undefined; // No error pattern data to compare
+  }
+
+  // Aggregate error patterns from all tools
+  const allPreviousPatterns = previous.tools.flatMap((t) => t.errorPatterns ?? []);
+  const allCurrentPatterns = current.tools.flatMap((t) => t.errorPatterns ?? []);
+
+  return analyzeErrorTrends(allPreviousPatterns, allCurrentPatterns);
+}
+
+/**
+ * Compare documentation scores between baselines.
+ * Returns a change report if documentation score data is available.
+ *
+ * @param previous - The previous baseline
+ * @param current - The current baseline
+ * @returns Documentation score change report, or undefined if no data
+ */
+function compareDocumentationData(
+  previous: BehavioralBaseline,
+  current: BehavioralBaseline
+): DocumentationScoreChange | undefined {
+  // If current doesn't have documentation score, try to calculate it from tools
+  // This allows comparing old baselines without scores against new ones with scores
+  const currentScore = current.documentationScore ?? calculateDocScoreFromTools(current);
+  const previousScore = previous.documentationScore;
+
+  if (!currentScore) {
+    return undefined;
+  }
+
+  // Use the documentation scorer's comparison function
+  // We need to reconstruct a minimal DocumentationScore for comparison
+  const currentDocScore = {
+    overallScore: currentScore.overallScore,
+    grade: currentScore.grade as 'A' | 'B' | 'C' | 'D' | 'F',
+    components: {
+      descriptionCoverage: 0,
+      descriptionQuality: 0,
+      parameterDocumentation: 0,
+      exampleCoverage: 0,
+    },
+    issues: [],
+    suggestions: [],
+    toolCount: currentScore.toolCount,
+  };
+
+  return compareDocumentationScores(previousScore, currentDocScore);
+}
+
+/**
+ * Calculate documentation score summary from baseline tools.
+ * Used when baseline doesn't have pre-calculated score.
+ */
+function calculateDocScoreFromTools(
+  baseline: BehavioralBaseline
+): { overallScore: number; grade: string; issueCount: number; toolCount: number } | undefined {
+  if (!baseline.tools || baseline.tools.length === 0) {
+    return undefined;
+  }
+
+  // Create minimal MCPTool objects from ToolFingerprint
+  const tools = baseline.tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    inputSchema: t.inputSchema ?? {},
+  }));
+
+  const score = scoreDocumentation(tools);
+  return {
+    overallScore: score.overallScore,
+    grade: score.grade,
+    issueCount: score.issues.length,
+    toolCount: score.toolCount,
   };
 }

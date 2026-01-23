@@ -87,6 +87,16 @@ describe('upload command', () => {
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
+    writeFileSync(
+      join(process.cwd(), 'bellwether.yaml'),
+      [
+        'output:',
+        '  dir: "."',
+        'baseline:',
+        '  path: "bellwether-baseline.json"',
+        '',
+      ].join('\n')
+    );
 
     // Override HOME to use test directory
     originalHome = process.env.HOME;
@@ -149,7 +159,7 @@ describe('upload command', () => {
       clearSession();
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
 
       await expect(
         uploadCommand.parseAsync(['node', 'test'])
@@ -165,7 +175,7 @@ describe('upload command', () => {
       saveSession(createTestSession());
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
 
       await expect(
         uploadCommand.parseAsync(['node', 'test'])
@@ -184,7 +194,7 @@ describe('upload command', () => {
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
 
       expect(mockUploadBaseline).toHaveBeenCalled();
@@ -200,7 +210,7 @@ describe('upload command', () => {
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'custom-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
       await uploadCommand.parseAsync(['node', 'test', 'custom-baseline.json']);
 
       expect(mockUploadBaseline).toHaveBeenCalled();
@@ -216,7 +226,7 @@ describe('upload command', () => {
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
 
       // Should pass through cloud format without conversion
@@ -232,7 +242,7 @@ describe('upload command', () => {
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), 'not valid json');
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
 
       await expect(
         uploadCommand.parseAsync(['node', 'test'])
@@ -253,7 +263,7 @@ describe('upload command', () => {
       saveProjectLink({ projectId: 'proj_linked', projectName: 'Linked Project', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
 
       expect(mockUploadBaseline).toHaveBeenCalledWith(
@@ -272,7 +282,7 @@ describe('upload command', () => {
       });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
       await uploadCommand.parseAsync(['node', 'test', '--project', 'proj_explicit']);
 
       expect(mockUploadBaseline).toHaveBeenCalledWith(
@@ -287,7 +297,7 @@ describe('upload command', () => {
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
       removeProjectLink();
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
 
       await expect(
         uploadCommand.parseAsync(['node', 'test'])
@@ -316,7 +326,7 @@ describe('upload command', () => {
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
 
       expect(consoleOutput.some(line => line.includes('Upload successful'))).toBe(true);
@@ -342,7 +352,7 @@ describe('upload command', () => {
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
 
       expect(consoleOutput.some(line => line.includes('Changes from previous'))).toBe(true);
@@ -359,7 +369,7 @@ describe('upload command', () => {
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
 
       expect(consoleOutput.some(line => line.includes('first baseline'))).toBe(true);
@@ -377,7 +387,7 @@ describe('upload command', () => {
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
       await uploadCommand.parseAsync(['node', 'test', '--ci']);
 
       expect(consoleOutput.length).toBe(1);
@@ -401,7 +411,7 @@ describe('upload command', () => {
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
 
       await expect(
         uploadCommand.parseAsync(['node', 'test', '--ci'])
@@ -427,7 +437,7 @@ describe('upload command', () => {
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
 
       await expect(
         uploadCommand.parseAsync(['node', 'test', '--ci', '--fail-on-drift'])
@@ -440,7 +450,7 @@ describe('upload command', () => {
       clearSession();
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
 
       await expect(
         uploadCommand.parseAsync(['node', 'test', '--ci'])
@@ -458,7 +468,7 @@ describe('upload command', () => {
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
-      const { uploadCommand } = await import('../../src/cli/commands/upload.js');
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
 
       await expect(
         uploadCommand.parseAsync(['node', 'test'])

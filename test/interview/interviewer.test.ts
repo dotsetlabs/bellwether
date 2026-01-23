@@ -915,4 +915,24 @@ describe('check mode comprehensive (tools + prompts + resources)', () => {
     expect(progressUpdates).toContain('starting');
     expect(progressUpdates).toContain('complete');
   });
+
+  it('should handle empty personas array by using default persona', async () => {
+    // This test ensures we don't crash when personas: [] is passed
+    // Previously this caused: "Cannot read properties of undefined (reading 'id')"
+    const interviewer = new Interviewer(null, {
+      checkMode: true,
+      personas: [], // Explicitly empty - should fall back to DEFAULT_PERSONAS
+    });
+
+    const discovery = createMockDiscovery({
+      tools: [{ name: 'test_tool', description: 'A test tool' }],
+    });
+
+    const result = await interviewer.interview(mockClient, discovery);
+
+    expect(result).toBeDefined();
+    expect(result.toolProfiles).toHaveLength(1);
+    expect(result.metadata.personas).toBeDefined();
+    expect(result.metadata.personas.length).toBeGreaterThan(0);
+  });
 });

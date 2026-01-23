@@ -2,7 +2,7 @@
  * Check command - Schema validation and drift detection for MCP servers.
  *
  * Purpose: Fast, free, deterministic checking of MCP server contracts.
- * Output: CONTRACT.md, bellwether-check.json
+ * Output: Documentation + JSON report (filenames configurable via output.files)
  * Baseline: Full support (save, compare, diff)
  * LLM: None required
  */
@@ -34,18 +34,41 @@ import {
   shouldFailOnDiff,
   analyzeForIncremental,
   formatIncrementalSummary,
+  runSecurityTests,
+  parseSecurityCategories,
+  getAllSecurityCategories,
   type BehavioralDiff,
   type SeverityConfig,
   type ChangeSeverity,
   type BehavioralBaseline,
+  type SecurityCategory,
+  type SecurityFingerprint,
 } from '../../baseline/index.js';
 import { getMetricsCollector, resetMetricsCollector } from '../../metrics/collector.js';
 import { getGlobalCache, resetGlobalCache } from '../../cache/response-cache.js';
 import { InterviewProgressBar, formatCheckBanner } from '../utils/progress.js';
 import { loadScenariosFromFile, tryLoadDefaultScenarios, DEFAULT_SCENARIOS_FILE } from '../../scenarios/index.js';
+import {
+  loadWorkflowsFromFile,
+  tryLoadDefaultWorkflows,
+  DEFAULT_WORKFLOWS_FILE,
+  WorkflowExecutor,
+  generateWorkflowsFromTools,
+  generateWorkflowYamlContent,
+  type Workflow,
+  type WorkflowResult,
+} from '../../workflow/index.js';
 import * as output from '../output.js';
-import { extractServerContextFromArgs } from './shared.js';
-import { EXIT_CODES, SEVERITY_TO_EXIT_CODE, PATHS } from '../../constants.js';
+import { extractServerContextFromArgs } from '../utils/server-context.js';
+import { configureLogger, type LogLevel } from '../../logging/logger.js';
+import {
+  EXIT_CODES,
+  SEVERITY_TO_EXIT_CODE,
+  PATHS,
+  SECURITY_TESTING,
+  CHECK_SAMPLING,
+  WORKFLOW,
+} from '../../constants.js';
 
 
 export const checkCommand = new Command('check')
@@ -56,14 +79,9 @@ export const checkCommand = new Command('check')
   .option('--fail-on-drift', 'Exit with error if drift detected (overrides config)')
   .option('--accept-drift', 'Accept detected drift as intentional and update baseline')
   .option('--accept-reason <reason>', 'Reason for accepting drift (used with --accept-drift)')
-  .option('--format <format>', 'Diff output format: text, json, compact, github, markdown, junit, sarif', 'text')
-  .option('--min-severity <level>', 'Minimum severity to report: none, info, warning, breaking')
-  .option('--fail-on-severity <level>', 'Fail threshold: none, info, warning, breaking')
-  .option('--incremental', 'Only test tools with changed schemas (requires baseline)')
-  .option('--incremental-cache-hours <hours>', 'Max age of cached results in hours', '168')
-  .option('--parallel', 'Enable parallel tool testing for faster checks')
-  .option('--parallel-workers <n>', 'Number of concurrent tool workers (1-10)', '4')
-  .option('--performance-threshold <n>', 'Performance regression threshold percentage (default: 10)', '10')
+  .option('--format <format>', 'Diff output format: text, json, compact, github, markdown, junit, sarif')
+  .option('--min-severity <level>', 'Minimum severity to report (overrides config): none, info, warning, breaking')
+  .option('--fail-on-severity <level>', 'Fail threshold (overrides config): none, info, warning, breaking')
   .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
     // Load configuration
     let config: BellwetherConfig;
@@ -97,31 +115,60 @@ export const checkCommand = new Command('check')
     const verbose = config.logging.verbose;
     const logLevel = config.logging.level;
 
+    if (!process.env.BELLWETHER_LOG_OVERRIDE) {
+      // Configure logger based on config settings
+      // For CLI output, suppress internal pino logs unless verbose mode is on
+      // User-facing output uses the output module, not pino
+      const effectiveLogLevel: LogLevel = verbose ? (logLevel as LogLevel) : 'silent';
+      configureLogger({ level: effectiveLogLevel });
+    }
+
     // Resolve baseline options from config (--fail-on-drift CLI flag can override)
     const baselinePath = config.baseline.comparePath;
     const saveBaselinePath = config.baseline.savePath;
-    const failOnDrift = options.failOnDrift || config.baseline.failOnDrift;
+    const failOnDrift = options.failOnDrift ? true : config.baseline.failOnDrift;
 
     // Build severity config (CLI options override config file)
     const severityConfig: SeverityConfig = {
-      minimumSeverity: (options.minSeverity as ChangeSeverity) || config.baseline.severity.minimumSeverity,
-      failOnSeverity: (options.failOnSeverity as ChangeSeverity) || config.baseline.severity.failOnSeverity,
+      minimumSeverity: (options.minSeverity as ChangeSeverity) ?? config.baseline.severity.minimumSeverity,
+      failOnSeverity: (options.failOnSeverity as ChangeSeverity) ?? config.baseline.severity.failOnSeverity,
       suppressWarnings: config.baseline.severity.suppressWarnings,
       aspectOverrides: config.baseline.severity.aspectOverrides as SeverityConfig['aspectOverrides'],
     };
 
-    // Resolve check options (CLI flags override config file)
-    const incrementalEnabled = options.incremental ?? config.check.incremental;
-    const incrementalCacheHours = options.incrementalCacheHours
-      ? parseInt(options.incrementalCacheHours, 10)
-      : config.check.incrementalCacheHours;
-    const parallelEnabled = options.parallel ?? config.check.parallel;
-    const parallelWorkers = options.parallelWorkers
-      ? parseInt(options.parallelWorkers, 10)
-      : config.check.parallelWorkers;
-    const performanceThreshold = options.performanceThreshold
-      ? parseFloat(options.performanceThreshold) / 100
-      : config.check.performanceThreshold / 100;
+    // Resolve check options from config (no CLI overrides for these)
+    const incrementalEnabled = config.check.incremental;
+    const incrementalCacheHours = config.check.incrementalCacheHours;
+    const parallelEnabled = config.check.parallel;
+    const parallelWorkers = config.check.parallelWorkers;
+    const performanceThreshold = config.check.performanceThreshold / 100;
+    const diffFormat = options.format ?? config.check.diffFormat;
+
+    // Resolve security options from config
+    const securityEnabled = config.check.security.enabled;
+    let securityCategories: SecurityCategory[] = config.check.security.categories as SecurityCategory[];
+    // Validate security categories
+    try {
+      securityCategories = parseSecurityCategories(securityCategories.join(','));
+    } catch (error) {
+      output.error(`Invalid security categories in config: ${error instanceof Error ? error.message : error}`);
+      output.info(`Valid categories: ${getAllSecurityCategories().join(', ')}`);
+      process.exit(EXIT_CODES.ERROR);
+    }
+
+    // Resolve sampling and confidence options from config
+    const targetConfidence = config.check.sampling.targetConfidence as 'low' | 'medium' | 'high';
+    const minSamplesForConfidence = CHECK_SAMPLING.SAMPLES_FOR_CONFIDENCE[targetConfidence];
+    const minSamples = Math.max(
+      config.check.sampling.minSamples,
+      minSamplesForConfidence
+    );
+    const failOnLowConfidence = config.check.sampling.failOnLowConfidence;
+
+    // Resolve example output options from config
+    const fullExamples = config.output.examples.full;
+    const exampleLength = config.output.examples.maxLength;
+    const maxExamplesPerTool = config.output.examples.maxPerTool;
 
     // Display startup banner
     const banner = formatCheckBanner({
@@ -245,12 +292,16 @@ export const checkCommand = new Command('check')
         output.info(`Parallel tool testing enabled (${toolConcurrency} workers)`);
       }
 
+      if (securityEnabled) {
+        output.info(`Security testing enabled (${securityCategories.length} categories)`);
+      }
+
       const interviewer = new Interviewer(null, {
-        maxQuestionsPerTool: 3, // Default for schema-based tests
+        maxQuestionsPerTool: minSamples, // Use configured min samples for test count
         timeout,
         skipErrorTests: false,
         model: 'check', // Marker for check mode
-        personas: [],
+        // Note: personas defaults to DEFAULT_PERSONAS, which is needed for stats tracking
         customScenarios,
         customScenariosOnly: config.scenarios.only,
         enableStreaming: false,
@@ -261,6 +312,11 @@ export const checkCommand = new Command('check')
         checkMode: true, // Required when passing null for LLM
         serverCommand: fullServerCommand,
       });
+
+      // Log sampling configuration
+      if (minSamples > CHECK_SAMPLING.DEFAULT_MIN_SAMPLES) {
+        output.info(`Sampling: ${minSamples} samples per tool (target confidence: ${targetConfidence})`);
+      }
 
       // Extract server context
       const serverContext = extractServerContextFromArgs(serverCommand, args);
@@ -305,25 +361,13 @@ export const checkCommand = new Command('check')
         output.newline();
       }
 
-      // Generate documentation
-      output.info('Generating documentation...');
+      // Ensure output directories exist
       mkdirSync(outputDir, { recursive: true });
       if (docsDir !== outputDir) {
         mkdirSync(docsDir, { recursive: true });
       }
 
-      const contractMd = generateContractMd(result);
-      const contractMdPath = join(docsDir, 'CONTRACT.md');
-      writeFileSync(contractMdPath, contractMd);
-      output.info(`Written: ${contractMdPath}`);
-
-      // Always generate JSON report for check command
-      const jsonReport = generateJsonReport(result);
-      const jsonPath = join(outputDir, 'bellwether-check.json');
-      writeFileSync(jsonPath, jsonReport);
-      output.info(`Written: ${jsonPath}`);
-
-      // End metrics
+      // End metrics (before security testing)
       metricsCollector.endInterview();
 
       output.info('\nCheck complete!');
@@ -350,8 +394,233 @@ export const checkCommand = new Command('check')
         }
       }
 
+      // Run security testing if enabled
+      const securityFingerprints = new Map<string, SecurityFingerprint>();
+      if (securityEnabled) {
+        output.info('\n--- Security Testing ---');
+        output.info(`Testing categories: ${securityCategories.join(', ')}`);
+        output.newline();
+
+        let totalFindings = 0;
+        let criticalHighFindings = 0;
+
+        for (const toolProfile of result.toolProfiles) {
+          const tool = discovery.tools.find((t) => t.name === toolProfile.name);
+          if (!tool) continue;
+
+          if (verbose) {
+            output.info(`Security testing: ${tool.name}`);
+          }
+
+          const fingerprint = await runSecurityTests(
+            {
+              toolName: tool.name,
+              toolDescription: tool.description || '',
+              inputSchema: tool.inputSchema as Record<string, unknown>,
+              callTool: async (args: Record<string, unknown>) => {
+                try {
+                  const response = await mcpClient.callTool(tool.name, args);
+                  const content = response.content
+                    .map((c: { type: string; text?: string }) => c.type === 'text' ? c.text : '')
+                    .join('\n');
+                  return {
+                    isError: response.isError ?? false,
+                    content,
+                    errorMessage: response.isError ? content : undefined,
+                  };
+                } catch (error) {
+                  return {
+                    isError: true,
+                    content: '',
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                  };
+                }
+              },
+            },
+            {
+              categories: securityCategories,
+              timeout: SECURITY_TESTING.TEST_TIMEOUT_MS,
+              maxPayloadsPerCategory: SECURITY_TESTING.MAX_PAYLOADS_PER_CATEGORY,
+            }
+          );
+
+          securityFingerprints.set(tool.name, fingerprint);
+          totalFindings += fingerprint.findings.length;
+          criticalHighFindings += fingerprint.findings.filter(
+            (f) => f.riskLevel === 'critical' || f.riskLevel === 'high'
+          ).length;
+
+          if (verbose && fingerprint.findings.length > 0) {
+            for (const finding of fingerprint.findings) {
+              const color = finding.riskLevel === 'critical' || finding.riskLevel === 'high'
+                ? output.error
+                : finding.riskLevel === 'medium'
+                  ? output.warn
+                  : output.info;
+              color(`  [${finding.riskLevel.toUpperCase()}] ${finding.title}`);
+            }
+          }
+        }
+
+        // Summary
+        if (totalFindings > 0) {
+          output.warn(`Security testing complete: ${totalFindings} finding(s) detected`);
+          if (criticalHighFindings > 0) {
+            output.error(`  ${criticalHighFindings} critical/high severity finding(s)`);
+          }
+        } else {
+          output.success('Security testing complete: No vulnerabilities detected');
+        }
+        output.newline();
+      }
+
+      // Workflow testing (stateful multi-step testing)
+      const workflowResults: WorkflowResult[] = [];
+      const workflowTimeout = config.workflows.stepTimeout;
+      const workflowTimeouts = config.workflows.timeouts;
+
+      // Load workflows from file or auto-discover from defaults
+      let workflows: Workflow[] = [];
+      if (config.workflows.path) {
+        try {
+          workflows = loadWorkflowsFromFile(config.workflows.path);
+          output.info(`Loaded ${workflows.length} workflow(s) from ${config.workflows.path}`);
+        } catch (error) {
+          output.error(`Failed to load workflows: ${error instanceof Error ? error.message : error}`);
+          process.exit(EXIT_CODES.ERROR);
+        }
+      } else {
+        // Try to load default workflows
+        const defaultWorkflows = tryLoadDefaultWorkflows(outputDir);
+        if (defaultWorkflows) {
+          workflows = defaultWorkflows;
+          output.info(`Auto-loaded ${workflows.length} workflow(s) from ${DEFAULT_WORKFLOWS_FILE}`);
+        }
+      }
+
+      // Generate workflows if configured
+      if (config.workflows.autoGenerate) {
+        const generatedPath = join(outputDir, DEFAULT_WORKFLOWS_FILE);
+        const existingWorkflows = workflows.length > 0;
+
+        const generated = generateWorkflowsFromTools(discovery.tools, {
+          maxWorkflows: WORKFLOW.MAX_DISCOVERED_WORKFLOWS,
+          minSteps: WORKFLOW.MIN_WORKFLOW_STEPS,
+          maxSteps: WORKFLOW.MAX_WORKFLOW_STEPS,
+        });
+
+        if (generated.length > 0) {
+          if (existingWorkflows) {
+            output.info(`Generated ${generated.length} additional workflow(s)`);
+            workflows = [...workflows, ...generated];
+          } else {
+            workflows = generated;
+          }
+
+          // Save generated workflows to file
+          const workflowYaml = generateWorkflowYamlContent(generated);
+          writeFileSync(generatedPath, workflowYaml);
+          output.info(`Generated workflow file: ${generatedPath}`);
+        } else {
+          output.info('No workflows could be auto-generated from tool patterns');
+        }
+      }
+
+      // Execute workflows if any are loaded
+      if (workflows.length > 0) {
+        output.info('\n--- Workflow Testing ---');
+        output.info(`Executing ${workflows.length} workflow(s)...\n`);
+
+        // Create a minimal executor for check mode (no LLM analysis)
+        const workflowExecutor = new WorkflowExecutor(
+          mcpClient,
+          null, // No LLM in check mode
+          discovery.tools,
+          {
+            stepTimeout: workflowTimeout,
+            analyzeSteps: false, // No LLM analysis in check mode
+            generateSummary: false, // No LLM summary in check mode
+            continueOnError: false,
+            timeouts: workflowTimeouts,
+          }
+        );
+
+        for (const workflow of workflows) {
+          if (verbose) {
+            output.info(`Executing workflow: ${workflow.name}`);
+          }
+
+          try {
+            const workflowResult = await workflowExecutor.execute(workflow);
+            workflowResults.push(workflowResult);
+
+            const statusIcon = workflowResult.success ? '\u2713' : '\u2717';
+            const stepsInfo = `${workflowResult.steps.filter(s => s.success).length}/${workflow.steps.length} steps`;
+
+            if (workflowResult.success) {
+              output.success(`  ${statusIcon} ${workflow.name} (${stepsInfo}) - ${workflowResult.durationMs}ms`);
+            } else {
+              const failedStep = workflowResult.failedStepIndex !== undefined
+                ? workflow.steps[workflowResult.failedStepIndex]
+                : undefined;
+              output.error(`  ${statusIcon} ${workflow.name} (${stepsInfo}) - Failed at: ${failedStep?.tool ?? 'unknown'}`);
+              if (verbose && workflowResult.failureReason) {
+                output.info(`      Reason: ${workflowResult.failureReason}`);
+              }
+            }
+          } catch (error) {
+            output.error(`  \u2717 ${workflow.name} - Error: ${error instanceof Error ? error.message : error}`);
+          }
+        }
+
+        // Workflow summary
+        const passed = workflowResults.filter(r => r.success).length;
+        const failed = workflowResults.length - passed;
+        output.newline();
+        if (failed === 0) {
+          output.success(`Workflow testing complete: ${passed}/${workflowResults.length} passed`);
+        } else {
+          output.warn(`Workflow testing complete: ${passed}/${workflowResults.length} passed, ${failed} failed`);
+        }
+        output.newline();
+      }
+
+      // Generate documentation (after security testing so findings can be included)
+      output.info('Generating documentation...');
+      const contractMd = generateContractMd(result, {
+        securityFingerprints: securityEnabled ? securityFingerprints : undefined,
+        workflowResults: workflowResults.length > 0 ? workflowResults : undefined,
+        exampleLength,
+        fullExamples,
+        maxExamplesPerTool,
+        targetConfidence,
+      });
+      const contractMdPath = join(docsDir, config.output.files.contractDoc);
+      writeFileSync(contractMdPath, contractMd);
+      output.info(`Written: ${contractMdPath}`);
+
+      // Always generate JSON report for check command
+      const jsonReport = generateJsonReport(result);
+      const jsonPath = join(outputDir, config.output.files.checkReport);
+      writeFileSync(jsonPath, jsonReport);
+      output.info(`Written: ${jsonPath}`);
+
       // Create baseline from results
       let currentBaseline = createBaseline(result, fullServerCommand);
+
+      // Attach security fingerprints to tool fingerprints if security testing was run
+      if (securityEnabled && securityFingerprints.size > 0) {
+        currentBaseline = {
+          ...currentBaseline,
+          tools: currentBaseline.tools.map((tool) => {
+            const securityFp = securityFingerprints.get(tool.name);
+            if (securityFp) {
+              return { ...tool, securityFingerprint: securityFp };
+            }
+            return tool;
+          }),
+        };
+      }
 
       // Merge cached fingerprints in incremental mode
       if (incrementalResult && incrementalResult.cachedFingerprints.length > 0) {
@@ -367,6 +636,48 @@ export const checkCommand = new Command('check')
         };
 
         output.info(`Merged ${incrementalResult.cachedFingerprints.length} cached tool fingerprints`);
+      }
+
+      // Check statistical confidence of performance metrics
+      // Count tools that don't meet the target confidence level
+      const lowConfidenceTools: string[] = [];
+      const confidenceLevelOrder = ['low', 'medium', 'high'] as const;
+      const targetIndex = confidenceLevelOrder.indexOf(targetConfidence);
+
+      for (const tool of currentBaseline.tools) {
+        // Use the actual computed confidence level (accounts for samples AND CV)
+        const actualConfidence = tool.performanceConfidence?.confidenceLevel ?? 'low';
+        const actualIndex = confidenceLevelOrder.indexOf(actualConfidence);
+
+        // Tool is "low confidence" if its actual confidence is below target
+        if (actualIndex < targetIndex) {
+          lowConfidenceTools.push(tool.name);
+        }
+      }
+
+      // Report confidence status
+      if (lowConfidenceTools.length > 0) {
+        const totalTools = currentBaseline.tools.length;
+        const pct = Math.round((lowConfidenceTools.length / totalTools) * 100);
+        output.warn(`\n--- Confidence Warning ---`);
+        output.warn(
+          `${lowConfidenceTools.length}/${totalTools} tool(s) (${pct}%) have low statistical confidence`
+        );
+        output.warn(`Target confidence: ${targetConfidence.toUpperCase()} (requires ${CHECK_SAMPLING.SAMPLES_FOR_CONFIDENCE[targetConfidence]}+ samples)`);
+        if (lowConfidenceTools.length <= 5) {
+          output.warn(`Affected tools: ${lowConfidenceTools.join(', ')}`);
+        } else {
+          output.warn(`Affected tools: ${lowConfidenceTools.slice(0, 5).join(', ')} +${lowConfidenceTools.length - 5} more`);
+        }
+        output.info(`Tip: Run multiple times or increase check.sampling.minSamples for more stable metrics`);
+
+        // Exit with low confidence code if configured
+        if (failOnLowConfidence) {
+          output.error('\nFailing due to check.sampling.failOnLowConfidence: true');
+          process.exit(EXIT_CODES.LOW_CONFIDENCE);
+        }
+      } else {
+        output.info(`\nConfidence: All tools meet ${targetConfidence.toUpperCase()} confidence threshold`);
       }
 
       // Save baseline if configured
@@ -394,7 +705,7 @@ export const checkCommand = new Command('check')
         output.info('\n--- Drift Report ---');
 
         // Select formatter based on --format option
-        const formattedDiff = formatDiff(diff, options.format, baselinePath);
+        const formattedDiff = formatDiff(diff, diffFormat, baselinePath);
         output.info(formattedDiff);
 
         // Report performance regressions if detected
@@ -411,6 +722,33 @@ export const checkCommand = new Command('check')
           output.info(
             `\nPerformance: ${diff.performanceReport?.improvementCount} tool(s) improved`
           );
+        }
+
+        // Report security changes if detected
+        if (diff.securityReport) {
+          const secReport = diff.securityReport;
+          if (secReport.newFindings.length > 0) {
+            output.error('\n--- New Security Findings ---');
+            for (const finding of secReport.newFindings) {
+              const icon = finding.riskLevel === 'critical' || finding.riskLevel === 'high'
+                ? '!'
+                : finding.riskLevel === 'medium'
+                  ? '*'
+                  : '-';
+              output.error(
+                `  ${icon} [${finding.riskLevel.toUpperCase()}] ${finding.tool}: ${finding.title}`
+              );
+              output.info(`    ${finding.cweId}: ${finding.description}`);
+            }
+          }
+          if (secReport.resolvedFindings.length > 0) {
+            output.success(`\nSecurity: ${secReport.resolvedFindings.length} finding(s) resolved`);
+          }
+          if (secReport.degraded) {
+            output.error(
+              `\nSecurity posture degraded: Risk score ${secReport.previousRiskScore} → ${secReport.currentRiskScore}`
+            );
+          }
         }
 
         // Handle --accept-drift flag

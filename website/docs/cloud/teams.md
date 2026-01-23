@@ -19,6 +19,10 @@ bellwether teams current [options]
 
 The `teams` command allows users who belong to multiple teams to list their teams and switch between them. When you're a member of multiple teams (e.g., personal team and a work team), this command lets you control which team context is used for cloud operations like project creation and uploads.
 
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `teams`.
+:::
+
 ## Subcommands
 
 | Subcommand | Description |

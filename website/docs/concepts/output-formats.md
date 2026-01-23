@@ -11,9 +11,13 @@ Bellwether generates output in multiple formats to support different use cases: 
 
 | Format | File | Use Case |
 |:-------|:-----|:---------|
-| Markdown | `AGENTS.md` | Human-readable documentation |
-| JSON | `bellwether-report.json` | Machine-readable data (with `output.format: json` in config) |
+| Markdown | `CONTRACT.md` (check) / `AGENTS.md` (explore) | Human-readable documentation |
+| JSON | `bellwether-check.json` | Machine-readable data |
 | Baseline | `bellwether-baseline.json` | Drift detection (with `bellwether baseline save`) |
+| JUnit | `bellwether-results.xml` | CI test reporting (Jenkins, GitLab, CircleCI) |
+| SARIF | `bellwether.sarif` | GitHub Code Scanning, static analysis tools |
+| Compact | (stdout) | Single-line summary for log aggregation |
+| GitHub | (stdout) | GitHub Actions annotations |
 
 ## Markdown (Default)
 
@@ -236,7 +240,78 @@ This creates:
 
 ```bash
 bellwether check -o ./docs npx your-server
-# Output: docs/AGENTS.md
+# Output: docs/CONTRACT.md
+```
+
+## JUnit Format
+
+Generate JUnit XML for CI test reporting:
+
+```bash
+bellwether check --format junit > bellwether-results.xml
+```
+
+JUnit output includes test cases for:
+- Schema changes (breaking, warning, info)
+- Performance regressions
+- Security findings
+- Documentation quality
+- Error pattern changes
+
+## SARIF Format
+
+Generate SARIF for GitHub Code Scanning:
+
+```bash
+bellwether check --format sarif > bellwether.sarif
+```
+
+SARIF rules include:
+- `BWH001-004`: Schema drift rules (breaking, warning, info)
+- `BWH005-009`: Security finding rules (by risk level)
+- `BWH010-011`: Error pattern rules
+- `BWH012-013`: Performance regression and confidence rules
+- `BWH014-015`: Documentation quality rules
+
+## Report Sections
+
+Check mode reports include these sections:
+
+### Performance Metrics
+
+```
+─── Performance ───
+  Tool: read_file
+  P50: 45ms | P95: 120ms | Success: 98%
+  Confidence: high (15 samples, CV: 0.28)
+```
+
+### Security Findings (with `check.security.enabled`)
+
+```
+─── Security ───
+  Tool: execute_query
+  Category: sql_injection
+  Risk: critical
+  Finding: Tool accepted SQL injection payload
+```
+
+### Documentation Quality
+
+```
+─── Documentation Quality ───
+  Score: 85/100 (B)
+  Coverage: 100% | Quality: 80% | Params: 85%
+  Issues: 2 (1 warning, 1 info)
+```
+
+### Error Analysis
+
+```
+─── Error Summary ───
+  Category: NotFound (ENOENT)
+  Root Cause: File does not exist
+  Remediation: Verify path before calling
 ```
 
 ## See Also

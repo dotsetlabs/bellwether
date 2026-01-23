@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
-import { mkdirSync, rmSync } from 'fs';
+import { mkdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
@@ -80,6 +80,7 @@ describe('history command', () => {
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
+    writeFileSync(join(process.cwd(), 'bellwether.yaml'), '');
 
     originalHome = process.env.HOME;
     process.env.HOME = testDir;
@@ -136,7 +137,7 @@ describe('history command', () => {
     it('should fail when not authenticated', async () => {
       clearSession();
 
-      const { historyCommand } = await import('../../src/cli/commands/history.js');
+      const { historyCommand } = await import('../../src/cli/commands/cloud/history.js');
 
       await expect(
         historyCommand.parseAsync(['node', 'test'])
@@ -149,7 +150,7 @@ describe('history command', () => {
       saveSession(createTestSession('sess_invalid_token_1234567890123456'));
       mockIsAuthenticated.mockReturnValue(false);
 
-      const { historyCommand } = await import('../../src/cli/commands/history.js');
+      const { historyCommand } = await import('../../src/cli/commands/cloud/history.js');
 
       await expect(
         historyCommand.parseAsync(['node', 'test', 'proj_123'])
@@ -167,7 +168,7 @@ describe('history command', () => {
       mockGetProject.mockResolvedValue({ name: 'Linked Project' });
       saveProjectLink({ projectId: 'proj_linked', projectName: 'Linked Project', linkedAt: new Date().toISOString() });
 
-      const { historyCommand } = await import('../../src/cli/commands/history.js');
+      const { historyCommand } = await import('../../src/cli/commands/cloud/history.js');
       await historyCommand.parseAsync(['node', 'test']);
 
       expect(mockGetHistory).toHaveBeenCalledWith('proj_linked', 10);
@@ -179,7 +180,7 @@ describe('history command', () => {
       mockGetHistory.mockResolvedValue(sampleHistory);
       mockGetProject.mockResolvedValue({ name: 'Explicit Project' });
 
-      const { historyCommand } = await import('../../src/cli/commands/history.js');
+      const { historyCommand } = await import('../../src/cli/commands/cloud/history.js');
       await historyCommand.parseAsync(['node', 'test', 'proj_explicit']);
 
       expect(mockGetHistory).toHaveBeenCalledWith('proj_explicit', 10);
@@ -190,7 +191,7 @@ describe('history command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       removeProjectLink();
 
-      const { historyCommand } = await import('../../src/cli/commands/history.js');
+      const { historyCommand } = await import('../../src/cli/commands/cloud/history.js');
 
       await expect(
         historyCommand.parseAsync(['node', 'test'])
@@ -208,7 +209,7 @@ describe('history command', () => {
       mockGetProject.mockResolvedValue({ name: 'Test Project' });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test Project', linkedAt: new Date().toISOString() });
 
-      const { historyCommand } = await import('../../src/cli/commands/history.js');
+      const { historyCommand } = await import('../../src/cli/commands/cloud/history.js');
       await historyCommand.parseAsync(['node', 'test']);
 
       expect(consoleOutput.some(line => line.includes('Test Project'))).toBe(true);
@@ -224,7 +225,7 @@ describe('history command', () => {
       mockGetProject.mockResolvedValue({ name: 'Test' });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
 
-      const { historyCommand } = await import('../../src/cli/commands/history.js');
+      const { historyCommand } = await import('../../src/cli/commands/cloud/history.js');
       await historyCommand.parseAsync(['node', 'test', '--limit', '1']);
 
       expect(mockGetHistory).toHaveBeenCalledWith('proj_123', 1);
@@ -236,7 +237,7 @@ describe('history command', () => {
       mockGetHistory.mockResolvedValue([]);
       saveProjectLink({ projectId: 'proj_123', projectName: 'Empty Project', linkedAt: new Date().toISOString() });
 
-      const { historyCommand } = await import('../../src/cli/commands/history.js');
+      const { historyCommand } = await import('../../src/cli/commands/cloud/history.js');
       await historyCommand.parseAsync(['node', 'test']);
 
       expect(consoleOutput.some(line => line.includes('No baselines'))).toBe(true);
@@ -256,7 +257,7 @@ describe('history command', () => {
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
 
-      const { historyCommand } = await import('../../src/cli/commands/history.js');
+      const { historyCommand } = await import('../../src/cli/commands/cloud/history.js');
       await historyCommand.parseAsync(['node', 'test']);
 
       expect(consoleOutput.some(line => line.includes('Latest changes'))).toBe(true);
@@ -271,7 +272,7 @@ describe('history command', () => {
       mockGetHistory.mockResolvedValue(sampleHistory);
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
 
-      const { historyCommand } = await import('../../src/cli/commands/history.js');
+      const { historyCommand } = await import('../../src/cli/commands/cloud/history.js');
       await historyCommand.parseAsync(['node', 'test', '--json']);
 
       const jsonOutput = consoleOutput.find(line => line.startsWith('['));
@@ -289,7 +290,7 @@ describe('history command', () => {
       mockGetHistory.mockRejectedValue(new Error('API unavailable'));
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
 
-      const { historyCommand } = await import('../../src/cli/commands/history.js');
+      const { historyCommand } = await import('../../src/cli/commands/cloud/history.js');
 
       await expect(
         historyCommand.parseAsync(['node', 'test'])
@@ -315,6 +316,7 @@ describe('diff command', () => {
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
+    writeFileSync(join(process.cwd(), 'bellwether.yaml'), '');
 
     originalHome = process.env.HOME;
     process.env.HOME = testDir;
@@ -377,7 +379,7 @@ describe('diff command', () => {
     it('should fail when not authenticated', async () => {
       clearSession();
 
-      const { diffCommand } = await import('../../src/cli/commands/history.js');
+      const { diffCommand } = await import('../../src/cli/commands/cloud/diff.js');
 
       await expect(
         diffCommand.parseAsync(['node', 'test', '1', '2'])
@@ -393,7 +395,7 @@ describe('diff command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
 
-      const { diffCommand } = await import('../../src/cli/commands/history.js');
+      const { diffCommand } = await import('../../src/cli/commands/cloud/diff.js');
 
       await expect(
         diffCommand.parseAsync(['node', 'test', 'abc', '2'])
@@ -426,7 +428,7 @@ describe('diff command', () => {
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
 
-      const { diffCommand } = await import('../../src/cli/commands/history.js');
+      const { diffCommand } = await import('../../src/cli/commands/cloud/diff.js');
       await diffCommand.parseAsync(['node', 'test', '1', '2']);
 
       expect(consoleOutput.some(line => line.includes('v1 → v2'))).toBe(true);
@@ -447,7 +449,7 @@ describe('diff command', () => {
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
 
-      const { diffCommand } = await import('../../src/cli/commands/history.js');
+      const { diffCommand } = await import('../../src/cli/commands/cloud/diff.js');
       await diffCommand.parseAsync(['node', 'test', '1', '2']);
 
       expect(consoleOutput.some(line => line.includes('Breaking changes'))).toBe(true);
@@ -465,7 +467,7 @@ describe('diff command', () => {
       });
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
 
-      const { diffCommand } = await import('../../src/cli/commands/history.js');
+      const { diffCommand } = await import('../../src/cli/commands/cloud/diff.js');
       await diffCommand.parseAsync(['node', 'test', '1', '2']);
 
       expect(consoleOutput.some(line => line.includes('No changes'))).toBe(true);
@@ -486,7 +488,7 @@ describe('diff command', () => {
       mockGetDiff.mockResolvedValue(diffData);
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
 
-      const { diffCommand } = await import('../../src/cli/commands/history.js');
+      const { diffCommand } = await import('../../src/cli/commands/cloud/diff.js');
       await diffCommand.parseAsync(['node', 'test', '1', '2', '--json']);
 
       const jsonOutput = consoleOutput.find(line => line.startsWith('{'));
@@ -508,7 +510,7 @@ describe('diff command', () => {
         behaviorChanges: 0,
       });
 
-      const { diffCommand } = await import('../../src/cli/commands/history.js');
+      const { diffCommand } = await import('../../src/cli/commands/cloud/diff.js');
       await diffCommand.parseAsync(['node', 'test', '1', '2', '--project', 'proj_explicit']);
 
       expect(mockGetDiff).toHaveBeenCalledWith('proj_explicit', 1, 2);
@@ -519,7 +521,7 @@ describe('diff command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       removeProjectLink();
 
-      const { diffCommand } = await import('../../src/cli/commands/history.js');
+      const { diffCommand } = await import('../../src/cli/commands/cloud/diff.js');
 
       await expect(
         diffCommand.parseAsync(['node', 'test', '1', '2'])

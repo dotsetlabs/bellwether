@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync, rmSync, readdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { tmpdir } from 'os';
 
 // Mock the output module
@@ -263,23 +263,28 @@ describe('watch command utilities', () => {
 
     it('should resolve baseline path from config', () => {
       const config = {
-        baseline: { savePath: './custom-baseline.json' },
+        baseline: { savePath: './custom-baseline.json', path: 'bellwether-baseline.json' },
         output: { dir: './output' },
       };
 
-      const baselinePath = config.baseline.savePath || join(config.output.dir, 'bellwether-baseline.json');
-      expect(baselinePath).toBe('./custom-baseline.json');
+      const baselinePathValue = config.baseline.savePath ?? config.baseline.path;
+      const baselinePath = baselinePathValue.startsWith('/')
+        ? baselinePathValue
+        : resolve(join(config.output.dir, baselinePathValue));
+      expect(baselinePath).toBe(resolve(join('./output', './custom-baseline.json')));
     });
 
     it('should fall back to default baseline path', () => {
       const config = {
-        baseline: { savePath: '' },
+        baseline: { savePath: undefined, path: 'bellwether-baseline.json' },
         output: { dir: './output' },
       };
 
-      const baselinePath = config.baseline.savePath || join(config.output.dir, 'bellwether-baseline.json');
-      expect(baselinePath).toContain('output');
-      expect(baselinePath).toContain('bellwether-baseline.json');
+      const baselinePathValue = config.baseline.savePath ?? config.baseline.path;
+      const baselinePath = baselinePathValue.startsWith('/')
+        ? baselinePathValue
+        : resolve(join(config.output.dir, baselinePathValue));
+      expect(baselinePath).toBe(resolve(join('./output', 'bellwether-baseline.json')));
     });
   });
 

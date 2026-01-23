@@ -10,6 +10,7 @@ import { writeFileSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import * as readline from 'readline';
 import { generateConfigTemplate, generatePresetConfig, PRESETS } from '../../config/template.js';
+import { CONFIG_DEFAULTS } from '../../config/defaults.js';
 import { EXIT_CODES, PATHS } from '../../constants.js';
 import * as output from '../output.js';
 
@@ -81,7 +82,11 @@ export const initCommand = new Command('init')
     '-p, --preset <name>',
     `Use a preset configuration (${Object.keys(PRESETS).join(', ')})`
   )
-  .option('--provider <provider>', 'LLM provider for explore command (ollama, openai, anthropic)', 'ollama')
+  .option(
+    '--provider <provider>',
+    'LLM provider for explore command (ollama, openai, anthropic)',
+    CONFIG_DEFAULTS.llm.provider
+  )
   .option('-y, --yes', 'Skip prompts, use defaults')
   .action(async (serverCommandArg: string | undefined, options) => {
     const configPath = join(process.cwd(), PATHS.DEFAULT_CONFIG_FILENAME);

@@ -17,7 +17,11 @@ bellwether watch [server-command] [args...] [options]
 
 Watch mode monitors your source files and automatically re-runs checks when changes are detected. This is useful during development to continuously validate your MCP server's schema.
 
-Watch mode uses `bellwether check` under the hood—it's free, fast, and deterministic.
+Watch mode uses `bellwether check` under the hood—it's free, fast, and deterministic. It only runs schema validation (no LLM exploration).
+
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `watch`.
+:::
 
 ## Arguments
 
@@ -95,8 +99,8 @@ Bellwether Watch Mode
 Server: npx your-server
 Watching: /path/to/project
 
---- Running Check ---
-[10:30:45] Starting check...
+--- Running Test ---
+[10:30:45] Starting test...
 Found 5 tools
 Checking schemas...
 Check complete.

@@ -22,7 +22,7 @@ Create a config file for your MCP server:
 bellwether init npx @mcp/your-server
 ```
 
-This creates `bellwether.yaml` with your server command and settings.
+This creates `bellwether.yaml` with your server command and settings. Every command (except `init`) requires this config file.
 
 ### Presets
 
@@ -41,8 +41,8 @@ bellwether check
 ```
 
 This discovers tools, validates schemas, and generates:
-- `CONTRACT.md` - structural documentation
-- `bellwether-check.json` - validation results
+- `CONTRACT.md` - structural documentation (configurable via `output.files.contractDoc`)
+- `bellwether-check.json` - validation results (configurable via `output.files.checkReport`)
 
 No API keys needed. No LLM costs. Deterministic output.
 
@@ -52,7 +52,7 @@ No API keys needed. No LLM costs. Deterministic output.
 bellwether baseline save
 ```
 
-Creates `bellwether-baseline.json` for drift detection.
+Creates `bellwether-baseline.json` for drift detection (configurable via `baseline.path` / `baseline.savePath`).
 
 ## 5. Detect Drift
 
@@ -89,8 +89,8 @@ bellwether explore
 ```
 
 This generates:
-- `AGENTS.md` - behavioral documentation
-- `bellwether-explore.json` - exploration results
+- `AGENTS.md` - behavioral documentation (configurable via `output.files.agentsDoc`)
+- `bellwether-explore.json` - exploration results (configurable via `output.files.exploreReport`)
 
 ---
 

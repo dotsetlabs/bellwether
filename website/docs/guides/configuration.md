@@ -27,10 +27,12 @@ Bellwether looks for configuration in this order:
 
 1. `--config` flag (explicit path)
 2. `./bellwether.yaml` (project root)
-3. `./bellwether.json` (alternative format)
+3. `./bellwether.yml`
+4. `./.bellwether.yaml`
+5. `./.bellwether.yml`
 
 :::info Config Required
-A `bellwether.yaml` config file is required for `bellwether check`. Run `bellwether init` to create one.
+All commands (except `bellwether init`) require a config file. Run `bellwether init` to create `bellwether.yaml` first.
 :::
 
 ## Full Configuration Reference

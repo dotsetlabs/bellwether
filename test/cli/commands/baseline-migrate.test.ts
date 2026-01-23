@@ -96,6 +96,16 @@ describe('baseline migrate command', () => {
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
+    writeFileSync(
+      join(testDir, 'bellwether.yaml'),
+      [
+        'output:',
+        '  dir: "."',
+        'baseline:',
+        '  path: "bellwether-baseline.json"',
+        '',
+      ].join('\n')
+    );
     vi.clearAllMocks();
   });
 

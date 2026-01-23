@@ -12,9 +12,8 @@ Check an MCP server for schema validation and drift detection. Free, fast, and d
 ```bash
 bellwether check [server-command] [args...]
 bellwether check --fail-on-drift
-bellwether check --parallel --parallel-workers 4
 bellwether check --format junit
-bellwether check --incremental
+bellwether check --accept-drift --accept-reason "Added new feature"
 ```
 
 ## Description
@@ -25,6 +24,10 @@ This is the recommended command for CI/CD pipelines because it's:
 - **Free** - No API keys or LLM costs
 - **Fast** - Runs in seconds
 - **Deterministic** - Same input produces identical output
+
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `check`.
+:::
 
 ## Arguments
 
@@ -48,27 +51,19 @@ This is the recommended command for CI/CD pipelines because it's:
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `--format <format>` | Output format: `text`, `json`, `compact`, `github`, `markdown`, `junit`, `sarif` | `text` |
-
-### Performance Options
-
-| Option | Description | Default |
-|:-------|:------------|:--------|
-| `--parallel` | Enable parallel tool testing (faster checks) | From config |
-| `--parallel-workers <n>` | Number of concurrent tool workers (1-10) | `4` |
-| `--incremental` | Only test tools with changed schemas (requires baseline) | From config |
-| `--incremental-cache-hours <hours>` | Max age of cached results in hours | `168` |
-| `--performance-threshold <n>` | Performance regression threshold percentage | `10` |
+| `--format <format>` | Output format: `text`, `json`, `compact`, `github`, `markdown`, `junit`, `sarif` | `check.diffFormat` |
 
 ### Severity Options
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `--min-severity <level>` | Minimum severity to report: `none`, `info`, `warning`, `breaking` | From config |
-| `--fail-on-severity <level>` | Fail threshold: `none`, `info`, `warning`, `breaking` | `breaking` |
+| `--min-severity <level>` | Minimum severity to report (overrides config): `none`, `info`, `warning`, `breaking` | From config |
+| `--fail-on-severity <level>` | Fail threshold (overrides config): `none`, `info`, `warning`, `breaking` | `breaking` |
 
 :::tip Config-First Design
-All options can be configured in `bellwether.yaml` under the `check:` and `baseline.severity:` sections. CLI flags serve as overrides for CI/CD use cases.
+Bellwether uses a **config-first** approach. All settings—including parallel testing, security testing, sampling, and output options—are configured in `bellwether.yaml`. CLI flags are minimal and primarily used for one-time overrides in CI/CD pipelines.
+
+Run `bellwether init` to generate a comprehensive, well-documented configuration file.
 :::
 
 ## Examples
@@ -106,14 +101,25 @@ bellwether check
 # Quick drift check in CI (--fail-on-drift overrides config)
 bellwether check --fail-on-drift
 
-# Fast parallel check with JUnit output
-bellwether check --parallel --format junit > results.xml
-
-# Incremental check (only test changed tools)
-bellwether check --incremental --fail-on-drift
+# JUnit output for CI reporting (parallel testing is config default)
+bellwether check --format junit > results.xml
 
 # Fail on any warning or breaking change
 bellwether check --fail-on-severity warning
+```
+
+Configure parallel testing, incremental checking, and security testing in `bellwether.yaml`:
+
+```yaml
+# bellwether.yaml (CI preset example)
+check:
+  parallel: true
+  parallelWorkers: 4
+  incremental: true
+  security:
+    enabled: true
+baseline:
+  failOnDrift: true
 ```
 
 ### Save Baseline Separately
@@ -144,24 +150,30 @@ The `--accepted-by` option is only available in `bellwether baseline accept`. Wh
 
 | File | Description |
 |:-----|:------------|
-| `CONTRACT.md` | Structural documentation of tool schemas |
-| `bellwether-check.json` | Machine-readable validation results |
+| `CONTRACT.md` | Structural documentation of tool schemas (configurable via `output.files.contractDoc`) |
+| `bellwether-check.json` | Machine-readable validation results (configurable via `output.files.checkReport`) |
+
+Output locations are controlled by `output.dir` (JSON) and `output.docsDir` (docs).
 
 ### CONTRACT.md Contents
 
 The generated documentation includes:
 - **Server Information**: Name, version, protocol version
 - **Quick Reference Table**: Tool names with parameters, success rates, descriptions
-- **Performance Baseline**: P50/P95 latency metrics and success rates per tool
+- **Performance Baseline**: P50/P95 latency metrics, success rates, confidence levels
 - **Tool Reference**: Names, descriptions, parameters with full schema
 - **Example Usage**: Up to 2 successful interaction examples per tool
-- **Error Patterns**: Categorized errors (Permission, NotFound, Validation, Timeout, Network)
+- **Error Patterns**: Categorized errors with root cause and remediation suggestions
 - **Error Summary**: Aggregate error patterns across all tools
+- **Security Baseline**: Security findings and risk scores (when `check.security.enabled` is true)
+- **Documentation Quality**: Score breakdown and improvement suggestions
 - **Custom Scenario Results**: If bellwether-tests.yaml exists
 
 ## Configuration
 
-Check mode uses settings from `bellwether.yaml`. Key sections:
+Check mode uses settings from `bellwether.yaml`. Run `bellwether init` to generate a comprehensive configuration file with all options documented.
+
+### Key Configuration Sections
 
 ```yaml
 server:
@@ -170,7 +182,15 @@ server:
   timeout: 30000
 
 output:
-  dir: "."
+  dir: ".bellwether"      # JSON output directory
+  docsDir: "."            # Documentation output (CONTRACT.md)
+  format: both            # agents.md, json, or both
+
+  # Example output settings for documentation
+  examples:
+    full: true            # Include full (non-truncated) examples
+    maxLength: 5000       # Maximum example length (100-50000)
+    maxPerTool: 5         # Maximum examples per tool (1-20)
 
 baseline:
   comparePath: "./bellwether-baseline.json"  # Compare against this baseline
@@ -189,9 +209,30 @@ baseline:
 check:
   incremental: false             # Only test changed tools
   incrementalCacheHours: 168     # Cache age (1 week)
-  parallel: false                # Parallel tool testing
+  parallel: true                 # Parallel tool testing (recommended)
   parallelWorkers: 4             # Concurrent workers (1-10)
   performanceThreshold: 10       # Regression threshold (%)
+
+  # Security testing settings
+  security:
+    enabled: false               # Enable security vulnerability testing
+    categories:                  # Categories to test
+      - sql_injection
+      - xss
+      - path_traversal
+      - command_injection
+      - ssrf
+
+  # Statistical sampling settings
+  sampling:
+    minSamples: 3                # Minimum samples per tool (1-50)
+    targetConfidence: medium     # low, medium, or high
+    failOnLowConfidence: false   # Fail if confidence below target
+
+# Workflow testing
+workflows:
+  autoGenerate: true             # Auto-generate from tool patterns
+  stepTimeout: 5000              # Timeout per step in ms
 
 scenarios:
   path: "./bellwether-tests.yaml"  # Custom test scenarios
@@ -230,18 +271,12 @@ Generates [SARIF](https://sarifweb.azurewebsites.net/) format for GitHub Code Sc
 
 ## Parallel Testing
 
-Speed up checks by testing tools concurrently:
-
-```bash
-bellwether check --parallel --parallel-workers 4
-```
-
-Or configure in `bellwether.yaml`:
+Speed up checks by testing tools concurrently. Configure in `bellwether.yaml`:
 
 ```yaml
 check:
-  parallel: true
-  parallelWorkers: 4  # 1-10 concurrent workers
+  parallel: true          # Enabled by default
+  parallelWorkers: 4      # 1-10 concurrent workers
 ```
 
 :::note
@@ -250,13 +285,7 @@ Parallel testing uses a mutex to serialize MCP client calls, ensuring stable res
 
 ## Incremental Checking
 
-Only test tools with changed schemas, using cached results for unchanged tools:
-
-```bash
-bellwether check --incremental
-```
-
-Or configure in `bellwether.yaml`:
+Only test tools with changed schemas, using cached results for unchanged tools. Configure in `bellwether.yaml`:
 
 ```yaml
 check:
@@ -276,13 +305,7 @@ Incremental checking requires an existing baseline (`baseline.comparePath`). On 
 
 ## Performance Regression Detection
 
-Bellwether tracks tool latency and flags performance regressions:
-
-```bash
-bellwether check --performance-threshold 15
-```
-
-Or configure in `bellwether.yaml`:
+Bellwether tracks tool latency and flags performance regressions. Configure the threshold in `bellwether.yaml`:
 
 ```yaml
 check:
@@ -301,6 +324,97 @@ Performance metrics captured:
 - **P50 latency** - Median response time
 - **P95 latency** - 95th percentile response time
 - **Success rate** - Percentage of successful calls
+
+### Performance Confidence
+
+Bellwether calculates statistical confidence for performance metrics:
+
+```
+─── Confidence Changes ───
+  ↑ read_file: low → high (more samples collected)
+  ↓ write_file: high → medium (increased variability)
+```
+
+Confidence levels:
+- **High** - 10+ samples, low variability (CV < 0.3)
+- **Medium** - 5+ samples or moderate variability
+- **Low** - Few samples or high variability
+
+Tools with low confidence are flagged in reports:
+
+```
+Note: Some tools have low confidence metrics.
+Run with more samples for reliable baselines: write_file, delete_file
+```
+
+## Security Testing
+
+Enable security testing to detect vulnerabilities. Configure in `bellwether.yaml`:
+
+```yaml
+check:
+  security:
+    enabled: true
+    categories:
+      - sql_injection
+      - xss
+      - path_traversal
+      - command_injection
+      - ssrf
+```
+
+Security testing probes for:
+- **SQL Injection** - `' OR 1=1 --`, `; DROP TABLE`
+- **Path Traversal** - `../../../etc/passwd`
+- **Command Injection** - `; rm -rf /`, `$(whoami)`
+- **XSS** - `<script>alert(1)</script>`
+- **SSRF** - `http://169.254.169.254/`
+
+When security issues are found:
+
+```
+─── Security Findings ───
+  Tool: execute_query
+  Category: sql_injection
+  Risk Level: critical
+  Finding: Tool accepted SQL injection payload without sanitization
+```
+
+Security findings are stored in the baseline and compared across runs to detect security regressions.
+
+## Documentation Quality
+
+Bellwether scores documentation quality for all tools:
+
+```
+─── Documentation Quality ───
+  📊 Score: 85/100 (B)
+  Grade: B → A
+  ✓ Issues fixed: 3
+```
+
+Documentation is scored on:
+- **Description Coverage** (30%) - Tools with descriptions
+- **Description Quality** (30%) - Length, clarity, examples
+- **Parameter Documentation** (25%) - Parameters with descriptions
+- **Example Coverage** (15%) - Tools with usage examples
+
+Grades: A (90+), B (80+), C (70+), D (60+), F (below 60)
+
+## Error Analysis
+
+Bellwether performs enhanced error analysis with root cause inference:
+
+```
+─── Error Analysis ───
+  Tool: read_file
+  Category: NotFound (404)
+  Root Cause: File does not exist at specified path
+  Remediation: Verify the file path exists before calling read_file
+  Related Parameters: path
+```
+
+Error patterns are tracked across runs to detect changes in error behavior.
 
 ## Custom Scenarios
 

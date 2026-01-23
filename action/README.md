@@ -7,7 +7,10 @@ Structural drift detection for MCP servers in CI/CD. Free. Deterministic. Fast.
 ## Features
 
 - **Structural Drift Detection** - Catch tool additions, removals, schema changes
-- **Performance Regression Detection** - Flag tools with increased latency
+- **Performance Regression Detection** - Flag tools with increased latency, with confidence scoring
+- **Security Testing** - Detect SQL injection, path traversal, command injection, XSS, SSRF
+- **Documentation Quality** - Score and grade tool documentation quality (A-F)
+- **Error Pattern Analysis** - Track error trends with root cause analysis
 - **Zero LLM Required** - No API keys, no token costs
 - **Deterministic** - Same input = same output
 - **CI/CD Gating** - Block deployments when behavior drifts unexpectedly
@@ -36,7 +39,7 @@ jobs:
           server-command: 'npx @mcp/your-server'
 ```
 
-No secrets needed. Free. Runs in seconds.
+No secrets needed. Free. Runs in seconds. The action will create `bellwether.yaml` with `--preset ci` if it does not exist.
 
 ## Usage
 
@@ -107,12 +110,12 @@ Generate JUnit XML for test reporting:
   uses: dotsetlabs/bellwether@v1
   with:
     server-command: 'npx @mcp/your-server'
-    output-format: 'junit'
+    format: 'junit'
 
 - name: Publish Test Results
   uses: mikepenz/action-junit-report@v4
   with:
-    report_paths: 'bellwether-results.xml'
+    report_paths: 'bellwether-junit.xml'
 ```
 
 ### With SARIF for Code Scanning
@@ -124,7 +127,7 @@ Generate SARIF for GitHub Code Scanning:
   uses: dotsetlabs/bellwether@v1
   with:
     server-command: 'npx @mcp/your-server'
-    output-format: 'sarif'
+    format: 'sarif'
 
 - name: Upload SARIF
   uses: github/codeql-action/upload-sarif@v3
@@ -157,6 +160,20 @@ Only test tools with changed schemas:
     incremental: 'true'
     baseline-path: './bellwether-baseline.json'
 ```
+
+### With Security Testing
+
+Enable security vulnerability testing:
+
+```yaml
+- name: Security Check
+  uses: dotsetlabs/bellwether@v1
+  with:
+    server-command: 'npx @mcp/your-server'
+    security: 'true'
+```
+
+Security testing probes for SQL injection, path traversal, command injection, XSS, and SSRF vulnerabilities.
 
 ### With Server Environment Variables
 
@@ -191,20 +208,26 @@ server:
 | `server-args` | Arguments to pass to the server | No | `''` |
 | `config-path` | Path to bellwether.yaml config file | No | `bellwether.yaml` |
 | `baseline-path` | Path to baseline file for drift comparison | No | `bellwether-baseline.json` |
-| `fail-on-drift` | Fail if drift is detected | No | `true` |
+| `fail-on-drift` | Fail if drift is detected (deprecated) | No | `true` |
 | `save-baseline` | Save baseline after test | No | `false` |
-| `output-dir` | Directory for output files | No | `.` |
+| `output-dir` | Directory for output files (should match config output.dir/docsDir) | No | `.` |
 
 ### Advanced Inputs
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `output-format` | Output format: `text`, `json`, `junit`, `sarif` | No | `text` |
-| `parallel` | Enable parallel tool testing | No | From config |
+| `format` | Output format: `text`, `json`, `compact`, `github`, `markdown`, `junit`, `sarif` | No | `github` |
+| `parallel` | Enable parallel tool testing | No | `true` |
 | `parallel-workers` | Number of concurrent workers (1-10) | No | `4` |
 | `incremental` | Only test tools with changed schemas | No | `false` |
+| `incremental-cache-hours` | Max age of cached results in hours for incremental mode | No | `168` |
 | `fail-on-severity` | Failure threshold: `info`, `warning`, `breaking` | No | `breaking` |
+| `min-severity` | Minimum severity to report | No | `info` |
 | `performance-threshold` | Performance regression threshold (%) | No | `10` |
+| `security` | Enable security testing (injection, traversal, etc.) | No | `false` |
+| `upload-sarif` | Upload SARIF results to GitHub Code Scanning | No | `true` |
+| `accept-drift` | Accept detected drift as intentional and update baseline | No | `false` |
+| `accept-reason` | Reason for accepting drift (used with accept-drift) | No | `''` |
 
 ## Outputs
 
@@ -212,14 +235,19 @@ server:
 |--------|-------------|
 | `result` | Check result: `passed` or `failed` |
 | `exit-code` | Exit code (0=clean, 1=info, 2=warning, 3=breaking, 4=error) |
+| `severity` | Highest change severity: `none`, `info`, `warning`, `breaking` |
 | `drift-detected` | Whether drift was detected (`true`/`false`) |
-| `drift-severity` | Severity level: `none`, `info`, `warning`, `breaking` |
 | `tool-count` | Number of tools discovered |
 | `breaking-count` | Number of breaking changes |
 | `warning-count` | Number of warning changes |
 | `info-count` | Number of info changes |
+| `doc-score` | Documentation quality score (0-100) |
+| `doc-grade` | Documentation quality grade (A-F) |
+| `security-findings` | Number of security findings (when `--security` enabled) |
 | `contract-md` | Path to generated CONTRACT.md file |
 | `baseline-file` | Path to baseline file |
+| `sarif-file` | Path to SARIF file (when format includes sarif) |
+| `junit-file` | Path to JUnit XML file (when format is junit) |
 
 ## Artifacts
 
@@ -231,6 +259,8 @@ The action automatically uploads:
 ## Configuration
 
 All settings are configured in `bellwether.yaml`. If no config file exists, the action automatically creates one with `--preset ci` (optimized for CI).
+
+If you customize `output.dir` or `output.docsDir`, set the action `output-dir` input to the same value so artifact paths resolve correctly.
 
 ### Create Config Locally
 
@@ -338,6 +368,8 @@ Use the `fail-on-severity` input to control when the action fails:
 | Variable | Description |
 |----------|-------------|
 | `BELLWETHER_SESSION` | Cloud session token for uploads |
+| `BELLWETHER_API_URL` | Cloud API URL override (for self-hosted or staging) |
+| `BELLWETHER_TEAM_ID` | Override active team for cloud operations |
 
 ## Migration from v0.x
 

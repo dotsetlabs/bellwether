@@ -25,6 +25,10 @@ bellwether init "npx @mcp/server /data"
 
 The `init` command creates a `bellwether.yaml` configuration file in the current directory. This file controls all aspects of how Bellwether checks and explores your MCP server.
 
+:::note Required First Step
+Every CLI command (except `init`) requires this config file. Run `bellwether init` once per project.
+:::
+
 ## Arguments
 
 | Argument | Description |
@@ -48,10 +52,10 @@ Presets configure Bellwether for common use cases:
 
 | Preset | Description |
 |:-------|:------------|
-| `ci` | Fast, free, deterministic - perfect for CI/CD with `failOnDrift: true` |
+| `ci` | Optimized for CI/CD: `failOnDrift: true`, parallel testing, higher sampling confidence |
 | `local` | Explore mode with local Ollama (free LLM) |
-| `security` | Security-focused exploration with security persona |
-| `thorough` | Comprehensive exploration with all personas |
+| `security` | Security testing enabled with all categories, plus security persona for explore |
+| `thorough` | Comprehensive testing: all personas, security enabled, high confidence sampling, workflow discovery |
 
 ## Examples
 
@@ -110,7 +114,7 @@ bellwether init --force "npx your-server"
 
 ## Generated Configuration
 
-The generated `bellwether.yaml` includes:
+The generated `bellwether.yaml` includes all available options with sensible defaults. Key sections:
 
 ```yaml
 # Bellwether Configuration
@@ -120,9 +124,62 @@ The generated `bellwether.yaml` includes:
 # =============================================================================
 server:
   command: "npx @modelcontextprotocol/server-filesystem"
-  args:
-    - "/tmp"
+  args: ["/tmp"]
   timeout: 30000
+  env: {}
+
+# =============================================================================
+# OUTPUT
+# =============================================================================
+output:
+  dir: ".bellwether"    # JSON output directory
+  docsDir: "."          # Documentation (CONTRACT.md, AGENTS.md)
+  format: both          # agents.md, json, or both
+
+  # Example output settings
+  examples:
+    full: true          # Include full examples in documentation
+    maxLength: 5000     # Maximum example length
+    maxPerTool: 5       # Maximum examples per tool
+
+# =============================================================================
+# CHECK SETTINGS
+# =============================================================================
+check:
+  incremental: false          # Only test changed tools
+  incrementalCacheHours: 168  # Cache age (1 week)
+  parallel: true              # Parallel tool testing (recommended)
+  parallelWorkers: 4          # Concurrent workers (1-10)
+  performanceThreshold: 10    # Regression threshold (%)
+
+  # Security testing
+  security:
+    enabled: false
+    categories:
+      - sql_injection
+      - xss
+      - path_traversal
+      - command_injection
+      - ssrf
+
+  # Statistical sampling
+  sampling:
+    minSamples: 3              # Minimum samples per tool
+    targetConfidence: medium   # low, medium, or high
+    failOnLowConfidence: false
+
+# =============================================================================
+# BASELINE
+# =============================================================================
+baseline:
+  comparePath: ""
+  savePath: ""
+  failOnDrift: false
+
+  severity:
+    minimumSeverity: none
+    failOnSeverity: breaking
+    suppressWarnings: false
 
 # =============================================================================
 # LLM SETTINGS (for explore command)
@@ -137,39 +194,19 @@ llm:
 # EXPLORE SETTINGS
 # =============================================================================
 explore:
-  personas:
-    - technical_writer
+  personas: [technical_writer]
   maxQuestionsPerTool: 3
   parallelPersonas: false
   skipErrorTests: false
 
 # =============================================================================
-# SCENARIOS (for check and explore)
-# =============================================================================
-scenarios:
-  path: ""
-  only: false
-
-# =============================================================================
-# WORKFLOWS (for explore)
+# WORKFLOWS
 # =============================================================================
 workflows:
-  path: ""
   discover: false
   trackState: false
-
-# =============================================================================
-# OUTPUT
-# =============================================================================
-output:
-  dir: "."
-
-# =============================================================================
-# BASELINE (for check)
-# =============================================================================
-baseline:
-  comparePath: ""
-  failOnDrift: false
+  autoGenerate: true      # Auto-generate from tool patterns
+  stepTimeout: 5000
 
 # =============================================================================
 # CACHE
@@ -185,6 +222,10 @@ logging:
   level: info
   verbose: false
 ```
+
+:::tip Config-First Design
+All customization is done through this configuration file. CLI commands have minimal flags—only `--config`, `--format`, and operational flags like `--accept-drift`.
+:::
 
 ## Two Commands
 

@@ -17,11 +17,19 @@ import {
 } from '../../baseline/migrations.js';
 import { recalculateIntegrityHash } from '../../baseline/saver.js';
 import type { BehavioralBaseline } from '../../baseline/types.js';
+import { loadConfig, ConfigNotFoundError } from '../../config/loader.js';
 
-/**
- * Default baseline path.
- */
-const DEFAULT_BASELINE_PATH = 'bellwether-baseline.json';
+function loadConfigOrExit(configPath?: string) {
+  try {
+    return loadConfig(configPath);
+  } catch (error) {
+    if (error instanceof ConfigNotFoundError) {
+      output.error(error.message);
+      process.exit(EXIT_CODES.ERROR);
+    }
+    throw error;
+  }
+}
 
 /**
  * Load raw baseline JSON without full validation.
@@ -55,17 +63,28 @@ function saveMigratedBaseline(baseline: BehavioralBaseline, path: string): void 
  */
 export const migrateCommand = new Command('migrate')
   .description('Migrate baseline to current format version')
-  .argument('[path]', 'Path to baseline file', DEFAULT_BASELINE_PATH)
+  .argument('[path]', 'Path to baseline file')
+  .option('-c, --config <path>', 'Path to config file')
   .option('--dry-run', 'Show what would change without writing')
   .option('-o, --output <path>', 'Output path (default: overwrite input)')
   .option('-f, --force', 'Overwrite output file without prompting')
   .option('--info', 'Show migration info without performing migration')
-  .action(async (baselinePath: string, options) => {
+  .action(async (baselinePath: string | undefined, options) => {
     try {
+      const config = loadConfigOrExit(options.config);
+      const outputDir = config.output.dir;
+      const resolvedBaselinePath = baselinePath ?? config.baseline.path;
+
+      if (!resolvedBaselinePath) {
+        output.error('No baseline path provided. Set baseline.path in config or pass a path argument.');
+        process.exit(EXIT_CODES.ERROR);
+      }
+
       // Resolve path
-      const fullPath = baselinePath.startsWith('/')
-        ? baselinePath
-        : join(process.cwd(), baselinePath);
+      const baseDir = baselinePath ? process.cwd() : outputDir;
+      const fullPath = resolvedBaselinePath.startsWith('/')
+        ? resolvedBaselinePath
+        : join(baseDir, resolvedBaselinePath);
 
       // Load raw baseline
       const rawBaseline = loadRawBaseline(fullPath);

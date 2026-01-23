@@ -17,6 +17,10 @@ bellwether discover [command] [args...] [options]
 
 The `discover` command connects to an MCP server and lists its capabilities (tools, prompts, and resources) without conducting a full check. This is useful for quick reconnaissance or verifying server connectivity.
 
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `discover`.
+:::
+
 For remote MCP servers, use `--transport sse` or `--transport streamable-http` with `--url` instead of providing a command.
 
 ## Arguments
@@ -32,14 +36,15 @@ For remote MCP servers, use `--transport sse` or `--transport streamable-http` w
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `--json` | Output as JSON | `false` |
-| `--timeout <ms>` | Connection timeout in milliseconds | `30000` |
+| `-c, --config <path>` | Path to config file | `bellwether.yaml` |
+| `--json` | Output as JSON | `discovery.json` |
+| `--timeout <ms>` | Connection timeout in milliseconds | `discovery.timeout` |
 
 ### Remote Server Options
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `--transport <type>` | Transport type: `stdio`, `sse`, `streamable-http` | `stdio` |
+| `--transport <type>` | Transport type: `stdio`, `sse`, `streamable-http` | `discovery.transport` |
 | `--url <url>` | URL for remote MCP server (requires `--transport sse` or `streamable-http`) | - |
 | `--session-id <id>` | Session ID for remote server authentication | - |
 

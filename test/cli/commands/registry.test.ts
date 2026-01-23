@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdirSync, rmSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import { createRegistryCommand } from '../../../src/cli/commands/registry.js';
 
 // Mock chalk to return strings without colors
@@ -36,11 +39,19 @@ vi.mock('../../../src/registry/index.js', () => ({
 import { RegistryClient, generateRunCommand } from '../../../src/registry/index.js';
 
 describe('Registry Command', () => {
+  let testDir: string;
+  let originalCwd: string;
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
   let mockClient: typeof mockClientInstance;
 
   beforeEach(() => {
+    testDir = join(tmpdir(), `bellwether-registry-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(testDir, { recursive: true });
+    originalCwd = process.cwd();
+    process.chdir(testDir);
+    writeFileSync(join(process.cwd(), 'bellwether.yaml'), '');
+
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -54,6 +65,12 @@ describe('Registry Command', () => {
   afterEach(() => {
     consoleLogSpy.mockRestore();
     consoleErrorSpy.mockRestore();
+    process.chdir(originalCwd);
+    try {
+      rmSync(testDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
     vi.clearAllMocks();
   });
 

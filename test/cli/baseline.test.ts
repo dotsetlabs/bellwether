@@ -137,12 +137,23 @@ describe('baseline command', () => {
         mode: 'check',
         llm: { provider: 'ollama', model: '', ollama: { baseUrl: 'http://localhost:11434' } },
         explore: { personas: [], maxQuestionsPerTool: 3, parallelPersonas: false, skipErrorTests: false },
-        output: { dir: '.', format: 'agents.md' },
-        baseline: { failOnDrift: false },
+        output: {
+          dir: '.',
+          docsDir: '.',
+          format: 'agents.md',
+          files: {
+            checkReport: 'bellwether-check.json',
+            exploreReport: 'bellwether-explore.json',
+            contractDoc: 'CONTRACT.md',
+            agentsDoc: 'AGENTS.md',
+            verificationReport: 'bellwether-verification.json',
+          },
+        },
+        baseline: { failOnDrift: false, path: 'bellwether-baseline.json', outputFormat: 'text' },
         cache: { enabled: true, dir: '.bellwether/cache' },
         logging: { level: 'info', verbose: false },
         scenarios: { only: false },
-        workflows: { discover: false, trackState: false },
+        workflows: { discover: false, trackState: false, autoGenerate: true, stepTimeout: 5000, timeouts: {} },
       }),
       ConfigNotFoundError: class ConfigNotFoundError extends Error {
         constructor() {
@@ -302,7 +313,7 @@ describe('baseline command', () => {
       const compareCmd = baselineCommand.commands.find(c => c.name() === 'compare');
       const args = compareCmd?.registeredArguments || [];
       expect(args[0]?.name()).toBe('baseline-path');
-      expect(args[0]?.required).toBe(true);
+      expect(args[0]?.required).toBe(false);
     });
 
     it('should have format option', async () => {
@@ -310,7 +321,7 @@ describe('baseline command', () => {
       const compareCmd = baselineCommand.commands.find(c => c.name() === 'compare');
       const formatOpt = compareCmd?.options.find(o => o.long === '--format');
       expect(formatOpt).toBeDefined();
-      expect(formatOpt?.defaultValue).toBe('text');
+      expect(formatOpt?.defaultValue).toBeUndefined();
     });
 
     it('should have fail-on-drift option', async () => {
@@ -399,7 +410,7 @@ describe('baseline command', () => {
       const diffCmd = baselineCommand.commands.find(c => c.name() === 'diff');
       const formatOpt = diffCmd?.options.find(o => o.long === '--format');
       expect(formatOpt).toBeDefined();
-      expect(formatOpt?.defaultValue).toBe('text');
+      expect(formatOpt?.defaultValue).toBeUndefined();
     });
 
     it('should error when first baseline not found', async () => {

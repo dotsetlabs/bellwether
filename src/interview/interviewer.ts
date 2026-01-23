@@ -27,7 +27,8 @@ import type { PromptQuestion, ResourceQuestion } from './types.js';
 import { evaluateAssertions } from '../scenarios/evaluator.js';
 import { withTimeout, DEFAULT_TIMEOUTS, parallelLimit, createMutex } from '../utils/index.js';
 import type { ToolResponseCache } from '../cache/response-cache.js';
-import { INTERVIEW, WORKFLOW, DISPLAY_LIMITS } from '../constants.js';
+import { INTERVIEW, WORKFLOW, DISPLAY_LIMITS, SCHEMA_TESTING } from '../constants.js';
+import { generateSchemaTests } from './schema-test-generator.js';
 import { WorkflowDiscoverer } from '../workflow/discovery.js';
 import { WorkflowExecutor } from '../workflow/executor.js';
 import type { Workflow, WorkflowResult } from '../workflow/types.js';
@@ -144,7 +145,9 @@ export class Interviewer {
     }
 
     // Use multiple personas by default for better coverage
-    this.personas = config?.personas ?? DEFAULT_PERSONAS;
+    // Fall back to DEFAULT_PERSONAS if no personas provided or empty array
+    const providedPersonas = config?.personas;
+    this.personas = (providedPersonas && providedPersonas.length > 0) ? providedPersonas : DEFAULT_PERSONAS;
     // Store cache reference for tool response and analysis caching
     this.cache = config?.cache;
   }
@@ -1520,62 +1523,25 @@ export class Interviewer {
   /**
    * Get fallback questions for a tool without requiring an orchestrator.
    * Used in check mode when parallel tool testing is enabled.
+   *
+   * Uses the SchemaTestGenerator to produce comprehensive deterministic tests
+   * including boundaries, type coercion, enum validation, and error handling.
    */
   private getFallbackQuestionsForTool(
     tool: MCPTool,
     skipErrorTests: boolean
   ): InterviewQuestion[] {
-    const questions: InterviewQuestion[] = [];
-    const schema = tool.inputSchema;
+    // Use the enhanced schema test generator for comprehensive coverage
+    // Allow more tests in check mode since there's no LLM cost
+    const maxTests = Math.max(
+      this.config.maxQuestionsPerTool * 4,
+      SCHEMA_TESTING.MAX_TESTS_PER_TOOL
+    );
 
-    // Happy path: empty args if no required params
-    const requiredParams = schema?.required as string[] | undefined;
-    if (!requiredParams || requiredParams.length === 0) {
-      questions.push({
-        description: 'Test with empty arguments',
-        category: 'happy_path',
-        args: {},
-      });
-    }
-
-    // Build minimal required args
-    const properties = schema?.properties as Record<string, unknown> | undefined;
-    if (properties && requiredParams && requiredParams.length > 0) {
-      const minimalArgs: Record<string, unknown> = {};
-      for (const param of requiredParams) {
-        const prop = properties[param] as { type?: string } | undefined;
-        if (prop?.type === 'string') {
-          minimalArgs[param] = 'test';
-        } else if (prop?.type === 'number' || prop?.type === 'integer') {
-          minimalArgs[param] = 1;
-        } else if (prop?.type === 'boolean') {
-          minimalArgs[param] = true;
-        } else if (prop?.type === 'array') {
-          minimalArgs[param] = [];
-        } else if (prop?.type === 'object') {
-          minimalArgs[param] = {};
-        } else {
-          minimalArgs[param] = 'test';
-        }
-      }
-
-      questions.push({
-        description: 'Test with minimal required arguments',
-        category: 'happy_path',
-        args: minimalArgs,
-      });
-    }
-
-    // Error handling: missing required param (if we have required params)
-    if (!skipErrorTests && requiredParams && requiredParams.length > 0) {
-      questions.push({
-        description: 'Test error handling with missing required argument',
-        category: 'error_handling',
-        args: {},
-      });
-    }
-
-    return questions;
+    return generateSchemaTests(tool, {
+      skipErrorTests,
+      maxTestsPerTool: maxTests,
+    });
   }
 
   /**
@@ -1901,12 +1867,21 @@ export class Interviewer {
       progress.workflowsCompleted = 0;
       onProgress?.(progress);
 
+      const stepTimeout = workflowConfig.stepTimeout ?? WORKFLOW.STEP_TIMEOUT;
+      const timeouts = workflowConfig.timeouts ?? {
+        toolCall: stepTimeout,
+        stateSnapshot: WORKFLOW.STATE_SNAPSHOT_TIMEOUT,
+        probeTool: WORKFLOW.PROBE_TOOL_TIMEOUT,
+        llmAnalysis: WORKFLOW.LLM_ANALYSIS_TIMEOUT,
+        llmSummary: WORKFLOW.LLM_SUMMARY_TIMEOUT,
+      };
+
       const executor = new WorkflowExecutor(
         client,
         this.llm,
         discovery.tools,
         {
-          stepTimeout: WORKFLOW.STEP_TIMEOUT,
+          stepTimeout,
           analyzeSteps: !this.config.customScenariosOnly,
           generateSummary: !this.config.customScenariosOnly,
           stateTracking: workflowConfig.enableStateTracking
@@ -1917,13 +1892,7 @@ export class Interviewer {
               snapshotAfterEachStep: false,
             }
             : undefined,
-          timeouts: {
-            toolCall: WORKFLOW.STEP_TIMEOUT,
-            stateSnapshot: WORKFLOW.STATE_SNAPSHOT_TIMEOUT,
-            probeTool: WORKFLOW.PROBE_TOOL_TIMEOUT,
-            llmAnalysis: WORKFLOW.LLM_ANALYSIS_TIMEOUT,
-            llmSummary: WORKFLOW.LLM_SUMMARY_TIMEOUT,
-          },
+          timeouts,
         }
       );
 

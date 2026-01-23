@@ -17,17 +17,21 @@ bellwether upload [baseline] [options]
 
 The `upload` command uploads your local baseline to Bellwether Cloud, enabling historical tracking and CI/CD drift detection.
 
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `upload`.
+:::
+
 ## Arguments
 
 | Argument | Description | Default |
 |:---------|:------------|:--------|
-| `[baseline]` | Path to baseline JSON file | `bellwether-baseline.json` |
+| `[baseline]` | Path to baseline JSON file | `baseline.path` |
 
 ## Options
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `-b, --baseline <path>` | Path to baseline JSON file | `bellwether-baseline.json` |
+| `-b, --baseline <path>` | Path to baseline JSON file | `baseline.path` |
 | `-c, --config <path>` | Path to config file | `bellwether.yaml` |
 | `-p, --project <id>` | Project ID to upload to | Uses linked project |
 | `--ci` | CI mode: output URL only, exit 1 on breaking drift | `false` |

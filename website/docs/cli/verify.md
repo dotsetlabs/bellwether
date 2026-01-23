@@ -25,6 +25,10 @@ All verification tiers require an LLM. The `verify` command uses LLM-powered int
 Like `bellwether check` and `bellwether explore`, the `verify` command reads configuration from `bellwether.yaml`. Simply run `bellwether verify` and it uses your config file for the server command, LLM settings, and output options. CLI arguments override config values when provided.
 :::
 
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `verify`.
+:::
+
 ## Arguments
 
 | Argument | Description |
@@ -53,9 +57,15 @@ Like `bellwether check` and `bellwether explore`, the `verify` command reads con
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `-o, --output <dir>` | Output directory | `.` |
+| `-o, --output <dir>` | Output directory | `output.dir` |
 | `--json` | Output verification result as JSON | `false` |
 | `--badge-only` | Only output badge URL | `false` |
+
+### Output Files
+
+| File | Description |
+|:-----|:------------|
+| `bellwether-verification.json` | Verification report output (configurable via `output.files.verificationReport`) |
 
 ### Cloud Options
 

@@ -26,6 +26,9 @@ To request access, [join the waitlist at bellwether.sh](https://bellwether.sh). 
 ## Quick Start
 
 ```bash
+# Initialize configuration (required before any other command)
+bellwether init npx @mcp/your-server
+
 # 1. Authenticate with GitHub
 bellwether login
 

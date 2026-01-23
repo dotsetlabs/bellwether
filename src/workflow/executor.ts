@@ -61,7 +61,7 @@ export class WorkflowExecutor {
 
   constructor(
     private client: MCPClient,
-    private llm: LLMClient,
+    private llm: LLMClient | null,
     private tools: MCPTool[],
     private options: WorkflowExecutorOptions = {}
   ) {
@@ -74,8 +74,9 @@ export class WorkflowExecutor {
     this.timeouts = this.options.timeouts as Required<WorkflowTimeoutConfig>;
     this.onProgress = options.onProgress;
 
-    // Initialize state tracker if enabled, passing timeout config
-    if (this.options.stateTracking?.enabled) {
+    // Initialize state tracker if enabled and LLM is available
+    // State tracking requires LLM for analysis
+    if (this.options.stateTracking?.enabled && llm) {
       this.stateTracker = new StateTracker(
         client,
         tools,
@@ -619,6 +620,7 @@ export class WorkflowExecutor {
 
   /**
    * Generate LLM analysis for a step.
+   * Returns a fallback message if LLM is not available (check mode).
    */
   private async analyzeStep(
     step: WorkflowStep,
@@ -627,6 +629,11 @@ export class WorkflowExecutor {
     response: MCPToolCallResult | null,
     error: string | undefined
   ): Promise<string> {
+    // Skip LLM analysis if no LLM is available (check mode)
+    if (!this.llm) {
+      return error ? `Step failed: ${error}` : 'Step completed.';
+    }
+
     const prompt = buildWorkflowStepAnalysisPrompt({
       workflow,
       step,
@@ -644,12 +651,20 @@ export class WorkflowExecutor {
 
   /**
    * Generate a summary of the workflow execution.
+   * Returns a fallback message if LLM is not available (check mode).
    */
   private async generateWorkflowSummary(
     workflow: Workflow,
     stepResults: WorkflowStepResult[],
     success: boolean
   ): Promise<string> {
+    // Skip LLM summary if no LLM is available (check mode)
+    if (!this.llm) {
+      return success
+        ? `Workflow "${workflow.name}" completed successfully with ${stepResults.length} steps.`
+        : `Workflow "${workflow.name}" failed at step ${stepResults.findIndex(r => !r.success) + 1}.`;
+    }
+
     const prompt = buildWorkflowSummaryPrompt({ workflow, stepResults, success });
 
     try {

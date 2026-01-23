@@ -24,25 +24,16 @@ import {
 } from '../../baseline/index.js';
 import type { InterviewResult } from '../../interview/types.js';
 import { loadConfig, ConfigNotFoundError } from '../../config/loader.js';
-import { PATHS, EXIT_CODES } from '../../constants.js';
+import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 
-/**
- * Default paths for baseline files.
- */
-const DEFAULT_BASELINE_PATH = PATHS.DEFAULT_BASELINE_FILE;
-const DEFAULT_REPORT_PATH = PATHS.DEFAULT_CHECK_REPORT_FILE;
-
-/**
- * Get the output directory from config or use current directory.
- */
-function getOutputDir(configPath?: string): string {
+function loadConfigOrExit(configPath?: string) {
   try {
-    const config = loadConfig(configPath);
-    return config.output.dir;
+    return loadConfig(configPath);
   } catch (error) {
     if (error instanceof ConfigNotFoundError) {
-      return '.';
+      output.error(error.message);
+      process.exit(EXIT_CODES.ERROR);
     }
     throw error;
   }
@@ -88,19 +79,26 @@ export const acceptCommand = new Command('accept')
   .description('Accept detected drift as intentional and update the baseline')
   .option('-c, --config <path>', 'Path to config file')
   .option('--report <path>', 'Path to test report JSON file')
-  .option('--baseline <path>', 'Path to baseline file', DEFAULT_BASELINE_PATH)
+  .option('--baseline <path>', 'Path to baseline file')
   .option('--reason <reason>', 'Reason for accepting the drift')
   .option('--accepted-by <name>', 'Who is accepting the drift (for audit trail)')
   .option('--dry-run', 'Show what would be accepted without making changes')
   .option('-f, --force', 'Skip confirmation prompt')
   .action(async (options) => {
-    const outputDir = getOutputDir(options.config);
+    const config = loadConfigOrExit(options.config);
+    const outputDir = config.output.dir;
+    const resolvedBaselinePath = options.baseline ?? config.baseline.comparePath ?? config.baseline.path;
+
+    if (!resolvedBaselinePath) {
+      output.error('No baseline path provided. Set baseline.path or baseline.comparePath in config, or pass --baseline.');
+      process.exit(EXIT_CODES.ERROR);
+    }
 
     // Determine paths
-    const baselinePath = options.baseline.startsWith('/')
-      ? options.baseline
-      : join(outputDir, options.baseline);
-    const reportPath = options.report || join(outputDir, DEFAULT_REPORT_PATH);
+    const baselinePath = resolvedBaselinePath.startsWith('/')
+      ? resolvedBaselinePath
+      : join(outputDir, resolvedBaselinePath);
+    const reportPath = options.report || join(outputDir, config.output.files.checkReport);
 
     // Load the existing baseline
     if (!existsSync(baselinePath)) {

@@ -5,8 +5,8 @@
  * Provides percentile-based metrics (p50, p95, p99) for comprehensive latency analysis.
  */
 
-import type { BehavioralBaseline, ChangeSeverity } from './types.js';
-import { PERFORMANCE_TRACKING } from '../constants.js';
+import type { BehavioralBaseline, ChangeSeverity, PerformanceConfidence } from './types.js';
+import { PERFORMANCE_TRACKING, PERFORMANCE_CONFIDENCE } from '../constants.js';
 /**
  * Latency trend direction.
  */
@@ -38,6 +38,8 @@ export interface ToolPerformanceMetrics {
   stdDevMs: number;
   /** Timestamp of when metrics were collected */
   collectedAt: Date;
+  /** Statistical confidence metrics */
+  confidence?: PerformanceConfidence;
 }
 
 /**
@@ -84,6 +86,10 @@ export interface PerformanceComparison {
   severity: ChangeSeverity;
   /** Human-readable summary */
   summary: string;
+  /** Current confidence level */
+  confidence?: PerformanceConfidence;
+  /** Whether the regression is statistically reliable (based on confidence) */
+  isReliable: boolean;
 }
 
 /**
@@ -104,6 +110,12 @@ export interface PerformanceReport {
   overallSeverity: ChangeSeverity;
   /** Human-readable summary */
   summary: string;
+  /** Number of tools with low confidence */
+  lowConfidenceCount: number;
+  /** Tools with low confidence (names) */
+  lowConfidenceTools: string[];
+  /** Number of reliable regressions (regressions with good confidence) */
+  reliableRegressionCount: number;
 }
 
 /**
@@ -118,6 +130,178 @@ export interface LatencySample {
 
 // Re-export centralized constant for backwards compatibility
 export { PERFORMANCE_TRACKING as PERFORMANCE } from '../constants.js';
+
+/**
+ * Calculate statistical confidence for performance metrics.
+ *
+ * Confidence is determined by:
+ * 1. Sample count - more samples = higher confidence
+ * 2. Coefficient of variation (CV) - lower variability = higher confidence
+ *
+ * @param samples - The latency samples to analyze
+ * @returns Performance confidence metrics
+ */
+export function calculatePerformanceConfidence(
+  samples: LatencySample[]
+): PerformanceConfidence {
+  const sampleCount = samples.length;
+
+  // Handle no samples case
+  if (sampleCount === 0) {
+    return {
+      sampleCount: 0,
+      standardDeviation: 0,
+      coefficientOfVariation: 0,
+      confidenceLevel: 'low',
+      recommendation: PERFORMANCE_CONFIDENCE.RECOMMENDATIONS.NO_SAMPLES,
+    };
+  }
+
+  // Get successful samples only (failed calls don't contribute to latency metrics)
+  const successfulSamples = samples.filter(s => s.success);
+  const durations = successfulSamples.map(s => s.durationMs);
+
+  // Handle all failures case
+  if (durations.length === 0) {
+    return {
+      sampleCount,
+      standardDeviation: 0,
+      coefficientOfVariation: 0,
+      confidenceLevel: 'low',
+      recommendation: 'All samples failed; cannot calculate performance confidence',
+    };
+  }
+
+  // Calculate mean
+  const mean = durations.reduce((sum, d) => sum + d, 0) / durations.length;
+
+  // Calculate standard deviation
+  const squaredDiffs = durations.map(d => Math.pow(d - mean, 2));
+  const variance = squaredDiffs.reduce((sum, d) => sum + d, 0) / durations.length;
+  const standardDeviation = Math.sqrt(variance);
+
+  // Calculate coefficient of variation (CV = stdDev / mean)
+  // CV is undefined when mean is 0, treat as 0 (consistent)
+  const coefficientOfVariation = mean > 0 ? standardDeviation / mean : 0;
+
+  // Determine confidence level based on thresholds
+  const { confidenceLevel, recommendation } = determineConfidenceLevel(
+    durations.length,
+    coefficientOfVariation
+  );
+
+  return {
+    sampleCount: durations.length,
+    standardDeviation,
+    coefficientOfVariation,
+    confidenceLevel,
+    recommendation,
+  };
+}
+
+/**
+ * Determine confidence level based on sample count and coefficient of variation.
+ */
+function determineConfidenceLevel(
+  sampleCount: number,
+  coefficientOfVariation: number
+): { confidenceLevel: 'high' | 'medium' | 'low'; recommendation?: string } {
+  // Check for high confidence
+  if (
+    sampleCount >= PERFORMANCE_CONFIDENCE.HIGH.MIN_SAMPLES &&
+    coefficientOfVariation <= PERFORMANCE_CONFIDENCE.HIGH.MAX_CV
+  ) {
+    return { confidenceLevel: 'high' };
+  }
+
+  // Check for medium confidence
+  if (
+    sampleCount >= PERFORMANCE_CONFIDENCE.MEDIUM.MIN_SAMPLES &&
+    coefficientOfVariation <= PERFORMANCE_CONFIDENCE.MEDIUM.MAX_CV
+  ) {
+    return { confidenceLevel: 'medium' };
+  }
+
+  // Low confidence - generate recommendation
+  let recommendation: string;
+
+  if (sampleCount < PERFORMANCE_CONFIDENCE.HIGH.MIN_SAMPLES) {
+    recommendation = PERFORMANCE_CONFIDENCE.RECOMMENDATIONS.LOW_SAMPLES(
+      sampleCount,
+      PERFORMANCE_CONFIDENCE.HIGH.MIN_SAMPLES
+    );
+  } else {
+    recommendation = PERFORMANCE_CONFIDENCE.RECOMMENDATIONS.HIGH_VARIABILITY;
+  }
+
+  return { confidenceLevel: 'low', recommendation };
+}
+
+/**
+ * Calculate performance confidence from ToolPerformanceMetrics.
+ * Use this when you already have calculated metrics but need confidence.
+ */
+export function calculateConfidenceFromMetrics(
+  metrics: ToolPerformanceMetrics
+): PerformanceConfidence {
+  const { sampleCount, avgMs, stdDevMs } = metrics;
+
+  // Handle edge cases
+  if (sampleCount === 0) {
+    return {
+      sampleCount: 0,
+      standardDeviation: 0,
+      coefficientOfVariation: 0,
+      confidenceLevel: 'low',
+      recommendation: PERFORMANCE_CONFIDENCE.RECOMMENDATIONS.NO_SAMPLES,
+    };
+  }
+
+  // Calculate coefficient of variation
+  const coefficientOfVariation = avgMs > 0 ? stdDevMs / avgMs : 0;
+
+  // Determine confidence level
+  const { confidenceLevel, recommendation } = determineConfidenceLevel(
+    sampleCount,
+    coefficientOfVariation
+  );
+
+  return {
+    sampleCount,
+    standardDeviation: stdDevMs,
+    coefficientOfVariation,
+    confidenceLevel,
+    recommendation,
+  };
+}
+
+/**
+ * Format confidence level for display.
+ */
+export function formatConfidenceLevel(
+  confidence: PerformanceConfidence,
+  includeIndicator: boolean = true
+): string {
+  const label = PERFORMANCE_CONFIDENCE.LABELS[confidence.confidenceLevel];
+  const indicator = includeIndicator
+    ? PERFORMANCE_CONFIDENCE.INDICATORS[confidence.confidenceLevel]
+    : '';
+
+  const sampleInfo = `n=${confidence.sampleCount}`;
+
+  if (confidence.recommendation) {
+    return `${indicator} ${label} (${sampleInfo}) - ${confidence.recommendation}`;
+  }
+
+  return `${indicator} ${label} (${sampleInfo})`;
+}
+
+/**
+ * Check if performance data has sufficient confidence for reliable comparisons.
+ */
+export function hasReliableConfidence(confidence: PerformanceConfidence): boolean {
+  return confidence.confidenceLevel === 'high' || confidence.confidenceLevel === 'medium';
+}
 /**
  * Calculate performance metrics from raw latency samples.
  */
@@ -132,6 +316,7 @@ export function calculateMetrics(samples: LatencySample[]): ToolPerformanceMetri
 
   if (durations.length === 0) {
     // All calls failed
+    const confidence = calculatePerformanceConfidence(samples);
     return {
       toolName,
       p50Ms: 0,
@@ -144,6 +329,7 @@ export function calculateMetrics(samples: LatencySample[]): ToolPerformanceMetri
       maxMs: 0,
       stdDevMs: 0,
       collectedAt: new Date(),
+      confidence,
     };
   }
 
@@ -160,6 +346,9 @@ export function calculateMetrics(samples: LatencySample[]): ToolPerformanceMetri
   const avgSquaredDiff = squaredDiffs.reduce((sum, d) => sum + d, 0) / squaredDiffs.length;
   const stdDevMs = Math.sqrt(avgSquaredDiff);
 
+  // Calculate confidence from samples
+  const confidence = calculatePerformanceConfidence(samples);
+
   return {
     toolName,
     p50Ms,
@@ -172,6 +361,7 @@ export function calculateMetrics(samples: LatencySample[]): ToolPerformanceMetri
     maxMs,
     stdDevMs,
     collectedAt: new Date(),
+    confidence,
   };
 }
 
@@ -252,6 +442,10 @@ export function comparePerformance(
   baseline: PerformanceBaseline | undefined,
   regressionThreshold: number = PERFORMANCE_TRACKING.DEFAULT_REGRESSION_THRESHOLD
 ): PerformanceComparison {
+  // Get confidence from current metrics, or calculate if not present
+  const confidence = current.confidence ?? calculateConfidenceFromMetrics(current);
+  const isReliable = hasReliableConfidence(confidence);
+
   // No baseline - can't compare
   if (!baseline) {
     return {
@@ -265,6 +459,8 @@ export function comparePerformance(
       hasRegression: false,
       severity: 'none',
       summary: `No baseline for "${current.toolName}" - metrics recorded for future comparison.`,
+      confidence,
+      isReliable,
     };
   }
 
@@ -285,8 +481,8 @@ export function comparePerformance(
   // Determine severity
   const severity = determinePerformanceSeverity(p50Regression, p95Regression, maxRegression);
 
-  // Generate summary
-  const summary = generateComparisonSummary(
+  // Generate summary (include confidence note if low)
+  let summary = generateComparisonSummary(
     current.toolName,
     trend,
     p50Regression,
@@ -294,6 +490,11 @@ export function comparePerformance(
     hasRegression,
     maxRegression
   );
+
+  // Add confidence warning if low
+  if (!isReliable && confidence.recommendation) {
+    summary += ` (Low confidence: ${confidence.recommendation})`;
+  }
 
   return {
     toolName: current.toolName,
@@ -306,6 +507,8 @@ export function comparePerformance(
     hasRegression,
     severity,
     summary,
+    confidence,
+    isReliable,
   };
 }
 
@@ -414,6 +617,9 @@ export function generatePerformanceReport(
   let regressionCount = 0;
   let improvementCount = 0;
   let stableCount = 0;
+  let lowConfidenceCount = 0;
+  let reliableRegressionCount = 0;
+  const lowConfidenceTools: string[] = [];
 
   // Compare each tool
   for (const [toolName, metrics] of currentMetrics) {
@@ -423,10 +629,19 @@ export function generatePerformanceReport(
 
     if (comparison.hasRegression) {
       regressionCount++;
+      if (comparison.isReliable) {
+        reliableRegressionCount++;
+      }
     } else if (comparison.trend === 'improving') {
       improvementCount++;
     } else {
       stableCount++;
+    }
+
+    // Track low confidence tools
+    if (!comparison.isReliable) {
+      lowConfidenceCount++;
+      lowConfidenceTools.push(toolName);
     }
   }
 
@@ -445,7 +660,12 @@ export function generatePerformanceReport(
   }, 'none');
 
   // Generate summary
-  const summary = generateReportSummary(regressionCount, improvementCount, stableCount, comparisons.length);
+  let summary = generateReportSummary(regressionCount, improvementCount, stableCount, comparisons.length);
+
+  // Add confidence summary if there are low confidence tools
+  if (lowConfidenceCount > 0) {
+    summary += ` (${lowConfidenceCount} tool(s) with low confidence)`;
+  }
 
   return {
     toolComparisons: comparisons,
@@ -455,6 +675,9 @@ export function generatePerformanceReport(
     overallTrend,
     overallSeverity,
     summary,
+    lowConfidenceCount,
+    lowConfidenceTools,
+    reliableRegressionCount,
   };
 }
 
@@ -489,7 +712,7 @@ function generateReportSummary(
  * Format performance metrics for display.
  */
 export function formatMetrics(metrics: ToolPerformanceMetrics): string {
-  return [
+  const lines = [
     `Tool: ${metrics.toolName}`,
     `  p50: ${metrics.p50Ms.toFixed(1)}ms`,
     `  p95: ${metrics.p95Ms.toFixed(1)}ms`,
@@ -497,7 +720,15 @@ export function formatMetrics(metrics: ToolPerformanceMetrics): string {
     `  avg: ${metrics.avgMs.toFixed(1)}ms`,
     `  success: ${(metrics.successRate * 100).toFixed(1)}%`,
     `  samples: ${metrics.sampleCount}`,
-  ].join('\n');
+  ];
+
+  // Add confidence if available
+  if (metrics.confidence) {
+    const confidenceLabel = formatConfidenceLevel(metrics.confidence, true);
+    lines.push(`  confidence: ${confidenceLabel}`);
+  }
+
+  return lines.join('\n');
 }
 
 /**
@@ -519,8 +750,18 @@ export function formatComparison(comparison: PerformanceComparison): string {
     lines.push(`  p95 change: ${sign}${(comparison.p95RegressionPercent * 100).toFixed(1)}%`);
   }
 
+  // Add confidence information
+  if (comparison.confidence) {
+    const confidenceLabel = formatConfidenceLevel(comparison.confidence, true);
+    lines.push(`  Confidence: ${confidenceLabel}`);
+  }
+
   if (comparison.hasRegression) {
-    lines.push(`  ⚠️ REGRESSION DETECTED`);
+    if (!comparison.isReliable) {
+      lines.push(`  ⚠️ REGRESSION DETECTED (low confidence - may not be reliable)`);
+    } else {
+      lines.push(`  ⚠️ REGRESSION DETECTED`);
+    }
   }
 
   return lines.join('\n');

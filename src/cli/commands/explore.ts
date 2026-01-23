@@ -2,7 +2,7 @@
  * Explore command - LLM-powered behavioral exploration for MCP servers.
  *
  * Purpose: Deep exploration and documentation of MCP server behavior.
- * Output: AGENTS.md, bellwether-explore.json
+ * Output: Documentation + JSON report (filenames configurable via output.files)
  * Baseline: None (use 'bellwether check' for drift detection)
  * LLM: Required (OpenAI, Anthropic, or Ollama)
  */
@@ -28,7 +28,7 @@ import {
   formatOptimizationSuggestions,
 } from '../../cost/index.js';
 import { getMetricsCollector, resetMetricsCollector } from '../../metrics/collector.js';
-import { EXIT_CODES, INTERVIEW, WORKFLOW, PATHS } from '../../constants.js';
+import { EXIT_CODES, WORKFLOW, PATHS } from '../../constants.js';
 import { FallbackLLMClient } from '../../llm/fallback.js';
 import { getGlobalCache, resetGlobalCache } from '../../cache/response-cache.js';
 import { InterviewProgressBar, formatExploreBanner } from '../utils/progress.js';
@@ -37,8 +37,9 @@ import { loadScenariosFromFile, tryLoadDefaultScenarios, DEFAULT_SCENARIOS_FILE 
 import { loadWorkflowsFromFile, tryLoadDefaultWorkflows, DEFAULT_WORKFLOWS_FILE } from '../../workflow/loader.js';
 import * as output from '../output.js';
 import { StreamingDisplay } from '../output.js';
-import { suppressLogs, restoreLogLevel } from '../../logging/logger.js';
-import { extractServerContextFromArgs, isCI } from './shared.js';
+import { suppressLogs, restoreLogLevel, configureLogger, type LogLevel } from '../../logging/logger.js';
+import { extractServerContextFromArgs } from '../utils/server-context.js';
+import { isCI } from '../utils/env.js';
 
 /**
  * Wrapper to parse personas with warning output.
@@ -87,10 +88,16 @@ export const exploreCommand = new Command('explore')
     const verbose = config.logging.verbose;
     const logLevel = config.logging.level;
 
+    if (!process.env.BELLWETHER_LOG_OVERRIDE) {
+      const effectiveLogLevel: LogLevel = verbose ? (logLevel as LogLevel) : 'silent';
+      configureLogger({ level: effectiveLogLevel });
+    }
+
     // Parse personas from config (using explore section)
     const selectedPersonas = parsePersonasWithWarning(config.explore.personas);
     const maxQuestions = config.explore.maxQuestionsPerTool;
     const parallelPersonas = config.explore.parallelPersonas;
+    const personaConcurrency = config.explore.personaConcurrency;
 
     // Get LLM settings from config
     const provider = config.llm.provider;
@@ -240,6 +247,8 @@ export const exploreCommand = new Command('explore')
           discoverWorkflows: config.workflows.discover,
           maxDiscoveredWorkflows: WORKFLOW.MAX_DISCOVERED_WORKFLOWS,
           enableStateTracking: config.workflows.trackState,
+          stepTimeout: config.workflows.stepTimeout,
+          timeouts: config.workflows.timeouts,
         };
 
         if (config.workflows.path) {
@@ -260,6 +269,8 @@ export const exploreCommand = new Command('explore')
             discoverWorkflows: false,
             maxDiscoveredWorkflows: WORKFLOW.MAX_DISCOVERED_WORKFLOWS,
             enableStateTracking: config.workflows.trackState,
+            stepTimeout: config.workflows.stepTimeout,
+            timeouts: config.workflows.timeouts,
             workflows: defaultWorkflows,
             workflowsFile: `${outputDir}/${DEFAULT_WORKFLOWS_FILE}`,
           };
@@ -324,7 +335,7 @@ export const exploreCommand = new Command('explore')
         enableStreaming: !!streamingCallbacks,
         streamingCallbacks,
         parallelPersonas,
-        personaConcurrency: INTERVIEW.DEFAULT_PERSONA_CONCURRENCY,
+        personaConcurrency,
         cache,
         workflowConfig,
         checkMode: false, // Full exploration mode with LLM
@@ -385,13 +396,13 @@ export const exploreCommand = new Command('explore')
       }
 
       const agentsMd = generateAgentsMd(result);
-      const agentsMdPath = join(docsDir, 'AGENTS.md');
+      const agentsMdPath = join(docsDir, config.output.files.agentsDoc);
       writeFileSync(agentsMdPath, agentsMd);
       output.info(`Written: ${agentsMdPath}`);
 
       // Generate JSON report
       const jsonReport = generateJsonReport(result);
-      const jsonPath = join(outputDir, 'bellwether-explore.json');
+      const jsonPath = join(outputDir, config.output.files.exploreReport);
       writeFileSync(jsonPath, jsonReport);
       output.info(`Written: ${jsonPath}`);
 

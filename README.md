@@ -14,7 +14,7 @@ Bellwether detects structural changes in your [MCP (Model Context Protocol)](htt
 # Install
 npm install -g @dotsetlabs/bellwether
 
-# Initialize configuration
+# Initialize configuration (required before any other command)
 bellwether init npx @mcp/your-server
 
 # Check for drift (free, fast, deterministic)
@@ -43,10 +43,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: npx @dotsetlabs/bellwether init --preset ci npx @mcp/your-server
       - run: npx @dotsetlabs/bellwether check --fail-on-drift
 ```
 
-No secrets needed. Free. Runs in seconds.
+Commit `bellwether.yaml` to your repo so CI always has your config. No secrets needed for `check`. Runs in seconds.
 
 ### Exit Codes
 
@@ -72,6 +73,11 @@ Check mode detects when your MCP server changes:
 | **Description changed** | Tool help text updated | Yes |
 | **Tool renamed** | `read` becomes `read_file` | Yes |
 | **Performance regression** | Tool latency increased >10% | Yes |
+| **Performance confidence** | Statistical reliability of metrics | Yes |
+| **Security vulnerabilities** | SQL injection accepted (when `check.security.enabled` is on) | Yes |
+| **Response schema changes** | Response fields added/removed | Yes |
+| **Unstable schemas** | Inconsistent response structures | Yes |
+| **Error trends** | New error types, increasing errors | Yes |
 
 This catches the changes that break AI agent workflows.
 
@@ -125,8 +131,8 @@ bellwether check
 - **Zero LLM** - No API keys required
 - **Free** - No token costs
 - **Deterministic** - Same input = same output
-- **Fast** - Runs in seconds (even faster with `--parallel`)
-- **Output** - Generates `CONTRACT.md` with examples, error patterns, and performance baselines
+- **Fast** - Runs in seconds (use `check.parallel` in config for more speed)
+- **Output** - Generates `CONTRACT.md` with examples, error patterns, and performance baselines (filename configurable via `output.files.contractDoc`)
 - **CI-Optimized** - Granular exit codes (0-4), JUnit/SARIF output formats
 
 ### Explore Command (Optional)
@@ -141,7 +147,7 @@ bellwether explore
 
 - Requires LLM (Ollama for free local, or OpenAI/Anthropic)
 - Multi-persona testing (technical writer, security tester, QA, novice)
-- Generates `AGENTS.md` documentation
+- Generates `AGENTS.md` documentation (filename configurable via `output.files.agentsDoc`)
 - Better for local development and deep exploration
 
 ### Core Commands
@@ -155,10 +161,11 @@ bellwether init --preset ci npx @mcp/server
 bellwether check                   # Uses server.command from config
 bellwether check npx @mcp/server   # Override server command
 bellwether check --fail-on-drift   # Fail if drift detected (for CI)
-bellwether check --parallel        # Parallel tool testing (faster)
 bellwether check --format junit    # JUnit XML output for CI
 bellwether check --format sarif    # SARIF output for GitHub Code Scanning
-bellwether check --incremental     # Only test tools with changed schemas
+
+# Configure performance, parallelism, incremental, and security in bellwether.yaml
+# (check.parallel, check.incremental, check.security, check.sampling)
 
 # Explore behavior (LLM-powered)
 bellwether explore                 # Uses server.command from config
@@ -176,6 +183,14 @@ bellwether registry database --limit 5
 
 # Generate verification report
 bellwether verify --tier gold
+
+# Validate against contracts
+bellwether contract generate npx @mcp/server
+bellwether contract validate npx @mcp/server
+
+# Manage golden outputs (deterministic regression tests)
+bellwether golden save --tool my_tool --args '{"id":"123"}'
+bellwether golden compare
 ```
 
 ### Baseline Commands
@@ -186,7 +201,7 @@ bellwether baseline save
 bellwether baseline save ./my-baseline.json
 
 # Compare test results against baseline
-bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
+bellwether baseline compare --fail-on-drift  # Uses baseline.comparePath or baseline.path from config
 bellwether baseline compare ./baseline.json --ignore-version-mismatch  # Force compare incompatible versions
 
 # Show baseline contents
@@ -283,6 +298,291 @@ bellwether auth status
 bellwether auth clear
 ```
 
+## Security Testing
+
+Run deterministic security vulnerability testing on your MCP tools:
+
+```bash
+# Enable security testing in config
+bellwether init --preset security npx @mcp/your-server
+bellwether check
+```
+
+### Security Categories
+
+| Category | Description | CWE |
+|:---------|:------------|:----|
+| `sql_injection` | SQL injection payloads | CWE-89 |
+| `xss` | Cross-site scripting payloads | CWE-79 |
+| `path_traversal` | Path traversal attempts | CWE-22 |
+| `command_injection` | Command injection payloads | CWE-78 |
+| `ssrf` | Server-side request forgery | CWE-918 |
+
+### Security Baseline
+
+Security findings are stored in your baseline and compared across runs:
+
+```bash
+# Enable security testing in config, then run check
+bellwether check
+bellwether baseline save
+
+# On next run, compare security posture
+bellwether check
+# Reports: new findings, resolved findings, risk score changes
+```
+
+### Output
+
+Security findings appear in:
+- **CONTRACT.md** - Security Baseline section with findings and risk scores
+- **Drift reports** - New/resolved findings when comparing baselines
+- **SARIF format** - Integrates with GitHub Code Scanning
+
+### Risk Levels
+
+| Level | Score Range | Description |
+|:------|:------------|:------------|
+| Critical | 80-100 | Immediate action required |
+| High | 60-79 | Serious vulnerability |
+| Medium | 40-59 | Moderate risk |
+| Low | 20-39 | Minor concern |
+| Info | 0-19 | Informational |
+
+## Semantic Validation
+
+The check command automatically infers semantic types from parameter names and descriptions, then generates targeted validation tests.
+
+### Inferred Semantic Types
+
+| Type | Example Parameters | Validation |
+|:-----|:-------------------|:-----------|
+| `date_iso8601` | `created_date`, `birth_day` | YYYY-MM-DD format |
+| `datetime` | `created_at`, `updated_at` | ISO 8601 datetime |
+| `timestamp` | `unix_epoch`, `time_ms` | Positive integer |
+| `email` | `user_email`, `contact_email` | Valid email format |
+| `url` | `website_url`, `api_endpoint` | Valid URL format |
+| `identifier` | `user_id`, `order_uuid` | Non-empty string |
+| `ip_address` | `server_ip`, `client_ip` | IPv4 or IPv6 |
+| `phone` | `phone_number`, `mobile` | At least 7 digits |
+| `percentage` | `tax_rate`, `progress` | Numeric value |
+| `amount_currency` | `total_price`, `balance` | Numeric value |
+| `file_path` | `file_path`, `directory` | Path string |
+| `json` | `config_data`, `payload` | Valid JSON |
+| `base64` | `encoded_data`, `b64_content` | Valid base64 |
+| `regex` | `filter_pattern`, `regex` | Valid regex |
+
+### How It Works
+
+1. **Inference**: Parameters are analyzed based on name patterns and descriptions
+2. **Test Generation**: Invalid values are generated for each inferred type
+3. **Validation**: Tests verify that tools properly reject invalid semantic values
+4. **Documentation**: Inferred types appear in CONTRACT.md
+
+Semantic validation runs automatically as part of `bellwether check` - no additional flags needed.
+
+## Response Schema Tracking
+
+The check command tracks response schema consistency across multiple test samples, detecting when tools return inconsistent or evolving response structures.
+
+### What It Tracks
+
+| Aspect | Detection | Impact |
+|:-------|:----------|:-------|
+| **Field consistency** | Fields appearing inconsistently across samples | Schema instability |
+| **Type changes** | Field types varying between responses | Breaking changes |
+| **Required changes** | Fields becoming required/optional | Contract changes |
+| **Schema evolution** | Structural changes between baselines | API drift |
+
+### Stability Grades
+
+| Grade | Confidence | Meaning |
+|:------|:-----------|:--------|
+| A | 95%+ | Fully stable, consistent responses |
+| B | 85%+ | Mostly stable, minor variations |
+| C | 70%+ | Moderately stable, some inconsistency |
+| D | 50%+ | Unstable, significant variations |
+| F | <50% | Very unstable, unreliable responses |
+| N/A | - | Insufficient samples (< 3) |
+
+### Breaking vs Non-Breaking Changes
+
+**Breaking changes** (fail CI):
+- Fields removed from responses
+- Types changed to incompatible types (e.g., `string` → `number`)
+- Previously optional fields becoming required
+
+**Non-breaking changes** (warning):
+- New fields added
+- Required fields becoming optional
+- Compatible type widening (e.g., `integer` → `number`)
+
+### Output
+
+Schema evolution findings appear in:
+- **CONTRACT.md** - Schema Stability section with grades and consistency metrics
+- **Drift reports** - Structure changes, breaking changes, stability changes
+- **JUnit/SARIF** - Test cases for schema evolution issues
+
+Response schema tracking runs automatically during `bellwether check` - no additional flags needed.
+
+## Error Analysis
+
+The check command provides enhanced error analysis with root cause detection and remediation suggestions.
+
+### What It Analyzes
+
+| Aspect | Detection | Impact |
+|:-------|:----------|:-------|
+| **HTTP status codes** | Parses 4xx/5xx codes from messages | Error categorization |
+| **Root cause** | Infers cause from error patterns | Debugging guidance |
+| **Remediation** | Generates fix suggestions | Actionable solutions |
+| **Transient errors** | Identifies retryable errors | Retry strategies |
+| **Error trends** | Tracks errors across baselines | Regression detection |
+
+### Error Categories
+
+| Category | HTTP Codes | Description |
+|:---------|:-----------|:------------|
+| Validation Error | 400 | Invalid input or missing parameters |
+| Authentication Error | 401, 403 | Auth or permission failure |
+| Not Found | 404 | Resource does not exist |
+| Conflict | 409 | Resource state conflict |
+| Rate Limited | 429 | Too many requests |
+| Server Error | 5xx | Internal server error |
+
+### Error Trend Detection
+
+When comparing baselines, Bellwether tracks:
+- **New error types** - Errors that didn't occur before
+- **Resolved errors** - Errors that no longer occur
+- **Increasing errors** - Error frequency growing >50%
+- **Decreasing errors** - Error frequency reduced >50%
+
+### Output
+
+Error analysis findings appear in:
+- **CONTRACT.md** - Error Analysis section with root causes and remediations
+- **Drift reports** - Error trend changes between baselines
+- **JUnit/SARIF** - Test cases for error trend issues
+
+Error analysis runs automatically during `bellwether check` - no additional flags needed.
+
+## Performance Confidence
+
+The check command calculates statistical confidence for performance metrics, indicating how reliable your performance baselines are.
+
+### What It Measures
+
+| Metric | Description | Impact |
+|:-------|:------------|:-------|
+| **Sample count** | Number of latency measurements | More samples = higher confidence |
+| **Standard deviation** | Variability in response times | Lower = more consistent |
+| **Coefficient of variation** | Relative variability (stdDev / mean) | Lower = more predictable |
+
+### Confidence Levels
+
+| Level | Requirements | Meaning |
+|:------|:-------------|:--------|
+| HIGH | 10+ samples, CV ≤ 30% | Reliable baseline for regression detection |
+| MEDIUM | 5+ samples, CV ≤ 50% | Moderately reliable, use with caution |
+| LOW | < 5 samples or CV > 50% | Unreliable baseline, collect more data |
+
+### Why It Matters
+
+Performance regressions detected with low confidence may not be real:
+- **Few samples**: Random variation can look like regression
+- **High variability**: Tool may have inconsistent performance
+
+When confidence is low, the CLI recommends:
+```
+Run with --samples 10 for reliable baseline
+```
+
+### Output
+
+Confidence information appears in:
+- **CONTRACT.md** - Performance Baseline section with confidence column
+- **Drift reports** - Regression markers indicate reliability
+- **JUnit/SARIF** - Test cases for low confidence tools
+- **GitHub Actions** - Annotations for confidence warnings
+
+### Example Output
+
+```
+─── Performance Regressions ───
+  ! read_file: 100ms → 150ms (+50%) (low confidence)
+  ! write_file: 200ms → 250ms (+25%)
+
+  Note: Some tools have low confidence metrics.
+  Run with more samples for reliable baselines: read_file
+```
+
+Performance confidence runs automatically during `bellwether check` - no additional flags needed.
+
+## Documentation Quality Scoring
+
+The check command calculates a documentation quality score for your MCP server, evaluating how well tools and parameters are documented.
+
+### What It Measures
+
+| Component | Weight | Description |
+|:----------|:-------|:------------|
+| **Description Coverage** | 30% | Percentage of tools with descriptions |
+| **Description Quality** | 30% | Length, clarity, and actionable language |
+| **Parameter Documentation** | 25% | Percentage of parameters with descriptions |
+| **Example Coverage** | 15% | Percentage of tools with schema examples |
+
+### Grade Thresholds
+
+| Grade | Score Range | Meaning |
+|:------|:------------|:--------|
+| A | 90-100 | Excellent documentation |
+| B | 80-89 | Good documentation |
+| C | 70-79 | Acceptable documentation |
+| D | 60-69 | Poor documentation |
+| F | 0-59 | Failing documentation |
+
+### Quality Criteria
+
+Descriptions are scored based on:
+- **Length**: At least 50 characters for "good", 20+ for "acceptable"
+- **Imperative verbs**: Starting with action words (Creates, Gets, Deletes)
+- **Behavior description**: Mentioning what the tool returns or provides
+- **Examples/specifics**: Including "e.g.", "example", or "such as"
+
+### Issue Types
+
+| Issue | Severity | Description |
+|:------|:---------|:------------|
+| Missing Description | Error | Tool has no description |
+| Short Description | Warning | Description under 20 characters |
+| Missing Param Description | Warning | Parameter has no description |
+| No Examples | Info | Schema has no examples |
+
+### Output
+
+Documentation scores appear in:
+- **CONTRACT.md** - Documentation Quality section with breakdown
+- **Drift reports** - Score changes between baselines
+- **JUnit/SARIF** - Test cases for documentation issues
+- **GitHub Actions** - Annotations for quality degradation
+
+### Example Output
+
+```
+─── Documentation Quality ───
+  ✓ Score: 60 → 85 (+25)
+  Grade: D → B
+  ✓ Issues fixed: 3
+
+─── Statistics ───
+  Documentation score: 85/100 (B)
+  Documentation change: +25
+```
+
+Documentation quality scoring runs automatically during `bellwether check` - no additional flags needed.
+
 ## Custom Test Scenarios
 
 Define deterministic tests in `bellwether-tests.yaml`:
@@ -350,6 +650,7 @@ See [action/README.md](./action/README.md) for full documentation.
 | `BELLWETHER_SESSION` | Cloud session token for CI/CD |
 | `BELLWETHER_API_URL` | Cloud API URL (default: `https://api.bellwether.sh`) |
 | `BELLWETHER_TEAM_ID` | Override active team for cloud operations (multi-team CI/CD) |
+| `BELLWETHER_REGISTRY_URL` | Registry API URL override (for self-hosted registries) |
 
 See [.env.example](./.env.example) for full documentation.
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { generateAgentsMd, generateJsonReport } from '../../src/docs/generator.js';
+import { generateAgentsMd } from '../../src/docs/agents.js';
+import { generateJsonReport } from '../../src/docs/report.js';
 import type { InterviewResult, ToolProfile, InterviewMetadata } from '../../src/interview/types.js';
 import type { DiscoveryResult } from '../../src/discovery/types.js';
 import {
@@ -10,7 +11,7 @@ import {
   mockCapabilities,
 } from '../fixtures/sample-tools.js';
 
-describe('docs/generator', () => {
+describe('docs', () => {
   let mockDiscovery: DiscoveryResult;
   let mockToolProfile: ToolProfile;
   let mockMetadata: InterviewMetadata;

@@ -20,7 +20,7 @@ import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../co
 import { CostTracker } from '../../cost/index.js';
 import { BUILTIN_PERSONAS } from '../../persona/builtins.js';
 import type { Persona } from '../../persona/types.js';
-import { TIMEOUTS, EXIT_CODES, PATHS } from '../../constants.js';
+import { EXIT_CODES, PATHS } from '../../constants.js';
 import * as output from '../output.js';
 import { InterviewProgressBar } from '../utils/progress.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
@@ -44,7 +44,7 @@ export function createVerifyCommand(): Command {
     .option('-o, --output <dir>', 'Output directory')
     .option('--server-id <id>', 'Server identifier (namespace/name)')
     .option('--version <version>', 'Server version to verify')
-    .option('--tier <tier>', 'Target verification tier (bronze, silver, gold, platinum)', 'silver')
+    .option('--tier <tier>', 'Target verification tier (bronze, silver, gold, platinum)')
     .option('--security', 'Include security testing (required for gold+ tiers)')
     .option('--json', 'Output verification result as JSON')
     .option('--badge-only', 'Only output badge URL')
@@ -64,7 +64,7 @@ async function handleVerify(
     output?: string;
     serverId?: string;
     version?: string;
-    tier: string;
+    tier?: string;
     security?: boolean;
     json?: boolean;
     badgeOnly?: boolean;
@@ -96,11 +96,15 @@ async function handleVerify(
   }
 
   // Get LLM settings from config
-  const provider = bellwetherConfig.llm.provider || 'ollama';
+  const provider = bellwetherConfig.llm.provider;
   const model = bellwetherConfig.llm.model || undefined;
-  const outputDir = options.output ?? bellwetherConfig.output.dir ?? '.';
-  const serverTimeout = bellwetherConfig.server.timeout ?? TIMEOUTS.DEFAULT;
+  const outputDir = options.output ?? bellwetherConfig.output.dir;
+  const serverTimeout = bellwetherConfig.server.timeout;
   const serverEnv = bellwetherConfig.server.env;
+  const targetTier = (options.tier ?? bellwetherConfig.verify.tier) as VerificationTier;
+  const includeSecurity = options.security ? true : bellwetherConfig.verify.security;
+  const outputJson = options.json ? true : bellwetherConfig.verify.json;
+  const badgeOnly = options.badgeOnly ? true : bellwetherConfig.verify.badgeOnly;
 
   // Initialize cost tracker
   const effectiveModel = model || DEFAULT_MODELS[provider as 'openai' | 'anthropic' | 'ollama'];
@@ -136,8 +140,7 @@ async function handleVerify(
     output.newline();
 
     // Determine personas based on tier and security option
-    const targetTier = options.tier as VerificationTier;
-    const personas = selectPersonasForTier(targetTier, options.security);
+    const personas = selectPersonasForTier(targetTier, includeSecurity);
 
     output.info(chalk.gray(`Target tier: ${targetTier}`));
     output.info(chalk.gray(`Using personas: ${personas.map((p: Persona) => p.name).join(', ')}`));
@@ -193,7 +196,7 @@ async function handleVerify(
       serverId,
       version: options.version ?? discovery.serverInfo.version,
       targetTier,
-      includeSecurity: options.security,
+      includeSecurity,
       outputDir,
     };
 
@@ -201,12 +204,12 @@ async function handleVerify(
     const result = report.result;
 
     // Output results
-    if (options.badgeOnly) {
+    if (badgeOnly) {
       output.info(generateBadgeUrl(result));
       return;
     }
 
-    if (options.json) {
+    if (outputJson) {
       output.json(report);
       return;
     }
@@ -215,7 +218,7 @@ async function handleVerify(
     displayVerificationResult(result);
 
     // Save report
-    const reportPath = join(outputDir, 'bellwether-verification.json');
+    const reportPath = join(outputDir, bellwetherConfig.output.files.verificationReport);
     await writeFile(reportPath, JSON.stringify(report, null, 2));
     output.info(chalk.gray(`\nReport saved to: ${reportPath}`));
 

@@ -25,6 +25,10 @@ The `login` command authenticates you with Bellwether Cloud, enabling baseline s
 
 During beta, you'll be prompted for an invitation code if you don't already have beta access. Enter your code when prompted, then complete the GitHub OAuth flow.
 
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `login`.
+:::
+
 :::note Email Verification
 Your invitation code is tied to a specific email address. When logging in, you must use a GitHub account that has the same email address as your invitation. This ensures invitation codes can only be used by their intended recipients.
 :::

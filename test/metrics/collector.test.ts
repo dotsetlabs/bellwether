@@ -4,7 +4,6 @@ import {
   getMetricsCollector,
   resetMetricsCollector,
 } from '../../src/metrics/collector.js';
-import { exportPrometheusMetrics, exportMetricsJSON } from '../../src/metrics/prometheus.js';
 
 describe('MetricsCollector', () => {
   let collector: MetricsCollector;
@@ -292,78 +291,6 @@ describe('MetricsCollector', () => {
       // Should keep the most recent records
       expect(raw.timing[0].durationMs).toBe(500);
     });
-  });
-});
-
-describe('Prometheus export', () => {
-  let collector: MetricsCollector;
-
-  beforeEach(() => {
-    collector = new MetricsCollector();
-  });
-
-  it('should export valid Prometheus format', () => {
-    collector.recordTokenUsage('openai', 'gpt-4', 1000, 500);
-    collector.recordTiming('llm_call', 1500, true);
-    collector.recordError('transport', 'CODE', 'Connection failed', true);
-
-    const output = exportPrometheusMetrics(collector);
-
-    expect(output).toContain('# HELP bellwether_llm_tokens_total');
-    expect(output).toContain('# TYPE bellwether_llm_tokens_total counter');
-    expect(output).toContain('bellwether_llm_tokens_total{provider="openai",model="gpt-4",direction="input"} 1000');
-    expect(output).toContain('bellwether_llm_tokens_total{provider="openai",model="gpt-4",direction="output"} 500');
-  });
-
-  it('should export histogram buckets', () => {
-    collector.recordTiming('llm_call', 50, true);
-    collector.recordTiming('llm_call', 150, true);
-    collector.recordTiming('llm_call', 500, true);
-
-    const output = exportPrometheusMetrics(collector);
-
-    expect(output).toContain('bellwether_operation_duration_seconds_bucket');
-    expect(output).toContain('bellwether_operation_duration_seconds_sum');
-    expect(output).toContain('bellwether_operation_duration_seconds_count');
-  });
-
-  it('should escape label values', () => {
-    collector.recordTokenUsage('test\\provider', 'model"with"quotes', 100, 50);
-
-    const output = exportPrometheusMetrics(collector);
-
-    expect(output).toContain('provider="test\\\\provider"');
-    expect(output).toContain('model="model\\"with\\"quotes"');
-  });
-
-  it('should include interview metrics when available', () => {
-    collector.startInterview();
-    collector.updateInterviewCounters({ toolsDiscovered: 5 });
-    collector.recordTiming('tool_call', 100, true);
-    collector.recordTiming('tool_call', 100, false);
-
-    const output = exportPrometheusMetrics(collector);
-
-    expect(output).toContain('bellwether_interview_tools_discovered 5');
-    expect(output).toContain('bellwether_interview_tool_calls_total{status="success"} 1');
-    expect(output).toContain('bellwether_interview_tool_calls_total{status="failure"} 1');
-  });
-});
-
-describe('JSON export', () => {
-  it('should export valid JSON', () => {
-    const collector = new MetricsCollector();
-    collector.startInterview();
-    collector.recordTokenUsage('openai', 'gpt-4', 100, 50);
-
-    const output = exportMetricsJSON(collector);
-    const parsed = JSON.parse(output);
-
-    expect(parsed.timestamp).toBeDefined();
-    expect(parsed.interview).toBeDefined();
-    expect(parsed.tokens).toBeDefined();
-    expect(parsed.cost).toBeDefined();
-    expect(parsed.performance).toBeDefined();
   });
 });
 

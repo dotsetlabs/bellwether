@@ -17,6 +17,10 @@ bellwether badge [options]
 
 The `badge` command retrieves a verification badge for your project from Bellwether Cloud. Badges display your MCP server's verification status and can be embedded in READMEs, documentation, or websites to show users that your server has been verified with Bellwether.
 
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `badge`.
+:::
+
 Badge status reflects:
 - **Verified**: Server has been verified with at least one baseline
 - **Stable**: Multiple baselines with no behavioral drift

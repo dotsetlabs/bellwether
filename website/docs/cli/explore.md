@@ -24,6 +24,10 @@ The `explore` command uses LLMs to deeply probe your MCP server from multiple pe
 
 This generates AGENTS.md—rich behavioral documentation that captures how your server actually works.
 
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `explore`.
+:::
+
 ## Arguments
 
 | Argument | Description |
@@ -84,8 +88,10 @@ bellwether explore
 
 | File | Description |
 |:-----|:------------|
-| `AGENTS.md` | Behavioral documentation from multi-persona exploration |
-| `bellwether-explore.json` | Machine-readable exploration results |
+| `AGENTS.md` | Behavioral documentation from multi-persona exploration (configurable via `output.files.agentsDoc`) |
+| `bellwether-explore.json` | Machine-readable exploration results (configurable via `output.files.exploreReport`) |
+
+Output locations are controlled by `output.dir` (JSON) and `output.docsDir` (docs).
 
 ### AGENTS.md Contents
 

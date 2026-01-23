@@ -25,7 +25,7 @@ import {
 } from './version.js';
 import { migrateBaseline, needsMigration } from './migrations.js';
 import { analyzeResponses, type InferredSchema } from './response-fingerprint.js';
-import { calculateMetrics, type LatencySample } from './performance-tracker.js';
+import { calculateMetrics, calculatePerformanceConfidence, type LatencySample } from './performance-tracker.js';
 import { PATTERNS, PAYLOAD_LIMITS } from '../constants.js';
 import { getLogger } from '../logging/logger.js';
 
@@ -88,6 +88,17 @@ const errorPatternSchema = z.object({
 });
 
 /**
+ * Zod schema for performance confidence validation.
+ */
+const performanceConfidenceSchema = z.object({
+  sampleCount: z.number(),
+  standardDeviation: z.number(),
+  coefficientOfVariation: z.number(),
+  confidenceLevel: z.enum(['low', 'medium', 'high']),
+  recommendation: z.string().optional(),
+});
+
+/**
  * Zod schema for tool fingerprint validation.
  */
 const toolFingerprintSchema = z.object({
@@ -102,6 +113,11 @@ const toolFingerprintSchema = z.object({
   responseFingerprint: responseFingerprintSchema.optional(),
   inferredOutputSchema: inferredSchemaSchema.optional(),
   errorPatterns: z.array(errorPatternSchema).optional(),
+  // Performance baseline fields
+  baselineP50Ms: z.number().optional(),
+  baselineP95Ms: z.number().optional(),
+  baselineSuccessRate: z.number().optional(),
+  performanceConfidence: performanceConfidenceSchema.optional(),
 });
 
 /**
@@ -425,6 +441,9 @@ function createToolFingerprint(
     }
   }
 
+  // Calculate performance confidence (sample count + coefficient of variation)
+  const performanceConfidence = calculatePerformanceConfidence(latencySamples);
+
   return {
     name: profile.name,
     description: profile.description,
@@ -443,6 +462,7 @@ function createToolFingerprint(
     baselineP50Ms,
     baselineP95Ms,
     baselineSuccessRate,
+    performanceConfidence,
   };
 }
 

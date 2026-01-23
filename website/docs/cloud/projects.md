@@ -17,6 +17,10 @@ bellwether projects [options]
 
 The `projects` command lists all Bellwether Cloud projects associated with your account. It shows project IDs, names, baseline counts, and last upload dates. The currently linked project is marked with an asterisk.
 
+:::note Config Required
+All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `projects`.
+:::
+
 ## Options
 
 | Option | Description | Default |
