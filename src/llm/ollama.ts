@@ -330,8 +330,9 @@ export class OllamaClient implements LLMClient {
                   promptTokens = chunk.prompt_eval_count ?? 0;
                   completionTokens = chunk.eval_count ?? 0;
                 }
-              } catch {
-                // Ignore
+              } catch (parseError) {
+                // Log parse error for debugging
+                this.logger.debug({ buffer, error: parseError instanceof Error ? parseError.message : String(parseError) }, 'Failed to parse final buffer chunk');
               }
             }
           } finally {
@@ -408,7 +409,8 @@ export class OllamaClient implements LLMClient {
         method: 'GET',
       });
       return response.ok;
-    } catch {
+    } catch (error) {
+      this.logger.debug({ error: error instanceof Error ? error.message : String(error) }, 'Ollama availability check failed');
       return false;
     }
   }
@@ -428,7 +430,8 @@ export class OllamaClient implements LLMClient {
 
       const result = await response.json() as { models?: Array<{ name: string }> };
       return result.models?.map(m => m.name) ?? [];
-    } catch {
+    } catch (error) {
+      this.logger.debug({ error: error instanceof Error ? error.message : String(error) }, 'Failed to list Ollama models');
       return [];
     }
   }

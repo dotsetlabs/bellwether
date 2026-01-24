@@ -78,12 +78,13 @@ export function calculatePerformanceMetrics(profiles: ToolProfile[]): ToolPerfor
   const metrics: ToolPerformanceMetrics[] = [];
 
   for (const profile of profiles) {
-    if (profile.interactions.length === 0) {
+    const interactions = profile.interactions.filter(i => !i.mocked);
+    if (interactions.length === 0) {
       continue;
     }
 
-    const durations = profile.interactions.map(i => i.durationMs);
-    const errorCount = profile.interactions.filter(i => i.error || i.response?.isError).length;
+    const durations = interactions.map(i => i.durationMs);
+    const errorCount = interactions.filter(i => i.error || i.response?.isError).length;
 
     // Sort durations for percentile calculations
     const sortedDurations = [...durations].sort((a, b) => a - b);
@@ -92,10 +93,10 @@ export function calculatePerformanceMetrics(profiles: ToolProfile[]): ToolPerfor
     const p95Index = Math.floor(sortedDurations.length * 0.95);
 
     // Calculate separate averages for tool execution and LLM analysis
-    const toolDurations = profile.interactions
+    const toolDurations = interactions
       .map(i => i.toolExecutionMs)
       .filter((d): d is number => d !== undefined && d > 0);
-    const analysisDurations = profile.interactions
+    const analysisDurations = interactions
       .map(i => i.llmAnalysisMs)
       .filter((d): d is number => d !== undefined && d > 0);
 
@@ -113,7 +114,7 @@ export function calculatePerformanceMetrics(profiles: ToolProfile[]): ToolPerfor
     const stdDevMs = Math.sqrt(variance);
 
     // Calculate coefficient of variation and confidence using successful tool executions only
-    const successfulToolDurations = profile.interactions
+    const successfulToolDurations = interactions
       .filter(i => i.toolExecutionMs !== undefined && !i.error && !i.response?.isError)
       .map(i => i.toolExecutionMs!);
 
@@ -142,14 +143,14 @@ export function calculatePerformanceMetrics(profiles: ToolProfile[]): ToolPerfor
 
     metrics.push({
       toolName: profile.name,
-      callCount: profile.interactions.length,
+      callCount: interactions.length,
       avgMs: Math.round(avgMs),
       minMs: Math.min(...durations),
       maxMs: Math.max(...durations),
       p50Ms: sortedDurations[p50Index] ?? 0,
       p95Ms: sortedDurations[Math.min(p95Index, sortedDurations.length - 1)] ?? 0,
       stdDevMs: Math.round(stdDevMs),
-      errorRate: errorCount / profile.interactions.length,
+      errorRate: errorCount / interactions.length,
       avgToolMs,
       avgAnalysisMs,
       confidence,
@@ -163,12 +164,16 @@ export function calculatePerformanceMetrics(profiles: ToolProfile[]): ToolPerfor
 function calculateConfidenceFromMetrics(
   sampleCount: number,
   coefficientOfVariation: number,
-  standardDeviation: number
+  standardDeviation: number,
+  totalTests?: number
 ): PerformanceConfidence {
   // Handle no samples case
   if (sampleCount === 0) {
     return {
       sampleCount: 0,
+      successfulSamples: 0,
+      validationSamples: 0,
+      totalTests: totalTests ?? 0,
       standardDeviation: 0,
       coefficientOfVariation: 0,
       confidenceLevel: 'low',
@@ -204,6 +209,9 @@ function calculateConfidenceFromMetrics(
 
   return {
     sampleCount,
+    successfulSamples: sampleCount, // Assumes passed in count is successful samples
+    validationSamples: 0, // Not tracked at this level, set to 0
+    totalTests: totalTests ?? sampleCount,
     standardDeviation,
     coefficientOfVariation,
     confidenceLevel,

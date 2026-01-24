@@ -26,10 +26,24 @@ export type HttpStatusCategory =
   | 'client_error_conflict'    // 409
   | 'client_error_rate_limit'  // 429
   | 'server_error'             // 5xx
+  | 'validation_expected'      // Expected validation error (from intentional tests)
   | 'unknown';
 
 /** Severity level for error analysis */
 export type ErrorSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+
+/**
+ * Context about the test that generated the error.
+ * Used to distinguish expected validation errors from actual bugs.
+ */
+export interface ErrorContext {
+  /** Whether the error was expected (from a validation test) */
+  wasExpected?: boolean;
+  /** The expected outcome of the test */
+  expectedOutcome?: 'success' | 'error' | 'either';
+  /** The test category */
+  testCategory?: string;
+}
 
 /** Enhanced error analysis result */
 export interface EnhancedErrorAnalysis {
@@ -49,6 +63,11 @@ export interface EnhancedErrorAnalysis {
   transient: boolean;
   /** Severity assessment */
   severity: ErrorSeverity;
+  /**
+   * Whether this error was expected (from a validation test).
+   * Expected errors are intentional test outcomes, not actual bugs.
+   */
+  wasExpected?: boolean;
 }
 
 /** Error analysis summary for a tool */
@@ -83,16 +102,35 @@ export interface ErrorAnalysisSummary {
  * Analyze an error message for enhanced information.
  *
  * @param errorMessage - The error message to analyze
+ * @param context - Optional context about the test that generated the error
  * @returns Enhanced error analysis with root cause and remediation
  */
-export function analyzeError(errorMessage: string): EnhancedErrorAnalysis {
+export function analyzeError(
+  errorMessage: string,
+  context?: ErrorContext
+): EnhancedErrorAnalysis {
   const httpStatus = extractHttpStatus(errorMessage);
-  const statusCategory = categorizeHttpStatus(httpStatus);
-  const rootCause = inferRootCause(errorMessage, statusCategory);
-  const remediation = generateRemediation(statusCategory, errorMessage);
+  let statusCategory = categorizeHttpStatus(httpStatus);
+  const wasExpected = context?.wasExpected ?? context?.expectedOutcome === 'error';
+
+  // If the error was expected (validation test), recategorize it
+  if (wasExpected && (statusCategory === 'client_error_validation' || statusCategory === 'unknown')) {
+    statusCategory = 'validation_expected';
+  }
+
+  const rootCause = wasExpected
+    ? 'Expected validation error from intentional test'
+    : inferRootCause(errorMessage, statusCategory);
+
+  const remediation = wasExpected
+    ? 'No action needed - this error was intentional to verify input validation'
+    : generateRemediation(statusCategory, errorMessage);
+
   const relatedParameters = extractRelatedParameters(errorMessage);
   const transient = isTransientError(statusCategory, errorMessage);
-  const severity = assessErrorSeverity(statusCategory, errorMessage);
+
+  // Expected errors have 'info' severity - they're not problems
+  const severity = wasExpected ? 'info' : assessErrorSeverity(statusCategory, errorMessage);
 
   return {
     pattern: {
@@ -108,18 +146,37 @@ export function analyzeError(errorMessage: string): EnhancedErrorAnalysis {
     relatedParameters,
     transient,
     severity,
+    wasExpected,
   };
+}
+
+/**
+ * Error pattern with context for analysis.
+ */
+export interface ErrorPatternWithContext {
+  /** The error pattern */
+  pattern: ErrorPattern;
+  /** Context about the test that generated the error */
+  context?: ErrorContext;
 }
 
 /**
  * Analyze multiple error patterns and return enhanced analyses.
  *
  * @param patterns - Array of error patterns to analyze
+ * @param defaultContext - Default context to apply to all patterns without individual context
  * @returns Array of enhanced error analyses
  */
-export function analyzeErrorPatterns(patterns: ErrorPattern[]): EnhancedErrorAnalysis[] {
-  return patterns.map((pattern) => {
-    const analysis = analyzeError(pattern.example);
+export function analyzeErrorPatterns(
+  patterns: ErrorPattern[] | ErrorPatternWithContext[],
+  defaultContext?: ErrorContext
+): EnhancedErrorAnalysis[] {
+  return patterns.map((item) => {
+    // Support both plain patterns and patterns with context
+    const pattern = 'pattern' in item ? item.pattern : item;
+    const context = 'context' in item ? (item.context ?? defaultContext) : defaultContext;
+
+    const analysis = analyzeError(pattern.example, context);
     return {
       ...analysis,
       pattern,
@@ -827,6 +884,7 @@ export function formatCategoryName(category: HttpStatusCategory): string {
     client_error_conflict: 'Conflict',
     client_error_rate_limit: 'Rate Limited',
     server_error: 'Server Error',
+    validation_expected: 'Expected Validation (Test)',
     unknown: 'Unknown Error',
   };
   return names[category] ?? category;

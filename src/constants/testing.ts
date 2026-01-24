@@ -102,6 +102,14 @@ export const PERFORMANCE_CONFIDENCE = {
     MAX_CV: 0.5,
   } as const,
 
+  /** Warmup configuration for excluding cold-start overhead from variance */
+  WARMUP: {
+    /** Default number of warmup runs before timing (0 = include first sample in variance) */
+    DEFAULT_RUNS: 1,
+    /** Whether to exclude warmup from variance calculation by default */
+    EXCLUDE_FROM_VARIANCE: true,
+  } as const,
+
   /** Display labels for confidence levels */
   LABELS: {
     high: 'HIGH',
@@ -369,8 +377,8 @@ export const SCHEMA_TESTING = {
   BOUNDARY_VALUES: {
     /** Empty string for string boundary testing */
     EMPTY_STRING: '',
-    /** Very long string length for boundary testing */
-    LONG_STRING_LENGTH: 1000,
+    /** Long string length for boundary testing */
+    LONG_STRING_LENGTH: 150,
     /** Zero value for number boundary */
     ZERO: 0,
     /** Negative value for number boundary */
@@ -431,6 +439,150 @@ export const SCHEMA_TESTING = {
     /** Number of items for "many items" test */
     MANY_ITEMS_COUNT: 10,
   },
+} as const;
+
+// ==================== Test Outcome Assessment ====================
+
+/**
+ * Configuration for test outcome assessment.
+ * Used by interviewer.ts and schema-test-generator.ts to properly
+ * categorize test results and calculate meaningful metrics.
+ *
+ * Key insight: Tests that expect errors (validation tests) should be
+ * counted as "success" when they correctly reject invalid input.
+ * This prevents misleading low success rates for tools that properly
+ * validate their inputs.
+ */
+export const OUTCOME_ASSESSMENT = {
+  /**
+   * Test categories that expect errors (validation tests).
+   * Tools should reject these inputs - rejection counts as success.
+   */
+  EXPECTS_ERROR_CATEGORIES: [
+    'error_handling',
+  ] as const,
+
+  /**
+   * Test descriptions that indicate error-expectation.
+   * Matched case-insensitively against test descriptions.
+   */
+  EXPECTS_ERROR_PATTERNS: [
+    /missing required/i,
+    /invalid.*type/i,
+    /type coercion/i,
+    /enum validation/i,
+    /null.*handling/i,
+    /boundary.*invalid/i,
+    /should.*reject/i,
+    /should.*fail/i,
+    /expects.*error/i,
+    /error handling/i,
+  ] as const,
+
+  /**
+   * Categories where tests always expect success (happy path).
+   * Errors on these tests indicate actual tool problems.
+   */
+  EXPECTS_SUCCESS_CATEGORIES: [
+    'happy_path',
+  ] as const,
+
+  /**
+   * Categories where outcome is unpredictable (edge cases).
+   * Either success or error is acceptable.
+   */
+  EITHER_OUTCOME_CATEGORIES: [
+    'edge_case',
+    'boundary',
+  ] as const,
+
+  /**
+   * Reliability metrics calculation.
+   * These control how success/failure rates are computed.
+   */
+  METRICS: {
+    /**
+     * Whether to count correct rejection as success.
+     * When true: validation tests that correctly reject count as success.
+     * When false: only actual successes count (misleading for validators).
+     * @default true
+     */
+    COUNT_REJECTION_AS_SUCCESS: true,
+
+    /**
+     * Whether to separate validation metrics from reliability metrics.
+     * When true: separate "Validation Rate" from "Success Rate".
+     * @default true
+     */
+    SEPARATE_VALIDATION_METRICS: true,
+  },
+
+  /**
+   * Labels for different metrics in output.
+   */
+  LABELS: {
+    /** Label for happy path success rate */
+    HAPPY_PATH_SUCCESS: 'Reliability',
+    /** Label for validation test success (correct rejections) */
+    VALIDATION_SUCCESS: 'Validation',
+    /** Label for overall combined metric */
+    OVERALL: 'Overall',
+    /** Label for unexpected errors */
+    UNEXPECTED_ERRORS: 'Bugs',
+  },
+
+  /**
+   * Icons/indicators for outcome assessment results.
+   */
+  INDICATORS: {
+    /** Correct outcome (success or expected error) */
+    correct: '✓',
+    /** Incorrect outcome (unexpected behavior) */
+    incorrect: '✗',
+    /** Ambiguous outcome (either was acceptable) */
+    ambiguous: '~',
+  },
+} as const;
+
+// ==================== Rate Limiting ====================
+
+/**
+ * Rate limiting configuration defaults and detection patterns.
+ */
+export const RATE_LIMITING = {
+  /** Error patterns indicating rate limiting */
+  ERROR_PATTERNS: [
+    /rate limit/i,
+    /too many requests/i,
+    /429\b/,
+    /throttle/i,
+    /slow down/i,
+  ] as readonly RegExp[],
+  /** Base delay for backoff (ms) */
+  BASE_DELAY_MS: 500,
+  /** Maximum backoff delay (ms) */
+  MAX_DELAY_MS: 10000,
+  /** Jitter ratio (0-1) */
+  JITTER_RATIO: 0.2,
+} as const;
+
+// ==================== Stateful Testing ====================
+
+/**
+ * Stateful testing configuration.
+ */
+export const STATEFUL_TESTING = {
+  /** Parameter patterns that should use state from previous tools */
+  PREFERRED_PARAM_PATTERNS: [
+    /_?id$/i,
+    /token/i,
+    /session/i,
+    /cursor/i,
+    /account/i,
+    /resource/i,
+  ] as readonly RegExp[],
+  /** Maximum number of stored values across tool calls */
+  MAX_STORED_VALUES: 50,
 } as const;
 
 // ==================== Security Testing (Check Mode) ====================
@@ -730,7 +882,7 @@ export const PAYLOAD_LIMITS = {
 
 export const CHECK_SAMPLING = {
   /** Default minimum samples per tool */
-  DEFAULT_MIN_SAMPLES: 3,
+  DEFAULT_MIN_SAMPLES: 10,
   /** Recommended minimum samples for production baselines */
   RECOMMENDED_MIN_SAMPLES: 10,
   /** Maximum samples when auto-escalating for high variability */
@@ -794,6 +946,14 @@ export const EXTERNAL_DEPENDENCIES = {
       statusCodes: [400, 401, 403] as readonly number[],
       /** Remediation suggestion for Plaid errors */
       remediation: 'Configure Plaid sandbox credentials (PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV=sandbox)',
+      /** Credential expectations for configuration checks */
+      credentials: {
+        requiredEnv: ['PLAID_CLIENT_ID', 'PLAID_SECRET'],
+        optionalEnv: ['PLAID_ENV'],
+        requiredConfigKeys: ['clientId', 'secret'],
+        sandboxAvailable: true,
+        mockAvailable: true,
+      },
     },
     stripe: {
       name: 'Stripe',
@@ -814,6 +974,13 @@ export const EXTERNAL_DEPENDENCIES = {
       ] as readonly RegExp[],
       statusCodes: [401, 402, 429] as readonly number[],
       remediation: 'Configure Stripe API keys (STRIPE_SECRET_KEY)',
+      credentials: {
+        requiredEnv: ['STRIPE_SECRET_KEY'],
+        optionalEnv: ['STRIPE_PUBLISHABLE_KEY'],
+        requiredConfigKeys: ['secretKey'],
+        sandboxAvailable: true,
+        mockAvailable: true,
+      },
     },
     aws: {
       name: 'AWS',
@@ -838,6 +1005,13 @@ export const EXTERNAL_DEPENDENCIES = {
       ] as readonly RegExp[],
       statusCodes: [403, 404, 400] as readonly number[],
       remediation: 'Configure AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)',
+      credentials: {
+        requiredEnv: ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'],
+        optionalEnv: ['AWS_REGION'],
+        requiredConfigKeys: ['accessKeyId', 'secretAccessKey'],
+        sandboxAvailable: false,
+        mockAvailable: true,
+      },
     },
     openai: {
       name: 'OpenAI',
@@ -858,6 +1032,13 @@ export const EXTERNAL_DEPENDENCIES = {
       ] as readonly RegExp[],
       statusCodes: [401, 429, 400] as readonly number[],
       remediation: 'Configure OpenAI API key (OPENAI_API_KEY)',
+      credentials: {
+        requiredEnv: ['OPENAI_API_KEY'],
+        optionalEnv: [],
+        requiredConfigKeys: ['apiKey'],
+        sandboxAvailable: false,
+        mockAvailable: true,
+      },
     },
     anthropic: {
       name: 'Anthropic',
@@ -873,6 +1054,13 @@ export const EXTERNAL_DEPENDENCIES = {
       ] as readonly RegExp[],
       statusCodes: [401, 429, 529] as readonly number[],
       remediation: 'Configure Anthropic API key (ANTHROPIC_API_KEY)',
+      credentials: {
+        requiredEnv: ['ANTHROPIC_API_KEY'],
+        optionalEnv: [],
+        requiredConfigKeys: ['apiKey'],
+        sandboxAvailable: false,
+        mockAvailable: true,
+      },
     },
     firebase: {
       name: 'Firebase',
@@ -889,6 +1077,13 @@ export const EXTERNAL_DEPENDENCIES = {
       ] as readonly RegExp[],
       statusCodes: [403, 400] as readonly number[],
       remediation: 'Configure Firebase credentials (FIREBASE_CONFIG or service account)',
+      credentials: {
+        requiredEnv: ['FIREBASE_CONFIG'],
+        optionalEnv: ['GOOGLE_APPLICATION_CREDENTIALS'],
+        requiredConfigKeys: ['config'],
+        sandboxAvailable: false,
+        mockAvailable: true,
+      },
     },
     twilio: {
       name: 'Twilio',
@@ -904,6 +1099,13 @@ export const EXTERNAL_DEPENDENCIES = {
       ] as readonly RegExp[],
       statusCodes: [401, 400] as readonly number[],
       remediation: 'Configure Twilio credentials (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)',
+      credentials: {
+        requiredEnv: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
+        optionalEnv: [],
+        requiredConfigKeys: ['accountSid', 'authToken'],
+        sandboxAvailable: true,
+        mockAvailable: true,
+      },
     },
     sendgrid: {
       name: 'SendGrid',
@@ -918,6 +1120,13 @@ export const EXTERNAL_DEPENDENCIES = {
       ] as readonly RegExp[],
       statusCodes: [401, 403] as readonly number[],
       remediation: 'Configure SendGrid API key (SENDGRID_API_KEY)',
+      credentials: {
+        requiredEnv: ['SENDGRID_API_KEY'],
+        optionalEnv: [],
+        requiredConfigKeys: ['apiKey'],
+        sandboxAvailable: false,
+        mockAvailable: true,
+      },
     },
     github: {
       name: 'GitHub',
@@ -935,6 +1144,13 @@ export const EXTERNAL_DEPENDENCIES = {
       ] as readonly RegExp[],
       statusCodes: [401, 403, 404] as readonly number[],
       remediation: 'Configure GitHub token (GITHUB_TOKEN)',
+      credentials: {
+        requiredEnv: ['GITHUB_TOKEN'],
+        optionalEnv: [],
+        requiredConfigKeys: ['token'],
+        sandboxAvailable: false,
+        mockAvailable: true,
+      },
     },
     database: {
       name: 'Database',
@@ -958,6 +1174,13 @@ export const EXTERNAL_DEPENDENCIES = {
       ] as readonly RegExp[],
       statusCodes: [] as readonly number[], // Database errors typically don't use HTTP status
       remediation: 'Check database connection string and ensure database server is running',
+      credentials: {
+        requiredEnv: [],
+        optionalEnv: ['DATABASE_URL'],
+        requiredConfigKeys: ['connectionString'],
+        sandboxAvailable: false,
+        mockAvailable: false,
+      },
     },
   } as const,
 
@@ -1046,6 +1269,33 @@ export const EXAMPLE_OUTPUT = {
     /** Message template for omitted object keys */
     objectOmittedTemplate: '... ({count} more fields)',
   } as const,
+} as const;
+
+// ==================== Reliability Display ====================
+
+/**
+ * Display thresholds and symbols for reliability metrics.
+ */
+export const RELIABILITY_DISPLAY = {
+  /** High reliability threshold (percentage) */
+  HIGH_THRESHOLD: 90,
+  /** Medium reliability threshold (percentage) */
+  MEDIUM_THRESHOLD: 50,
+  /** Status symbols for reliability and validation summaries */
+  SYMBOLS: {
+    PASS: '✓',
+    WARN: '⚠',
+    FAIL: '✗',
+  } as const,
+} as const;
+
+/**
+ * Confidence indicators for terminal and documentation output.
+ */
+export const CONFIDENCE_INDICATORS = {
+  high: '🟢',
+  medium: '🟡',
+  low: '🔴',
 } as const;
 
 // ==================== Documentation Quality Scoring ====================

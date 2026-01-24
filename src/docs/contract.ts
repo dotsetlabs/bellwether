@@ -1,4 +1,4 @@
-import type { InterviewResult, ToolProfile } from '../interview/types.js';
+import type { InterviewResult, ToolProfile, ExternalServiceSummary, StatefulTestingSummary } from '../interview/types.js';
 import type { MCPTool } from '../transport/types.js';
 import type { SecurityFingerprint, SecurityFinding } from '../security/types.js';
 import type { SemanticInference } from '../validation/semantic-types.js';
@@ -28,7 +28,18 @@ import {
   type ExternalDependencySummary,
 } from '../baseline/external-dependency-detector.js';
 import type { ErrorPattern } from '../baseline/response-fingerprint.js';
-import { SEMANTIC_VALIDATION, SCHEMA_EVOLUTION, ERROR_ANALYSIS, PERFORMANCE_CONFIDENCE, DOCUMENTATION_SCORING, EXAMPLE_OUTPUT } from '../constants.js';
+import {
+  SEMANTIC_VALIDATION,
+  SCHEMA_EVOLUTION,
+  ERROR_ANALYSIS,
+  PERFORMANCE_CONFIDENCE,
+  DOCUMENTATION_SCORING,
+  EXAMPLE_OUTPUT,
+  EXTERNAL_DEPENDENCIES,
+  RELIABILITY_DISPLAY,
+  CONFIDENCE_INDICATORS,
+  DISPLAY_LIMITS,
+} from '../constants.js';
 import type { PerformanceConfidence, ConfidenceLevel } from '../baseline/types.js';
 
 /**
@@ -57,6 +68,10 @@ export interface ContractMdOptions {
   maxExamplesPerTool?: number;
   /** Target confidence level for statistical metrics */
   targetConfidence?: ConfidenceLevel;
+  /** Count validation rejections as success */
+  countValidationAsSuccess?: boolean;
+  /** Separate validation metrics from happy-path reliability */
+  separateValidationMetrics?: boolean;
 }
 
 /**
@@ -73,6 +88,8 @@ export function generateContractMd(result: InterviewResult, options?: ContractMd
   const errorAnalysisSummaries = options?.errorAnalysisSummaries;
   const documentationScore = options?.documentationScore;
   const workflowResults = options?.workflowResults;
+  const countValidationAsSuccess = options?.countValidationAsSuccess ?? true;
+  const separateValidationMetrics = options?.separateValidationMetrics ?? true;
 
   // Example output configuration
   const fullExamples = options?.fullExamples ?? false;
@@ -95,6 +112,9 @@ export function generateContractMd(result: InterviewResult, options?: ContractMd
   lines.push(`**Protocol Version:** ${discovery.protocolVersion}`);
   lines.push('');
 
+  const performanceMetrics = calculatePerformanceMetrics(toolProfiles);
+  const performanceByTool = new Map(performanceMetrics.map(metric => [metric.toolName, metric]));
+
   // Capabilities summary
   lines.push('## Capabilities');
   lines.push('');
@@ -116,23 +136,44 @@ export function generateContractMd(result: InterviewResult, options?: ContractMd
   if (toolProfiles.length > 0) {
     lines.push('## Quick Reference');
     lines.push('');
-    lines.push('| Tool | Parameters | Success Rate | Description |');
-    lines.push('|------|------------|--------------|-------------|');
+    lines.push('| Tool | Parameters | Reliability | P50 | Confidence | Description |');
+    lines.push('|------|------------|-------------|-----|------------|-------------|');
 
     for (const tool of discovery.tools) {
       const params = extractParameters(tool.inputSchema);
       const desc = tool.description?.substring(0, 50) || 'No description';
       const descDisplay = tool.description && tool.description.length > 50 ? desc + '...' : desc;
       const profile = toolProfiles.find(p => p.name === tool.name);
-      const successRate = calculateToolSuccessRate(profile);
-      lines.push(`| \`${escapeTableCell(tool.name)}\` | ${escapeTableCell(params)} | ${successRate} | ${escapeTableCell(descDisplay)} |`);
+      const perf = performanceByTool.get(tool.name);
+      const successRate = calculateToolSuccessRate(profile, {
+        countValidationAsSuccess,
+        separateValidationMetrics,
+      });
+      const p50Display = perf ? `${perf.p50Ms}ms` : '-';
+      const confidenceDisplay = formatConfidenceIndicator(perf?.confidence?.confidenceLevel);
+      lines.push(`| \`${escapeTableCell(tool.name)}\` | ${escapeTableCell(params)} | ${successRate} | ${p50Display} | ${confidenceDisplay} | ${escapeTableCell(descDisplay)} |`);
     }
 
     lines.push('');
   }
 
+  const legendSection = generateMetricsLegendSection();
+  if (legendSection.length > 0) {
+    lines.push(...legendSection);
+  }
+
+  const validationSection = generateValidationTestingSection(toolProfiles);
+  if (validationSection.length > 0) {
+    lines.push(...validationSection);
+  }
+
+  const issuesSection = generateIssuesDetectedSection(toolProfiles);
+  if (issuesSection.length > 0) {
+    lines.push(...issuesSection);
+  }
+
   // Performance Baseline section
-  const perfSection = generateContractPerformanceSection(toolProfiles);
+  const perfSection = generateContractPerformanceSection(toolProfiles, performanceMetrics);
   if (perfSection.length > 0) {
     lines.push(...perfSection);
   }
@@ -151,6 +192,12 @@ export function generateContractMd(result: InterviewResult, options?: ContractMd
     if (workflowSection.length > 0) {
       lines.push(...workflowSection);
     }
+  }
+
+  // Stateful Testing section (if enabled)
+  const statefulSection = generateStatefulTestingSection(toolProfiles, result.metadata.statefulTesting);
+  if (statefulSection.length > 0) {
+    lines.push(...statefulSection);
   }
 
   // Dependency Analysis section (auto-generated from tools)
@@ -198,6 +245,18 @@ export function generateContractMd(result: InterviewResult, options?: ContractMd
     }
   }
 
+  // External service configuration section (from config handling)
+  const externalConfigSection = generateExternalServiceConfigSection(result.metadata.externalServices);
+  if (externalConfigSection.length > 0) {
+    lines.push(...externalConfigSection);
+  }
+
+  // Response Assertions section
+  const assertionSection = generateResponseAssertionsSection(toolProfiles);
+  if (assertionSection.length > 0) {
+    lines.push(...assertionSection);
+  }
+
   // Documentation Quality section (if documentation score available)
   if (documentationScore) {
     const documentationSection = generateDocumentationQualitySection(documentationScore);
@@ -218,6 +277,32 @@ export function generateContractMd(result: InterviewResult, options?: ContractMd
       lines.push('');
       lines.push(tool.description || 'No description available.');
       lines.push('');
+
+      if (profile?.skipped) {
+        lines.push(`*Skipped:* ${profile.skipReason ?? 'External service not configured.'}`);
+        lines.push('');
+      }
+
+      if (profile?.mocked) {
+        const serviceLabel = profile.mockService ? ` (${profile.mockService})` : '';
+        lines.push(`*Mocked response used${serviceLabel}.*`);
+        lines.push('');
+      }
+
+      if (profile?.assertionSummary) {
+        lines.push(`*Response assertions:* ${profile.assertionSummary.passed}/${profile.assertionSummary.total} passed`);
+        const failures = collectAssertionFailures(profile);
+        if (failures.length > 0) {
+          lines.push('Failed assertions:');
+          for (const failure of failures.slice(0, 3)) {
+            lines.push(`- ${failure}`);
+          }
+          if (failures.length > 3) {
+            lines.push(`- ... and ${failures.length - 3} more`);
+          }
+          lines.push('');
+        }
+      }
 
       if (tool.inputSchema) {
         lines.push('**Input Schema:**');
@@ -298,33 +383,310 @@ export function generateContractMd(result: InterviewResult, options?: ContractMd
 }
 
 /**
- * Calculate success rate for a tool from its interactions.
+ * Detailed reliability metrics for a tool.
  */
-function calculateToolSuccessRate(profile: ToolProfile | undefined): string {
-  if (!profile || profile.interactions.length === 0) {
+interface ReliabilityMetrics {
+  /** Total interactions */
+  total: number;
+  /** Happy path tests that succeeded */
+  happyPathSuccesses: number;
+  /** Happy path tests total */
+  happyPathTotal: number;
+  /** Validation tests that correctly rejected */
+  validationSuccesses: number;
+  /** Validation tests total */
+  validationTotal: number;
+  /** Overall reliability rate (correct outcomes / total) */
+  reliabilityRate: number;
+  /** Happy path success rate */
+  happyPathRate: number;
+  /** Validation success rate (correct rejections) */
+  validationRate: number;
+}
+
+/**
+ * Calculate detailed reliability metrics for a tool.
+ * Counts correct rejections (validation tests) as successes.
+ */
+function calculateReliabilityMetrics(
+  profile: ToolProfile | undefined,
+  options: { countValidationAsSuccess: boolean; separateValidationMetrics: boolean }
+): ReliabilityMetrics | null {
+  if (!profile) {
+    return null;
+  }
+
+  const interactions = profile.interactions.filter(i => !i.mocked);
+  if (interactions.length === 0) {
+    return null;
+  }
+
+  let happyPathSuccesses = 0;
+  let happyPathTotal = 0;
+  let validationSuccesses = 0;
+  let validationTotal = 0;
+
+  for (const interaction of interactions) {
+    const expected = interaction.question.expectedOutcome ?? 'success';
+    const hasError = interaction.error || interaction.response?.isError;
+    const textContent = interaction.response?.content?.find(c => c.type === 'text');
+    const hasErrorText = textContent && 'text' in textContent && looksLikeError(String(textContent.text));
+    const gotError = hasError || hasErrorText;
+
+    if (expected === 'error') {
+      // Validation test - error is the expected/correct outcome
+      validationTotal++;
+      if (gotError) {
+        validationSuccesses++; // Correct rejection!
+      }
+    } else if (expected === 'success') {
+      // Happy path test - success is the expected outcome
+      happyPathTotal++;
+      if (!gotError) {
+        happyPathSuccesses++;
+      }
+    } else {
+      // 'either' - counts as success regardless
+      happyPathTotal++;
+      happyPathSuccesses++; // Either outcome is acceptable
+    }
+  }
+
+  const total = interactions.length;
+  const countedValidationSuccesses = options.countValidationAsSuccess ? validationSuccesses : 0;
+  const correctOutcomes = happyPathSuccesses + countedValidationSuccesses;
+  const reliabilityRate = total > 0 ? (correctOutcomes / total) * 100 : 0;
+  const happyPathRate = happyPathTotal > 0 ? (happyPathSuccesses / happyPathTotal) * 100 : 100;
+  const validationRate = options.separateValidationMetrics
+    ? (validationTotal > 0 ? (validationSuccesses / validationTotal) * 100 : 100)
+    : 100;
+
+  return {
+    total,
+    happyPathSuccesses,
+    happyPathTotal,
+    validationSuccesses,
+    validationTotal,
+    reliabilityRate,
+    happyPathRate,
+    validationRate,
+  };
+}
+
+/**
+ * Calculate success rate for a tool from its interactions.
+ * Now uses reliability metrics that count correct rejections as success.
+ */
+function calculateToolSuccessRate(
+  profile: ToolProfile | undefined,
+  options: { countValidationAsSuccess: boolean; separateValidationMetrics: boolean }
+): string {
+  const metrics = calculateReliabilityMetrics(profile, options);
+  if (!metrics) {
     return '-';
   }
 
-  const successCount = profile.interactions.filter(i => {
-    if (i.error || i.response?.isError) return false;
-    const textContent = i.response?.content?.find(c => c.type === 'text');
-    if (textContent && 'text' in textContent) {
-      if (looksLikeError(String(textContent.text))) return false;
-    }
-    return true;
-  }).length;
-
-  const rate = (successCount / profile.interactions.length) * 100;
-  const emoji = rate >= 90 ? '✓' : rate >= 50 ? '⚠' : '✗';
+  // Use reliability rate (includes correct rejections as success)
+  const rate = metrics.reliabilityRate;
+  const emoji = rate >= RELIABILITY_DISPLAY.HIGH_THRESHOLD
+    ? RELIABILITY_DISPLAY.SYMBOLS.PASS
+    : rate >= RELIABILITY_DISPLAY.MEDIUM_THRESHOLD
+      ? RELIABILITY_DISPLAY.SYMBOLS.WARN
+      : RELIABILITY_DISPLAY.SYMBOLS.FAIL;
   return `${emoji} ${rate.toFixed(0)}%`;
+}
+
+function formatConfidenceIndicator(level?: ConfidenceLevel): string {
+  if (!level) {
+    return '-';
+  }
+
+  const indicator = CONFIDENCE_INDICATORS[level];
+  return `${indicator} ${level}`;
+}
+
+function generateMetricsLegendSection(): string[] {
+  const lines: string[] = [];
+  lines.push('## Metrics Legend');
+  lines.push('');
+  lines.push('| Symbol | Meaning |');
+  lines.push('|--------|---------|');
+  lines.push(`| ${RELIABILITY_DISPLAY.SYMBOLS.PASS} | All tests passed as expected |`);
+  lines.push(`| ${RELIABILITY_DISPLAY.SYMBOLS.WARN} | Some unexpected behavior |`);
+  lines.push(`| ${RELIABILITY_DISPLAY.SYMBOLS.FAIL} | Critical issues detected |`);
+  lines.push(`| ${CONFIDENCE_INDICATORS.high} | High confidence in performance metrics |`);
+  lines.push(`| ${CONFIDENCE_INDICATORS.medium} | Medium confidence in performance metrics |`);
+  lines.push(`| ${CONFIDENCE_INDICATORS.low} | Low confidence in performance metrics |`);
+  lines.push('');
+  lines.push('**Reliability Score**: Percentage of tests where the tool behaved as expected');
+  lines.push('(correct success or correct rejection of invalid input).');
+  lines.push('');
+  return lines;
+}
+
+function generateValidationTestingSection(profiles: ToolProfile[]): string[] {
+  const lines: string[] = [];
+  const validationSummary = profiles.map(profile => {
+    const buckets = {
+      input: summarizeValidationBucket(profile, 'input'),
+      type: summarizeValidationBucket(profile, 'type'),
+      required: summarizeValidationBucket(profile, 'required'),
+    };
+    return { profile, buckets };
+  });
+
+  const hasValidationTests = validationSummary.some(summary =>
+    Object.values(summary.buckets).some(bucket => bucket.total > 0)
+  );
+
+  if (!hasValidationTests) {
+    return lines;
+  }
+
+  lines.push('## Validation Testing');
+  lines.push('');
+  lines.push('| Tool | Input Validation | Type Checking | Required Params |');
+  lines.push('|------|------------------|---------------|-----------------|');
+
+  for (const summary of validationSummary) {
+    const toolName = escapeTableCell(summary.profile.name);
+    const inputStatus = formatValidationStatus(summary.buckets.input);
+    const typeStatus = formatValidationStatus(summary.buckets.type);
+    const requiredStatus = formatValidationStatus(summary.buckets.required);
+    lines.push(`| \`${toolName}\` | ${inputStatus} | ${typeStatus} | ${requiredStatus} |`);
+  }
+
+  lines.push('');
+  return lines;
+}
+
+function generateIssuesDetectedSection(profiles: ToolProfile[]): string[] {
+  const lines: string[] = [];
+  const criticalIssues: string[] = [];
+  const warnings: string[] = [];
+
+  for (const profile of profiles) {
+    for (const interaction of profile.interactions) {
+      if (interaction.mocked || !interaction.outcomeAssessment || interaction.outcomeAssessment.correct) {
+        continue;
+      }
+
+      const expected = interaction.outcomeAssessment.expected;
+      const actual = interaction.outcomeAssessment.actual;
+      const description = interaction.question.description;
+      const toolLabel = `\`${escapeTableCell(profile.name)}\``;
+
+      if (expected === 'error' && actual === 'success') {
+        criticalIssues.push(`${toolLabel} accepts invalid input: ${description}`);
+      } else if (expected === 'success' && actual === 'error') {
+        warnings.push(`${toolLabel} failed on valid input: ${description}`);
+      } else {
+        warnings.push(`${toolLabel} returned unexpected outcome: ${description}`);
+      }
+    }
+  }
+
+  lines.push('## Issues Detected');
+  lines.push('');
+
+  if (criticalIssues.length === 0 && warnings.length === 0) {
+    lines.push(`${RELIABILITY_DISPLAY.SYMBOLS.PASS} No issues detected in validation or happy-path behavior.`);
+    lines.push('');
+    return lines;
+  }
+
+  if (criticalIssues.length > 0) {
+    lines.push('### Critical');
+    for (const issue of criticalIssues.slice(0, DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT)) {
+      lines.push(`- ${issue}`);
+    }
+    if (criticalIssues.length > DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT) {
+      lines.push(`- ... ${criticalIssues.length - DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT} more`);
+    }
+    lines.push('');
+  }
+
+  if (warnings.length > 0) {
+    lines.push('### Warnings');
+    for (const issue of warnings.slice(0, DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT)) {
+      lines.push(`- ${issue}`);
+    }
+    if (warnings.length > DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT) {
+      lines.push(`- ... ${warnings.length - DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT} more`);
+    }
+    lines.push('');
+  }
+
+  return lines;
+}
+
+type ValidationBucket = 'input' | 'type' | 'required';
+
+function summarizeValidationBucket(profile: ToolProfile, bucket: ValidationBucket): { total: number; passed: number } {
+  let total = 0;
+  let passed = 0;
+
+  for (const interaction of profile.interactions) {
+    if (interaction.mocked) {
+      continue;
+    }
+    const question = interaction.question;
+    if (question.expectedOutcome !== 'error') {
+      continue;
+    }
+
+    if (classifyValidationBucket(question) !== bucket) {
+      continue;
+    }
+
+    total += 1;
+    if (interaction.outcomeAssessment?.correct) {
+      passed += 1;
+    }
+  }
+
+  return { total, passed };
+}
+
+function classifyValidationBucket(question: { description: string; expectedOutcome?: string }): ValidationBucket {
+  const description = question.description.toLowerCase();
+
+  if (/missing|required/.test(description)) {
+    return 'required';
+  }
+
+  if (/type|coercion|format|invalid\s+type/.test(description)) {
+    return 'type';
+  }
+
+  return 'input';
+}
+
+function formatValidationStatus(bucket: { total: number; passed: number }): string {
+  if (bucket.total === 0) {
+    return '-';
+  }
+
+  if (bucket.passed === bucket.total) {
+    return `${RELIABILITY_DISPLAY.SYMBOLS.PASS} Pass (${bucket.passed}/${bucket.total})`;
+  }
+
+  if (bucket.passed === 0) {
+    return `${RELIABILITY_DISPLAY.SYMBOLS.FAIL} Fail (0/${bucket.total})`;
+  }
+
+  return `${RELIABILITY_DISPLAY.SYMBOLS.WARN} Partial (${bucket.passed}/${bucket.total})`;
 }
 
 /**
  * Generate performance baseline section for CONTRACT.md.
  */
-function generateContractPerformanceSection(profiles: ToolProfile[]): string[] {
+function generateContractPerformanceSection(
+  profiles: ToolProfile[],
+  metricsOverride?: ReturnType<typeof calculatePerformanceMetrics>
+): string[] {
   const lines: string[] = [];
-  const metrics = calculatePerformanceMetrics(profiles);
+  const metrics = metricsOverride ?? calculatePerformanceMetrics(profiles);
 
   if (metrics.length === 0) {
     return [];
@@ -340,14 +702,17 @@ function generateContractPerformanceSection(profiles: ToolProfile[]): string[] {
   lines.push('');
   lines.push('Response time metrics observed during schema validation:');
   lines.push('');
-  lines.push('| Tool | Calls | P50 | P95 | Success | Confidence |');
-  lines.push('|------|-------|-----|-----|---------|------------|');
+  lines.push('| Tool | Calls | P50 | P95 | Happy Path % | Confidence |');
+  lines.push('|------|-------|-----|-----|--------------|------------|');
 
   for (const m of metrics) {
     const successRate = ((1 - m.errorRate) * 100).toFixed(0);
     const successEmoji = m.errorRate < 0.1 ? '✓' : m.errorRate < 0.5 ? '⚠' : '✗';
     const confidenceDisplay = formatConfidenceDisplay(m.confidence);
-    lines.push(`| \`${escapeTableCell(m.toolName)}\` | ${m.callCount} | ${m.p50Ms}ms | ${m.p95Ms}ms | ${successEmoji} ${successRate}% | ${confidenceDisplay} |`);
+    // Guard against 0 calls edge case - show N/A for latency metrics
+    const p50Display = m.callCount > 0 ? `${m.p50Ms}ms` : 'N/A';
+    const p95Display = m.callCount > 0 ? `${m.p95Ms}ms` : 'N/A';
+    lines.push(`| \`${escapeTableCell(m.toolName)}\` | ${m.callCount} | ${p50Display} | ${p95Display} | ${successEmoji} ${successRate}% | ${confidenceDisplay} |`);
   }
 
   lines.push('');
@@ -355,8 +720,23 @@ function generateContractPerformanceSection(profiles: ToolProfile[]): string[] {
   // Show low confidence warning if any tools have low confidence
   const lowConfidenceTools = metrics.filter(m => m.confidence?.confidenceLevel === 'low');
   if (lowConfidenceTools.length > 0) {
+    // Categorize low confidence by reason
+    const lowSampleTools = lowConfidenceTools.filter(
+      m => (m.confidence?.successfulSamples ?? 0) < PERFORMANCE_CONFIDENCE.HIGH.MIN_SAMPLES
+    );
+    const highVariabilityTools = lowConfidenceTools.filter(
+      m => (m.confidence?.successfulSamples ?? 0) >= PERFORMANCE_CONFIDENCE.HIGH.MIN_SAMPLES &&
+           (m.confidence?.coefficientOfVariation ?? 0) > PERFORMANCE_CONFIDENCE.MEDIUM.MAX_CV
+    );
+
     lines.push(`> **⚠️ Low Confidence**: ${lowConfidenceTools.length} tool(s) have low statistical confidence.`);
-    lines.push('> Consider running with more samples for reliable baselines.');
+    if (lowSampleTools.length > 0) {
+      lines.push(`> - ${lowSampleTools.length} tool(s) have insufficient happy path samples (need ${PERFORMANCE_CONFIDENCE.HIGH.MIN_SAMPLES}+)`);
+    }
+    if (highVariabilityTools.length > 0) {
+      lines.push(`> - ${highVariabilityTools.length} tool(s) have high response time variability (CV > ${(PERFORMANCE_CONFIDENCE.MEDIUM.MAX_CV * 100).toFixed(0)}%)`);
+    }
+    lines.push('> Run with `--warmup-runs 3` and `--max-questions 5` for more reliable baselines.');
     lines.push('');
   }
 
@@ -366,24 +746,38 @@ function generateContractPerformanceSection(profiles: ToolProfile[]): string[] {
     lines.push('<details>');
     lines.push('<summary>Confidence Metrics Details</summary>');
     lines.push('');
-    lines.push('| Tool | Samples | Std Dev | CV | Level |');
-    lines.push('|------|---------|---------|-----|-------|');
+    lines.push('| Tool | Happy Path | Validation | Total | Std Dev | CV | Level |');
+    lines.push('|------|------------|------------|-------|---------|-----|-------|');
 
     for (const m of metrics) {
       if (m.confidence) {
-        const cv = (m.confidence.coefficientOfVariation * 100).toFixed(1);
+        // Guard against impossible metrics: 0 samples shouldn't have stdDev/CV
+        const successfulSamples = m.confidence.successfulSamples ?? m.confidence.sampleCount;
+        const validationSamples = m.confidence.validationSamples ?? 0;
+        const totalTests = m.confidence.totalTests ?? m.confidence.sampleCount;
+        // Use confidence.standardDeviation (from successful samples) for consistency with CV
+        const roundedStdDev = Math.round(m.confidence.standardDeviation);
+        const stdDevDisplay = successfulSamples > 0 ? `${roundedStdDev}ms` : 'N/A';
+        // When stdDev rounds to 0ms, showing high CV is misleading (sub-millisecond noise)
+        // In this case, display ~0% to indicate the variability is below measurement threshold
+        const rawCV = m.confidence.coefficientOfVariation * 100;
+        const cvDisplay = successfulSamples > 0
+          ? (roundedStdDev === 0 && rawCV > 1 ? '~0%' : `${rawCV.toFixed(1)}%`)
+          : 'N/A';
         const levelLabel = PERFORMANCE_CONFIDENCE.LABELS[m.confidence.confidenceLevel];
         lines.push(
-          `| \`${escapeTableCell(m.toolName)}\` | ${m.confidence.sampleCount} | ${m.stdDevMs}ms | ${cv}% | ${levelLabel} |`
+          `| \`${escapeTableCell(m.toolName)}\` | ${successfulSamples} | ${validationSamples} | ${totalTests} | ${stdDevDisplay} | ${cvDisplay} | ${levelLabel} |`
         );
       }
     }
 
     lines.push('');
     lines.push('**Legend:**');
-    lines.push(`- HIGH: ${PERFORMANCE_CONFIDENCE.HIGH.MIN_SAMPLES}+ samples, CV ≤ ${PERFORMANCE_CONFIDENCE.HIGH.MAX_CV * 100}%`);
-    lines.push(`- MEDIUM: ${PERFORMANCE_CONFIDENCE.MEDIUM.MIN_SAMPLES}+ samples, CV ≤ ${PERFORMANCE_CONFIDENCE.MEDIUM.MAX_CV * 100}%`);
-    lines.push('- LOW: Insufficient samples or high variability');
+    lines.push(`- **Happy Path**: Successful tests with expected outcome "success" (used for confidence)`);
+    lines.push(`- **Validation**: Tests with expected outcome "error" (not used for performance confidence)`);
+    lines.push(`- HIGH: ${PERFORMANCE_CONFIDENCE.HIGH.MIN_SAMPLES}+ happy path samples, CV ≤ ${PERFORMANCE_CONFIDENCE.HIGH.MAX_CV * 100}%`);
+    lines.push(`- MEDIUM: ${PERFORMANCE_CONFIDENCE.MEDIUM.MIN_SAMPLES}+ happy path samples, CV ≤ ${PERFORMANCE_CONFIDENCE.MEDIUM.MAX_CV * 100}%`);
+    lines.push('- LOW: Insufficient happy path samples or high variability');
     lines.push('');
     lines.push('</details>');
     lines.push('');
@@ -1355,6 +1749,9 @@ function generateToolErrorPatterns(profile: ToolProfile | undefined): string[] {
   const errorCategories: Map<string, string[]> = new Map();
 
   for (const interaction of profile.interactions) {
+    if (interaction.mocked) {
+      continue;
+    }
     const errorText = interaction.error || '';
     const textContent = interaction.response?.content?.find(c => c.type === 'text');
     const responseText = textContent && 'text' in textContent ? String(textContent.text) : '';
@@ -1424,6 +1821,9 @@ function generateErrorSummarySection(profiles: ToolProfile[]): string[] {
 
   for (const profile of profiles) {
     for (const interaction of profile.interactions) {
+      if (interaction.mocked) {
+        continue;
+      }
       const errorText = interaction.error || '';
       const textContent = interaction.response?.content?.find(c => c.type === 'text');
       const responseText = textContent && 'text' in textContent ? String(textContent.text) : '';
@@ -1491,6 +1891,9 @@ function analyzeToolsForExternalDependencies(
     const patternCounts = new Map<string, { count: number; example: string }>();
 
     for (const interaction of profile.interactions) {
+      if (interaction.mocked) {
+        continue;
+      }
       const errorText = interaction.error || '';
       const textContent = interaction.response?.content?.find(c => c.type === 'text');
       const responseText = textContent && 'text' in textContent ? String(textContent.text) : '';
@@ -1561,6 +1964,114 @@ function mapCategoryToErrorCategory(
     default:
       return 'unknown';
   }
+}
+
+function generateStatefulTestingSection(
+  toolProfiles: ToolProfile[],
+  summary?: StatefulTestingSummary
+): string[] {
+  if (!summary?.enabled) return [];
+
+  const lines: string[] = [];
+  const withDeps = toolProfiles
+    .filter((p) => p.dependencyInfo)
+    .sort((a, b) => (a.dependencyInfo?.sequencePosition ?? 0) - (b.dependencyInfo?.sequencePosition ?? 0));
+
+  if (withDeps.length === 0) {
+    return [];
+  }
+
+  lines.push('## Stateful Testing');
+  lines.push('');
+  lines.push(`Stateful testing executed across ${summary.toolCount} tool(s) with ${summary.dependencyCount} dependency edge(s).`);
+  lines.push('');
+  lines.push('| Tool | Sequence | Depends On |');
+  lines.push('|------|----------|------------|');
+  for (const profile of withDeps) {
+    const deps = profile.dependencyInfo?.dependsOn?.length
+      ? profile.dependencyInfo.dependsOn.join(', ')
+      : 'None';
+    lines.push(`| \`${escapeTableCell(profile.name)}\` | ${profile.dependencyInfo?.sequencePosition ?? 0} | ${escapeTableCell(deps)} |`);
+  }
+  lines.push('');
+
+  const edges = withDeps.flatMap((profile) =>
+    (profile.dependencyInfo?.dependsOn ?? []).map((dep) => ({ from: dep, to: profile.name }))
+  );
+  if (edges.length > 0 && edges.length <= 50) {
+    lines.push('```mermaid');
+    lines.push('graph TD');
+    for (const edge of edges) {
+      lines.push(`  ${mermaidLabel(edge.from)} --> ${mermaidLabel(edge.to)}`);
+    }
+    lines.push('```');
+    lines.push('');
+  }
+
+  return lines;
+}
+
+function generateExternalServiceConfigSection(summary?: ExternalServiceSummary): string[] {
+  if (!summary || summary.unconfiguredServices.length === 0) return [];
+
+  const lines: string[] = [];
+  lines.push('## External Service Setup');
+  lines.push('');
+  lines.push(`Mode: \`${summary.mode}\``);
+  lines.push('');
+
+  for (const serviceName of summary.unconfiguredServices) {
+    const service = EXTERNAL_DEPENDENCIES.SERVICES[serviceName as keyof typeof EXTERNAL_DEPENDENCIES.SERVICES];
+    if (!service) continue;
+    lines.push(`- **${service.name}**: ${service.remediation}`);
+  }
+  lines.push('');
+
+  return lines;
+}
+
+function generateResponseAssertionsSection(toolProfiles: ToolProfile[]): string[] {
+  const profiles = toolProfiles.filter((p) => p.assertionSummary);
+  if (profiles.length === 0) return [];
+
+  const lines: string[] = [];
+  lines.push('## Response Assertions');
+  lines.push('');
+  lines.push('| Tool | Passed | Failed |');
+  lines.push('|------|--------|--------|');
+  for (const profile of profiles) {
+    const summary = profile.assertionSummary!;
+    lines.push(`| \`${escapeTableCell(profile.name)}\` | ${summary.passed} | ${summary.failed} |`);
+  }
+  lines.push('');
+
+  const failingTools = profiles.filter((p) => (p.assertionSummary?.failed ?? 0) > 0);
+  if (failingTools.length > 0) {
+    lines.push('### Assertion Failures');
+    lines.push('');
+    for (const profile of failingTools) {
+      const failures = collectAssertionFailures(profile);
+      lines.push(`- \`${profile.name}\`: ${failures.slice(0, 3).join('; ')}${failures.length > 3 ? ' ...' : ''}`);
+    }
+    lines.push('');
+  }
+
+  return lines;
+}
+
+function collectAssertionFailures(profile: ToolProfile): string[] {
+  const failures = new Set<string>();
+  for (const interaction of profile.interactions) {
+    if (interaction.mocked) {
+      continue;
+    }
+    for (const result of interaction.assertionResults ?? []) {
+      if (result.passed) continue;
+      const message = result.message ? `${result.type}: ${result.message}` : `${result.type} failed`;
+      failures.add(message);
+    }
+  }
+  return Array.from(failures);
 }
 
 /**

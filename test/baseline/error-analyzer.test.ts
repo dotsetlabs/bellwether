@@ -19,8 +19,6 @@ import {
   formatEnhancedError,
   formatErrorTrendReport,
   formatCategoryName,
-  type EnhancedErrorAnalysis,
-  type ErrorAnalysisSummary,
 } from '../../src/baseline/error-analyzer.js';
 import type { ErrorPattern } from '../../src/baseline/response-fingerprint.js';
 
@@ -473,12 +471,12 @@ describe('error-analyzer', () => {
 
     it('should generate summary with all changes', () => {
       const previous: ErrorPattern[] = [
-        { category: 'old_category', patternHash: 'a', example: 'Old error', count: 5 },
-        { category: 'increasing', patternHash: 'b', example: 'Growing', count: 2 },
+        { category: 'internal', patternHash: 'a', example: 'Old error', count: 5 },
+        { category: 'validation', patternHash: 'b', example: 'Growing', count: 2 },
       ];
       const current: ErrorPattern[] = [
-        { category: 'new_category', patternHash: 'c', example: 'New error', count: 3 },
-        { category: 'increasing', patternHash: 'b', example: 'Growing', count: 10 },
+        { category: 'permission', patternHash: 'c', example: 'New error', count: 3 },
+        { category: 'validation', patternHash: 'b', example: 'Growing', count: 10 },
       ];
 
       const report = analyzeErrorTrends(previous, current);
@@ -579,6 +577,84 @@ describe('error-analyzer', () => {
       const formatted = formatErrorTrendReport(report, false);
 
       expect(formatted).toContain('No significant changes');
+    });
+  });
+
+  // ==================== Validation Expected Category ====================
+  describe('validation_expected category', () => {
+    it('should format validation_expected category name', () => {
+      expect(formatCategoryName('validation_expected')).toBe('Expected Validation (Test)');
+    });
+
+    it('should handle validation_expected in analyzeError with context', () => {
+      // When an error is expected from validation testing, it should be
+      // classified as validation_expected
+      const analysis = analyzeError('Error 400: Invalid email format', {
+        expectedOutcome: 'error',
+        testCategory: 'error_handling',
+      });
+
+      // The analysis should recognize this as expected validation
+      expect(analysis.statusCategory).toBe('validation_expected');
+      expect(analysis.wasExpected).toBe(true);
+    });
+
+    it('should mark unexpected errors as not expected', () => {
+      const analysis = analyzeError('Error 400: Invalid email format', {
+        expectedOutcome: 'success',
+        testCategory: 'happy_path',
+      });
+
+      // When success was expected but got error, wasExpected is false
+      expect(analysis.wasExpected).toBe(false);
+      expect(analysis.statusCategory).toBe('client_error_validation');
+    });
+
+    it('should handle context with error expected outcome', () => {
+      const analysis = analyzeError('Error 404: User not found', {
+        expectedOutcome: 'error',
+        testCategory: 'error_handling',
+      });
+
+      expect(analysis.wasExpected).toBe(true);
+      expect(analysis.severity).toBe('info'); // Expected errors are informational
+    });
+
+    it('should classify severity as info for expected errors', () => {
+      const analysis = analyzeError('Error 400: Required field missing', {
+        expectedOutcome: 'error',
+        testCategory: 'error_handling',
+      });
+
+      // Expected validation errors should have 'info' severity
+      expect(analysis.severity).toBe('info');
+    });
+
+    it('should use wasExpected flag directly when provided', () => {
+      const analysis = analyzeError('Some error message', {
+        wasExpected: true,
+      });
+
+      expect(analysis.wasExpected).toBe(true);
+      expect(analysis.severity).toBe('info');
+    });
+  });
+
+  describe('analyzeErrorPatterns with context', () => {
+    it('should pass context to individual error analysis', () => {
+      const patterns: ErrorPattern[] = [
+        { category: 'validation', patternHash: 'a', example: 'Error 400: Invalid email', count: 3 },
+      ];
+
+      const context = {
+        expectedOutcome: 'error' as const,
+        testCategory: 'error_handling',
+      };
+
+      const analyses = analyzeErrorPatterns(patterns, context);
+
+      expect(analyses).toHaveLength(1);
+      expect(analyses[0].wasExpected).toBe(true);
     });
   });
 });

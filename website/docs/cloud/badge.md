@@ -136,7 +136,7 @@ Update badge status after CI tests:
 
 ```bash
 # Run test and upload baseline
-bellwether check --preset ci npx your-server
+bellwether check npx your-server
 bellwether upload
 
 # Check badge status

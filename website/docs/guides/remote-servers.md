@@ -5,7 +5,7 @@ sidebar_position: 6
 
 # Remote MCP Servers
 
-Bellwether can connect to remote MCP servers over HTTP using SSE (Server-Sent Events) or Streamable HTTP transports.
+Bellwether can discover remote MCP servers over HTTP using SSE (Server-Sent Events) or Streamable HTTP transports. `bellwether check` and `bellwether explore` currently require local stdio servers.
 
 ## Transport Types
 
@@ -22,20 +22,15 @@ SSE (Server-Sent Events) is ideal for servers that need to push updates to clien
 ### Basic Usage
 
 ```bash
-bellwether check \
+bellwether discover \
   --transport sse \
-  --url https://api.example.com/mcp \
-  npx placeholder-not-used
+  --url https://api.example.com/mcp
 ```
-
-:::note
-When using remote transports, the command argument (`npx placeholder-not-used`) is required by the CLI but not used. You can pass any placeholder value.
-:::
 
 ### With Authentication
 
 ```bash
-bellwether check \
+bellwether discover \
   --transport sse \
   --url https://api.example.com/mcp \
   --session-id "your-auth-token"
@@ -56,10 +51,9 @@ Streamable HTTP is a simpler request-response model that supports streaming resp
 ### Basic Usage
 
 ```bash
-bellwether check \
+bellwether discover \
   --transport streamable-http \
-  --url https://api.example.com/mcp \
-  npx placeholder
+  --url https://api.example.com/mcp
 ```
 
 ### With Custom Headers
@@ -67,7 +61,7 @@ bellwether check \
 For servers requiring authentication or custom headers, use the session ID:
 
 ```bash
-bellwether check \
+bellwether discover \
   --transport streamable-http \
   --url https://api.example.com/mcp \
   --session-id "Bearer your-jwt-token"
@@ -111,32 +105,28 @@ bellwether discover \
 ### Public MCP Server
 
 ```bash
-bellwether check \
+bellwether discover \
   --transport sse \
-  --url https://mcp.example.com/public \
-  --preset docs \
-  npx placeholder
+  --url https://mcp.example.com/public
 ```
 
 ### Authenticated API
 
 ```bash
 # Using bearer token
-bellwether check \
+bellwether discover \
   --transport streamable-http \
   --url https://api.example.com/mcp \
-  --session-id "Bearer eyJhbGciOiJIUzI1NiIs..." \
-  npx placeholder
+  --session-id "Bearer eyJhbGciOiJIUzI1NiIs..."
 ```
 
 ### Local Development Server
 
 ```bash
 # Test a locally running remote-protocol server
-bellwether check \
+bellwether discover \
   --transport sse \
-  --url http://localhost:3000/mcp \
-  npx placeholder
+  --url http://localhost:3000/mcp
 ```
 
 ## Timeouts
@@ -144,11 +134,10 @@ bellwether check \
 Both transports respect the `--timeout` flag for request timeouts:
 
 ```bash
-bellwether check \
+bellwether discover \
   --transport sse \
   --url https://slow-server.example.com/mcp \
-  --timeout 120000 \
-  npx placeholder
+  --timeout 120000
 ```
 
 ## Error Handling

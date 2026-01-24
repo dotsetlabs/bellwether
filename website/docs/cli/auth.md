@@ -68,9 +68,9 @@ Ollama:
 
 Credential resolution order:
   1. Environment variables (highest priority)
-  2. System keychain
+  2. Project .env file
   3. ~/.bellwether/.env file
-  4. Project .env file
+  4. System keychain
 ```
 
 ### add
@@ -164,16 +164,16 @@ Bellwether checks for API keys in this order:
    - `OPENAI_API_KEY`
    - `ANTHROPIC_API_KEY`
 
-2. **System keychain**
-   - macOS: Keychain Access
-   - Windows: Credential Manager
-   - Linux: Secret Service (libsecret)
+2. **Project config file**
+   - `./.env`
 
 3. **Global config file**
    - `~/.bellwether/.env`
 
-4. **Project config file**
-   - `./.env`
+4. **System keychain**
+   - macOS: Keychain Access
+   - Windows: Credential Manager
+   - Linux: Secret Service (libsecret)
 
 ## Storage Options
 

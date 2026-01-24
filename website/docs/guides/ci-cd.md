@@ -39,7 +39,7 @@ bellwether init --preset ci
 
 This creates `bellwether.yaml` with:
 - Check mode (free, deterministic)
-- JSON output enabled
+- JSON reports written to `output.dir`
 - Fail on drift enabled
 
 ### 2. Create Initial Baseline
@@ -93,11 +93,11 @@ baseline:
 
 ```yaml
 - name: Detect Behavioral Drift
-  uses: dotsetlabs/bellwether@v1
+  uses: dotsetlabs/bellwether/action@v1
   with:
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
-    fail-on-drift: 'true'
+    fail-on-severity: 'warning'
 ```
 
 ### Explore Mode with LLM (Documentation Only)
@@ -266,10 +266,11 @@ Bellwether uses granular exit codes for semantic CI/CD integration:
 | Code | Meaning | Action |
 |:-----|:--------|:-------|
 | `0` | No changes detected | Pipeline passes |
-| `1` | Info-level changes (non-breaking) | Pipeline passes by default |
-| `2` | Warning-level changes | Pipeline fails with `--fail-on-drift` |
+| `1` | Info-level changes (non-breaking) | Decide in CI (often treated as pass) |
+| `2` | Warning-level changes | Decide in CI (often treated as failure) |
 | `3` | Breaking changes detected | Pipeline always fails |
 | `4` | Runtime error (connection, config) | Pipeline fails |
+| `5` | Low confidence metrics (when `check.sampling.failOnLowConfidence` is true) | Pipeline fails |
 
 ### Handling Exit Codes
 
@@ -281,6 +282,7 @@ case $? in
   2) echo "Warnings detected" ;;
   3) echo "BREAKING CHANGES!" && exit 1 ;;
   4) echo "Error occurred" && exit 1 ;;
+  5) echo "Low confidence metrics" && exit 1 ;;
 esac
 ```
 
@@ -371,7 +373,7 @@ Configure security testing in `bellwether.yaml`:
 check:
   security:
     enabled: true
-    categories: [sql_injection, xss, path_traversal, command_injection, ssrf]
+    categories: [sql_injection, xss, path_traversal, command_injection, ssrf, error_disclosure]
 ```
 
 Security testing detects:

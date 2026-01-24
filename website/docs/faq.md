@@ -214,8 +214,12 @@ bellwether check --fail-on-drift
 
 | Code | Meaning |
 |:-----|:--------|
-| 0 | Success |
-| 1 | Drift detected or check failed |
+| 0 | Clean (no changes) |
+| 1 | Info-level changes |
+| 2 | Warning-level changes |
+| 3 | Breaking changes |
+| 4 | Runtime error |
+| 5 | Low confidence metrics (when `check.sampling.failOnLowConfidence` is true) |
 
 ### How do I minimize CI costs?
 

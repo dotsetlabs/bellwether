@@ -56,6 +56,7 @@ import { goldenCommand } from './commands/golden.js';
 import { registryCommand } from './commands/registry.js';
 import { verifyCommand } from './commands/verify.js';
 import { contractCommand } from './commands/contract.js';
+import { validateConfigCommand } from './commands/validate-config.js';
 import { badgeCommand } from './commands/cloud/badge.js';
 import { diffCommand } from './commands/cloud/diff.js';
 import { historyCommand } from './commands/cloud/history.js';
@@ -129,7 +130,7 @@ For more information on a specific command, use:
     const commandName = activeCommand.name();
     const opts = activeCommand.opts();
 
-    if (commandName !== 'init') {
+    if (commandName !== 'init' && commandName !== 'validate-config') {
       const configPath = opts.config as string | undefined;
       const found = findConfigFile(configPath);
       if (!found) {
@@ -208,6 +209,11 @@ program.addCommand(
 program.addCommand(
   contractCommand.description(
     'Validate MCP servers against contract definitions (validate, generate, show)'
+  )
+);
+program.addCommand(
+  validateConfigCommand.description(
+    'Validate bellwether.yaml configuration (no tests)'
   )
 );
 

@@ -104,12 +104,12 @@ jobs:
 
 ```yaml
 - name: Run Bellwether
-  uses: dotsetlabs/bellwether@v1
+  uses: dotsetlabs/bellwether/action@v1
   with:
     server-command: 'npx @modelcontextprotocol/server-filesystem'
     server-args: '/tmp'
     baseline-path: './bellwether-baseline.json'
-    fail-on-drift: 'true'
+    fail-on-severity: 'warning'
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 ```
@@ -251,7 +251,7 @@ Add these CI/CD variables in GitLab:
 The `--preset ci` option is optimized for fast, low-cost CI runs:
 
 ```bash
-bellwether check --preset ci npx your-server
+bellwether check npx your-server
 ```
 
 ### 2. Cache Dependencies
@@ -273,7 +273,7 @@ cache:
 
 ### 3. Fail on Breaking Changes
 
-Use `--fail-on-drift` to fail the pipeline on breaking changes:
+`bellwether upload --ci` already fails on breaking changes. Use `--fail-on-drift` to fail on any drift severity:
 
 ```bash
 bellwether upload --ci --fail-on-drift

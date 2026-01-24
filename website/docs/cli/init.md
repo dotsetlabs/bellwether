@@ -161,6 +161,7 @@ check:
       - path_traversal
       - command_injection
       - ssrf
+      - error_disclosure
 
   # Statistical sampling
   sampling:
@@ -205,7 +206,7 @@ explore:
 workflows:
   discover: false
   trackState: false
-  autoGenerate: true      # Auto-generate from tool patterns
+  autoGenerate: false     # Auto-generate from tool patterns
   stepTimeout: 5000
 
 # =============================================================================

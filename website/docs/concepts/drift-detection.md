@@ -98,18 +98,18 @@ scenarios:
 
 | Use Case | Recommended Mode | Why |
 |:---------|:-----------------|:----|
-| CI/CD deployment gates | `--scenarios-only` | Deterministic, no false positives |
+| CI/CD deployment gates | `scenarios.only: true` | Deterministic, no false positives |
 | PR review checks | Default (LLM-assisted) | Catches unexpected behaviors |
 | Initial documentation | Default (LLM-assisted) | Discovers behaviors you didn't think to test |
-| Compliance environments | `--scenarios-only` | Auditable, reproducible results |
+| Compliance environments | `scenarios.only: true` | Auditable, reproducible results |
 
 ## Drift Severity Levels
 
 | Level | Description | Examples | CI Behavior |
 |:------|:------------|:---------|:------------|
 | `breaking` | Schema or critical behavior changes | Tool removed, required param added | Always fails |
-| `warning` | Behavioral changes to investigate | Error messages, limits, side effects | Fails with `--fail-on-drift` |
-| `info` | Documentation-only changes | Wording improvements | Pass (unless `--strict`) |
+| `warning` | Behavioral changes to investigate | Error messages, limits, side effects | Exit code `2` (handle in CI as desired) |
+| `info` | Documentation-only changes | Wording improvements | Exit code `1` (handle in CI as desired) |
 | `none` | No changes detected | - | Pass |
 
 ## Using Drift Detection
@@ -238,11 +238,7 @@ check:
   performanceThreshold: 10  # Flag if P50 latency increases by >10%
 ```
 
-Or via CLI:
-
-```bash
-bellwether check --performance-threshold 15
-```
+This setting is configuration-only and applies to all check runs.
 
 #### Performance Confidence
 
@@ -364,10 +360,13 @@ Bellwether uses granular exit codes for semantic CI/CD integration:
 | `2` | Warning | Behavioral changes to investigate |
 | `3` | Breaking | Critical changes (tool removed, type changed) |
 | `4` | Error | Runtime error (connection, config) |
+| `5` | Low confidence | Metrics lack confidence (when `check.sampling.failOnLowConfidence` is true) |
+
+Bellwether always returns the severity-specific exit code; use your CI to decide which severities should fail a build.
 
 ### Configurable Failure Threshold
 
-You can configure which severity level triggers CI failure:
+You can configure which severity level you treat as a CI failure:
 
 ```yaml
 baseline:
@@ -409,7 +408,7 @@ Cloud provides:
 1. **Run drift detection in CI** - Catch changes early
 2. **Review drift before merging** - Understand what changed
 3. **Update baselines intentionally** - Don't auto-update
-4. **Use appropriate severity** - `--fail-on-drift` for PRs
+4. **Use appropriate severity** - Configure `baseline.severity.failOnSeverity` and handle exit codes in CI
 5. **Track drift over time** - Use cloud for history
 
 ## See Also

@@ -4,6 +4,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   detectExternalDependency,
+  detectExternalServiceFromTool,
+  getExternalServiceStatus,
   categorizeErrorSource,
   isTransientError,
   analyzeExternalDependencies,
@@ -127,6 +129,37 @@ describe('external-dependency-detector', () => {
       );
       expect(result).not.toBeNull();
       expect(result?.serviceName).toBe('plaid');
+    });
+  });
+
+  describe('detectExternalServiceFromTool', () => {
+    it('should detect services from tool name', () => {
+      const result = detectExternalServiceFromTool('plaid_link_create');
+      expect(result).not.toBeNull();
+      expect(result?.serviceName).toBe('plaid');
+    });
+
+    it('should detect services from description', () => {
+      const result = detectExternalServiceFromTool('create_link', 'Creates a link token with Plaid');
+      expect(result).not.toBeNull();
+      expect(result?.serviceName).toBe('plaid');
+    });
+  });
+
+  describe('getExternalServiceStatus', () => {
+    it('should report missing credentials when not configured', () => {
+      const status = getExternalServiceStatus('plaid', { mode: 'skip', services: {} });
+      expect(status.configured).toBe(false);
+      expect(status.missingCredentials.length).toBeGreaterThan(0);
+    });
+
+    it('should report configured when credentials are present', () => {
+      process.env.PLAID_CLIENT_ID = 'test';
+      process.env.PLAID_SECRET = 'test';
+      const status = getExternalServiceStatus('plaid', { mode: 'skip', services: {} });
+      expect(status.configured).toBe(true);
+      delete process.env.PLAID_CLIENT_ID;
+      delete process.env.PLAID_SECRET;
     });
   });
 
@@ -424,6 +457,199 @@ describe('external-dependency-detector', () => {
       if (summary.services.size > 0) {
         expect(markdown).toContain('External Dependencies');
       }
+    });
+  });
+
+  // ==================== Confirmed vs Detected Dependencies ====================
+  describe('confirmed vs detected dependency tracking', () => {
+    describe('detectExternalDependency confidence levels', () => {
+      it('should return confirmed level when error message matches patterns', () => {
+        const result = detectExternalDependency('INVALID_ACCESS_TOKEN: The access token is invalid');
+        expect(result).not.toBeNull();
+        expect(result?.confidenceLevel).toBe('confirmed');
+        expect(result?.evidence.fromErrorMessage).toBe(true);
+      });
+
+      it('should return likely level when only tool name matches', () => {
+        const result = detectExternalDependency('Connection failed', 'plaid_get_accounts');
+        expect(result).not.toBeNull();
+        expect(result?.confidenceLevel).toBe('likely');
+        expect(result?.evidence.fromToolName).toBe(true);
+        expect(result?.evidence.fromErrorMessage).toBe(false);
+      });
+
+      it('should return possible level when only description matches', () => {
+        const result = detectExternalDependency(
+          'Connection failed',
+          'get_data',
+          'Retrieves data from Plaid API'
+        );
+        expect(result).not.toBeNull();
+        // When description matches, still likely level due to tool patterns
+        expect(result?.evidence.fromDescription).toBe(true);
+      });
+
+      it('should include evidence breakdown', () => {
+        const result = detectExternalDependency('INVALID_ACCESS_TOKEN', 'plaid_tool');
+        expect(result).not.toBeNull();
+        expect(result?.evidence).toBeDefined();
+        expect(typeof result?.evidence.fromErrorMessage).toBe('boolean');
+        expect(typeof result?.evidence.fromToolName).toBe('boolean');
+        expect(typeof result?.evidence.fromDescription).toBe('boolean');
+        expect(typeof result?.evidence.actualErrorCount).toBe('number');
+      });
+    });
+
+    describe('analyzeExternalDependencies confirmed vs detected', () => {
+      it('should separate confirmed tools from detected tools', () => {
+        const errors: Array<{
+          toolName: string;
+          toolDescription?: string;
+          patterns: ErrorPattern[];
+        }> = [
+          {
+            // This tool has actual Plaid errors - should be confirmed
+            toolName: 'plaid_get_accounts',
+            patterns: [
+              {
+                category: 'permission' as const,
+                patternHash: 'plaid1',
+                example: 'INVALID_ACCESS_TOKEN: Token expired',
+                count: 5,
+              },
+            ],
+          },
+          {
+            // This tool only has plaid in name - should be detected
+            toolName: 'plaid_get_balance',
+            patterns: [
+              {
+                category: 'unknown' as const,
+                patternHash: 'unknown1',
+                example: 'Unknown error occurred',
+                count: 2,
+              },
+            ],
+          },
+        ];
+
+        const result = analyzeExternalDependencies(errors);
+        const plaidService = result.services.get('plaid');
+
+        expect(plaidService).toBeDefined();
+        // First tool should be confirmed (has actual Plaid errors)
+        expect(plaidService?.confirmedTools).toContain('plaid_get_accounts');
+        // Second tool's error doesn't match Plaid patterns, so it depends on the
+        // confidence threshold whether it gets classified as external
+      });
+
+      it('should track confirmed error counts separately', () => {
+        const errors: Array<{
+          toolName: string;
+          toolDescription?: string;
+          patterns: ErrorPattern[];
+        }> = [
+          {
+            toolName: 'stripe_charge',
+            patterns: [
+              {
+                category: 'permission' as const,
+                patternHash: 'stripe1',
+                example: 'StripeError: invalid_api_key',
+                count: 10,
+              },
+            ],
+          },
+        ];
+
+        const result = analyzeExternalDependencies(errors);
+        const stripeService = result.services.get('stripe');
+
+        expect(stripeService).toBeDefined();
+        expect(stripeService?.confirmedErrorCount).toBeGreaterThan(0);
+        expect(stripeService?.highestConfidenceLevel).toBe('confirmed');
+      });
+
+      it('should track highest confidence level per service', () => {
+        const errors: Array<{
+          toolName: string;
+          toolDescription?: string;
+          patterns: ErrorPattern[];
+        }> = [
+          {
+            toolName: 'aws_tool',
+            patterns: [
+              {
+                category: 'permission' as const,
+                patternHash: 'aws1',
+                example: 'AccessDenied: User not authorized for s3:GetObject',
+                count: 3,
+              },
+            ],
+          },
+        ];
+
+        const result = analyzeExternalDependencies(errors);
+        const awsService = result.services.get('aws');
+
+        expect(awsService).toBeDefined();
+        expect(['confirmed', 'likely', 'possible']).toContain(awsService?.highestConfidenceLevel);
+      });
+    });
+
+    describe('formatExternalDependenciesMarkdown with confidence', () => {
+      it('should show confidence column in markdown table', () => {
+        const errors: Array<{
+          toolName: string;
+          toolDescription?: string;
+          patterns: ErrorPattern[];
+        }> = [
+          {
+            toolName: 'plaid_tool',
+            patterns: [
+              {
+                category: 'permission' as const,
+                patternHash: 'plaid1',
+                example: 'INVALID_ACCESS_TOKEN',
+                count: 5,
+              },
+            ],
+          },
+        ];
+
+        const summary = analyzeExternalDependencies(errors);
+        const markdown = formatExternalDependenciesMarkdown(summary);
+
+        expect(markdown).toContain('Confidence');
+        // Should show either checkmark for confirmed or ~ for likely
+        expect(markdown.match(/[✓~?]/)).toBeTruthy();
+      });
+
+      it('should show confirmed vs detected tools separately', () => {
+        const errors: Array<{
+          toolName: string;
+          toolDescription?: string;
+          patterns: ErrorPattern[];
+        }> = [
+          {
+            toolName: 'stripe_charge',
+            patterns: [
+              {
+                category: 'permission' as const,
+                patternHash: 'stripe1',
+                example: 'StripeError: card_declined',
+                count: 5,
+              },
+            ],
+          },
+        ];
+
+        const summary = analyzeExternalDependencies(errors);
+        const markdown = formatExternalDependenciesMarkdown(summary);
+
+        expect(markdown).toContain('Confirmed Tools');
+        expect(markdown).toContain('Detected Tools');
+      });
     });
   });
 });

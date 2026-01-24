@@ -8,8 +8,9 @@
 import { z } from 'zod';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { PATHS, VALIDATION_BOUNDS } from '../constants.js';
+import { PATHS, VALIDATION_BOUNDS, EXTERNAL_DEPENDENCIES } from '../constants.js';
 import { CONFIG_DEFAULTS } from './defaults.js';
+import { getExternalServiceStatus } from '../baseline/external-dependency-detector.js';
 
 /**
  * Server configuration schema.
@@ -113,6 +114,8 @@ export const workflowsConfigSchema = z.object({
   trackState: z.boolean().default(CONFIG_DEFAULTS.workflows.trackState),
   /** Auto-generate workflows from discovered tools */
   autoGenerate: z.boolean().default(CONFIG_DEFAULTS.workflows.autoGenerate),
+  /** Skip steps whose dependencies (previous steps providing data) have failed */
+  requireSuccessfulDependencies: z.boolean().default(CONFIG_DEFAULTS.workflows.requireSuccessfulDependencies),
   /** Timeout per workflow step in milliseconds */
   stepTimeout: z.number().int().min(1000).max(300000).default(CONFIG_DEFAULTS.workflows.stepTimeout),
   /** Timeout configuration for workflow operations */
@@ -239,6 +242,95 @@ export const samplingConfigSchema = z.object({
 }).default(CONFIG_DEFAULTS.check.sampling);
 
 /**
+ * Metrics configuration schema.
+ */
+export const metricsConfigSchema = z.object({
+  /** Count validation rejections as success */
+  countValidationAsSuccess: z.boolean().default(CONFIG_DEFAULTS.check.metrics.countValidationAsSuccess),
+  /** Separate validation metrics from reliability metrics */
+  separateValidationMetrics: z.boolean().default(CONFIG_DEFAULTS.check.metrics.separateValidationMetrics),
+}).default(CONFIG_DEFAULTS.check.metrics);
+
+/**
+ * Stateful testing configuration schema.
+ */
+export const statefulTestingConfigSchema = z.object({
+  /** Enable stateful tool testing */
+  enabled: z.boolean().default(CONFIG_DEFAULTS.check.statefulTesting.enabled),
+  /** Maximum dependency chain length */
+  maxChainLength: z
+    .number()
+    .int()
+    .min(VALIDATION_BOUNDS.STATEFUL_CHAIN.MIN)
+    .max(VALIDATION_BOUNDS.STATEFUL_CHAIN.MAX)
+    .default(CONFIG_DEFAULTS.check.statefulTesting.maxChainLength),
+  /** Share outputs between dependent tools */
+  shareOutputsBetweenTools: z.boolean().default(CONFIG_DEFAULTS.check.statefulTesting.shareOutputsBetweenTools),
+}).default(CONFIG_DEFAULTS.check.statefulTesting);
+
+/**
+ * External service configuration schema.
+ */
+export const externalServiceConfigSchema = z.object({
+  /** Enable this external service */
+  enabled: z.boolean().optional(),
+  /** Sandbox credentials for this service */
+  sandboxCredentials: z.record(z.string()).optional(),
+});
+
+/**
+ * External services handling configuration schema.
+ */
+export const externalServicesConfigSchema = z.object({
+  /** Mode for unconfigured services */
+  mode: z.enum(['skip', 'mock', 'fail']).default(CONFIG_DEFAULTS.check.externalServices.mode),
+  /** Per-service configuration overrides */
+  services: z.record(externalServiceConfigSchema).optional(),
+}).default(CONFIG_DEFAULTS.check.externalServices);
+
+/**
+ * Response assertion configuration schema.
+ */
+export const assertionsConfigSchema = z.object({
+  /** Enable response assertions */
+  enabled: z.boolean().default(CONFIG_DEFAULTS.check.assertions.enabled),
+  /** Strict mode fails on assertion violations */
+  strict: z.boolean().default(CONFIG_DEFAULTS.check.assertions.strict),
+  /** Infer schemas from responses */
+  infer: z.boolean().default(CONFIG_DEFAULTS.check.assertions.infer),
+}).default(CONFIG_DEFAULTS.check.assertions);
+
+/**
+ * Rate limiting configuration schema.
+ */
+export const rateLimitConfigSchema = z.object({
+  /** Enable rate limiting */
+  enabled: z.boolean().default(CONFIG_DEFAULTS.check.rateLimit.enabled),
+  /** Requests per second */
+  requestsPerSecond: z
+    .number()
+    .min(VALIDATION_BOUNDS.RATE_LIMIT.REQUESTS_PER_SECOND.MIN)
+    .max(VALIDATION_BOUNDS.RATE_LIMIT.REQUESTS_PER_SECOND.MAX)
+    .default(CONFIG_DEFAULTS.check.rateLimit.requestsPerSecond),
+  /** Burst limit */
+  burstLimit: z
+    .number()
+    .int()
+    .min(VALIDATION_BOUNDS.RATE_LIMIT.BURST_LIMIT.MIN)
+    .max(VALIDATION_BOUNDS.RATE_LIMIT.BURST_LIMIT.MAX)
+    .default(CONFIG_DEFAULTS.check.rateLimit.burstLimit),
+  /** Backoff strategy */
+  backoffStrategy: z.enum(['linear', 'exponential']).default(CONFIG_DEFAULTS.check.rateLimit.backoffStrategy),
+  /** Maximum retries on rate limit */
+  maxRetries: z
+    .number()
+    .int()
+    .min(VALIDATION_BOUNDS.RATE_LIMIT.MAX_RETRIES.MIN)
+    .max(VALIDATION_BOUNDS.RATE_LIMIT.MAX_RETRIES.MAX)
+    .default(CONFIG_DEFAULTS.check.rateLimit.maxRetries),
+}).default(CONFIG_DEFAULTS.check.rateLimit);
+
+/**
  * Check command configuration schema.
  * Controls behavior of `bellwether check`.
  */
@@ -251,10 +343,24 @@ export const checkConfigSchema = z.object({
   parallel: z.boolean().default(CONFIG_DEFAULTS.check.parallel),
   /** Number of concurrent tool workers (1-10) */
   parallelWorkers: z.number().int().min(1).max(10).default(CONFIG_DEFAULTS.check.parallelWorkers),
-  /** Performance regression threshold percentage (0-100, e.g., 10 = 10% slower triggers warning) */
+  /** Performance regression threshold percentage (0-100, e.g., 25 = 25% slower triggers warning) */
   performanceThreshold: z.number().min(0).max(100).default(CONFIG_DEFAULTS.check.performanceThreshold),
   /** Default diff output format */
   diffFormat: z.enum(['text', 'json', 'compact', 'github', 'markdown', 'junit', 'sarif']).default(CONFIG_DEFAULTS.check.diffFormat),
+  /** Number of warmup runs before timing samples (excluded from variance calculation) */
+  warmupRuns: z.number().int().min(0).max(5).default(CONFIG_DEFAULTS.check.warmupRuns),
+  /** Enable smart test value generation from schema descriptions (e.g., YYYY-MM-DD dates) */
+  smartTestValues: z.boolean().default(CONFIG_DEFAULTS.check.smartTestValues),
+  /** Stateful testing settings */
+  statefulTesting: statefulTestingConfigSchema,
+  /** External services handling */
+  externalServices: externalServicesConfigSchema,
+  /** Response assertions */
+  assertions: assertionsConfigSchema,
+  /** Rate limit settings */
+  rateLimit: rateLimitConfigSchema,
+  /** Metrics configuration */
+  metrics: metricsConfigSchema,
   /** Security testing settings */
   security: securityConfigSchema,
   /** Statistical sampling settings */
@@ -266,6 +372,13 @@ export const checkConfigSchema = z.object({
   parallelWorkers: CONFIG_DEFAULTS.check.parallelWorkers,
   performanceThreshold: CONFIG_DEFAULTS.check.performanceThreshold,
   diffFormat: CONFIG_DEFAULTS.check.diffFormat,
+  warmupRuns: CONFIG_DEFAULTS.check.warmupRuns,
+  smartTestValues: CONFIG_DEFAULTS.check.smartTestValues,
+  statefulTesting: { ...CONFIG_DEFAULTS.check.statefulTesting },
+  externalServices: { ...CONFIG_DEFAULTS.check.externalServices },
+  assertions: { ...CONFIG_DEFAULTS.check.assertions },
+  rateLimit: { ...CONFIG_DEFAULTS.check.rateLimit },
+  metrics: { ...CONFIG_DEFAULTS.check.metrics },
   security: {
     enabled: CONFIG_DEFAULTS.check.security.enabled,
     categories: [...CONFIG_DEFAULTS.check.security.categories],
@@ -488,6 +601,33 @@ export function validateConfig(config: unknown, filePath?: string): BellwetherCo
   }
 
   return result.data;
+}
+
+/**
+ * Generate configuration warnings for potentially problematic settings.
+ */
+export function getConfigWarnings(config: BellwetherConfig): string[] {
+  const warnings: string[] = [];
+
+  if (config.check.sampling.minSamples < 5) {
+    warnings.push('check.sampling.minSamples < 5 may result in unreliable confidence metrics');
+  }
+
+  if (config.check.parallel && config.check.parallelWorkers > 4) {
+    warnings.push('check.parallelWorkers > 4 may trigger rate limits on some servers');
+  }
+
+  if (config.check.externalServices.mode === 'fail') {
+    const unconfigured = Object.keys(EXTERNAL_DEPENDENCIES.SERVICES).filter((service) => {
+      const status = getExternalServiceStatus(service as keyof typeof EXTERNAL_DEPENDENCIES.SERVICES, config.check.externalServices);
+      return !status.configured;
+    });
+    if (unconfigured.length === Object.keys(EXTERNAL_DEPENDENCIES.SERVICES).length) {
+      warnings.push('External services mode is set to "fail" but no credentials detected');
+    }
+  }
+
+  return warnings;
 }
 
 /**

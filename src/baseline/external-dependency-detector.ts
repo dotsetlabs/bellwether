@@ -13,6 +13,7 @@
 
 import { EXTERNAL_DEPENDENCIES } from '../constants.js';
 import type { ErrorPattern } from './response-fingerprint.js';
+import type { ExternalServicesConfig } from '../interview/types.js';
 
 // ==================== Types ====================
 
@@ -22,6 +23,14 @@ export type ExternalServiceName = keyof typeof EXTERNAL_DEPENDENCIES.SERVICES;
 /** Error source classification */
 export type ErrorSource = keyof typeof EXTERNAL_DEPENDENCIES.ERROR_SOURCES;
 
+/**
+ * Confidence level for dependency detection.
+ * - 'confirmed': Actual error messages from the service were observed
+ * - 'likely': Strong evidence from tool name/description patterns
+ * - 'possible': Weak evidence, only partial matches
+ */
+export type DependencyConfidenceLevel = 'confirmed' | 'likely' | 'possible';
+
 /** Information about a detected external dependency */
 export interface ExternalDependencyInfo {
   /** Name of the external service (e.g., 'plaid', 'stripe') */
@@ -30,12 +39,44 @@ export interface ExternalDependencyInfo {
   displayName: string;
   /** Confidence level of the detection (0-1) */
   confidence: number;
+  /**
+   * Whether this dependency was confirmed by actual errors.
+   * - 'confirmed': Error message matched service-specific patterns
+   * - 'likely': Tool name/description strongly suggests this service
+   * - 'possible': Weak evidence, might be a false positive
+   */
+  confidenceLevel: DependencyConfidenceLevel;
   /** Whether this appears to be a transient/temporary error */
   isTransient: boolean;
   /** Suggested remediation for this error */
   remediation: string;
   /** Matched patterns that led to detection */
   matchedPatterns: string[];
+  /** Evidence breakdown for transparency */
+  evidence: {
+    /** True if error message patterns matched */
+    fromErrorMessage: boolean;
+    /** True if tool name patterns matched */
+    fromToolName: boolean;
+    /** True if tool description patterns matched */
+    fromDescription: boolean;
+    /** Number of actual errors attributed to this dependency */
+    actualErrorCount: number;
+  };
+}
+
+/** Configuration status for a known external service */
+export interface ServiceStatus {
+  /** External service name */
+  service: ExternalServiceName;
+  /** Whether the service is fully configured */
+  configured: boolean;
+  /** Missing credential keys or env vars */
+  missingCredentials: string[];
+  /** Whether a sandbox is available */
+  sandboxAvailable: boolean;
+  /** Whether a mock response is available */
+  mockAvailable: boolean;
 }
 
 /** Result of analyzing an error for external dependencies */
@@ -74,12 +115,20 @@ export interface ExternalServiceSummary {
   displayName: string;
   /** Number of errors from this service */
   errorCount: number;
-  /** Tools that use this service */
+  /** Number of confirmed errors (from error message patterns) */
+  confirmedErrorCount: number;
+  /** Tools that use this service (confirmed from errors) */
+  confirmedTools: string[];
+  /** Tools that likely use this service (from name/description only) */
+  detectedTools: string[];
+  /** All tools associated with this service */
   tools: string[];
   /** Whether errors appear to be transient */
   hasTransientErrors: boolean;
   /** Primary remediation suggestion */
   remediation: string;
+  /** Highest confidence level for this service */
+  highestConfidenceLevel: DependencyConfidenceLevel;
 }
 
 // ==================== Detection Functions ====================
@@ -101,37 +150,46 @@ export function detectExternalDependency(
     serviceName: ExternalServiceName;
     confidence: number;
     matchedPatterns: string[];
+    fromErrorMessage: boolean;
+    fromToolName: boolean;
+    fromDescription: boolean;
   }> = [];
 
   // Check each known service
   for (const [serviceName, service] of Object.entries(EXTERNAL_DEPENDENCIES.SERVICES)) {
     let confidence = 0;
     const matchedPatterns: string[] = [];
+    let fromErrorMessage = false;
+    let fromToolName = false;
+    let fromDescription = false;
 
-    // Check error message patterns (highest weight)
+    // Check error message patterns (highest weight - this is "confirmed" evidence)
     for (const pattern of service.errorPatterns) {
       if (pattern.test(errorMessage)) {
         confidence += 0.5;
         matchedPatterns.push(`error: ${pattern.source}`);
+        fromErrorMessage = true;
       }
     }
 
-    // Check tool name patterns (medium weight)
+    // Check tool name patterns (medium weight - this is "likely" evidence)
     if (toolName) {
       for (const pattern of service.toolPatterns) {
         if (pattern.test(toolName)) {
           confidence += 0.3;
           matchedPatterns.push(`tool: ${pattern.source}`);
+          fromToolName = true;
         }
       }
     }
 
-    // Check tool description patterns (lower weight)
+    // Check tool description patterns (lower weight - this is "possible" evidence)
     if (toolDescription) {
       for (const pattern of service.toolPatterns) {
         if (pattern.test(toolDescription)) {
           confidence += 0.2;
           matchedPatterns.push(`desc: ${pattern.source}`);
+          fromDescription = true;
         }
       }
     }
@@ -143,6 +201,7 @@ export function detectExternalDependency(
       if (service.statusCodes.includes(status as (typeof service.statusCodes)[number])) {
         confidence += 0.2;
         matchedPatterns.push(`status: ${status}`);
+        fromErrorMessage = true; // Status code in error message is confirmed
       }
     }
 
@@ -151,6 +210,9 @@ export function detectExternalDependency(
         serviceName: serviceName as ExternalServiceName,
         confidence: Math.min(confidence, 1),
         matchedPatterns,
+        fromErrorMessage,
+        fromToolName,
+        fromDescription,
       });
     }
   }
@@ -163,17 +225,167 @@ export function detectExternalDependency(
     // Check if this is a transient error
     const isTransient = isTransientError(errorMessage);
 
+    // Determine confidence level based on evidence sources
+    let confidenceLevel: DependencyConfidenceLevel;
+    if (best.fromErrorMessage) {
+      // Error message matched - this is confirmed evidence
+      confidenceLevel = 'confirmed';
+    } else if (best.fromToolName) {
+      // Only tool name/description matched - likely but not confirmed
+      confidenceLevel = 'likely';
+    } else {
+      // Only weak evidence (description only)
+      confidenceLevel = 'possible';
+    }
+
     return {
       serviceName: best.serviceName,
       displayName: service.name,
       confidence: best.confidence,
+      confidenceLevel,
       isTransient,
       remediation: service.remediation,
       matchedPatterns: best.matchedPatterns,
+      evidence: {
+        fromErrorMessage: best.fromErrorMessage,
+        fromToolName: best.fromToolName,
+        fromDescription: best.fromDescription,
+        actualErrorCount: best.fromErrorMessage ? 1 : 0, // Will be updated by caller
+      },
     };
   }
 
   return null;
+}
+
+/**
+ * Detect external service dependencies based on tool name/description alone.
+ */
+export function detectExternalServiceFromTool(
+  toolName: string,
+  toolDescription?: string
+): ExternalDependencyInfo | null {
+  const matchedServices: Array<{
+    serviceName: ExternalServiceName;
+    confidence: number;
+    matchedPatterns: string[];
+    fromToolName: boolean;
+    fromDescription: boolean;
+  }> = [];
+
+  for (const [serviceName, service] of Object.entries(EXTERNAL_DEPENDENCIES.SERVICES)) {
+    let confidence = 0;
+    const matchedPatterns: string[] = [];
+    let fromToolName = false;
+    let fromDescription = false;
+
+    for (const pattern of service.toolPatterns) {
+      if (pattern.test(toolName)) {
+        confidence += 0.6;
+        matchedPatterns.push(`tool: ${pattern.source}`);
+        fromToolName = true;
+      }
+    }
+
+    if (toolDescription) {
+      for (const pattern of service.toolPatterns) {
+        if (pattern.test(toolDescription)) {
+          confidence += 0.3;
+          matchedPatterns.push(`desc: ${pattern.source}`);
+          fromDescription = true;
+        }
+      }
+    }
+
+    if (confidence > 0) {
+      matchedServices.push({
+        serviceName: serviceName as ExternalServiceName,
+        confidence: Math.min(confidence, 1),
+        matchedPatterns,
+        fromToolName,
+        fromDescription,
+      });
+    }
+  }
+
+  if (matchedServices.length === 0) {
+    return null;
+  }
+
+  const best = matchedServices.sort((a, b) => b.confidence - a.confidence)[0];
+  const service = EXTERNAL_DEPENDENCIES.SERVICES[best.serviceName];
+  const confidenceLevel: DependencyConfidenceLevel = best.fromToolName ? 'likely' : 'possible';
+
+  return {
+    serviceName: best.serviceName,
+    displayName: service.name,
+    confidence: best.confidence,
+    confidenceLevel,
+    isTransient: false,
+    remediation: service.remediation,
+    matchedPatterns: best.matchedPatterns,
+    evidence: {
+      fromErrorMessage: false,
+      fromToolName: best.fromToolName,
+      fromDescription: best.fromDescription,
+      actualErrorCount: 0,
+    },
+  };
+}
+
+/**
+ * Determine whether an external service is configured.
+ */
+export function getExternalServiceStatus(
+  serviceName: ExternalServiceName,
+  config?: ExternalServicesConfig
+): ServiceStatus {
+  const service = EXTERNAL_DEPENDENCIES.SERVICES[serviceName];
+  const credentials = service.credentials;
+  const configService = config?.services?.[serviceName];
+  const enabled = configService?.enabled;
+
+  const missing: string[] = [];
+
+  const hasConfigValue = (key: string): boolean => {
+    const value = configService?.sandboxCredentials?.[key];
+    if (!value) return false;
+    return !/\$\{[^}]+\}/.test(value);
+  };
+
+  const hasEnvValue = (key: string): boolean => {
+    const value = process.env[key];
+    return value !== undefined && value !== '';
+  };
+
+  const requiredEnv = credentials.requiredEnv ?? [];
+  const requiredKeys = credentials.requiredConfigKeys ?? [];
+  const hasSandboxConfig = !!(configService?.sandboxCredentials && Object.keys(configService.sandboxCredentials).length > 0);
+
+  const envRequirements = hasSandboxConfig ? [] : requiredEnv;
+  const configRequirements = hasSandboxConfig ? requiredKeys : [];
+
+  for (const envKey of envRequirements) {
+    if (!hasEnvValue(envKey)) {
+      missing.push(envKey);
+    }
+  }
+
+  for (const configKey of configRequirements) {
+    if (!hasConfigValue(configKey)) {
+      missing.push(configKey);
+    }
+  }
+
+  const configured = enabled === false ? false : missing.length === 0;
+
+  return {
+    service: serviceName,
+    configured,
+    missingCredentials: missing,
+    sandboxAvailable: credentials.sandboxAvailable,
+    mockAvailable: credentials.mockAvailable,
+  };
 }
 
 /**
@@ -283,6 +495,17 @@ export function isTransientError(errorMessage: string): boolean {
 }
 
 /**
+ * Helper to compare confidence levels for priority.
+ */
+function confidenceLevelPriority(level: DependencyConfidenceLevel): number {
+  switch (level) {
+    case 'confirmed': return 3;
+    case 'likely': return 2;
+    case 'possible': return 1;
+  }
+}
+
+/**
  * Analyze multiple error patterns and generate a summary.
  *
  * @param errors - Array of tool names and their error patterns
@@ -308,23 +531,41 @@ export function analyzeExternalDependencies(
         case 'external_dependency':
           totalExternalErrors += pattern.count;
           if (analysis.dependency) {
-            const { serviceName, displayName, isTransient, remediation } = analysis.dependency;
+            const { serviceName, displayName, isTransient, remediation, confidenceLevel } = analysis.dependency;
             toolServices.push(serviceName);
+            const isConfirmed = confidenceLevel === 'confirmed';
 
             const existing = services.get(serviceName);
             if (existing) {
               existing.errorCount += pattern.count;
+              if (isConfirmed) {
+                existing.confirmedErrorCount += pattern.count;
+              }
               if (!existing.tools.includes(toolName)) {
                 existing.tools.push(toolName);
               }
+              // Track confirmed vs detected tools separately
+              if (isConfirmed && !existing.confirmedTools.includes(toolName)) {
+                existing.confirmedTools.push(toolName);
+              } else if (!isConfirmed && !existing.detectedTools.includes(toolName) && !existing.confirmedTools.includes(toolName)) {
+                existing.detectedTools.push(toolName);
+              }
               existing.hasTransientErrors = existing.hasTransientErrors || isTransient;
+              // Update highest confidence level
+              if (confidenceLevelPriority(confidenceLevel) > confidenceLevelPriority(existing.highestConfidenceLevel)) {
+                existing.highestConfidenceLevel = confidenceLevel;
+              }
             } else {
               services.set(serviceName, {
                 displayName,
                 errorCount: pattern.count,
+                confirmedErrorCount: isConfirmed ? pattern.count : 0,
+                confirmedTools: isConfirmed ? [toolName] : [],
+                detectedTools: isConfirmed ? [] : [toolName],
                 tools: [toolName],
                 hasTransientErrors: isTransient,
                 remediation,
+                highestConfidenceLevel: confidenceLevel,
               });
             }
           }
@@ -420,13 +661,31 @@ export function formatExternalDependenciesMarkdown(summary: ExternalDependencySu
 
   lines.push('### External Dependencies Detected');
   lines.push('');
-  lines.push('| Service | Errors | Affected Tools | Status | Recommendation |');
-  lines.push('|---------|--------|----------------|--------|----------------|');
+  lines.push('| Service | Confidence | Errors | Confirmed Tools | Detected Tools | Recommendation |');
+  lines.push('|---------|------------|--------|-----------------|----------------|----------------|');
 
   for (const [, service] of summary.services) {
-    const status = service.hasTransientErrors ? 'Transient' : 'Configuration';
-    const tools = service.tools.map((t) => `\`${t}\``).join(', ');
-    lines.push(`| ${service.displayName} | ${service.errorCount} | ${tools} | ${status} | ${service.remediation} |`);
+    // Show confidence level with visual indicator
+    const confidenceIcon = service.highestConfidenceLevel === 'confirmed' ? '✓' :
+                           service.highestConfidenceLevel === 'likely' ? '~' : '?';
+    const confidenceLabel = `${confidenceIcon} ${service.highestConfidenceLevel}`;
+
+    // Format confirmed tools (from actual errors)
+    const confirmedTools = service.confirmedTools.length > 0
+      ? service.confirmedTools.map((t) => `\`${t}\``).join(', ')
+      : '-';
+
+    // Format detected tools (from name/description only - not confirmed by errors)
+    const detectedTools = service.detectedTools.length > 0
+      ? service.detectedTools.map((t) => `\`${t}\``).join(', ')
+      : '-';
+
+    // Show confirmed errors vs total
+    const errorDisplay = service.confirmedErrorCount > 0
+      ? `${service.confirmedErrorCount} confirmed`
+      : `${service.errorCount} (unconfirmed)`;
+
+    lines.push(`| ${service.displayName} | ${confidenceLabel} | ${errorDisplay} | ${confirmedTools} | ${detectedTools} | ${service.remediation} |`);
   }
 
   lines.push('');

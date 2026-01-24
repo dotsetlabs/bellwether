@@ -126,6 +126,18 @@ export interface LatencySample {
   durationMs: number;
   success: boolean;
   timestamp: Date;
+  /**
+   * Expected outcome of this test.
+   * - 'success': Happy path test, expects tool to succeed
+   * - 'error': Validation test, expects tool to reject/fail
+   * - 'either': Edge case, either outcome is acceptable
+   */
+  expectedOutcome?: 'success' | 'error' | 'either';
+  /**
+   * Whether the outcome was correct based on expectations.
+   * True if: (expected success && got success) OR (expected error && got error)
+   */
+  outcomeCorrect?: boolean;
 }
 
 // Re-export centralized constant for backwards compatibility
@@ -138,18 +150,32 @@ export { PERFORMANCE_TRACKING as PERFORMANCE } from '../constants.js';
  * 1. Sample count - more samples = higher confidence
  * 2. Coefficient of variation (CV) - lower variability = higher confidence
  *
+ * Key insight: For confidence calculation, we only count happy_path tests that
+ * expect success. Validation tests (expectedOutcome: 'error') are tracked
+ * separately because their failure doesn't indicate tool problems.
+ *
+ * Note: The first sample is excluded from variance calculation because it includes
+ * cold-start overhead (JIT compilation, connection establishment, cache warming).
+ * This gives more accurate confidence scores for steady-state performance.
+ *
  * @param samples - The latency samples to analyze
+ * @param options - Optional configuration
  * @returns Performance confidence metrics
  */
 export function calculatePerformanceConfidence(
-  samples: LatencySample[]
+  samples: LatencySample[],
+  options: { excludeWarmup?: boolean } = {}
 ): PerformanceConfidence {
-  const sampleCount = samples.length;
+  const { excludeWarmup = true } = options;
+  const totalTests = samples.length;
 
   // Handle no samples case
-  if (sampleCount === 0) {
+  if (totalTests === 0) {
     return {
       sampleCount: 0,
+      successfulSamples: 0,
+      validationSamples: 0,
+      totalTests: 0,
       standardDeviation: 0,
       coefficientOfVariation: 0,
       confidenceLevel: 'low',
@@ -157,41 +183,68 @@ export function calculatePerformanceConfidence(
     };
   }
 
-  // Get successful samples only (failed calls don't contribute to latency metrics)
-  const successfulSamples = samples.filter(s => s.success);
-  const durations = successfulSamples.map(s => s.durationMs);
+  // Categorize samples by expected outcome
+  // Happy path tests: expectedOutcome === 'success' or undefined (backward compat)
+  const happyPathSamples = samples.filter(s =>
+    s.expectedOutcome === 'success' || s.expectedOutcome === undefined
+  );
+
+  // Validation tests: expectedOutcome === 'error'
+  const validationTestSamples = samples.filter(s => s.expectedOutcome === 'error');
+
+  // Count validation samples that correctly rejected (error as expected = success)
+  const validationSuccesses = validationTestSamples.filter(s =>
+    !s.success && (s.outcomeCorrect === undefined || s.outcomeCorrect === true)
+  ).length;
+
+  // For confidence, only use happy path samples that succeeded
+  const successfulHappyPath = happyPathSamples.filter(s => s.success);
+  const allDurations = successfulHappyPath.map(s => s.durationMs);
 
   // Handle all failures case
-  if (durations.length === 0) {
+  if (allDurations.length === 0) {
     return {
-      sampleCount,
+      sampleCount: 0,
+      successfulSamples: 0,
+      validationSamples: validationTestSamples.length,
+      totalTests,
       standardDeviation: 0,
       coefficientOfVariation: 0,
       confidenceLevel: 'low',
-      recommendation: 'All samples failed; cannot calculate performance confidence',
+      recommendation: 'No successful happy path samples; cannot calculate performance confidence',
     };
   }
 
-  // Calculate mean
-  const mean = durations.reduce((sum, d) => sum + d, 0) / durations.length;
+  // For variance calculation, exclude the first sample (cold start warmup)
+  // This prevents JIT compilation, connection setup, and cache warming from
+  // inflating the coefficient of variation and lowering confidence scores.
+  const durationsForVariance = excludeWarmup && allDurations.length > 1
+    ? allDurations.slice(1)
+    : allDurations;
 
-  // Calculate standard deviation
-  const squaredDiffs = durations.map(d => Math.pow(d - mean, 2));
-  const variance = squaredDiffs.reduce((sum, d) => sum + d, 0) / durations.length;
+  // Calculate variance using post-warmup samples only
+  const meanForVariance = durationsForVariance.reduce((sum, d) => sum + d, 0) / durationsForVariance.length;
+  const squaredDiffs = durationsForVariance.map(d => Math.pow(d - meanForVariance, 2));
+  const variance = squaredDiffs.reduce((sum, d) => sum + d, 0) / durationsForVariance.length;
   const standardDeviation = Math.sqrt(variance);
 
   // Calculate coefficient of variation (CV = stdDev / mean)
+  // Use the post-warmup mean for consistency with variance calculation
   // CV is undefined when mean is 0, treat as 0 (consistent)
-  const coefficientOfVariation = mean > 0 ? standardDeviation / mean : 0;
+  const coefficientOfVariation = meanForVariance > 0 ? standardDeviation / meanForVariance : 0;
 
-  // Determine confidence level based on thresholds
+  // Determine confidence level based on happy path sample count
+  // This fixes the bug where validation tests lowered confidence
   const { confidenceLevel, recommendation } = determineConfidenceLevel(
-    durations.length,
+    allDurations.length,
     coefficientOfVariation
   );
 
   return {
-    sampleCount: durations.length,
+    sampleCount: allDurations.length, // Happy path successful samples only
+    successfulSamples: allDurations.length,
+    validationSamples: validationSuccesses, // Correctly rejected validation tests
+    totalTests,
     standardDeviation,
     coefficientOfVariation,
     confidenceLevel,
@@ -240,16 +293,25 @@ function determineConfidenceLevel(
 /**
  * Calculate performance confidence from ToolPerformanceMetrics.
  * Use this when you already have calculated metrics but need confidence.
+ *
+ * Note: This function assumes the metrics are from happy path tests only.
+ * For full validation/success separation, use calculatePerformanceConfidence with raw samples.
  */
 export function calculateConfidenceFromMetrics(
-  metrics: ToolPerformanceMetrics
+  metrics: ToolPerformanceMetrics,
+  options?: { validationSamples?: number; totalTests?: number }
 ): PerformanceConfidence {
   const { sampleCount, avgMs, stdDevMs } = metrics;
+  const validationSamples = options?.validationSamples ?? 0;
+  const totalTests = options?.totalTests ?? sampleCount;
 
   // Handle edge cases
   if (sampleCount === 0) {
     return {
       sampleCount: 0,
+      successfulSamples: 0,
+      validationSamples,
+      totalTests,
       standardDeviation: 0,
       coefficientOfVariation: 0,
       confidenceLevel: 'low',
@@ -268,6 +330,9 @@ export function calculateConfidenceFromMetrics(
 
   return {
     sampleCount,
+    successfulSamples: sampleCount, // Assumes all samples passed are successful happy path
+    validationSamples,
+    totalTests,
     standardDeviation: stdDevMs,
     coefficientOfVariation,
     confidenceLevel,

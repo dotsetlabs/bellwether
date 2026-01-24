@@ -15,6 +15,7 @@ import {
   exploreConfigSchema,
   baselineConfigSchema,
   outputConfigSchema,
+  getConfigWarnings,
   type BellwetherConfig,
 } from '../../src/config/validator.js';
 
@@ -100,6 +101,47 @@ describe('validateConfig', () => {
       expect(config.llm.provider).toBe('ollama');
       expect(config.explore.maxQuestionsPerTool).toBeDefined();
     });
+
+    it('should accept new check configuration options', () => {
+      const config = validateConfig({
+        check: {
+          statefulTesting: {
+            enabled: true,
+            maxChainLength: 3,
+            shareOutputsBetweenTools: true,
+          },
+          externalServices: {
+            mode: 'mock',
+            services: {
+              plaid: {
+                enabled: false,
+                sandboxCredentials: {
+                  clientId: 'test',
+                  secret: 'test',
+                },
+              },
+            },
+          },
+          assertions: {
+            enabled: true,
+            strict: false,
+            infer: true,
+          },
+          rateLimit: {
+            enabled: true,
+            requestsPerSecond: 5,
+            burstLimit: 10,
+            backoffStrategy: 'exponential',
+            maxRetries: 2,
+          },
+        },
+      });
+
+      expect(config.check.statefulTesting.enabled).toBe(true);
+      expect(config.check.externalServices.mode).toBe('mock');
+      expect(config.check.assertions.enabled).toBe(true);
+      expect(config.check.rateLimit.enabled).toBe(true);
+    });
   });
 
   describe('server configuration', () => {
@@ -143,6 +185,21 @@ describe('validateConfig', () => {
       });
 
       expect(config.server.env?.API_KEY).toBe('secret');
+    });
+  });
+
+  describe('getConfigWarnings', () => {
+    it('should warn on low minSamples', () => {
+      const config = validateConfig({
+        check: {
+          sampling: {
+            minSamples: 2,
+          },
+        },
+      });
+
+      const warnings = getConfigWarnings(config);
+      expect(warnings.some(w => w.includes('minSamples'))).toBe(true);
     });
   });
 

@@ -92,6 +92,9 @@ const errorPatternSchema = z.object({
  */
 const performanceConfidenceSchema = z.object({
   sampleCount: z.number(),
+  successfulSamples: z.number(),
+  validationSamples: z.number(),
+  totalTests: z.number(),
   standardDeviation: z.number(),
   coefficientOfVariation: z.number(),
   confidenceLevel: z.enum(['low', 'medium', 'high']),
@@ -412,20 +415,24 @@ function createToolFingerprint(
   const { hash: schemaHash } = computeConsensusSchemaHash(interactions);
 
   // Analyze responses to create fingerprint (check mode enhancement)
-  const responseData = profile.interactions.map(i => ({
-    response: i.response,
-    error: i.error,
-  }));
+  const responseData = profile.interactions
+    .filter(i => !i.mocked)
+    .map(i => ({
+      response: i.response,
+      error: i.error,
+    }));
   const responseAnalysis = analyzeResponses(responseData);
 
   // Calculate performance metrics from interactions
   const latencySamples: LatencySample[] = profile.interactions
-    .filter(i => i.toolExecutionMs !== undefined)
+    .filter(i => i.toolExecutionMs !== undefined && !i.mocked)
     .map(i => ({
       toolName: profile.name,
       durationMs: i.toolExecutionMs ?? 0,
-      success: !i.error,
+      success: !i.error && !i.response?.isError,
       timestamp: new Date(),
+      expectedOutcome: i.question.expectedOutcome,
+      outcomeCorrect: i.outcomeAssessment?.correct,
     }));
 
   let baselineP50Ms: number | undefined;

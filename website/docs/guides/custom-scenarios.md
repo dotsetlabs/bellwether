@@ -15,18 +15,27 @@ Define your own test scenarios in YAML to complement LLM-generated tests. Custom
 ## Quick Start
 
 ```bash
-# Generate a sample scenarios file
-bellwether check --init-scenarios
-
-# Edit bellwether-tests.yaml with your scenarios
-
-# Run test with custom scenarios
-bellwether check npx your-server
+# Create a scenarios file (see example below)
+# Then point bellwether.yaml at it:
+#
+# scenarios:
+#   path: "./bellwether-tests.yaml"
+#
+# Run check or explore (scenarios run in both modes)
+bellwether check
 ```
 
 ## File Format
 
-Create a `bellwether-tests.yaml` file in your project root:
+Create a scenarios file anywhere in your repo, then reference it from `bellwether.yaml`:
+
+```yaml
+# bellwether.yaml
+scenarios:
+  path: "./bellwether-tests.yaml"
+```
+
+Example scenarios file:
 
 ```yaml
 # bellwether-tests.yaml
@@ -182,27 +191,28 @@ path: messages[0].content.text
 
 ### Alongside LLM-Generated Tests
 
-By default, custom scenarios run alongside LLM-generated tests:
+By default, custom scenarios run alongside generated tests:
 
-```bash
-bellwether check --scenarios ./bellwether-tests.yaml npx your-server
-```
+Set `scenarios.path` in `bellwether.yaml`, then run `bellwether check` or `bellwether explore`.
 
 ### Custom Scenarios Only
 
-Skip LLM generation entirely (faster, no API costs):
+Skip generated tests entirely (faster, no API costs):
 
-```bash
-bellwether check --scenarios-only npx your-server
+```yaml
+# bellwether.yaml
+scenarios:
+  path: "./bellwether-tests.yaml"
+  only: true
 ```
 
 ### Auto-Detection
 
-If `bellwether-tests.yaml` exists in the output directory, it's automatically loaded:
+If `bellwether-tests.yaml` exists in `output.dir`, it's automatically loaded:
 
 ```bash
-# Automatically loads ./bellwether-tests.yaml if it exists
-bellwether check npx your-server
+# Automatically loads .bellwether/bellwether-tests.yaml by default
+bellwether check
 ```
 
 ## Best Practices
@@ -300,10 +310,7 @@ jobs:
 
       - name: Run custom scenarios
         run: |
-          npx @dotsetlabs/bellwether check \
-            --scenarios ./bellwether-tests.yaml \
-            --scenarios-only \
-            npx your-server
+          npx @dotsetlabs/bellwether check
 ```
 
 This approach:
@@ -326,7 +333,7 @@ Failed scenarios:
 
 Scenario results are also included in:
 - `AGENTS.md` documentation
-- JSON report (`bellwether-report.json`)
+- JSON reports (`bellwether-check.json` and `bellwether-explore.json`)
 
 ## See Also
 

@@ -276,6 +276,9 @@ export const watchCommand = new Command('watch')
         clearInterval(currentInterval);
         currentInterval = null;
       }
+      // Remove signal handlers to prevent accumulation
+      process.removeListener('SIGINT', cleanup);
+      process.removeListener('SIGTERM', cleanup);
       process.exit(EXIT_CODES.CLEAN);
     };
 

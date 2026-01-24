@@ -287,7 +287,7 @@ This is expected when drift is found. Options:
 
 1. **Review and fix the drift**
 2. **Update the baseline if changes are intentional**
-3. **Remove `--fail-on-drift` to allow drift**
+3. **Handle exit codes in CI to allow info/warning changes**
 
 ### API Key Not Found in CI
 

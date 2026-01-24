@@ -33,7 +33,7 @@ All CLI commands (except `init`) require a config file. Run `bellwether init` on
 |:-------|:------------|:--------|
 | `-c, --config <path>` | Path to config file | `bellwether.yaml` |
 | `-n, --limit <n>` | Number of versions to show | `history.limit` |
-| `--json` | Output as JSON | `history.json` |
+| `--json` | Output as JSON | `false` |
 | `--session <session>` | Session token (overrides stored/env session) | - |
 
 ## Examples
@@ -46,16 +46,15 @@ bellwether history
 
 Output:
 ```
-Baseline History for my-mcp-server
+Baseline History: my-mcp-server
+Showing 4 version(s)
 
-Version  Date                 Branch   Changes
--------  -------------------  -------  --------
-v12      2026-01-12 10:30    main     +1 tool, ~2 behaviors
-v11      2026-01-10 14:22    main     Security fix
-v10      2026-01-08 09:15    feature  ~3 behaviors
-v9       2026-01-05 16:45    main     Initial baseline
-
-Showing 4 of 12 baselines. Use --limit to see more.
+Ver  Uploaded                 CLI Version  Hash
+───  ───────────────────────  ───────────  ────────────────
+ 12  1/12/2026, 10:30 AM      0.9.0       a1b2c3d4e5f6a7b8
+ 11  1/10/2026, 2:22 PM       0.9.0       b2c3d4e5f6a7b8c9
+ 10  1/08/2026, 9:15 AM       0.9.0       c3d4e5f6a7b8c9d0
+  9  1/05/2026, 4:45 PM       0.9.0       d4e5f6a7b8c9d0e1
 ```
 
 ### JSON Output

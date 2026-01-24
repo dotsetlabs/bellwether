@@ -34,7 +34,7 @@ All CLI commands (except `init`) require a config file. Run `bellwether init` on
 | `-b, --baseline <path>` | Path to baseline JSON file | `baseline.path` |
 | `-c, --config <path>` | Path to config file | `bellwether.yaml` |
 | `-p, --project <id>` | Project ID to upload to | Uses linked project |
-| `--ci` | CI mode: output URL only, exit 1 on breaking drift | `false` |
+| `--ci` | CI mode: output URL only, exit with error on breaking drift | `false` |
 | `--session <session>` | Session token (overrides stored/env session) | - |
 | `--fail-on-drift` | Exit with error if any behavioral drift detected | `false` |
 
@@ -113,8 +113,7 @@ View at: https://bellwether.sh/projects/proj_abc123/baselines/12
 | Code | Meaning |
 |:-----|:--------|
 | `0` | Success - baseline uploaded |
-| `1` | Drift detected (with `--fail-on-drift`) |
-| `2` | Error - upload failed |
+| `4` | Drift detected (with `--fail-on-drift`) or upload error |
 
 ## Environment Variables
 

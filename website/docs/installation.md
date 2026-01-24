@@ -152,17 +152,9 @@ Default model: `qwen3:8b`
 Ollama is great for development and testing. For production CI/CD, OpenAI or Anthropic provide more consistent results.
 :::
 
-## Provider Auto-Detection
+## Provider Selection
 
-Bellwether automatically detects which provider to use based on environment variables:
-
-| Priority | Environment Variable | Provider |
-|:---------|:--------------------|:---------|
-| 1 | `ANTHROPIC_API_KEY` | Anthropic Claude |
-| 2 | `OPENAI_API_KEY` | OpenAI |
-| 3 | (none) | Ollama |
-
-Override in `bellwether.yaml`:
+Bellwether uses the provider set in `bellwether.yaml`:
 
 ```yaml
 llm:
@@ -192,7 +184,6 @@ output:
   dir: "."
 ```
 
-Or in your home directory at `~/.bellwether/bellwether.yaml` for global defaults.
 
 ## Verify Setup
 

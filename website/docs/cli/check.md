@@ -143,7 +143,7 @@ bellwether check --accept-drift --accept-reason "Added new delete_file tool"
 This updates the baseline and records acceptance metadata (who, when, why) for audit trail.
 
 :::note
-The `--accepted-by` option is only available in `bellwether baseline accept`. When using `--accept-drift` with the check command, the acceptor is recorded automatically from your system username.
+The `--accepted-by` option is only available in `bellwether baseline accept`. The `--accept-drift` flag records the reason, but does not set an acceptor by default.
 :::
 
 ## Output Files
@@ -222,6 +222,7 @@ check:
       - path_traversal
       - command_injection
       - ssrf
+      - error_disclosure
 
   # Statistical sampling settings
   sampling:
@@ -361,6 +362,7 @@ check:
       - path_traversal
       - command_injection
       - ssrf
+      - error_disclosure
 ```
 
 Security testing probes for:
@@ -441,10 +443,11 @@ Bellwether uses granular exit codes for CI/CD integration:
 | Code | Meaning | CI Behavior |
 |:-----|:--------|:------------|
 | `0` | No changes detected | Pass |
-| `1` | Info-level changes (non-breaking) | Pass by default |
-| `2` | Warning-level changes | Fail with `--fail-on-drift` |
+| `1` | Info-level changes (non-breaking) | Exit code `1` (handle in CI as desired) |
+| `2` | Warning-level changes | Exit code `2` (handle in CI as desired) |
 | `3` | Breaking changes detected | Always fail |
 | `4` | Runtime error (connection, config) | Fail |
+| `5` | Low confidence metrics (when `check.sampling.failOnLowConfidence` is true) | Fail |
 
 ### Using Exit Codes in CI
 
@@ -456,6 +459,7 @@ case $? in
   2) echo "Warning-level changes (review recommended)" ;;
   3) echo "Breaking changes detected!" && exit 1 ;;
   4) echo "Error: check failed" && exit 1 ;;
+  5) echo "Low confidence metrics" && exit 1 ;;
 esac
 ```
 

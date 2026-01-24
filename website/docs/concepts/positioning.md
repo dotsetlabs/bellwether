@@ -45,7 +45,7 @@ They're complementary. Use both.
 |:---------|:------------------|:------|
 | Building an MCP server | ✅ Yes | Document behavior as you develop |
 | Adopting a third-party MCP server | ✅ Yes | Verify behavior before trusting |
-| CI/CD pipeline gating | ✅ Yes | Use `--fail-on-drift` for deployment gates |
+| CI/CD pipeline gating | ✅ Yes | Use Bellwether exit codes for deployment gates |
 | Security compliance audits | ⚠️ Partial | Good first step, not sufficient alone |
 | Enterprise-wide rollout | ❌ Not ideal | No SSO, limited team features |
 

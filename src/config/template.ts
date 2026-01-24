@@ -195,6 +195,46 @@ check:
   # Diff output format: text, json, compact, github, markdown, junit, sarif
   diffFormat: ${defaults.check.diffFormat}
 
+  # Number of warmup runs before timing samples (0-5)
+  # First sample(s) are excluded from variance calculation to reduce cold-start noise
+  warmupRuns: ${defaults.check.warmupRuns}
+
+  # Enable smart test value generation from schema descriptions
+  # Parses descriptions for format hints (e.g., "YYYY-MM-DD" generates valid dates)
+  smartTestValues: ${defaults.check.smartTestValues}
+
+  # Stateful testing (create -> use -> delete) for tool dependencies
+  statefulTesting:
+    enabled: ${defaults.check.statefulTesting.enabled}
+    maxChainLength: ${defaults.check.statefulTesting.maxChainLength}
+    shareOutputsBetweenTools: ${defaults.check.statefulTesting.shareOutputsBetweenTools}
+
+  # External service handling for tools that need credentials
+  externalServices:
+    # Mode for unconfigured services: skip | mock | fail
+    mode: ${defaults.check.externalServices.mode}
+    # Per-service overrides (optional)
+    # services:
+    #   plaid:
+    #     enabled: false
+    #     sandboxCredentials:
+    #       clientId: "\${PLAID_CLIENT_ID}"
+    #       secret: "\${PLAID_SECRET}"
+
+  # Response assertions (semantic validation of responses)
+  assertions:
+    enabled: ${defaults.check.assertions.enabled}
+    strict: ${defaults.check.assertions.strict}
+    infer: ${defaults.check.assertions.infer}
+
+  # Rate limiting controls
+  rateLimit:
+    enabled: ${defaults.check.rateLimit.enabled}
+    requestsPerSecond: ${defaults.check.rateLimit.requestsPerSecond}
+    burstLimit: ${defaults.check.rateLimit.burstLimit}
+    backoffStrategy: ${defaults.check.rateLimit.backoffStrategy}
+    maxRetries: ${defaults.check.rateLimit.maxRetries}
+
   # Security testing settings
   security:
     # Enable security vulnerability testing
@@ -207,7 +247,7 @@ ${formatYamlList(defaults.check.security.categories, 6)}
 
   # Statistical sampling settings for performance baselines
   sampling:
-    # Minimum samples per tool (1-50, default: 3)
+    # Minimum samples per tool (1-50, default: 10)
     # Higher values = more reliable baselines but longer test runs
     minSamples: ${defaults.check.sampling.minSamples}
 
@@ -216,6 +256,13 @@ ${formatYamlList(defaults.check.security.categories, 6)}
 
     # Fail if confidence is below target (useful for CI)
     failOnLowConfidence: ${defaults.check.sampling.failOnLowConfidence}
+
+  # Metrics configuration
+  metrics:
+    # Count validation rejections as successes in reliability metrics
+    countValidationAsSuccess: ${defaults.check.metrics.countValidationAsSuccess}
+    # Separate validation metrics from happy-path reliability
+    separateValidationMetrics: ${defaults.check.metrics.separateValidationMetrics}
 
 # =============================================================================
 # EXPLORE COMMAND SETTINGS
@@ -271,6 +318,10 @@ workflows:
 
   # Auto-generate workflows from discovered tools
   autoGenerate: ${defaults.workflows.autoGenerate}
+
+  # Skip steps whose dependencies (previous steps providing data) have failed
+  # When true, a step that depends on data from a failed step will be skipped
+  requireSuccessfulDependencies: ${defaults.workflows.requireSuccessfulDependencies}
 
   # Timeout per workflow step in milliseconds (1000-300000)
   stepTimeout: ${defaults.workflows.stepTimeout}
