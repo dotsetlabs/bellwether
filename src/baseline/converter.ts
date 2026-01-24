@@ -276,6 +276,11 @@ function buildCapabilities(
     responseFingerprint: tool.responseFingerprint,
     inferredOutputSchema: tool.inferredOutputSchema,
     errorPatterns: tool.errorPatterns,
+    baselineP50Ms: tool.baselineP50Ms,
+    baselineP95Ms: tool.baselineP95Ms,
+    baselineSuccessRate: tool.baselineSuccessRate,
+    performanceConfidence: tool.performanceConfidence,
+    securityFingerprint: tool.securityFingerprint,
   }));
 
   // Build resource capabilities (from discovery if available)

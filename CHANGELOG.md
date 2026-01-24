@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.1] - 2026-01-24
+
+### Fixes
+
+- **Fixed missing cloud upload fields**: Added missing performance and security fields to cloud baseline uploads
+  - `baselineP50Ms`, `baselineP95Ms`, `baselineSuccessRate` for latency baselines
+  - `performanceConfidence` object with sample counts and confidence levels
+  - `securityFingerprint` for security testing results
+  - Previously these fields were collected during check but not included in cloud uploads
+
 ## [0.10.0] - 2026-01-24
 
 ### Features

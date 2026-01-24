@@ -18,6 +18,7 @@ import type {
   InferredSchema,
   ErrorPattern,
 } from '../baseline/response-fingerprint.js';
+import type { SecurityFingerprint } from '../security/types.js';
 
 /**
  * Assertion type for cloud API.
@@ -107,6 +108,25 @@ export interface ToolCapability {
   inferredOutputSchema?: InferredSchema;
   /** Normalized error patterns observed during testing */
   errorPatterns?: ErrorPattern[];
+  /** Baseline p50 latency in milliseconds */
+  baselineP50Ms?: number;
+  /** Baseline p95 latency in milliseconds */
+  baselineP95Ms?: number;
+  /** Baseline success rate (0-1) */
+  baselineSuccessRate?: number;
+  /** Statistical confidence for performance baselines */
+  performanceConfidence?: {
+    sampleCount: number;
+    successfulSamples: number;
+    validationSamples: number;
+    totalTests: number;
+    standardDeviation: number;
+    coefficientOfVariation: number;
+    confidenceLevel: 'low' | 'medium' | 'high';
+    recommendation?: string;
+  };
+  /** Security testing fingerprint with findings and risk score */
+  securityFingerprint?: SecurityFingerprint;
 }
 
 /**
