@@ -218,30 +218,22 @@ Set before running:
 
 ```bash
 export TEST_PASSWORD=secret
-bellwether check --scenarios ./bellwether-tests.yaml npx server
+bellwether check
 ```
 
 ## Running Workflows
 
-:::note Planned Feature
-Multi-step workflows with argument mapping are a planned feature. The syntax described in this document shows the intended design, but is not yet implemented.
+Workflows are available in both check and explore modes. Configure them in `bellwether.yaml` and run the command normally.
 
-For deterministic testing today, use [custom test scenarios](/guides/custom-scenarios) which support single-step tool tests with assertions.
-:::
-
-### Currently Available
-
-For basic testing today, use `bellwether-tests.yaml`:
+```yaml
+# bellwether.yaml
+workflows:
+  path: "./bellwether-workflows.yaml"
+  trackState: true
+```
 
 ```bash
-# Generate sample scenarios file
-bellwether check --init-scenarios
-
-# Run custom scenarios
-bellwether check --scenarios ./bellwether-tests.yaml npx server
-
-# Run ONLY custom scenarios (no LLM costs)
-bellwether check --scenarios-only npx server
+bellwether check
 ```
 
 ## Best Practices

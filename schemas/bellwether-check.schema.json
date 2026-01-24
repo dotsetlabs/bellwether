@@ -1,0 +1,651 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/@dotsetlabs/bellwether/schemas/bellwether-check.schema.json",
+  "title": "Bellwether Check Report",
+  "type": "object",
+  "required": [
+    "$schema",
+    "discovery",
+    "toolProfiles",
+    "summary",
+    "limitations",
+    "recommendations",
+    "metadata"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "discovery": {
+      "$ref": "#/$defs/DiscoveryResult"
+    },
+    "toolProfiles": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ToolProfile"
+      }
+    },
+    "promptProfiles": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PromptProfile"
+      }
+    },
+    "resourceProfiles": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ResourceProfile"
+      }
+    },
+    "workflowResults": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/WorkflowResult"
+      }
+    },
+    "scenarioResults": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ScenarioResult"
+      }
+    },
+    "summary": {
+      "type": "string"
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "$ref": "#/$defs/InterviewMetadata"
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "DiscoveryResult": {
+      "type": "object",
+      "required": [
+        "serverInfo",
+        "protocolVersion",
+        "capabilities",
+        "tools",
+        "prompts",
+        "resources",
+        "timestamp",
+        "serverCommand",
+        "serverArgs"
+      ],
+      "properties": {
+        "serverInfo": {
+          "$ref": "#/$defs/MCPServerInfo"
+        },
+        "protocolVersion": {
+          "type": "string"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/MCPServerCapabilities"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MCPTool"
+          }
+        },
+        "prompts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MCPPrompt"
+          }
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MCPResource"
+          }
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "serverCommand": {
+          "type": "string"
+        },
+        "serverArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "MCPServerInfo": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "MCPServerCapabilities": {
+      "type": "object",
+      "properties": {
+        "tools": { "type": "object" },
+        "prompts": { "type": "object" },
+        "resources": { "type": "object" },
+        "logging": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "MCPTool": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "inputSchema": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "MCPPrompt": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "arguments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MCPPromptArgument" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "MCPPromptArgument": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "required": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "MCPResource": {
+      "type": "object",
+      "required": ["uri", "name"],
+      "properties": {
+        "uri": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "mimeType": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "MCPToolCallResult": {
+      "type": "object",
+      "required": ["content"],
+      "properties": {
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MCPContentBlock" }
+        },
+        "isError": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "MCPContentBlock": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["text", "image", "resource"] },
+        "text": { "type": "string" },
+        "data": { "type": "string" },
+        "mimeType": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "ToolProfile": {
+      "type": "object",
+      "required": ["name", "description", "interactions", "behavioralNotes", "limitations", "securityNotes"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "interactions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ToolInteraction" }
+        },
+        "behavioralNotes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "limitations": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "securityNotes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "findingsByPersona": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PersonaFindings" }
+        },
+        "errorClassification": { "$ref": "#/$defs/ErrorClassification" },
+        "skipped": { "type": "boolean" },
+        "skipReason": { "type": "string" },
+        "mocked": { "type": "boolean" },
+        "mockService": { "type": "string" },
+        "responseSchema": { "$ref": "#/$defs/ResponseSchema" },
+        "assertionSummary": { "$ref": "#/$defs/AssertionSummary" },
+        "dependencyInfo": { "$ref": "#/$defs/ToolDependencyInfo" }
+      },
+      "additionalProperties": true
+    },
+    "ToolInteraction": {
+      "type": "object",
+      "required": ["toolName", "question", "response", "error", "analysis", "durationMs"],
+      "properties": {
+        "toolName": { "type": "string" },
+        "question": { "$ref": "#/$defs/InterviewQuestion" },
+        "response": { "anyOf": [{ "$ref": "#/$defs/MCPToolCallResult" }, { "type": "null" }] },
+        "error": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "analysis": { "type": "string" },
+        "durationMs": { "type": "number" },
+        "toolExecutionMs": { "type": "number" },
+        "llmAnalysisMs": { "type": "number" },
+        "personaId": { "type": "string" },
+        "outcomeAssessment": { "$ref": "#/$defs/OutcomeAssessment" },
+        "assertionResults": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ResponseAssertionResult" }
+        },
+        "assertionsPassed": { "type": "boolean" },
+        "mocked": { "type": "boolean" },
+        "mockService": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "InterviewQuestion": {
+      "type": "object",
+      "required": ["description", "category", "args"],
+      "properties": {
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "args": { "type": "object" },
+        "expectedOutcome": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "OutcomeAssessment": {
+      "type": "object",
+      "required": ["expected", "actual", "correct"],
+      "properties": {
+        "expected": { "type": "string" },
+        "actual": { "type": "string" },
+        "correct": { "type": "boolean" },
+        "isValidationSuccess": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "AssertionSummary": {
+      "type": "object",
+      "required": ["total", "passed", "failed"],
+      "properties": {
+        "total": { "type": "number" },
+        "passed": { "type": "number" },
+        "failed": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "ResponseSchema": {
+      "type": "object",
+      "required": ["inferredType", "sampleFingerprints"],
+      "properties": {
+        "inferredType": { "type": "string" },
+        "jsonSchema": { "type": "object" },
+        "markdownStructure": { "type": "object" },
+        "sampleFingerprints": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "ResponseAssertionResult": {
+      "type": "object",
+      "required": ["type", "passed"],
+      "properties": {
+        "type": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "message": { "type": "string" },
+        "expected": {},
+        "actual": {}
+      },
+      "additionalProperties": true
+    },
+    "ToolDependencyInfo": {
+      "type": "object",
+      "required": ["tool", "dependsOn", "providesOutputFor", "sequencePosition"],
+      "properties": {
+        "tool": { "type": "string" },
+        "dependsOn": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "providesOutputFor": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "sequencePosition": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "PersonaFindings": {
+      "type": "object",
+      "required": ["personaId", "personaName", "behavioralNotes", "limitations", "securityNotes"],
+      "properties": {
+        "personaId": { "type": "string" },
+        "personaName": { "type": "string" },
+        "behavioralNotes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "limitations": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "securityNotes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "ErrorClassification": {
+      "type": "object",
+      "required": ["externalServiceErrors", "environmentErrors", "codeBugErrors", "unknownErrors"],
+      "properties": {
+        "externalServiceErrors": { "type": "number" },
+        "environmentErrors": { "type": "number" },
+        "codeBugErrors": { "type": "number" },
+        "unknownErrors": { "type": "number" },
+        "detectedServices": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "PromptProfile": {
+      "type": "object",
+      "required": ["name", "description", "arguments", "interactions", "behavioralNotes", "limitations"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "arguments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MCPPromptArgument" }
+        },
+        "interactions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PromptInteraction" }
+        },
+        "behavioralNotes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "limitations": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "exampleOutput": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "PromptInteraction": {
+      "type": "object",
+      "required": ["promptName", "question", "response", "error", "analysis", "durationMs"],
+      "properties": {
+        "promptName": { "type": "string" },
+        "question": { "$ref": "#/$defs/PromptQuestion" },
+        "response": { "anyOf": [{ "$ref": "#/$defs/MCPPromptGetResult" }, { "type": "null" }] },
+        "error": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "analysis": { "type": "string" },
+        "durationMs": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "PromptQuestion": {
+      "type": "object",
+      "required": ["description", "args"],
+      "properties": {
+        "description": { "type": "string" },
+        "args": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "MCPPromptGetResult": {
+      "type": "object",
+      "required": ["messages"],
+      "properties": {
+        "description": { "type": "string" },
+        "messages": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MCPPromptMessage" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "MCPPromptMessage": {
+      "type": "object",
+      "required": ["role", "content"],
+      "properties": {
+        "role": { "type": "string" },
+        "content": { "$ref": "#/$defs/MCPPromptContent" }
+      },
+      "additionalProperties": true
+    },
+    "MCPPromptContent": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string" },
+        "text": { "type": "string" },
+        "data": { "type": "string" },
+        "mimeType": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "ResourceProfile": {
+      "type": "object",
+      "required": ["uri", "name", "description", "interactions", "behavioralNotes", "limitations"],
+      "properties": {
+        "uri": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "mimeType": { "type": "string" },
+        "interactions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ResourceInteraction" }
+        },
+        "behavioralNotes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "limitations": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "contentPreview": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "ResourceInteraction": {
+      "type": "object",
+      "required": ["resourceUri", "resourceName", "question", "response", "error", "analysis", "durationMs"],
+      "properties": {
+        "resourceUri": { "type": "string" },
+        "resourceName": { "type": "string" },
+        "question": { "$ref": "#/$defs/ResourceQuestion" },
+        "response": { "anyOf": [{ "$ref": "#/$defs/MCPResourceReadResult" }, { "type": "null" }] },
+        "error": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "analysis": { "type": "string" },
+        "durationMs": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "ResourceQuestion": {
+      "type": "object",
+      "required": ["description", "category"],
+      "properties": {
+        "description": { "type": "string" },
+        "category": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "MCPResourceReadResult": {
+      "type": "object",
+      "required": ["contents"],
+      "properties": {
+        "contents": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MCPResourceContent" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "MCPResourceContent": {
+      "type": "object",
+      "required": ["uri"],
+      "properties": {
+        "uri": { "type": "string" },
+        "mimeType": { "type": "string" },
+        "text": { "type": "string" },
+        "blob": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "WorkflowResult": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "steps": { "type": "array" },
+        "error": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "ScenarioResult": {
+      "type": "object",
+      "properties": {
+        "scenario": { "type": "object" },
+        "passed": { "type": "boolean" },
+        "error": { "type": "string" },
+        "durationMs": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "InterviewMetadata": {
+      "type": "object",
+      "required": ["startTime", "endTime", "durationMs", "toolCallCount", "errorCount"],
+      "properties": {
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "durationMs": { "type": "number" },
+        "toolCallCount": { "type": "number" },
+        "resourceReadCount": { "type": "number" },
+        "errorCount": { "type": "number" },
+        "model": { "type": "string" },
+        "personas": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PersonaSummary" }
+        },
+        "workflows": { "$ref": "#/$defs/WorkflowSummary" },
+        "serverCommand": { "type": "string" },
+        "rateLimit": { "$ref": "#/$defs/RateLimitSummary" },
+        "externalServices": { "$ref": "#/$defs/ExternalServiceSummary" },
+        "assertions": { "$ref": "#/$defs/AssertionSummary" },
+        "statefulTesting": { "$ref": "#/$defs/StatefulTestingSummary" }
+      },
+      "additionalProperties": true
+    },
+    "PersonaSummary": {
+      "type": "object",
+      "required": ["id", "name", "questionsAsked", "toolCallCount", "errorCount"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "questionsAsked": { "type": "number" },
+        "toolCallCount": { "type": "number" },
+        "errorCount": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "WorkflowSummary": {
+      "type": "object",
+      "required": ["workflowCount", "successfulCount", "failedCount", "discoveredCount", "loadedCount"],
+      "properties": {
+        "workflowCount": { "type": "number" },
+        "successfulCount": { "type": "number" },
+        "failedCount": { "type": "number" },
+        "discoveredCount": { "type": "number" },
+        "loadedCount": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "RateLimitSummary": {
+      "type": "object",
+      "required": ["totalEvents", "totalRetries", "tools"],
+      "properties": {
+        "totalEvents": { "type": "number" },
+        "totalRetries": { "type": "number" },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "ExternalServiceSummary": {
+      "type": "object",
+      "required": ["mode", "unconfiguredServices", "skippedTools", "mockedTools"],
+      "properties": {
+        "mode": { "type": "string" },
+        "unconfiguredServices": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "skippedTools": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "mockedTools": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "StatefulTestingSummary": {
+      "type": "object",
+      "required": ["enabled", "toolCount", "dependencyCount", "maxChainLength"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "toolCount": { "type": "number" },
+        "dependencyCount": { "type": "number" },
+        "maxChainLength": { "type": "number" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

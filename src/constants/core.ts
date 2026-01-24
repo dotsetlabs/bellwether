@@ -166,6 +166,10 @@ export const DISPLAY_LIMITS = {
   DOCS_EXAMPLE_LENGTH: 300,
   /** Banner command max length */
   BANNER_COMMAND_MAX_LENGTH: 45,
+  /** Maximum issues to list in CONTRACT.md */
+  ISSUES_DISPLAY_LIMIT: 20,
+  /** Maximum issue tool names to show in CLI summary */
+  SUMMARY_ISSUE_PREVIEW: 3,
 } as const;
 
 // ==================== Mathematical Factors ====================
@@ -436,6 +440,26 @@ export const VALIDATION_BOUNDS = {
     MIN: 1,
     MAX: 20,
   },
+  /** Rate limit bounds */
+  RATE_LIMIT: {
+    REQUESTS_PER_SECOND: {
+      MIN: 1,
+      MAX: 1000,
+    },
+    BURST_LIMIT: {
+      MIN: 1,
+      MAX: 5000,
+    },
+    MAX_RETRIES: {
+      MIN: 0,
+      MAX: 10,
+    },
+  },
+  /** Stateful testing bounds */
+  STATEFUL_CHAIN: {
+    MIN: 1,
+    MAX: 10,
+  },
 } as const;
 
 // ==================== File Paths ====================
@@ -478,6 +502,18 @@ export const PATHS = {
   DEFAULT_CONTRACT_FILE: 'CONTRACT.md',
   /** Default cache directory */
   DEFAULT_CACHE_DIR: '.bellwether/cache',
+} as const;
+
+// ==================== Report Schemas ====================
+
+/**
+ * JSON Schema references for report outputs.
+ */
+export const REPORT_SCHEMAS = {
+  /** Local schema path for bellwether-check.json */
+  CHECK_REPORT_SCHEMA_FILE: 'schemas/bellwether-check.schema.json',
+  /** Public schema URL for consumers */
+  CHECK_REPORT_SCHEMA_URL: 'https://unpkg.com/@dotsetlabs/bellwether/schemas/bellwether-check.schema.json',
 } as const;
 
 // ==================== Patterns ====================

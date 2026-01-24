@@ -4,6 +4,7 @@ import type {
   MCPPromptGetResult,
   MCPResourceReadResult,
 } from '../transport/types.js';
+import type { InferredSchema } from '../baseline/response-fingerprint.js';
 import type { Persona, QuestionCategory } from '../persona/types.js';
 import type {
   Workflow,
@@ -105,7 +106,25 @@ export interface InterviewConfig {
   checkMode?: boolean;
   /** Server command (for metadata tracking) */
   serverCommand?: string;
+  /** Number of warmup runs before timing samples (0-5, default: 1) */
+  warmupRuns?: number;
+  /** Skip tools that depend on external services (Plaid, Stripe, etc.) */
+  externalServices?: ExternalServicesConfig;
+  /** Response assertion configuration */
+  assertions?: AssertionsConfig;
+  /** Rate limiting configuration */
+  rateLimit?: RateLimitConfig;
+  /** Stateful testing configuration */
+  statefulTesting?: StatefulTestingConfig;
 }
+
+/**
+ * Expected outcome for a test question.
+ * - 'success': Test expects the tool to execute successfully
+ * - 'error': Test expects the tool to reject/fail (validation test)
+ * - 'either': Test outcome is acceptable either way
+ */
+export type ExpectedOutcome = 'success' | 'error' | 'either';
 
 /**
  * A question to ask about a tool's behavior.
@@ -117,6 +136,14 @@ export interface InterviewQuestion {
   category: QuestionCategory;
   /** Arguments to pass to the tool */
   args: Record<string, unknown>;
+  /**
+   * Expected outcome of this test.
+   * Used to determine if the tool behaved correctly.
+   * - 'success': Expects successful execution (happy path)
+   * - 'error': Expects rejection/error (validation test)
+   * - 'either': Either outcome is acceptable
+   */
+  expectedOutcome?: ExpectedOutcome;
   /** Semantic validation metadata (for tests generated from semantic type inference) */
   metadata?: {
     /** The inferred semantic type being tested */
@@ -125,7 +152,28 @@ export interface InterviewQuestion {
     expectedBehavior?: 'reject' | 'accept';
     /** Confidence level of the semantic type inference (0-1) */
     confidence?: number;
+    /** Stateful testing metadata */
+    stateful?: {
+      /** Keys injected from prior tool outputs */
+      usedKeys?: string[];
+      /** Keys captured from this response */
+      providedKeys?: string[];
+    };
   };
+}
+
+/**
+ * Assessment of whether a tool interaction outcome matched expectations.
+ */
+export interface OutcomeAssessment {
+  /** What outcome was expected */
+  expected: ExpectedOutcome;
+  /** What actually happened */
+  actual: 'success' | 'error';
+  /** Whether the tool behaved correctly (matches expectation) */
+  correct: boolean;
+  /** True if this was a validation test that correctly rejected invalid input */
+  isValidationSuccess?: boolean;
 }
 
 /**
@@ -150,6 +198,16 @@ export interface ToolInteraction {
   llmAnalysisMs?: number;
   /** Persona that generated this interaction */
   personaId?: string;
+  /** Outcome assessment - whether the result matched expectations */
+  outcomeAssessment?: OutcomeAssessment;
+  /** Response assertion results (semantic assertions) */
+  assertionResults?: ResponseAssertionResult[];
+  /** Whether all assertions passed for this interaction */
+  assertionsPassed?: boolean;
+  /** Whether the response was mocked */
+  mocked?: boolean;
+  /** External service that provided the mock (if mocked) */
+  mockService?: string;
 }
 
 /**
@@ -166,6 +224,22 @@ export interface PersonaFindings {
   limitations: string[];
   /** Security notes from this persona */
   securityNotes: string[];
+}
+
+/**
+ * Classification of errors by source for a tool.
+ */
+export interface ErrorClassification {
+  /** Number of errors attributed to external services (Plaid, Stripe, etc.) */
+  externalServiceErrors: number;
+  /** Number of errors attributed to environment/config issues (missing credentials) */
+  environmentErrors: number;
+  /** Number of errors that appear to be code bugs */
+  codeBugErrors: number;
+  /** Number of errors that couldn't be classified */
+  unknownErrors: number;
+  /** External services detected for this tool */
+  detectedServices?: string[];
 }
 
 /**
@@ -186,6 +260,22 @@ export interface ToolProfile {
   securityNotes: string[];
   /** Findings broken down by persona */
   findingsByPersona?: PersonaFindings[];
+  /** Error classification - separates tool correctness from environment setup issues */
+  errorClassification?: ErrorClassification;
+  /** Whether this tool was skipped */
+  skipped?: boolean;
+  /** Reason for skipping this tool */
+  skipReason?: string;
+  /** Whether this tool used mocked responses */
+  mocked?: boolean;
+  /** Mocked service name (if mocked) */
+  mockService?: string;
+  /** Aggregated response schema for assertions */
+  responseSchema?: ResponseSchema;
+  /** Assertion summary for this tool */
+  assertionSummary?: AssertionSummary;
+  /** Dependency info for stateful testing */
+  dependencyInfo?: ToolDependencyInfo;
 }
 
 /**
@@ -367,4 +457,147 @@ export interface InterviewMetadata {
   workflows?: WorkflowSummary;
   /** Server command used to start the MCP server */
   serverCommand?: string;
+  /** Rate limit events observed during the interview */
+  rateLimit?: RateLimitSummary;
+  /** External service handling summary */
+  externalServices?: ExternalServiceSummary;
+  /** Assertion summary across tools */
+  assertions?: AssertionSummary;
+  /** Stateful testing summary */
+  statefulTesting?: StatefulTestingSummary;
+}
+
+/**
+ * Response assertion types for semantic validation.
+ */
+export type ResponseAssertionType =
+  | 'is_json'
+  | 'matches_schema'
+  | 'contains_fields'
+  | 'not_empty'
+  | 'contains_text';
+
+/**
+ * Result of a response assertion.
+ */
+export interface ResponseAssertionResult {
+  /** Assertion type */
+  type: ResponseAssertionType;
+  /** Whether the assertion passed */
+  passed: boolean;
+  /** Optional description or failure message */
+  message?: string;
+  /** Expected value (if applicable) */
+  expected?: unknown;
+  /** Actual value (if applicable) */
+  actual?: unknown;
+}
+
+/**
+ * Inferred response schema for semantic assertions.
+ */
+export interface ResponseSchema {
+  inferredType: 'text' | 'json' | 'markdown' | 'binary';
+  jsonSchema?: InferredSchema;
+  markdownStructure?: {
+    hasHeaders: boolean;
+    hasTables: boolean;
+    hasCodeBlocks: boolean;
+  };
+  sampleFingerprints: string[];
+}
+
+/**
+ * Summary of assertion results.
+ */
+export interface AssertionSummary {
+  total: number;
+  passed: number;
+  failed: number;
+}
+
+/**
+ * Configuration for response assertions.
+ */
+export interface AssertionsConfig {
+  enabled: boolean;
+  /** Strict mode fails on assertion violations */
+  strict: boolean;
+  /** Infer schemas from responses */
+  infer: boolean;
+}
+
+/**
+ * Rate limiting configuration.
+ */
+export interface RateLimitConfig {
+  enabled: boolean;
+  requestsPerSecond: number;
+  burstLimit: number;
+  backoffStrategy: 'linear' | 'exponential';
+  maxRetries: number;
+}
+
+/**
+ * Stateful testing configuration.
+ */
+export interface StatefulTestingConfig {
+  enabled: boolean;
+  maxChainLength: number;
+  shareOutputsBetweenTools: boolean;
+}
+
+/**
+ * External service configuration per service.
+ */
+export interface ExternalServiceConfig {
+  enabled?: boolean;
+  sandboxCredentials?: Record<string, string>;
+}
+
+/**
+ * External service handling configuration.
+ */
+export interface ExternalServicesConfig {
+  mode: 'skip' | 'mock' | 'fail';
+  services?: Record<string, ExternalServiceConfig>;
+}
+
+/**
+ * Dependency info for stateful testing.
+ */
+export interface ToolDependencyInfo {
+  tool: string;
+  dependsOn: string[];
+  providesOutputFor: string[];
+  sequencePosition: number;
+}
+
+/**
+ * Summary of rate limiting events.
+ */
+export interface RateLimitSummary {
+  totalEvents: number;
+  totalRetries: number;
+  tools: string[];
+}
+
+/**
+ * Summary of external service handling.
+ */
+export interface ExternalServiceSummary {
+  mode: 'skip' | 'mock' | 'fail';
+  unconfiguredServices: string[];
+  skippedTools: string[];
+  mockedTools: string[];
+}
+
+/**
+ * Summary of stateful testing.
+ */
+export interface StatefulTestingSummary {
+  enabled: boolean;
+  toolCount: number;
+  dependencyCount: number;
+  maxChainLength: number;
 }

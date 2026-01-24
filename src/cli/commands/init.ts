@@ -79,7 +79,7 @@ export const initCommand = new Command('init')
   .argument('[server-command]', 'MCP server command (e.g., "npx @mcp/server")')
   .option('-f, --force', 'Overwrite existing config file')
   .option(
-    '-p, --preset <name>',
+    '--preset <name>',
     `Use a preset configuration (${Object.keys(PRESETS).join(', ')})`
   )
   .option(

@@ -522,9 +522,21 @@ describe('SchemaTestGenerator', () => {
                 const tests = generateSchemaTests(tool);
 
                 // Filter out intentional repeats (used for statistical confidence)
-                // These have "(repeat N)" in their description
+                // These include:
+                // - Legacy repeats with "(repeat N)" in their description
+                // - Consistency check runs used for performance sampling
+                // - Sequential/rapid succession tests for timing variance
+                const intentionalRepeatPatterns = [
+                    '(repeat ',
+                    'consistency check run',
+                    'sequential call',
+                    'rapid succession',
+                    'idempotency verification',
+                ];
                 const nonRepeatedTests = tests.filter(
-                    (t) => !t.description.includes('(repeat ')
+                    (t) => !intentionalRepeatPatterns.some(pattern =>
+                        t.description.toLowerCase().includes(pattern.toLowerCase())
+                    )
                 );
 
                 // Check for duplicates by comparing stringified args among non-repeated tests

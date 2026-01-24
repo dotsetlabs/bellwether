@@ -37,7 +37,7 @@ For remote MCP servers, use `--transport sse` or `--transport streamable-http` w
 | Option | Description | Default |
 |:-------|:------------|:--------|
 | `-c, --config <path>` | Path to config file | `bellwether.yaml` |
-| `--json` | Output as JSON | `discovery.json` |
+| `--json` | Output as JSON | `false` |
 | `--timeout <ms>` | Connection timeout in milliseconds | `discovery.timeout` |
 
 ### Remote Server Options
@@ -191,7 +191,7 @@ bellwether check npx your-server
 | Code | Meaning |
 |:-----|:--------|
 | `0` | Success - server capabilities discovered |
-| `1` | Error - connection failed or server error |
+| `4` | Error - connection failed or server error |
 
 ## See Also
 

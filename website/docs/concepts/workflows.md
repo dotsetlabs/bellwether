@@ -51,39 +51,61 @@ steps:
 
 ## Running Workflows
 
-Workflows can be run from a YAML file or discovered automatically using an LLM.
+Workflows are configured in `bellwether.yaml` and can run in both check and explore modes.
 
-### From YAML File
+### From a YAML File
 
-```bash
-# Generate a sample workflow file
-bellwether check --init-workflows
+1) Create `bellwether-workflows.yaml` (or any filename).
+2) Point config to it:
 
-# Run with user-defined workflows
-bellwether check --workflows ./bellwether-workflows.yaml npx your-server
+```yaml
+# bellwether.yaml
+workflows:
+  path: "./bellwether-workflows.yaml"
 ```
 
-### Auto-Discovery
-
-Let the LLM discover potential workflows based on available tools:
+Then run:
 
 ```bash
-# Discover workflows automatically
-bellwether check --discover-workflows npx your-server
+bellwether check
+```
 
-# Limit the number of discovered workflows
-bellwether check --discover-workflows --max-workflows 5 npx your-server
+### Auto-Generate (Check Mode)
+
+Check mode can auto-generate workflows from tool patterns and save them to `output.dir`:
+
+```yaml
+# bellwether.yaml
+workflows:
+  autoGenerate: true
+```
+
+```bash
+bellwether check
+```
+
+### LLM-Based Discovery (Explore Mode)
+
+Explore mode can ask the LLM to discover workflows:
+
+```yaml
+# bellwether.yaml
+workflows:
+  discover: true
+```
+
+```bash
+bellwether explore
 ```
 
 ### State Tracking
 
-Enable state tracking to monitor changes during workflow execution:
+Enable state tracking between steps:
 
-```bash
-bellwether check \
-  --workflows ./workflows.yaml \
-  --workflow-state-tracking \
-  npx your-server
+```yaml
+# bellwether.yaml
+workflows:
+  trackState: true
 ```
 
 ## Argument Mapping

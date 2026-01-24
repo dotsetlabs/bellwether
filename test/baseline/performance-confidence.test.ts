@@ -36,9 +36,11 @@ describe('calculatePerformanceConfidence', () => {
 
       const result = calculatePerformanceConfidence(samples);
 
-      expect(result.sampleCount).toBe(2);
+      // sampleCount is 0 because no samples succeeded (for performance confidence)
+      expect(result.sampleCount).toBe(0);
+      expect(result.totalTests).toBe(2);
       expect(result.confidenceLevel).toBe('low');
-      expect(result.recommendation).toContain('failed');
+      expect(result.recommendation).toContain('successful');
     });
   });
 
@@ -236,6 +238,9 @@ describe('formatConfidenceLevel', () => {
   it('should format high confidence', () => {
     const confidence = {
       sampleCount: 15,
+      successfulSamples: 15,
+      validationSamples: 0,
+      totalTests: 15,
       standardDeviation: 10,
       coefficientOfVariation: 0.1,
       confidenceLevel: 'high' as const,
@@ -251,6 +256,9 @@ describe('formatConfidenceLevel', () => {
   it('should format medium confidence', () => {
     const confidence = {
       sampleCount: 7,
+      successfulSamples: 7,
+      validationSamples: 0,
+      totalTests: 7,
       standardDeviation: 30,
       coefficientOfVariation: 0.3,
       confidenceLevel: 'medium' as const,
@@ -266,6 +274,9 @@ describe('formatConfidenceLevel', () => {
   it('should format low confidence with recommendation', () => {
     const confidence = {
       sampleCount: 3,
+      successfulSamples: 3,
+      validationSamples: 0,
+      totalTests: 3,
       standardDeviation: 50,
       coefficientOfVariation: 0.5,
       confidenceLevel: 'low' as const,
@@ -283,6 +294,9 @@ describe('formatConfidenceLevel', () => {
   it('should optionally exclude indicator', () => {
     const confidence = {
       sampleCount: 15,
+      successfulSamples: 15,
+      validationSamples: 0,
+      totalTests: 15,
       standardDeviation: 10,
       coefficientOfVariation: 0.1,
       confidenceLevel: 'high' as const,
@@ -299,6 +313,9 @@ describe('hasReliableConfidence', () => {
   it('should return true for high confidence', () => {
     const confidence = {
       sampleCount: 15,
+      successfulSamples: 15,
+      validationSamples: 0,
+      totalTests: 15,
       standardDeviation: 10,
       coefficientOfVariation: 0.1,
       confidenceLevel: 'high' as const,
@@ -310,6 +327,9 @@ describe('hasReliableConfidence', () => {
   it('should return true for medium confidence', () => {
     const confidence = {
       sampleCount: 7,
+      successfulSamples: 7,
+      validationSamples: 0,
+      totalTests: 7,
       standardDeviation: 30,
       coefficientOfVariation: 0.3,
       confidenceLevel: 'medium' as const,
@@ -321,6 +341,9 @@ describe('hasReliableConfidence', () => {
   it('should return false for low confidence', () => {
     const confidence = {
       sampleCount: 3,
+      successfulSamples: 3,
+      validationSamples: 0,
+      totalTests: 3,
       standardDeviation: 50,
       coefficientOfVariation: 0.5,
       confidenceLevel: 'low' as const,
@@ -393,6 +416,9 @@ describe('confidence in performance comparison', () => {
       collectedAt: new Date(),
       confidence: {
         sampleCount: 15,
+        successfulSamples: 15,
+        validationSamples: 0,
+        totalTests: 15,
         standardDeviation: 10,
         coefficientOfVariation: 0.1,
         confidenceLevel: 'high' as const,
@@ -404,8 +430,9 @@ describe('confidence in performance comparison', () => {
       baselineP50: 90,
       baselineP95: 140,
       baselineP99: 180,
-      sampleCount: 15,
-      recordedAt: new Date(),
+      baselineSuccessRate: 1.0,
+      maxAllowedRegression: 0.1,
+      establishedAt: new Date(),
     };
 
     const comparison = comparePerformance(current, baseline);
@@ -432,6 +459,9 @@ describe('confidence in performance comparison', () => {
       collectedAt: new Date(),
       confidence: {
         sampleCount: 2,
+        successfulSamples: 2,
+        validationSamples: 0,
+        totalTests: 2,
         standardDeviation: 50,
         coefficientOfVariation: 0.5,
         confidenceLevel: 'low' as const,
@@ -444,8 +474,9 @@ describe('confidence in performance comparison', () => {
       baselineP50: 90,
       baselineP95: 140,
       baselineP99: 180,
-      sampleCount: 2,
-      recordedAt: new Date(),
+      baselineSuccessRate: 1.0,
+      maxAllowedRegression: 0.1,
+      establishedAt: new Date(),
     };
 
     const comparison = comparePerformance(current, baseline);
@@ -475,6 +506,9 @@ describe('confidence in performance report', () => {
         collectedAt: new Date(),
         confidence: {
           sampleCount: 15,
+          successfulSamples: 15,
+          validationSamples: 0,
+          totalTests: 15,
           standardDeviation: 10,
           coefficientOfVariation: 0.1,
           confidenceLevel: 'high' as const,
@@ -494,6 +528,9 @@ describe('confidence in performance report', () => {
         collectedAt: new Date(),
         confidence: {
           sampleCount: 2,
+          successfulSamples: 2,
+          validationSamples: 0,
+          totalTests: 2,
           standardDeviation: 50,
           coefficientOfVariation: 0.5,
           confidenceLevel: 'low' as const,
@@ -507,5 +544,109 @@ describe('confidence in performance report', () => {
     expect(report.lowConfidenceCount).toBe(1);
     expect(report.lowConfidenceTools).toContain('unreliable-tool');
     expect(report.lowConfidenceTools).not.toContain('reliable-tool');
+  });
+});
+
+// ==================== expectedOutcome-based Confidence ====================
+describe('calculatePerformanceConfidence with expectedOutcome', () => {
+  describe('separates happy_path from validation tests', () => {
+    it('should only count happy_path tests for confidence when expectedOutcome is provided', () => {
+      // Mix of happy_path (success expected) and validation (error expected) tests
+      const samples: LatencySample[] = [
+        // 5 happy_path tests (success expected) - these should count for confidence
+        { toolName: 'test', durationMs: 100, success: true, timestamp: new Date(), expectedOutcome: 'success' },
+        { toolName: 'test', durationMs: 102, success: true, timestamp: new Date(), expectedOutcome: 'success' },
+        { toolName: 'test', durationMs: 98, success: true, timestamp: new Date(), expectedOutcome: 'success' },
+        { toolName: 'test', durationMs: 101, success: true, timestamp: new Date(), expectedOutcome: 'success' },
+        { toolName: 'test', durationMs: 99, success: true, timestamp: new Date(), expectedOutcome: 'success' },
+        // 10 validation tests (error expected) - these should NOT count for performance confidence
+        { toolName: 'test', durationMs: 50, success: false, timestamp: new Date(), expectedOutcome: 'error' },
+        { toolName: 'test', durationMs: 51, success: false, timestamp: new Date(), expectedOutcome: 'error' },
+        { toolName: 'test', durationMs: 52, success: false, timestamp: new Date(), expectedOutcome: 'error' },
+        { toolName: 'test', durationMs: 53, success: false, timestamp: new Date(), expectedOutcome: 'error' },
+        { toolName: 'test', durationMs: 54, success: false, timestamp: new Date(), expectedOutcome: 'error' },
+        { toolName: 'test', durationMs: 55, success: false, timestamp: new Date(), expectedOutcome: 'error' },
+        { toolName: 'test', durationMs: 56, success: false, timestamp: new Date(), expectedOutcome: 'error' },
+        { toolName: 'test', durationMs: 57, success: false, timestamp: new Date(), expectedOutcome: 'error' },
+        { toolName: 'test', durationMs: 58, success: false, timestamp: new Date(), expectedOutcome: 'error' },
+        { toolName: 'test', durationMs: 59, success: false, timestamp: new Date(), expectedOutcome: 'error' },
+      ];
+
+      const result = calculatePerformanceConfidence(samples);
+
+      // Should have 15 total samples
+      expect(result.totalTests).toBe(15);
+      // Should only have 5 successful happy_path samples counted for confidence
+      expect(result.successfulSamples).toBe(5);
+      // Validation samples tracked separately
+      expect(result.validationSamples).toBe(10);
+      // With only 5 happy_path samples, confidence should be medium (not high)
+      expect(result.confidenceLevel).toBe('medium');
+    });
+
+    it('should only count success-expected samples for confidence', () => {
+      // Currently, 'either' outcome samples are not counted for confidence calculation
+      // because confidence metrics should be based on deterministic happy_path tests
+      const samples: LatencySample[] = [
+        // 3 happy_path tests (expectedOutcome: 'success')
+        { toolName: 'test', durationMs: 100, success: true, timestamp: new Date(), expectedOutcome: 'success' },
+        { toolName: 'test', durationMs: 102, success: true, timestamp: new Date(), expectedOutcome: 'success' },
+        { toolName: 'test', durationMs: 98, success: true, timestamp: new Date(), expectedOutcome: 'success' },
+        // 7 "either" outcome tests - these are ambiguous and don't count for confidence
+        { toolName: 'test', durationMs: 105, success: true, timestamp: new Date(), expectedOutcome: 'either' },
+        { toolName: 'test', durationMs: 106, success: true, timestamp: new Date(), expectedOutcome: 'either' },
+        { toolName: 'test', durationMs: 107, success: true, timestamp: new Date(), expectedOutcome: 'either' },
+        { toolName: 'test', durationMs: 108, success: true, timestamp: new Date(), expectedOutcome: 'either' },
+        { toolName: 'test', durationMs: 109, success: true, timestamp: new Date(), expectedOutcome: 'either' },
+        { toolName: 'test', durationMs: 110, success: true, timestamp: new Date(), expectedOutcome: 'either' },
+        { toolName: 'test', durationMs: 111, success: true, timestamp: new Date(), expectedOutcome: 'either' },
+      ];
+
+      const result = calculatePerformanceConfidence(samples);
+
+      // Only 3 success-expected samples count for confidence
+      expect(result.successfulSamples).toBe(3);
+      expect(result.totalTests).toBe(10);
+      // With only 3 samples, confidence is low
+      expect(result.confidenceLevel).toBe('low');
+    });
+
+    it('should treat samples without expectedOutcome as happy_path (legacy behavior)', () => {
+      // Legacy samples without expectedOutcome
+      const samples: LatencySample[] = Array.from({ length: 12 }, (_, i) => ({
+        toolName: 'test',
+        durationMs: 100 + i * 2,
+        success: true,
+        timestamp: new Date(),
+        // No expectedOutcome - should be treated as happy_path
+      }));
+
+      const result = calculatePerformanceConfidence(samples);
+
+      expect(result.sampleCount).toBe(12);
+      expect(result.successfulSamples).toBe(12);
+      expect(result.validationSamples).toBe(0);
+      expect(result.confidenceLevel).toBe('high');
+    });
+  });
+
+  describe('outcomeCorrect tracking', () => {
+    it('should track correct outcomes in latency samples', () => {
+      const samples: LatencySample[] = [
+        // Correct happy_path outcome (expected success, got success)
+        { toolName: 'test', durationMs: 100, success: true, timestamp: new Date(), expectedOutcome: 'success', outcomeCorrect: true },
+        // Correct validation outcome (expected error, got error)
+        { toolName: 'test', durationMs: 50, success: false, timestamp: new Date(), expectedOutcome: 'error', outcomeCorrect: true },
+        // Incorrect outcome (expected success, got error)
+        { toolName: 'test', durationMs: 60, success: false, timestamp: new Date(), expectedOutcome: 'success', outcomeCorrect: false },
+      ];
+
+      const result = calculatePerformanceConfidence(samples);
+
+      // Total tests
+      expect(result.totalTests).toBe(3);
+      // Only 1 successful happy_path sample
+      expect(result.successfulSamples).toBe(1);
+    });
   });
 });

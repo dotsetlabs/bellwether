@@ -209,6 +209,13 @@ export interface WorkflowExecutorOptions {
   timeouts?: WorkflowTimeoutConfig;
   /** AbortSignal for cancelling workflow execution */
   signal?: AbortSignal;
+  /**
+   * Skip steps whose dependencies (previous steps that provide data via argMapping)
+   * have failed. When true, if a step depends on data from a failed step, it will be
+   * skipped rather than attempted with potentially invalid/missing data.
+   * Default: true
+   */
+  requireSuccessfulDependencies?: boolean;
 }
 
 /**

@@ -28,8 +28,9 @@ export const CONFIG_DEFAULTS = {
   workflows: {
     discover: false,
     trackState: false,
-    autoGenerate: true,
+    autoGenerate: false,
     stepTimeout: WORKFLOW_STEP_TIMEOUT_MS,
+    requireSuccessfulDependencies: true,
     timeouts: {
       toolCall: WORKFLOW_STEP_TIMEOUT_MS,
       stateSnapshot: WORKFLOW.STATE_SNAPSHOT_TIMEOUT,
@@ -62,6 +63,29 @@ export const CONFIG_DEFAULTS = {
     parallelWorkers: INTERVIEW.DEFAULT_TOOL_CONCURRENCY,
     performanceThreshold: 10,
     diffFormat: 'text' as const,
+    warmupRuns: 0,
+    smartTestValues: true,
+    statefulTesting: {
+      enabled: true,
+      maxChainLength: 5,
+      shareOutputsBetweenTools: true,
+    },
+    externalServices: {
+      mode: 'skip' as const,
+      services: {},
+    },
+    assertions: {
+      enabled: true,
+      strict: false,
+      infer: true,
+    },
+    rateLimit: {
+      enabled: false,
+      requestsPerSecond: 10,
+      burstLimit: 20,
+      backoffStrategy: 'exponential' as const,
+      maxRetries: 3,
+    },
     security: {
       enabled: false,
       categories: [
@@ -74,13 +98,18 @@ export const CONFIG_DEFAULTS = {
       ] as const,
     },
     sampling: {
-      minSamples: 3,
-      targetConfidence: 'medium' as const,
+      minSamples: 10,
+      targetConfidence: 'low' as const,
       failOnLowConfidence: false,
+    },
+    metrics: {
+      countValidationAsSuccess: true,
+      separateValidationMetrics: true,
     },
   },
   baseline: {
     path: PATHS.DEFAULT_BASELINE_FILE,
+    savePath: '.bellwether/bellwether-baseline.json',
     failOnDrift: false,
     outputFormat: 'text' as const,
     severity: {

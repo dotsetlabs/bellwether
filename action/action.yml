@@ -22,9 +22,6 @@ inputs:
     description: 'Path to baseline file for drift comparison (relative to output.dir unless absolute)'
     required: false
     default: 'bellwether-baseline.json'
-  fail-on-drift:
-    description: 'Fail the action if schema drift is detected (deprecated: use fail-on-severity instead)'
-    default: 'true'
   save-baseline:
     description: 'Save baseline after check'
     default: 'false'
@@ -35,26 +32,6 @@ inputs:
     description: 'Output format: text, json, compact, github, markdown, junit, sarif'
     required: false
     default: 'github'
-  parallel:
-    description: 'Enable parallel tool testing for faster checks'
-    required: false
-    default: 'true'
-  parallel-workers:
-    description: 'Number of concurrent tool workers (1-10)'
-    required: false
-    default: '4'
-  incremental:
-    description: 'Only test tools with changed schemas (requires existing baseline)'
-    required: false
-    default: 'false'
-  incremental-cache-hours:
-    description: 'Max age of cached results in hours for incremental mode'
-    required: false
-    default: '168'
-  performance-threshold:
-    description: 'Performance regression threshold percentage (0-100)'
-    required: false
-    default: '10'
   min-severity:
     description: 'Minimum severity to report: none, info, warning, breaking'
     required: false
@@ -75,20 +52,16 @@ inputs:
     description: 'Upload SARIF results to GitHub Code Scanning'
     required: false
     default: 'true'
-  security:
-    description: 'Enable security testing (injection, traversal, etc.)'
-    required: false
-    default: 'false'
 
 outputs:
   result:
     description: 'Check result: passed or failed'
     value: ${{ steps.test.outputs.result }}
   exit-code:
-    description: 'Semantic exit code: 0=clean, 1=info, 2=warning, 3=breaking, 4=error'
+    description: 'Semantic exit code: 0=clean, 1=info, 2=warning, 3=breaking, 4=error, 5=low-confidence'
     value: ${{ steps.test.outputs.exit-code }}
   severity:
-    description: 'Highest change severity detected: none, info, warning, breaking'
+    description: 'Highest change severity detected: none, info, warning, breaking, low_confidence'
     value: ${{ steps.test.outputs.severity }}
   drift-detected:
     description: 'Whether schema drift was detected (true/false)'
@@ -115,7 +88,7 @@ outputs:
     description: 'Documentation quality grade (A-F)'
     value: ${{ steps.test.outputs.doc-grade }}
   security-findings:
-    description: 'Number of security findings (when --security enabled)'
+    description: 'Number of security findings (when security testing is enabled)'
     value: ${{ steps.test.outputs.security-findings }}
   breaking-count:
     description: 'Number of breaking changes detected'
@@ -143,10 +116,31 @@ runs:
       shell: bash
       run: |
         CONFIG_PATH="${{ inputs.config-path }}"
+        DEFAULT_CONFIG="bellwether.yaml"
         if [ ! -f "$CONFIG_PATH" ]; then
-          echo "::notice::Config not found, creating with --preset ci"
-          bellwether init --preset ci ${{ inputs.server-command }} ${{ inputs.server-args }}
+          if [ "$CONFIG_PATH" != "$DEFAULT_CONFIG" ] && [ -f "$DEFAULT_CONFIG" ]; then
+            mkdir -p "$(dirname "$CONFIG_PATH")"
+            cp "$DEFAULT_CONFIG" "$CONFIG_PATH"
+          else
+            echo "::notice::Config not found, creating with --preset ci"
+            bellwether init --preset ci ${{ inputs.server-command }} ${{ inputs.server-args }}
+            if [ "$CONFIG_PATH" != "$DEFAULT_CONFIG" ]; then
+              mkdir -p "$(dirname "$CONFIG_PATH")"
+              mv "$DEFAULT_CONFIG" "$CONFIG_PATH"
+            fi
+          fi
         fi
+
+    - name: Resolve Config Output Paths
+      shell: bash
+      run: |
+        CONFIG_PATH="${{ inputs.config-path }}"
+        CONFIG_META=$(node --input-type=module -e 'import fs from "fs"; import yaml from "yaml"; const path = process.argv[1]; const content = fs.readFileSync(path, "utf8"); const config = yaml.parse(content) || {}; const output = config.output || {}; const files = output.files || {}; const docsDir = output.docsDir || "."; const outputDir = output.dir || ".bellwether"; const contractFile = files.contractDoc || "CONTRACT.md"; const checkReport = files.checkReport || "bellwether-check.json"; console.log([docsDir, outputDir, contractFile, checkReport].join("|"));' "$CONFIG_PATH")
+        IFS='|' read -r CONFIG_DOCS_DIR CONFIG_OUTPUT_DIR CONFIG_CONTRACT_FILE CONFIG_CHECK_REPORT <<< "$CONFIG_META"
+        echo "BELLWETHER_CONFIG_DOCS_DIR=$CONFIG_DOCS_DIR" >> $GITHUB_ENV
+        echo "BELLWETHER_CONFIG_OUTPUT_DIR=$CONFIG_OUTPUT_DIR" >> $GITHUB_ENV
+        echo "BELLWETHER_CONFIG_CONTRACT_FILE=$CONFIG_CONTRACT_FILE" >> $GITHUB_ENV
+        echo "BELLWETHER_CONFIG_CHECK_REPORT=$CONFIG_CHECK_REPORT" >> $GITHUB_ENV
 
     - name: Run Bellwether Check
       shell: bash
@@ -159,26 +153,38 @@ runs:
         set +e
 
         CONFIG_PATH="${{ inputs.config-path }}"
-        OUTPUT_DIR="${{ inputs.output-dir }}"
-        BASELINE_PATH="${{ inputs.baseline-path }}"
+        CONFIG_DOCS_DIR="${BELLWETHER_CONFIG_DOCS_DIR:-${{ inputs.output-dir }}}"
+        CONFIG_OUTPUT_DIR="${BELLWETHER_CONFIG_OUTPUT_DIR:-${{ inputs.output-dir }}}"
+        CONFIG_CONTRACT_FILE="${BELLWETHER_CONFIG_CONTRACT_FILE:-CONTRACT.md}"
+        CONFIG_CHECK_REPORT="${BELLWETHER_CONFIG_CHECK_REPORT:-bellwether-check.json}"
+        OUTPUT_DIR="${CONFIG_OUTPUT_DIR%/}"
+        DOCS_DIR="${CONFIG_DOCS_DIR%/}"
+        BASELINE_PATH_INPUT="${{ inputs.baseline-path }}"
         SAVE_BASELINE="${{ inputs.save-baseline }}"
+
+        if [ -n "$OUTPUT_DIR" ] && [ ! -d "$OUTPUT_DIR" ]; then
+          mkdir -p "$OUTPUT_DIR"
+        fi
+
+        if [ -n "$DOCS_DIR" ] && [ ! -d "$DOCS_DIR" ]; then
+          mkdir -p "$DOCS_DIR"
+        fi
+
+        if [[ "$BASELINE_PATH_INPUT" = /* ]]; then
+          BASELINE_PATH="$BASELINE_PATH_INPUT"
+        else
+          BASELINE_PATH="${OUTPUT_DIR}/${BASELINE_PATH_INPUT}"
+        fi
+
+        CONTRACT_MD="${DOCS_DIR}/${CONFIG_CONTRACT_FILE}"
+        CHECK_REPORT_PATH="${OUTPUT_DIR}/${CONFIG_CHECK_REPORT}"
+
+        echo "BELLWETHER_CONTRACT_PATH=$CONTRACT_MD" >> $GITHUB_ENV
+        echo "BELLWETHER_CHECK_REPORT_PATH=$CHECK_REPORT_PATH" >> $GITHUB_ENV
+        echo "BELLWETHER_BASELINE_PATH=$BASELINE_PATH" >> $GITHUB_ENV
 
         # Build check command flags
         CHECK_FLAGS="--config $CONFIG_PATH"
-        CHECK_FLAGS="$CHECK_FLAGS --format ${{ inputs.format }}"
-
-        # Parallel options
-        if [ "${{ inputs.parallel }}" = "true" ]; then
-          CHECK_FLAGS="$CHECK_FLAGS --parallel --parallel-workers ${{ inputs.parallel-workers }}"
-        fi
-
-        # Incremental options
-        if [ "${{ inputs.incremental }}" = "true" ]; then
-          CHECK_FLAGS="$CHECK_FLAGS --incremental --incremental-cache-hours ${{ inputs.incremental-cache-hours }}"
-        fi
-
-        # Performance threshold
-        CHECK_FLAGS="$CHECK_FLAGS --performance-threshold ${{ inputs.performance-threshold }}"
 
         # Severity options
         CHECK_FLAGS="$CHECK_FLAGS --min-severity ${{ inputs.min-severity }}"
@@ -192,35 +198,27 @@ runs:
           fi
         fi
 
-        # Legacy fail-on-drift support
-        if [ "${{ inputs.fail-on-drift }}" = "true" ]; then
-          CHECK_FLAGS="$CHECK_FLAGS --fail-on-drift"
-        fi
-
-        # Security testing
-        if [ "${{ inputs.security }}" = "true" ]; then
-          CHECK_FLAGS="$CHECK_FLAGS --security"
-        fi
-
-        # Run check
-        echo "Running: bellwether check $CHECK_FLAGS ${{ inputs.server-command }} ${{ inputs.server-args }}"
-        CHECK_OUTPUT=$(bellwether check $CHECK_FLAGS ${{ inputs.server-command }} ${{ inputs.server-args }} 2>&1)
+        # Run check for parsing (compact output)
+        echo "Running: bellwether check $CHECK_FLAGS --format compact ${{ inputs.server-command }} ${{ inputs.server-args }}"
+        CHECK_OUTPUT=$(bellwether check $CHECK_FLAGS --format compact ${{ inputs.server-command }} ${{ inputs.server-args }} 2>&1)
         CHECK_EXIT=$?
 
-        echo "$CHECK_OUTPUT"
+        # Display output in requested format
+        if [ "${{ inputs.format }}" = "compact" ]; then
+          echo "$CHECK_OUTPUT"
+        else
+          bellwether check $CHECK_FLAGS --format ${{ inputs.format }} ${{ inputs.server-command }} ${{ inputs.server-args }} || true
+        fi
 
-        # Extract tool count from output (portable regex without Perl extensions)
-        TOOL_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'Found [0-9]* tools' | grep -o '[0-9]*' | head -1 || echo "0")
-        if [ -z "$TOOL_COUNT" ]; then
+        # Extract tool count from JSON report
+        if [ -f "$CHECK_REPORT_PATH" ]; then
+          TOOL_COUNT=$(node --input-type=module -e 'import fs from "fs"; const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log((report.toolProfiles || []).length);' "$CHECK_REPORT_PATH" 2>/dev/null || echo "0")
+        else
           TOOL_COUNT="0"
         fi
         echo "tool-count=$TOOL_COUNT" >> $GITHUB_OUTPUT
 
-        # Check for CONTRACT.md in output dir or .bellwether default
-        CONTRACT_MD="${OUTPUT_DIR}/CONTRACT.md"
-        if [ ! -f "$CONTRACT_MD" ]; then
-          CONTRACT_MD=".bellwether/CONTRACT.md"
-        fi
+        # Set CONTRACT.md output path
         if [ -f "$CONTRACT_MD" ]; then
           echo "contract-md=$CONTRACT_MD" >> $GITHUB_OUTPUT
         fi
@@ -235,6 +233,7 @@ runs:
           2) SEVERITY="warning" ;;
           3) SEVERITY="breaking" ;;
           4) SEVERITY="error" ;;
+          5) SEVERITY="low_confidence" ;;
           *) SEVERITY="error" ;;
         esac
         echo "severity=$SEVERITY" >> $GITHUB_OUTPUT
@@ -247,7 +246,7 @@ runs:
         fi
         echo "drift-detected=$DRIFT_DETECTED" >> $GITHUB_OUTPUT
 
-        # Extract documentation quality from output
+        # Extract documentation quality from compact output
         DOC_SCORE=$(echo "$CHECK_OUTPUT" | grep -o 'doc_score=[0-9]*' | grep -o '[0-9]*' | head -1 || echo "")
         if [ -n "$DOC_SCORE" ]; then
           echo "doc-score=$DOC_SCORE" >> $GITHUB_OUTPUT
@@ -257,16 +256,16 @@ runs:
           echo "doc-grade=$DOC_GRADE" >> $GITHUB_OUTPUT
         fi
 
-        # Extract security findings count
+        # Extract security findings count from compact output
         SECURITY_FINDINGS=$(echo "$CHECK_OUTPUT" | grep -o 'new_security_findings=[0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
         echo "security-findings=$SECURITY_FINDINGS" >> $GITHUB_OUTPUT
 
-        # Extract change counts from output
-        BREAKING_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'Breaking changes: [0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
+        # Extract change counts from compact output
+        BREAKING_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'breaking=[0-9]*' | head -1 | cut -d= -f2 || echo "0")
         echo "breaking-count=$BREAKING_COUNT" >> $GITHUB_OUTPUT
-        WARNING_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'Warnings: [0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
+        WARNING_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'warnings=[0-9]*' | head -1 | cut -d= -f2 || echo "0")
         echo "warning-count=$WARNING_COUNT" >> $GITHUB_OUTPUT
-        INFO_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'Info: [0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
+        INFO_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'info=[0-9]*' | head -1 | cut -d= -f2 || echo "0")
         echo "info-count=$INFO_COUNT" >> $GITHUB_OUTPUT
 
         # Save baseline if requested and check was clean
@@ -301,36 +300,58 @@ runs:
         # Set final outputs
         echo "exit-code=$CHECK_EXIT" >> $GITHUB_OUTPUT
 
-        if [ $CHECK_EXIT -eq 0 ]; then
+        FAIL_THRESHOLD="${{ inputs.fail-on-severity }}"
+        FAIL_THRESHOLD_LEVEL=3
+        case "$FAIL_THRESHOLD" in
+          none) FAIL_THRESHOLD_LEVEL=0 ;;
+          info) FAIL_THRESHOLD_LEVEL=1 ;;
+          warning) FAIL_THRESHOLD_LEVEL=2 ;;
+          breaking) FAIL_THRESHOLD_LEVEL=3 ;;
+        esac
+
+        SHOULD_FAIL="false"
+        if [ $CHECK_EXIT -eq 4 ] || [ $CHECK_EXIT -eq 5 ]; then
+          SHOULD_FAIL="true"
+        elif [ $CHECK_EXIT -ge 1 ] && [ $CHECK_EXIT -le 3 ]; then
+          if [ $FAIL_THRESHOLD_LEVEL -gt 0 ] && [ $CHECK_EXIT -ge $FAIL_THRESHOLD_LEVEL ]; then
+            SHOULD_FAIL="true"
+          fi
+        fi
+
+        if [ "$SHOULD_FAIL" = "true" ]; then
+          echo "result=failed" >> $GITHUB_OUTPUT
+        else
           echo "result=passed" >> $GITHUB_OUTPUT
+        fi
+
+        if [ $CHECK_EXIT -eq 0 ]; then
           echo "::notice::Bellwether check passed - no drift detected"
         elif [ $CHECK_EXIT -eq 1 ]; then
-          echo "result=passed" >> $GITHUB_OUTPUT
-          echo "::notice::Bellwether check passed - info-level changes detected (non-breaking)"
+          echo "::notice::Bellwether check: info-level changes detected (non-breaking)"
         elif [ $CHECK_EXIT -eq 2 ]; then
-          echo "result=failed" >> $GITHUB_OUTPUT
           echo "::warning::Bellwether check: warning-level changes detected"
         elif [ $CHECK_EXIT -eq 3 ]; then
-          echo "result=failed" >> $GITHUB_OUTPUT
-          echo "::error::Bellwether check failed: breaking changes detected"
+          echo "::error::Bellwether check: breaking changes detected"
           echo ""
           echo "If changes are intentional, update your baseline:"
           echo "  bellwether baseline accept --reason \"Your reason here\" --force"
+        elif [ $CHECK_EXIT -eq 5 ]; then
+          echo "::warning::Bellwether check failed: low confidence metrics"
         else
-          echo "result=failed" >> $GITHUB_OUTPUT
           echo "::error::Bellwether check failed with error. Review the output above for details."
         fi
 
-        exit $CHECK_EXIT
+        if [ "$SHOULD_FAIL" = "true" ]; then
+          exit $CHECK_EXIT
+        fi
+        exit 0
 
     - name: Upload CONTRACT.md artifact
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: bellwether-docs
-        path: |
-          ${{ inputs.output-dir }}/CONTRACT.md
-          .bellwether/CONTRACT.md
+        path: ${{ env.BELLWETHER_CONTRACT_PATH }}
         if-no-files-found: ignore
 
     - name: Upload baseline artifact
@@ -338,7 +359,7 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: bellwether-baseline
-        path: ${{ inputs.baseline-path }}
+        path: ${{ env.BELLWETHER_BASELINE_PATH }}
         if-no-files-found: ignore
 
     - name: Upload JSON report artifact
@@ -346,9 +367,7 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: bellwether-report
-        path: |
-          ${{ inputs.output-dir }}/bellwether-check.json
-          .bellwether/bellwether-check.json
+        path: ${{ env.BELLWETHER_CHECK_REPORT_PATH }}
         if-no-files-found: ignore
 
     - name: Upload SARIF to GitHub Code Scanning

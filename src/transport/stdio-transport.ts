@@ -203,19 +203,36 @@ export class StdioTransport extends BaseTransport {
   send(message: JSONRPCMessage): void {
     const content = JSON.stringify(message);
 
+    const writeData = (data: string): void => {
+      try {
+        const success = this.output.write(data);
+        if (!success) {
+          // Handle backpressure - wait for drain event
+          this.output.once('drain', () => {
+            this.logger.debug('Output stream drained');
+          });
+        }
+      } catch (error) {
+        // Emit error for broken pipe (EPIPE) or other write failures
+        this.emit('error', new Error(
+          `Failed to write to output stream: ${error instanceof Error ? error.message : String(error)}`
+        ));
+      }
+    };
+
     if (this.useNewlineDelimited) {
       // Newline-delimited JSON format
       if (this.debug) {
         this.logger.debug({ format: 'newline', content }, 'Sending message');
       }
-      this.output.write(content + '\n');
+      writeData(content + '\n');
     } else {
       // Content-Length framing
       const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`;
       if (this.debug) {
         this.logger.debug({ format: 'content-length', content: header + content }, 'Sending message');
       }
-      this.output.write(header + content);
+      writeData(header + content);
     }
   }
 

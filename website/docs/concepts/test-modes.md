@@ -16,7 +16,7 @@ Bellwether offers two commands to fit different workflows and budgets.
 | **LLM Required** | No | Yes |
 | **Deterministic** | 100% | No (LLM variation) |
 | **What it does** | Schema validation, drift detection | Behavioral analysis, edge cases, security |
-| **Output** | `CONTRACT.md` | `AGENTS.md` |
+| **Output** | `CONTRACT.md`, `bellwether-check.json` | `AGENTS.md`, `bellwether-explore.json` |
 
 ## bellwether check (Free)
 
@@ -26,15 +26,16 @@ The check command validates tool schemas, parameter types, and descriptions with
 - **Fast** - Completes in seconds
 - **Deterministic** - Same input always produces same output
 - **CI/CD friendly** - No API keys required
-- **Output** - Generates `CONTRACT.md`
+- **Output** - Generates `CONTRACT.md` and `bellwether-check.json`
 
 ```bash
 # Initialize config and run check
 bellwether init npx @mcp/server
 bellwether check
 
-# With baseline comparison (configure in bellwether.yaml)
-bellwether check --fail-on-drift
+# With baseline comparison (configure baseline.comparePath in bellwether.yaml)
+bellwether check
+bellwether check --fail-on-drift  # Override baseline.failOnDrift
 ```
 
 ### What Check Detects

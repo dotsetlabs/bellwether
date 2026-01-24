@@ -23,6 +23,8 @@ export class InterviewProgressBar {
   private started = false;
   private totalWork = 0;
   private toolWork = 0;
+  private currentValue = 0;
+  private currentPayload: Record<string, unknown> = {};
 
   constructor(options: ProgressBarOptions = {}) {
     const stream = options.stream ?? process.stderr;
@@ -129,13 +131,17 @@ export class InterviewProgressBar {
       totalNum = progress.totalTools;
     }
 
-    this.bar.update(completedWork, {
+    // Track current state for potential restart after logging
+    this.currentValue = completedWork;
+    this.currentPayload = {
       phase: phaseLabel,
       item: currentItem,
       current: currentNum,
       phaseTotal: totalNum,
       questions: progress.questionsAsked,
-    });
+    };
+
+    this.bar.update(completedWork, this.currentPayload);
   }
 
   /**
@@ -149,6 +155,26 @@ export class InterviewProgressBar {
 
     // Restore logging after progress bar is done
     restoreLogLevel();
+  }
+
+  /**
+   * Log a message while the progress bar is active.
+   * Uses the same stream as the progress bar to avoid terminal overlap issues.
+   */
+  log(message: string): void {
+    if (!this.enabled || !this.bar || !this.started) {
+      console.log(message);
+      return;
+    }
+
+    // Stop the progress bar temporarily to prevent overlap
+    this.bar.stop();
+
+    // Write to stderr (same stream as progress bar) to avoid mixing streams
+    process.stderr.write(message + '\n');
+
+    // Restart the progress bar with tracked state
+    this.bar.start(this.totalWork, this.currentValue, this.currentPayload);
   }
 }
 
@@ -238,4 +264,3 @@ export function formatExploreBanner(options: {
 
   return lines.join('\n');
 }
-

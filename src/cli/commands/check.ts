@@ -16,7 +16,7 @@ import { Interviewer } from '../../interview/interviewer.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
 import { generateContractMd, generateJsonReport } from '../../docs/generator.js';
 import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
-import { validateConfigForCheck } from '../../config/validator.js';
+import { validateConfigForCheck, getConfigWarnings } from '../../config/validator.js';
 import {
   createBaseline,
   loadBaseline,
@@ -47,6 +47,12 @@ import {
 import { getMetricsCollector, resetMetricsCollector } from '../../metrics/collector.js';
 import { getGlobalCache, resetGlobalCache } from '../../cache/response-cache.js';
 import { InterviewProgressBar, formatCheckBanner } from '../utils/progress.js';
+import {
+  buildCheckSummary,
+  colorizeConfidence,
+  formatConfidenceLevel,
+  formatToolResultLine,
+} from '../output/terminal-reporter.js';
 import { loadScenariosFromFile, tryLoadDefaultScenarios, DEFAULT_SCENARIOS_FILE } from '../../scenarios/index.js';
 import {
   loadWorkflowsFromFile,
@@ -68,6 +74,7 @@ import {
   SECURITY_TESTING,
   CHECK_SAMPLING,
   WORKFLOW,
+  REPORT_SCHEMAS,
 } from '../../constants.js';
 
 
@@ -105,6 +112,15 @@ export const checkCommand = new Command('check')
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
       process.exit(EXIT_CODES.ERROR);
+    }
+
+    const warnings = getConfigWarnings(config);
+    if (warnings.length > 0) {
+      output.warn('Configuration warnings:');
+      for (const warning of warnings) {
+        output.warn(`  - ${warning}`);
+      }
+      output.newline();
     }
 
     // Extract settings from config
@@ -157,12 +173,11 @@ export const checkCommand = new Command('check')
     }
 
     // Resolve sampling and confidence options from config
+    // Honor user's minSamples exactly - don't override with targetConfidence minimum
+    // If minSamples is below confidence threshold, the confidence level will reflect that
+    // but the user's choice is respected
     const targetConfidence = config.check.sampling.targetConfidence as 'low' | 'medium' | 'high';
-    const minSamplesForConfidence = CHECK_SAMPLING.SAMPLES_FOR_CONFIDENCE[targetConfidence];
-    const minSamples = Math.max(
-      config.check.sampling.minSamples,
-      minSamplesForConfidence
-    );
+    const minSamples = config.check.sampling.minSamples;
     const failOnLowConfidence = config.check.sampling.failOnLowConfidence;
 
     // Resolve example output options from config
@@ -288,12 +303,24 @@ export const checkCommand = new Command('check')
         toolConcurrency = 10;
       }
 
-      if (parallelEnabled) {
+      if (parallelEnabled && !config.check.statefulTesting.enabled) {
         output.info(`Parallel tool testing enabled (${toolConcurrency} workers)`);
       }
 
       if (securityEnabled) {
         output.info(`Security testing enabled (${securityCategories.length} categories)`);
+      }
+
+      if (config.check.rateLimit.enabled) {
+        output.info(`Rate limiting enabled (${config.check.rateLimit.requestsPerSecond} req/s, burst ${config.check.rateLimit.burstLimit})`);
+      }
+
+      if (config.check.assertions.enabled) {
+        output.info(`Response assertions enabled (strict: ${config.check.assertions.strict ? 'on' : 'off'})`);
+      }
+
+      if (config.check.statefulTesting.enabled) {
+        output.info(`Stateful testing enabled (max chain length: ${config.check.statefulTesting.maxChainLength})`);
       }
 
       const interviewer = new Interviewer(null, {
@@ -311,6 +338,11 @@ export const checkCommand = new Command('check')
         cache,
         checkMode: true, // Required when passing null for LLM
         serverCommand: fullServerCommand,
+        warmupRuns: config.check.warmupRuns,
+        statefulTesting: config.check.statefulTesting,
+        externalServices: config.check.externalServices,
+        assertions: config.check.assertions,
+        rateLimit: config.check.rateLimit,
       });
 
       // Log sampling configuration
@@ -328,6 +360,7 @@ export const checkCommand = new Command('check')
       // Set up progress display
       const progressBar = new InterviewProgressBar({ enabled: !verbose });
 
+      const reportedTools = new Set<string>();
       const progressCallback = (progress: InterviewProgress) => {
         if (verbose) {
           switch (progress.phase) {
@@ -350,6 +383,17 @@ export const checkCommand = new Command('check')
           } else if (progress.phase === 'complete') {
             progressBar.stop();
           }
+        }
+
+        const toolSummary = progress.lastCompletedTool;
+        if (toolSummary && !reportedTools.has(toolSummary.toolName)) {
+          const line = formatToolResultLine(toolSummary);
+          if (verbose) {
+            output.info(line);
+          } else {
+            progressBar.log(line);
+          }
+          reportedTools.add(toolSummary.toolName);
         }
       };
 
@@ -392,6 +436,52 @@ export const checkCommand = new Command('check')
             }
           }
         }
+      }
+
+      // External service handling summary
+      if (result.metadata.externalServices) {
+        const ext = result.metadata.externalServices;
+        if (ext.unconfiguredServices.length > 0) {
+          output.warn(`\nExternal services not configured: ${ext.unconfiguredServices.join(', ')}`);
+        }
+        if (ext.skippedTools.length > 0) {
+          output.warn(`Tools skipped (${ext.skippedTools.length}): ${ext.skippedTools.slice(0, 5).join(', ')}${ext.skippedTools.length > 5 ? ' ...' : ''}`);
+        }
+        if (ext.mockedTools.length > 0) {
+          output.info(`Tools mocked (${ext.mockedTools.length}): ${ext.mockedTools.slice(0, 5).join(', ')}${ext.mockedTools.length > 5 ? ' ...' : ''}`);
+        }
+      }
+
+      if (result.metadata.statefulTesting?.enabled) {
+        output.info(`\nStateful testing: ${result.metadata.statefulTesting.dependencyCount} dependency edge(s)`);
+      }
+
+      // Assertion summary
+      if (result.metadata.assertions && result.metadata.assertions.total > 0) {
+        const assertions = result.metadata.assertions;
+        if (assertions.failed > 0) {
+          output.warn(`\nResponse assertions failed: ${assertions.failed}/${assertions.total}`);
+        } else {
+          output.success(`\nResponse assertions: ${assertions.total} passed`);
+        }
+      }
+
+      // Rate limit summary
+      if (result.metadata.rateLimit) {
+        const rateLimit = result.metadata.rateLimit;
+        output.warn(`\nRate limit events: ${rateLimit.totalEvents} (retries: ${rateLimit.totalRetries})`);
+        if (rateLimit.tools.length > 0) {
+          output.info(`Rate-limited tools: ${rateLimit.tools.slice(0, 5).join(', ')}${rateLimit.tools.length > 5 ? ' ...' : ''}`);
+        }
+      }
+
+      const checkSummary = buildCheckSummary(result);
+      output.newline();
+      output.lines(...checkSummary.lines);
+      if (checkSummary.nextSteps.length > 0) {
+        output.newline();
+        output.info('Next steps:');
+        output.numberedList(checkSummary.nextSteps);
       }
 
       // Run security testing if enabled
@@ -594,13 +684,28 @@ export const checkCommand = new Command('check')
         fullExamples,
         maxExamplesPerTool,
         targetConfidence,
+        countValidationAsSuccess: config.check.metrics.countValidationAsSuccess,
+        separateValidationMetrics: config.check.metrics.separateValidationMetrics,
       });
       const contractMdPath = join(docsDir, config.output.files.contractDoc);
       writeFileSync(contractMdPath, contractMd);
       output.info(`Written: ${contractMdPath}`);
 
       // Always generate JSON report for check command
-      const jsonReport = generateJsonReport(result);
+      // Add workflow results to the result object for the JSON report
+      const resultWithWorkflows = workflowResults.length > 0
+        ? { ...result, workflowResults }
+        : result;
+      let jsonReport: string;
+      try {
+        jsonReport = generateJsonReport(resultWithWorkflows, {
+          schemaUrl: REPORT_SCHEMAS.CHECK_REPORT_SCHEMA_URL,
+          validate: true,
+        });
+      } catch (error) {
+        output.error(error instanceof Error ? error.message : String(error));
+        process.exit(EXIT_CODES.ERROR);
+      }
       const jsonPath = join(outputDir, config.output.files.checkReport);
       writeFileSync(jsonPath, jsonReport);
       output.info(`Written: ${jsonPath}`);
@@ -659,11 +764,15 @@ export const checkCommand = new Command('check')
       if (lowConfidenceTools.length > 0) {
         const totalTools = currentBaseline.tools.length;
         const pct = Math.round((lowConfidenceTools.length / totalTools) * 100);
+        const confidenceLabel = colorizeConfidence(
+          formatConfidenceLevel(targetConfidence),
+          targetConfidence
+        );
         output.warn(`\n--- Confidence Warning ---`);
         output.warn(
           `${lowConfidenceTools.length}/${totalTools} tool(s) (${pct}%) have low statistical confidence`
         );
-        output.warn(`Target confidence: ${targetConfidence.toUpperCase()} (requires ${CHECK_SAMPLING.SAMPLES_FOR_CONFIDENCE[targetConfidence]}+ samples)`);
+        output.warn(`Target confidence: ${confidenceLabel} (requires ${CHECK_SAMPLING.SAMPLES_FOR_CONFIDENCE[targetConfidence]}+ samples)`);
         if (lowConfidenceTools.length <= 5) {
           output.warn(`Affected tools: ${lowConfidenceTools.join(', ')}`);
         } else {
@@ -677,7 +786,11 @@ export const checkCommand = new Command('check')
           process.exit(EXIT_CODES.LOW_CONFIDENCE);
         }
       } else {
-        output.info(`\nConfidence: All tools meet ${targetConfidence.toUpperCase()} confidence threshold`);
+        const confidenceLabel = colorizeConfidence(
+          formatConfidenceLevel(targetConfidence),
+          targetConfidence
+        );
+        output.info(`\nConfidence: All tools meet ${confidenceLabel} confidence threshold`);
       }
 
       // Save baseline if configured
@@ -790,6 +903,11 @@ export const checkCommand = new Command('check')
           // This provides semantic exit codes for CI/CD even when not failing
           process.exit(exitCode);
         }
+      }
+
+      if (config.check.assertions.strict && (result.metadata.assertions?.failed ?? 0) > 0) {
+        output.error('\nAssertion failures detected and check.assertions.strict is enabled.');
+        process.exit(EXIT_CODES.ERROR);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

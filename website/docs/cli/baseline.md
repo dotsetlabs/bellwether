@@ -372,7 +372,7 @@ When comparing baselines, Bellwether detects:
 | Code | Meaning |
 |:-----|:--------|
 | `0` | Success / No drift |
-| `1` | Drift detected (with `--fail-on-drift`) |
+| `4` | Drift detected (with `--fail-on-drift`) or runtime error |
 
 ## Configuration
 

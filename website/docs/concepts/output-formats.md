@@ -12,20 +12,20 @@ Bellwether generates output in multiple formats to support different use cases: 
 | Format | File | Use Case |
 |:-------|:-----|:---------|
 | Markdown | `CONTRACT.md` (check) / `AGENTS.md` (explore) | Human-readable documentation |
-| JSON | `bellwether-check.json` | Machine-readable data |
+| JSON | `bellwether-check.json` / `bellwether-explore.json` | Machine-readable data |
 | Baseline | `bellwether-baseline.json` | Drift detection (with `bellwether baseline save`) |
-| JUnit | `bellwether-results.xml` | CI test reporting (Jenkins, GitLab, CircleCI) |
-| SARIF | `bellwether.sarif` | GitHub Code Scanning, static analysis tools |
+| JUnit | (stdout) | CI test reporting (when `--format junit` and a baseline is compared) |
+| SARIF | (stdout) | GitHub Code Scanning (when `--format sarif` and a baseline is compared) |
 | Compact | (stdout) | Single-line summary for log aggregation |
 | GitHub | (stdout) | GitHub Actions annotations |
 
 ## Markdown (Default)
 
-Human-readable behavioral documentation.
+Human-readable documentation. Check generates `CONTRACT.md`, explore generates `AGENTS.md`.
 
 ```bash
 bellwether check npx your-server
-# Output: AGENTS.md
+# Output: CONTRACT.md
 ```
 
 ### Example Output
@@ -100,7 +100,7 @@ Returns a structured summary prompt message suitable for LLM processing.
 - Returns error for binary files
 ```
 
-The `AGENTS.md` output includes:
+The `CONTRACT.md` output includes:
 - **Tool Profiles** - Behavioral documentation for each tool
 - **Prompt Profiles** - Documentation for prompts (if the server exposes any)
 - **Quick Reference** - Tool signatures for easy lookup
@@ -110,9 +110,14 @@ The `AGENTS.md` output includes:
 
 Machine-readable format for programmatic access.
 
-```bash
-bellwether check --json npx your-server
-# Output: bellwether-report.json
+JSON reports are always generated for both commands. File names and locations are configurable in `bellwether.yaml`:
+
+```yaml
+output:
+  dir: ".bellwether"
+  files:
+    checkReport: "bellwether-check.json"
+    exploreReport: "bellwether-explore.json"
 ```
 
 ### Example Output
@@ -200,7 +205,7 @@ bellwether baseline compare ./bellwether-baseline.json
 
 ```json
 {
-  "formatVersion": "1.0.0",
+  "version": "1.0.0",
   "createdAt": "2026-01-12T10:30:00Z",
   "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
   "mode": "check",
@@ -226,30 +231,27 @@ bellwether baseline compare ./bellwether-baseline.json
 
 ## Multiple Formats
 
-Generate both documentation and JSON report:
+Both documentation and JSON reports are always generated. Control their locations in `bellwether.yaml`:
 
-```bash
-bellwether check --json -o ./output npx your-server
+```yaml
+output:
+  dir: ".bellwether"   # JSON reports
+  docsDir: "."         # CONTRACT.md / AGENTS.md
 ```
-
-This creates:
-- `output/AGENTS.md` (always generated)
-- `output/bellwether-report.json` (with `--json` flag)
 
 ## Custom Output Directory
 
-```bash
-bellwether check -o ./docs npx your-server
-# Output: docs/CONTRACT.md
-```
+Set `output.dir` for JSON files and `output.docsDir` for markdown docs.
 
 ## JUnit Format
 
-Generate JUnit XML for CI test reporting:
+Generate JUnit XML for drift reports (stdout):
 
 ```bash
 bellwether check --format junit > bellwether-results.xml
 ```
+
+These formats are emitted only when a baseline comparison is performed.
 
 JUnit output includes test cases for:
 - Schema changes (breaking, warning, info)
@@ -260,11 +262,13 @@ JUnit output includes test cases for:
 
 ## SARIF Format
 
-Generate SARIF for GitHub Code Scanning:
+Generate SARIF for drift reports (stdout):
 
 ```bash
 bellwether check --format sarif > bellwether.sarif
 ```
+
+These formats are emitted only when a baseline comparison is performed.
 
 SARIF rules include:
 - `BWH001-004`: Schema drift rules (breaking, warning, info)

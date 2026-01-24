@@ -56,10 +56,11 @@ Check command returns granular exit codes for CI/CD pipelines:
 | Code | Meaning | CI Action |
 |:-----|:--------|:----------|
 | `0` | No changes detected | Pass |
-| `1` | Info-level changes only | Pass (or fail with `--fail-on-severity info`) |
-| `2` | Warning-level changes | Fail with `--fail-on-drift` |
+| `1` | Info-level changes only | Exit code `1` (handle in CI as desired) |
+| `2` | Warning-level changes | Exit code `2` (handle in CI as desired) |
 | `3` | Breaking changes | Always fail |
 | `4` | Runtime error | Fail |
+| `5` | Low confidence (when `check.sampling.failOnLowConfidence` is true) | Fail |
 
 ## What Bellwether Detects
 
@@ -132,8 +133,55 @@ bellwether check
 - **Free** - No token costs
 - **Deterministic** - Same input = same output
 - **Fast** - Runs in seconds (use `check.parallel` in config for more speed)
-- **Output** - Generates `CONTRACT.md` with examples, error patterns, and performance baselines (filename configurable via `output.files.contractDoc`)
-- **CI-Optimized** - Granular exit codes (0-4), JUnit/SARIF output formats
+- **Output** - Writes `CONTRACT.md` to `output.docsDir` and `bellwether-check.json` to `output.dir` (filenames configurable via `output.files.contractDoc` and `output.files.checkReport`)
+- **CI-Optimized** - Granular exit codes (0-5), JUnit/SARIF output formats
+
+#### Check Mode Enhancements
+
+- **Stateful testing** for create → use → delete chains
+- **External service handling** (skip, mock, or fail when credentials are missing)
+- **Response assertions** for semantic validation of outputs
+- **Rate limiting** to avoid 429s on production servers
+
+Example configuration:
+
+```yaml
+check:
+  statefulTesting:
+    enabled: true
+    maxChainLength: 5
+    shareOutputsBetweenTools: true
+
+  externalServices:
+    mode: skip   # skip | mock | fail
+    services:
+      plaid:
+        enabled: false
+        sandboxCredentials:
+          clientId: "${PLAID_CLIENT_ID}"
+          secret: "${PLAID_SECRET}"
+
+  assertions:
+    enabled: true
+    strict: false
+    infer: true
+
+  rateLimit:
+    enabled: false
+    requestsPerSecond: 10
+    burstLimit: 20
+    backoffStrategy: exponential
+    maxRetries: 3
+```
+
+#### Check Report Schema
+
+`bellwether-check.json` includes a `$schema` pointer and is validated before writing.
+Schema URL:
+
+```
+https://unpkg.com/@dotsetlabs/bellwether/schemas/bellwether-check.schema.json
+```
 
 ### Explore Command (Optional)
 
@@ -157,10 +205,13 @@ bellwether explore
 bellwether init npx @mcp/server
 bellwether init --preset ci npx @mcp/server
 
+# Validate configuration (no tests)
+bellwether validate-config
+
 # Check for drift (free, fast, deterministic)
 bellwether check                   # Uses server.command from config
 bellwether check npx @mcp/server   # Override server command
-bellwether check --fail-on-drift   # Fail if drift detected (for CI)
+bellwether check --fail-on-drift   # Override baseline.failOnDrift from config
 bellwether check --format junit    # JUnit XML output for CI
 bellwether check --format sarif    # SARIF output for GitHub Code Scanning
 
@@ -187,6 +238,7 @@ bellwether verify --tier gold
 # Validate against contracts
 bellwether contract generate npx @mcp/server
 bellwether contract validate npx @mcp/server
+bellwether contract show     # Display current contract
 
 # Manage golden outputs (deterministic regression tests)
 bellwether golden save --tool my_tool --args '{"id":"123"}'
@@ -216,6 +268,11 @@ bellwether baseline diff v1.json v2.json --ignore-version-mismatch  # Force comp
 bellwether baseline migrate ./bellwether-baseline.json
 bellwether baseline migrate ./baseline.json --dry-run
 bellwether baseline migrate ./baseline.json --info
+
+# Accept drift as intentional (update baseline)
+bellwether baseline accept --reason "Intentional API change"
+bellwether baseline accept --dry-run  # Preview without saving
+bellwether baseline accept --force    # Required for breaking changes
 ```
 
 ### Baseline Format Versioning
@@ -293,9 +350,11 @@ bellwether badge --markdown
 
 ```bash
 # Manage LLM API keys (stored in system keychain)
-bellwether auth
-bellwether auth status
-bellwether auth clear
+bellwether auth              # Interactive API key setup
+bellwether auth status       # Show configured providers
+bellwether auth add openai   # Add a specific provider key
+bellwether auth remove openai # Remove a specific provider key
+bellwether auth clear        # Remove all stored keys
 ```
 
 ## Security Testing
@@ -317,6 +376,7 @@ bellwether check
 | `path_traversal` | Path traversal attempts | CWE-22 |
 | `command_injection` | Command injection payloads | CWE-78 |
 | `ssrf` | Server-side request forgery | CWE-918 |
+| `error_disclosure` | Sensitive error disclosure | CWE-209 |
 
 ### Security Baseline
 
@@ -496,7 +556,7 @@ Performance regressions detected with low confidence may not be real:
 
 When confidence is low, the CLI recommends:
 ```
-Run with --samples 10 for reliable baseline
+Increase `check.sampling.minSamples` for reliable baselines
 ```
 
 ### Output
@@ -631,11 +691,11 @@ Use with: `bellwether init --preset <name> npx @mcp/server`
 
 ```yaml
 - name: Detect Behavioral Drift
-  uses: dotsetlabs/bellwether@v1
+  uses: dotsetlabs/bellwether/action@v1
   with:
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
-    fail-on-drift: 'true'
+    fail-on-severity: 'warning'
 ```
 
 See [action/README.md](./action/README.md) for full documentation.

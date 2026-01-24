@@ -14,12 +14,16 @@ Structural drift detection for MCP servers in CI/CD. Free. Deterministic. Fast.
 - **Zero LLM Required** - No API keys, no token costs
 - **Deterministic** - Same input = same output
 - **CI/CD Gating** - Block deployments when behavior drifts unexpectedly
-- **Granular Exit Codes** - Semantic exit codes (0-4) for precise CI control
+- **Granular Exit Codes** - Semantic exit codes (0-5) for precise CI control
 - **JUnit/SARIF Output** - Integration with test reporters and code scanning
 - **Parallel Testing** - Faster checks for servers with many tools
 - **Incremental Checking** - Only test tools with changed schemas
 - **Config-Driven** - Uses `bellwether.yaml` for all settings
 - **Cloud Integration** - Optional upload to Bellwether Cloud for history tracking
+
+## Breaking Changes
+
+The action no longer accepts per-run tuning inputs like `fail-on-drift`, `parallel`, `parallel-workers`, `incremental`, `incremental-cache-hours`, `performance-threshold`, or `security`. Configure these in `bellwether.yaml` instead.
 
 ## Quick Start
 
@@ -51,7 +55,7 @@ No secrets needed. Free. Runs in seconds. The action will create `bellwether.yam
   with:
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
-    fail-on-drift: 'true'
+    fail-on-severity: 'warning'
 ```
 
 ### Save Baseline
@@ -135,45 +139,9 @@ Generate SARIF for GitHub Code Scanning:
     sarif_file: bellwether.sarif
 ```
 
-### With Parallel Testing
+### Configure Check Behavior
 
-Speed up checks for servers with many tools:
-
-```yaml
-- name: Fast Parallel Check
-  uses: dotsetlabs/bellwether@v1
-  with:
-    server-command: 'npx @mcp/your-server'
-    parallel: 'true'
-    parallel-workers: '4'
-```
-
-### With Incremental Checking
-
-Only test tools with changed schemas:
-
-```yaml
-- name: Incremental Check
-  uses: dotsetlabs/bellwether@v1
-  with:
-    server-command: 'npx @mcp/your-server'
-    incremental: 'true'
-    baseline-path: './bellwether-baseline.json'
-```
-
-### With Security Testing
-
-Enable security vulnerability testing:
-
-```yaml
-- name: Security Check
-  uses: dotsetlabs/bellwether@v1
-  with:
-    server-command: 'npx @mcp/your-server'
-    security: 'true'
-```
-
-Security testing probes for SQL injection, path traversal, command injection, XSS, and SSRF vulnerabilities.
+Parallelism, incremental checking, performance thresholds, and security testing are configured in `bellwether.yaml` under the `check` section. The action reads your config directly.
 
 ### With Server Environment Variables
 
@@ -208,7 +176,6 @@ server:
 | `server-args` | Arguments to pass to the server | No | `''` |
 | `config-path` | Path to bellwether.yaml config file | No | `bellwether.yaml` |
 | `baseline-path` | Path to baseline file for drift comparison | No | `bellwether-baseline.json` |
-| `fail-on-drift` | Fail if drift is detected (deprecated) | No | `true` |
 | `save-baseline` | Save baseline after test | No | `false` |
 | `output-dir` | Directory for output files (should match config output.dir/docsDir) | No | `.` |
 
@@ -217,14 +184,8 @@ server:
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
 | `format` | Output format: `text`, `json`, `compact`, `github`, `markdown`, `junit`, `sarif` | No | `github` |
-| `parallel` | Enable parallel tool testing | No | `true` |
-| `parallel-workers` | Number of concurrent workers (1-10) | No | `4` |
-| `incremental` | Only test tools with changed schemas | No | `false` |
-| `incremental-cache-hours` | Max age of cached results in hours for incremental mode | No | `168` |
 | `fail-on-severity` | Failure threshold: `info`, `warning`, `breaking` | No | `breaking` |
 | `min-severity` | Minimum severity to report | No | `info` |
-| `performance-threshold` | Performance regression threshold (%) | No | `10` |
-| `security` | Enable security testing (injection, traversal, etc.) | No | `false` |
 | `upload-sarif` | Upload SARIF results to GitHub Code Scanning | No | `true` |
 | `accept-drift` | Accept detected drift as intentional and update baseline | No | `false` |
 | `accept-reason` | Reason for accepting drift (used with accept-drift) | No | `''` |
@@ -234,8 +195,8 @@ server:
 | Output | Description |
 |--------|-------------|
 | `result` | Check result: `passed` or `failed` |
-| `exit-code` | Exit code (0=clean, 1=info, 2=warning, 3=breaking, 4=error) |
-| `severity` | Highest change severity: `none`, `info`, `warning`, `breaking` |
+| `exit-code` | Exit code (0=clean, 1=info, 2=warning, 3=breaking, 4=error, 5=low-confidence) |
+| `severity` | Highest change severity: `none`, `info`, `warning`, `breaking`, `low_confidence` |
 | `drift-detected` | Whether drift was detected (`true`/`false`) |
 | `tool-count` | Number of tools discovered |
 | `breaking-count` | Number of breaking changes |
@@ -243,7 +204,7 @@ server:
 | `info-count` | Number of info changes |
 | `doc-score` | Documentation quality score (0-100) |
 | `doc-grade` | Documentation quality grade (A-F) |
-| `security-findings` | Number of security findings (when `--security` enabled) |
+| `security-findings` | Number of security findings (when security testing is enabled in config) |
 | `contract-md` | Path to generated CONTRACT.md file |
 | `baseline-file` | Path to baseline file |
 | `sarif-file` | Path to SARIF file (when format includes sarif) |
@@ -254,13 +215,28 @@ server:
 The action automatically uploads:
 - `bellwether-docs`: The generated CONTRACT.md file
 - `bellwether-baseline`: The baseline file (if saved)
-- `bellwether-report`: The JSON report
+- `bellwether-report`: The JSON report (`bellwether-check.json`)
+
+Artifact paths are resolved from your config (`output.dir`, `output.docsDir`, and `output.files.*`).
 
 ## Configuration
 
-All settings are configured in `bellwether.yaml`. If no config file exists, the action automatically creates one with `--preset ci` (optimized for CI).
+All settings are configured in `bellwether.yaml`. If no config file exists, the action automatically creates one with `--preset ci` (optimized for CI). If you set a custom `config-path`, the action will generate the config and move it to that path.
 
-If you customize `output.dir` or `output.docsDir`, set the action `output-dir` input to the same value so artifact paths resolve correctly.
+The action reads `output.dir`, `output.docsDir`, and `output.files.*` from your config to locate artifacts. Keep those in sync with your expectations.
+
+Example output customization:
+
+```yaml
+output:
+  dir: "out"
+  docsDir: "docs"
+  files:
+    contractDoc: "MCP_CONTRACT.md"
+    checkReport: "mcp-check.json"
+```
+
+If your server depends on external services (e.g., Plaid, Stripe), set the required environment variables in the workflow so those tools are tested instead of skipped.
 
 ### Create Config Locally
 
@@ -296,6 +272,8 @@ check:
   parallel: true              # Faster checks
   parallelWorkers: 4          # Concurrent tool tests
   performanceThreshold: 10    # Flag >10% latency regression
+  security:
+    enabled: true             # Enable security testing
 ```
 
 ## Complete Workflow Example
@@ -318,7 +296,7 @@ jobs:
         uses: dotsetlabs/bellwether@v1
         with:
           server-command: 'npx @mcp/your-server'
-          fail-on-drift: 'true'
+          fail-on-severity: 'warning'
 
       - name: Upload to Cloud (main only)
         if: github.ref == 'refs/heads/main' && success()
@@ -347,10 +325,11 @@ Bellwether uses granular exit codes for semantic CI control:
 | Code | Meaning | CI Behavior |
 |------|---------|-------------|
 | `0` | Clean - no changes detected | Pass |
-| `1` | Info - non-breaking changes (new tools, optional params) | Pass by default |
-| `2` | Warning - behavioral changes to investigate | Fail with `fail-on-drift` |
-| `3` | Breaking - critical changes (tool removed, type changed) | Always fail |
+| `1` | Info - non-breaking changes (new tools, optional params) | Fail when `fail-on-severity` is `info` |
+| `2` | Warning - behavioral changes to investigate | Fail when `fail-on-severity` is `warning` |
+| `3` | Breaking - critical changes (tool removed, type changed) | Fail when `fail-on-severity` is `breaking` (default) |
 | `4` | Error - runtime error (connection, config) | Fail |
+| `5` | Low confidence metrics (when `check.sampling.failOnLowConfidence` is true) | Fail |
 
 ### Configurable Failure Threshold
 
@@ -377,7 +356,7 @@ If you were using the old flag-based inputs:
 
 **Before:**
 ```yaml
-- uses: dotsetlabs/bellwether/action@v0
+- uses: dotsetlabs/bellwether/action@v1
   with:
     server-command: 'npx @mcp/server'
     preset: 'ci'

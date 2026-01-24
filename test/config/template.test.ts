@@ -190,6 +190,11 @@ describe('generateConfigTemplate', () => {
       expect(template).toContain('# CHECK COMMAND SETTINGS');
       expect(template).toContain('baseline:');
       expect(template).toContain('failOnDrift:');
+      expect(template).toContain('statefulTesting:');
+      expect(template).toContain('externalServices:');
+      expect(template).toContain('assertions:');
+      expect(template).toContain('rateLimit:');
+      expect(template).toContain('metrics:');
     });
 
     it('should include EXPLORE COMMAND SETTINGS section', () => {

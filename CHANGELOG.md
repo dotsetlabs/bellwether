@@ -2,6 +2,98 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] - 2026-01-24
+
+### Features
+
+- **Smart test value generation**: New intelligent value generator that produces semantically valid test inputs by:
+  - Recognizing patterns in field names (dates, emails, URLs, phone numbers, IDs, etc.)
+  - Respecting JSON Schema `format` fields
+  - Generating syntactically correct values more likely to be accepted by real tools
+- **Stateful testing**: Tests can now share outputs between tool calls
+  - Tool responses are parsed and stored in a shared state map
+  - Subsequent tool calls can inject values from prior outputs (e.g., IDs created by one tool used by another)
+  - Configurable via `check.statefulTesting.enabled` and `check.statefulTesting.shareOutputsBetweenTools`
+  - Maximum chain length configurable via `check.statefulTesting.maxChainLength`
+- **Rate limiting**: Token bucket rate limiter for tool calls
+  - Configurable requests per second and burst limits
+  - Exponential or linear backoff strategies
+  - Automatic retry on rate limit errors
+  - Enabled via `check.rateLimit.enabled` in config
+- **Response assertions**: Semantic validation of tool responses
+  - Automatic schema inference from successful responses
+  - Configurable strict mode for assertion failures
+  - Assertion results tracked per interaction and aggregated per tool
+  - Enabled via `check.assertions.enabled` in config
+- **External service detection enhancements**: Improved detection with confidence levels
+  - `confirmed`: Error messages from the service were observed
+  - `likely`: Strong evidence from tool name/description patterns
+  - `possible`: Weak evidence, partial matches
+  - Evidence breakdown for transparency (fromErrorMessage, fromToolName, fromDescription)
+  - Service configuration status tracking (configured, sandboxAvailable, mockAvailable)
+- **Warmup runs**: Skip initial runs before timing samples to account for cold starts
+  - Configurable 0-5 warmup runs via `check.warmupRuns`
+- **Config validation warnings**: Non-blocking warnings for configuration issues
+  - Displayed before check runs without failing
+  - Helps catch common misconfigurations early
+- **Tool-by-tool progress reporting**: Live progress shows reliability and timing per tool as they complete
+
+### Enhanced CONTRACT.md Output
+
+- **Quick Reference table enhancements**: Now includes P50 latency, confidence indicators
+- **Metrics legend section**: Explains confidence levels and reliability calculations
+- **Validation testing section**: Separate metrics for validation tests vs happy-path tests
+- **Issues detected section**: Aggregated summary of detected issues across tools
+- **Stateful testing section**: Shows state sharing relationships between tools
+- **External service configuration section**: Documents detected external services and their status
+- **Response assertions section**: Documents inferred schemas and assertion rules
+- **Skipped tool handling**: Tools skipped due to missing external service config are documented
+
+### Configuration Changes
+
+- **New config options**:
+  - `check.warmupRuns` - Number of warmup runs before timing (default: 0)
+  - `check.smartTestValues` - Enable smart value generation (default: true)
+  - `check.statefulTesting.*` - Stateful testing configuration
+  - `check.externalServices.*` - External service handling (skip/mock/test modes)
+  - `check.assertions.*` - Response assertion configuration
+  - `check.rateLimit.*` - Rate limiting configuration
+  - `check.metrics.countValidationAsSuccess` - Count validation rejections as success (default: true)
+  - `check.metrics.separateValidationMetrics` - Separate validation from happy-path metrics (default: true)
+  - `baseline.savePath` - Separate path for saving baselines (default: `.bellwether/bellwether-baseline.json`)
+- **Changed defaults**:
+  - `check.sampling.minSamples`: 3 → 10 (more samples for statistical confidence)
+  - `check.sampling.targetConfidence`: 'medium' → 'low' (match the lower sample count)
+  - `workflows.autoGenerate`: true → false (explicit opt-in for workflow discovery)
+  - `workflows.requireSuccessfulDependencies`: new option (default: true)
+- **Parallel testing + stateful testing**: Parallel mode automatically disabled when stateful testing is enabled (state sharing requires sequential execution)
+
+### GitHub Action
+
+- **Simplified inputs**: Removed CLI-flag-style inputs that are now config-only:
+  - Removed: `fail-on-drift`, `parallel`, `parallel-workers`, `incremental`, `incremental-cache-hours`, `performance-threshold`, `security`
+  - These are now configured in `bellwether.yaml` only
+- **Improved config path handling**: Action now properly resolves config paths and copies existing configs when needed
+- **New exit code**: Added exit code 5 for low-confidence results
+- **Updated output descriptions**: Clarified severity levels and exit codes
+
+### Documentation
+
+- **README updates**: Added documentation for previously undocumented commands:
+  - `auth add <provider>` and `auth remove <provider>` for managing LLM API keys
+  - `baseline accept` command for accepting drift as intentional
+  - `contract show` command for displaying generated CONTRACT.md
+  - `teams current` command for showing active team
+- **Website documentation**: Updated guides for configuration, CI/CD, workflows, and output formats
+
+### Fixes
+
+- **Fixed `-p` flag conflict**: Removed `-p` short flag from `init --preset` to avoid conflict with `upload -p/--project`. Use `--preset` for init command
+- **Fixed stdio transport write error handling**: Added error handling for `output.write()` in stdio transport to properly emit errors when subprocess pipe breaks (EPIPE)
+- **Fixed watch command signal handler cleanup**: Signal handlers (SIGINT/SIGTERM) are now properly removed on cleanup to prevent handler accumulation
+- **Added debug logging to silent catches**: Silent catch blocks in Ollama client now log debug messages for better troubleshooting
+- **Fixed minSamples override**: User's `minSamples` config is now respected exactly instead of being overridden by `targetConfidence` minimum
+
 ## [0.9.0] - 2026-01-23
 
 ### Documentation

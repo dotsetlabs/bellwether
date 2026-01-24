@@ -599,6 +599,10 @@ export class MCPClient {
   }
 
   private cleanup(): void {
+    if (this.cleaningUp) {
+      return;
+    }
+
     // Set cleanup flag to prevent race conditions with handleMessage
     // Any messages arriving after this point will be ignored
     this.cleaningUp = true;

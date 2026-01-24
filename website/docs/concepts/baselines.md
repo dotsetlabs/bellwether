@@ -37,7 +37,7 @@ This generates `bellwether-baseline.json`:
 
 ```json
 {
-  "formatVersion": "1.0.0",
+  "version": "1.0.0",
   "createdAt": "2026-01-12T10:30:00Z",
   "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
   "mode": "check",

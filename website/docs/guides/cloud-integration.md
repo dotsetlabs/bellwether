@@ -97,7 +97,7 @@ Copy the markdown from the `badge` command:
 
 ```bash
 # After uploading baseline, get updated badge
-bellwether check --preset ci npx your-server
+bellwether check npx your-server
 bellwether upload
 bellwether badge --markdown
 ```

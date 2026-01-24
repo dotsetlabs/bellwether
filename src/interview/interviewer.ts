@@ -18,7 +18,20 @@ import type {
   ResourceProfile,
   ResourceInteraction,
   WorkflowSummary,
+  ErrorClassification,
+  AssertionSummary,
+  ResponseSchema,
+  ToolDependencyInfo,
+  ResponseAssertionResult,
+  OutcomeAssessment,
 } from './types.js';
+import {
+  categorizeErrorSource,
+  detectExternalServiceFromTool,
+  getExternalServiceStatus,
+  type ServiceStatus,
+  type ExternalServiceName,
+} from '../baseline/external-dependency-detector.js';
 import type { Persona } from '../persona/types.js';
 import { DEFAULT_PERSONA } from '../persona/builtins.js';
 import { getLogger, startTiming } from '../logging/logger.js';
@@ -27,11 +40,17 @@ import type { PromptQuestion, ResourceQuestion } from './types.js';
 import { evaluateAssertions } from '../scenarios/evaluator.js';
 import { withTimeout, DEFAULT_TIMEOUTS, parallelLimit, createMutex } from '../utils/index.js';
 import type { ToolResponseCache } from '../cache/response-cache.js';
-import { INTERVIEW, WORKFLOW, DISPLAY_LIMITS, SCHEMA_TESTING } from '../constants.js';
+import { INTERVIEW, WORKFLOW, DISPLAY_LIMITS, SCHEMA_TESTING, OUTCOME_ASSESSMENT } from '../constants.js';
 import { generateSchemaTests } from './schema-test-generator.js';
 import { WorkflowDiscoverer } from '../workflow/discovery.js';
 import { WorkflowExecutor } from '../workflow/executor.js';
 import type { Workflow, WorkflowResult } from '../workflow/types.js';
+import { RateLimiter, calculateBackoffMs, isRateLimitError } from './rate-limiter.js';
+import { inferResponseSchema } from './schema-inferrer.js';
+import { validateResponseAssertions } from './response-validator.js';
+import { StatefulTestRunner } from './stateful-test-runner.js';
+import { resolveToolDependencies, getDependencyOrder } from './dependency-resolver.js';
+import { generateMockResponse } from './mock-response-generator.js';
 
 /**
  * Default interview configuration.
@@ -58,6 +77,8 @@ export interface InterviewProgress {
   toolsCompleted: number;
   totalTools: number;
   questionsAsked: number;
+  /** Summary for the last completed tool (check mode) */
+  lastCompletedTool?: ToolProgressSummary;
   /** Current workflow being executed */
   currentWorkflow?: string;
   /** Number of workflows completed */
@@ -72,6 +93,19 @@ export interface InterviewProgress {
   resourcesCompleted?: number;
   /** Total resources to interview */
   totalResources?: number;
+}
+
+export interface ToolProgressSummary {
+  toolName: string;
+  totalTests: number;
+  passedTests: number;
+  validationTotal: number;
+  validationPassed: number;
+  avgMs: number;
+  skipped?: boolean;
+  skipReason?: string;
+  mocked?: boolean;
+  mockService?: string;
 }
 
 export type ProgressCallback = (progress: InterviewProgress) => void;
@@ -99,7 +133,19 @@ interface ToolCheckResult {
   questionsAsked: number;
   toolCallCount: number;
   errorCount: number;
+  skipped?: boolean;
+  skipReason?: string;
+  mocked?: boolean;
+  mockService?: string;
+  responseSchema?: ResponseSchema;
+  dependencyInfo?: ToolDependencyInfo;
 }
+
+type ExternalServiceDecision = {
+  action: 'allow' | 'skip' | 'mock';
+  serviceName?: ExternalServiceName;
+  reason?: string;
+};
 
 /**
  * Interviewer conducts the interview process using the orchestrator.
@@ -118,6 +164,13 @@ export class Interviewer {
   private logger = getLogger('interviewer');
   private serverContext?: ServerContext;
   private cache?: ToolResponseCache;
+  private rateLimiter?: RateLimiter;
+  private responseSchemas = new Map<string, ResponseSchema>();
+  private rateLimitEvents = new Map<string, number>();
+  private rateLimitRetries = 0;
+  private externalServiceStatuses = new Map<string, ServiceStatus>();
+  private skippedTools = new Set<string>();
+  private mockedTools = new Set<string>();
 
   /**
    * Create an Interviewer for explore mode (LLM-powered behavioral analysis).
@@ -150,6 +203,9 @@ export class Interviewer {
     this.personas = (providedPersonas && providedPersonas.length > 0) ? providedPersonas : DEFAULT_PERSONAS;
     // Store cache reference for tool response and analysis caching
     this.cache = config?.cache;
+    if (this.config.rateLimit?.enabled) {
+      this.rateLimiter = new RateLimiter(this.config.rateLimit);
+    }
   }
 
   /**
@@ -186,6 +242,199 @@ export class Interviewer {
       return successMessage;
     }
     return 'No response received.';
+  }
+
+  /**
+   * Assess whether the tool interaction outcome matched expectations.
+   */
+  private assessOutcome(
+    question: InterviewQuestion,
+    response: MCPToolCallResult | null,
+    error: string | null
+  ): OutcomeAssessment {
+    const expected = this.inferExpectedOutcome(question);
+    const actual: 'error' | 'success' = error || response?.isError ? 'error' : 'success';
+    const correct = expected === 'either' || expected === actual;
+    const isValidationSuccess = expected === 'error' && actual === 'error';
+
+    return {
+      expected,
+      actual,
+      correct,
+      isValidationSuccess,
+    };
+  }
+
+  /**
+   * Infer expected outcome when not explicitly provided.
+   */
+  private inferExpectedOutcome(question: InterviewQuestion) {
+    if (question.expectedOutcome) return question.expectedOutcome;
+
+    if (OUTCOME_ASSESSMENT.EXPECTS_ERROR_CATEGORIES.includes(question.category as never)) {
+      return 'error';
+    }
+    if (OUTCOME_ASSESSMENT.EXPECTS_SUCCESS_CATEGORIES.includes(question.category as never)) {
+      return 'success';
+    }
+    if (OUTCOME_ASSESSMENT.EITHER_OUTCOME_CATEGORIES.includes(question.category as never)) {
+      return 'either';
+    }
+    if (OUTCOME_ASSESSMENT.EXPECTS_ERROR_PATTERNS.some((pattern) => pattern.test(question.description))) {
+      return 'error';
+    }
+    return 'success';
+  }
+
+  private extractErrorMessage(response: MCPToolCallResult | null, error: string | null): string | null {
+    if (error) return error;
+    const errorContent = response?.content?.find((c) => c.type === 'text');
+    if (errorContent && 'text' in errorContent) {
+      return String(errorContent.text);
+    }
+    return null;
+  }
+
+  private resolveExternalServiceDecision(tool: MCPTool): ExternalServiceDecision {
+    const externalConfig = this.config.externalServices;
+    if (!externalConfig) {
+      return { action: 'allow' };
+    }
+
+    const detected = detectExternalServiceFromTool(tool.name, tool.description);
+    if (!detected) {
+      return { action: 'allow' };
+    }
+
+    const status = getExternalServiceStatus(detected.serviceName, externalConfig);
+    this.externalServiceStatuses.set(detected.serviceName, status);
+
+    if (status.configured) {
+      return { action: 'allow', serviceName: detected.serviceName };
+    }
+
+    const missing = status.missingCredentials.length > 0
+      ? `Missing: ${status.missingCredentials.join(', ')}`
+      : 'Service not configured';
+
+    if (externalConfig.mode === 'fail') {
+      throw new Error(
+        `External service "${detected.displayName}" is not configured. ${missing}`
+      );
+    }
+
+    if (externalConfig.mode === 'mock' && status.mockAvailable) {
+      return {
+        action: 'mock',
+        serviceName: detected.serviceName,
+        reason: missing,
+      };
+    }
+
+    return {
+      action: 'skip',
+      serviceName: detected.serviceName,
+      reason: missing,
+    };
+  }
+
+  private recordRateLimitEvent(toolName: string): void {
+    const current = this.rateLimitEvents.get(toolName) ?? 0;
+    this.rateLimitEvents.set(toolName, current + 1);
+  }
+
+  private async callToolWithPolicies(
+    client: MCPClient,
+    tool: MCPTool,
+    args: Record<string, unknown>,
+    decisionOverride?: ExternalServiceDecision
+  ): Promise<{
+    response: MCPToolCallResult | null;
+    error: string | null;
+    mocked?: boolean;
+    mockService?: string;
+    skipped?: boolean;
+    skipReason?: string;
+    toolExecutionMs: number;
+  }> {
+    const decision = decisionOverride ?? this.resolveExternalServiceDecision(tool);
+    if (decision.action === 'skip') {
+      this.skippedTools.add(tool.name);
+      return {
+        response: null,
+        error: null,
+        skipped: true,
+        skipReason: decision.reason,
+        toolExecutionMs: 0,
+      };
+    }
+
+    if (decision.action === 'mock') {
+      if (decision.serviceName) {
+        this.mockedTools.add(tool.name);
+        return {
+          response: generateMockResponse(tool, decision.serviceName),
+          error: null,
+          mocked: true,
+          mockService: decision.serviceName,
+          toolExecutionMs: 0,
+        };
+      }
+      this.skippedTools.add(tool.name);
+      return {
+        response: null,
+        error: null,
+        skipped: true,
+        skipReason: 'Mock response unavailable',
+        toolExecutionMs: 0,
+      };
+    }
+
+    const rateLimitEnabled = this.config.rateLimit?.enabled ?? false;
+    let attempts = 0;
+    let lastError: string | null = null;
+    let toolExecutionMs = 0;
+
+    while (attempts <= (this.config.rateLimit?.maxRetries ?? 0)) {
+      if (this.rateLimiter) {
+        await this.rateLimiter.acquire();
+      }
+
+      const toolCallStart = Date.now();
+      try {
+        const response = await client.callTool(tool.name, args);
+        toolExecutionMs = Date.now() - toolCallStart;
+        const errorMessage = response.isError ? this.extractErrorMessage(response, null) : null;
+
+        if (rateLimitEnabled && response.isError && isRateLimitError(errorMessage)) {
+          this.recordRateLimitEvent(tool.name);
+          this.rateLimitRetries += 1;
+          attempts += 1;
+          const backoff = calculateBackoffMs(attempts, this.config.rateLimit?.backoffStrategy ?? 'exponential');
+          await new Promise((resolve) => setTimeout(resolve, backoff));
+          lastError = errorMessage ?? 'Rate limit exceeded';
+          continue;
+        }
+
+        return { response, error: errorMessage, toolExecutionMs };
+      } catch (error) {
+        toolExecutionMs = Date.now() - toolCallStart;
+        const message = error instanceof Error ? error.message : String(error);
+        if (rateLimitEnabled && isRateLimitError(message)) {
+          this.recordRateLimitEvent(tool.name);
+          this.rateLimitRetries += 1;
+          attempts += 1;
+          const backoff = calculateBackoffMs(attempts, this.config.rateLimit?.backoffStrategy ?? 'exponential');
+          await new Promise((resolve) => setTimeout(resolve, backoff));
+          lastError = message;
+          continue;
+        }
+
+        return { response: null, error: message, toolExecutionMs };
+      }
+    }
+
+    return { response: null, error: lastError ?? 'Rate limit exceeded', toolExecutionMs };
   }
 
   /**
@@ -392,6 +641,13 @@ export class Interviewer {
 
     // Track all scenario results
     let allScenarioResults: ScenarioResult[] = [];
+    let checkModeResult: {
+      toolProfiles: ToolProfile[];
+      scenarioResults: ScenarioResult[];
+      totalToolCallCount: number;
+      totalErrorCount: number;
+      totalQuestionsAsked: number;
+    } | null = null;
 
     // Interview with each persona
     progress.phase = 'interviewing';
@@ -459,17 +715,48 @@ export class Interviewer {
     } else if (this.config.checkMode) {
       // Check mode tool testing (parallel or sequential based on config)
       // This path doesn't require an LLM - uses fallback questions and simple analysis
-      const effectiveConcurrency = this.config.parallelTools
-        ? (this.config.toolConcurrency ?? INTERVIEW.DEFAULT_TOOL_CONCURRENCY)
-        : 1; // Sequential when parallelTools is disabled
-      this.logger.info({ parallel: this.config.parallelTools, concurrency: effectiveConcurrency }, 'Using check mode tool testing');
+      const statefulConfig = this.config.statefulTesting;
+      const statefulEnabled = statefulConfig?.enabled ?? false;
+      const dependencies = statefulEnabled ? resolveToolDependencies(discovery.tools) : [];
+      const dependencyMap = new Map<string, ToolDependencyInfo>(
+        dependencies.map((d) => [d.tool, d])
+      );
+
+      const toolMap = new Map(discovery.tools.map((tool) => [tool.name, tool]));
+      const orderedTools = statefulEnabled
+        ? getDependencyOrder(dependencies)
+          .map((name) => toolMap.get(name))
+          .filter((tool): tool is MCPTool => !!tool)
+        : discovery.tools;
+
+      const effectiveConcurrency = statefulEnabled
+        ? 1
+        : this.config.parallelTools
+          ? (this.config.toolConcurrency ?? INTERVIEW.DEFAULT_TOOL_CONCURRENCY)
+          : 1; // Sequential when parallelTools is disabled
+
+      if (statefulEnabled) {
+        this.logger.info({ toolCount: orderedTools.length }, 'Stateful testing enabled');
+      }
+
+      this.logger.info({ parallel: this.config.parallelTools && !statefulEnabled, concurrency: effectiveConcurrency }, 'Using check mode tool testing');
+
+      const statefulRunner = statefulEnabled
+        ? new StatefulTestRunner({ shareOutputs: statefulConfig?.shareOutputsBetweenTools ?? true })
+        : undefined;
 
       const parallelResult = await this.interviewToolsInParallel(
         client,
-        discovery.tools,
+        orderedTools,
         progress,
-        onProgress
+        onProgress,
+        {
+          statefulRunner,
+          dependencyMap,
+          statefulConfig,
+        }
       );
+      checkModeResult = parallelResult;
 
       // Update tool interactions map with parallel results
       for (const profile of parallelResult.toolProfiles) {
@@ -562,7 +849,7 @@ export class Interviewer {
           for (const question of questions) {
             const { interaction, hadError } = await this.executeWithRetry(
               client,
-              tool.name,
+              tool,
               question,
               orchestrator,
               persona.id,
@@ -648,13 +935,17 @@ export class Interviewer {
     }
 
     // Build aggregated tool profiles
-    const toolProfiles: ToolProfile[] = [];
-    for (const tool of discovery.tools) {
-      const toolData = toolInteractionsMap.get(tool.name)!;
+    let toolProfiles: ToolProfile[] = [];
+    if (this.config.checkMode && checkModeResult) {
+      toolProfiles = checkModeResult.toolProfiles;
+    } else {
+      for (const tool of discovery.tools) {
+        const toolData = toolInteractionsMap.get(tool.name)!;
 
-      // Aggregate findings across personas (deduplicate)
-      const aggregatedProfile = this.aggregateFindings(tool.name, tool.description ?? '', toolData);
-      toolProfiles.push(aggregatedProfile);
+        // Aggregate findings across personas (deduplicate)
+        const aggregatedProfile = this.aggregateFindings(tool.name, tool.description ?? '', toolData);
+        toolProfiles.push(aggregatedProfile);
+      }
     }
 
     // Interview prompts (if server has prompts capability)
@@ -958,6 +1249,39 @@ export class Interviewer {
     }
 
     const endTime = new Date();
+    const allInteractions = toolProfiles.flatMap((p) => p.interactions);
+    const assertionSummary = summarizeAssertions(allInteractions);
+    const rateLimitSummary = this.rateLimitEvents.size > 0
+      ? {
+        totalEvents: Array.from(this.rateLimitEvents.values()).reduce((sum, v) => sum + v, 0),
+        totalRetries: this.rateLimitRetries,
+        tools: Array.from(this.rateLimitEvents.keys()),
+      }
+      : undefined;
+
+    const externalServicesSummary = this.externalServiceStatuses.size > 0
+      ? {
+        mode: this.config.externalServices?.mode ?? 'skip',
+        unconfiguredServices: Array.from(this.externalServiceStatuses.values())
+          .filter((s) => !s.configured)
+          .map((s) => s.service),
+        skippedTools: Array.from(this.skippedTools),
+        mockedTools: Array.from(this.mockedTools),
+      }
+      : undefined;
+
+    const statefulSummary = this.config.statefulTesting?.enabled
+      ? {
+        enabled: true,
+        toolCount: toolProfiles.length,
+        dependencyCount: toolProfiles.reduce(
+          (sum, profile) => sum + (profile.dependencyInfo?.dependsOn.length ?? 0),
+          0
+        ),
+        maxChainLength: this.config.statefulTesting?.maxChainLength ?? 0,
+      }
+      : undefined;
+
     const metadata: InterviewMetadata = {
       startTime,
       endTime,
@@ -969,6 +1293,10 @@ export class Interviewer {
       personas: Array.from(personaStats.values()),
       workflows: workflowSummary,
       serverCommand: this.config.serverCommand,
+      rateLimit: rateLimitSummary,
+      externalServices: externalServicesSummary,
+      assertions: assertionSummary,
+      statefulTesting: statefulSummary,
     };
 
     progress.phase = 'complete';
@@ -997,6 +1325,56 @@ export class Interviewer {
   }
 
   /**
+   * Classify errors from interactions to separate tool correctness from environment issues.
+   */
+  private classifyErrors(
+    interactions: ToolInteraction[],
+    toolName: string,
+    toolDescription: string
+  ): ErrorClassification {
+    let externalServiceErrors = 0;
+    let environmentErrors = 0;
+    let codeBugErrors = 0;
+    let unknownErrors = 0;
+    const detectedServices = new Set<string>();
+
+    for (const interaction of interactions) {
+      if (interaction.error) {
+        const analysis = categorizeErrorSource(
+          interaction.error,
+          toolName,
+          toolDescription
+        );
+
+        switch (analysis.source) {
+          case 'external_dependency':
+            externalServiceErrors++;
+            if (analysis.dependency?.displayName) {
+              detectedServices.add(analysis.dependency.displayName);
+            }
+            break;
+          case 'environment':
+            environmentErrors++;
+            break;
+          case 'code_bug':
+            codeBugErrors++;
+            break;
+          default:
+            unknownErrors++;
+        }
+      }
+    }
+
+    return {
+      externalServiceErrors,
+      environmentErrors,
+      codeBugErrors,
+      unknownErrors,
+      detectedServices: detectedServices.size > 0 ? Array.from(detectedServices) : undefined,
+    };
+  }
+
+  /**
    * Aggregate findings from multiple personas into a single tool profile.
    */
   private aggregateFindings(
@@ -1021,6 +1399,9 @@ export class Interviewer {
       }
     }
 
+    // Classify errors to separate tool correctness from environment issues
+    const errorClassification = this.classifyErrors(data.interactions, toolName, description);
+
     return {
       name: toolName,
       description,
@@ -1029,6 +1410,7 @@ export class Interviewer {
       limitations: Array.from(limitations),
       securityNotes: Array.from(securityNotes),
       findingsByPersona: data.findingsByPersona,
+      errorClassification,
     };
   }
 
@@ -1039,7 +1421,7 @@ export class Interviewer {
    */
   private async executeWithRetry(
     client: MCPClient,
-    toolName: string,
+    tool: MCPTool,
     question: InterviewQuestion,
     orchestrator: Orchestrator,
     personaId: string,
@@ -1052,17 +1434,19 @@ export class Interviewer {
     let fromCache = false;
     let toolExecutionMs = 0;
     let llmAnalysisMs = 0;
+    let mocked = false;
+    let mockService: string | undefined;
 
     // Check cache for tool response (same tool + same args = same response)
     if (this.cache) {
       const cachedResponse = this.cache.getToolResponse<MCPToolCallResult>(
-        toolName,
+        tool.name,
         question.args
       );
       if (cachedResponse) {
         response = cachedResponse;
         fromCache = true;
-        this.logger.debug({ toolName, args: question.args }, 'Tool response served from cache');
+        this.logger.debug({ toolName: tool.name, args: question.args }, 'Tool response served from cache');
         stats.toolCallCount++; // Still count as a tool call for metrics
 
         if (response.isError) {
@@ -1078,41 +1462,29 @@ export class Interviewer {
 
     // Make actual tool call if not cached
     if (!fromCache) {
-      const toolCallStart = Date.now();
-      try {
-        response = await client.callTool(toolName, question.args);
-        toolExecutionMs = Date.now() - toolCallStart;
+      const result = await this.callToolWithPolicies(client, tool, question.args);
+      response = result.response;
+      error = result.error;
+      toolExecutionMs = result.toolExecutionMs;
+      mocked = !!result.mocked;
+      mockService = result.mockService;
+      if (result.skipped) {
+        error = result.skipReason ?? 'Skipped: external service not configured';
+        hadError = true;
+      } else {
         stats.toolCallCount++;
-
-        if (response.isError) {
+        if (error || response?.isError) {
           stats.errorCount++;
           hadError = true;
-
-          // Extract error message and learn from it
-          const errorContent = response.content?.find(c => c.type === 'text');
-          if (errorContent && 'text' in errorContent) {
-            error = String(errorContent.text);
-
-            // Try to extract constraints from error message
+          if (error) {
             this.learnFromError(error, orchestrator);
           }
-        } else {
+        } else if (this.cache && response) {
           // Cache successful responses for reuse by other personas
           // Don't cache errors as they may be transient
-          if (this.cache && response) {
-            this.cache.setToolResponse(toolName, question.args, response);
-            this.logger.debug({ toolName, args: question.args }, 'Tool response cached');
-          }
+          this.cache.setToolResponse(tool.name, question.args, response);
+          this.logger.debug({ toolName: tool.name, args: question.args }, 'Tool response cached');
         }
-      } catch (e) {
-        toolExecutionMs = Date.now() - toolCallStart;
-        error = e instanceof Error ? e.message : String(e);
-        stats.errorCount++;
-        stats.toolCallCount++;
-        hadError = true;
-
-        // Learn from exception message too
-        this.learnFromError(error, orchestrator);
       }
     }
 
@@ -1125,9 +1497,9 @@ export class Interviewer {
       analysis = this.generateSimpleAnalysis(error, !!response, 'Tool call succeeded.');
       llmAnalysisMs = 0; // No LLM call in fast mode
     } else {
-      const tool: MCPTool = { name: toolName, description: '' };
+      const analysisTool: MCPTool = { name: tool.name, description: tool.description ?? '' };
       analysis = await orchestrator.analyzeResponse(
-        tool,
+        analysisTool,
         question,
         response,
         error
@@ -1136,7 +1508,7 @@ export class Interviewer {
     }
 
     const interaction: ToolInteraction = {
-      toolName,
+      toolName: tool.name,
       question,
       response,
       error,
@@ -1145,6 +1517,9 @@ export class Interviewer {
       toolExecutionMs: fromCache ? 0 : toolExecutionMs,
       llmAnalysisMs,
       personaId,
+      outcomeAssessment: this.assessOutcome(question, response, error),
+      mocked,
+      mockService,
     };
 
     return { interaction, hadError };
@@ -1265,7 +1640,7 @@ export class Interviewer {
         try {
           const result = await this.executeWithRetry(
             client,
-            tool.name,
+            tool,
             question,
             orchestrator,
             persona.id,
@@ -1415,13 +1790,34 @@ export class Interviewer {
   private async interviewToolInCheckMode(
     client: MCPClient,
     tool: MCPTool,
-    toolCallMutex: ReturnType<typeof createMutex>
+    toolCallMutex: ReturnType<typeof createMutex>,
+    statefulRunner?: StatefulTestRunner,
+    dependencyInfo?: ToolDependencyInfo,
+    statefulConfig?: InterviewConfig['statefulTesting']
   ): Promise<ToolCheckResult> {
     const interactions: ToolInteraction[] = [];
     const scenarioResults: ScenarioResult[] = [];
     let questionsAsked = 0;
     let toolCallCount = 0;
     let errorCount = 0;
+    const maxChainLength = statefulConfig?.maxChainLength ?? Number.POSITIVE_INFINITY;
+    const allowStateful = !!statefulRunner && (dependencyInfo?.sequencePosition ?? 0) < maxChainLength;
+    const externalDecision = this.resolveExternalServiceDecision(tool);
+
+    if (externalDecision.action === 'skip') {
+      this.skippedTools.add(tool.name);
+      return {
+        toolName: tool.name,
+        interactions: [],
+        scenarioResults,
+        questionsAsked,
+        toolCallCount,
+        errorCount,
+        skipped: true,
+        skipReason: externalDecision.reason,
+        dependencyInfo,
+      };
+    }
 
     // Check for custom scenarios for this tool
     const customScenarios = this.getScenariosForTool(tool.name);
@@ -1451,34 +1847,69 @@ export class Interviewer {
         .slice(0, this.config.maxQuestionsPerTool);
     }
 
+    // Execute warmup runs if configured (helps reduce cold-start timing variance)
+    // Warmup runs are not recorded in interactions
+    const warmupRuns = this.config.warmupRuns ?? 1;
+    if (warmupRuns > 0 && questions.length > 0) {
+      const warmupQuestion = questions[0]; // Use first question for warmup
+      await toolCallMutex.acquire();
+      try {
+        for (let i = 0; i < warmupRuns; i++) {
+          try {
+            await this.callToolWithPolicies(client, tool, warmupQuestion.args, externalDecision);
+          } catch {
+            // Ignore warmup errors - we just want to warm up the system
+          }
+        }
+      } finally {
+        toolCallMutex.release();
+      }
+      this.logger.debug({ tool: tool.name, warmupRuns }, 'Warmup runs complete');
+    }
+
     // Ask each question
     for (const question of questions) {
       const interactionStart = Date.now();
       let response: MCPToolCallResult | null = null;
       let error: string | null = null;
       let toolExecutionMs = 0;
+      let assertionResults: ResponseAssertionResult[] | undefined;
+      let assertionsPassed: boolean | undefined;
+      let mocked = false;
+      let mockService: string | undefined;
+
+      const expectedOutcome = this.inferExpectedOutcome(question);
+      const shouldUseState = allowStateful && expectedOutcome !== 'error';
+      const statefulArgs = shouldUseState && statefulRunner
+        ? statefulRunner.applyStateToQuestion(tool.name, question)
+        : { args: { ...question.args }, usedKeys: [] };
+
+      const resolvedQuestion: InterviewQuestion = {
+        ...question,
+        args: statefulArgs.args,
+        metadata: {
+          ...question.metadata,
+          stateful: {
+            usedKeys: statefulArgs.usedKeys,
+          },
+        },
+      };
 
       // Acquire mutex for tool calls (shared MCP client)
       await toolCallMutex.acquire();
       try {
-        const toolCallStart = Date.now();
-        try {
-          response = await client.callTool(tool.name, question.args);
-          toolExecutionMs = Date.now() - toolCallStart;
-          toolCallCount++;
+        const result = await this.callToolWithPolicies(client, tool, resolvedQuestion.args, externalDecision);
+        response = result.response;
+        error = result.error;
+        toolExecutionMs = result.toolExecutionMs;
+        mocked = !!result.mocked;
+        mockService = result.mockService;
 
-          if (response.isError) {
-            errorCount++;
-            const errorContent = response.content?.find(c => c.type === 'text');
-            if (errorContent && 'text' in errorContent) {
-              error = String(errorContent.text);
-            }
-          }
-        } catch (e) {
-          toolExecutionMs = Date.now() - toolCallStart;
-          error = e instanceof Error ? e.message : String(e);
-          errorCount++;
+        if (!result.skipped) {
           toolCallCount++;
+          if (error || response?.isError) {
+            errorCount++;
+          }
         }
       } finally {
         toolCallMutex.release();
@@ -1487,9 +1918,38 @@ export class Interviewer {
       // Generate simple analysis (no LLM in check mode)
       const analysis = this.generateSimpleAnalysis(error, !!response, 'Tool call succeeded.');
 
+      const outcomeAssessment = this.assessOutcome(resolvedQuestion, response, error);
+
+      if (this.config.assertions?.enabled && outcomeAssessment.expected === 'success' && response && !response.isError) {
+        let schema = this.responseSchemas.get(tool.name);
+        if (!schema && this.config.assertions?.infer) {
+          const inferred = inferResponseSchema(response);
+          if (inferred) {
+            schema = inferred;
+            this.responseSchemas.set(tool.name, inferred);
+          }
+        }
+
+        if (schema) {
+          assertionResults = validateResponseAssertions(response, schema);
+          assertionsPassed = assertionResults.every((r) => r.passed);
+        }
+      }
+
+      if (allowStateful && response && !response.isError && statefulRunner) {
+        const providedKeys = statefulRunner.recordResponse(tool, response);
+        resolvedQuestion.metadata = {
+          ...resolvedQuestion.metadata,
+          stateful: {
+            ...(resolvedQuestion.metadata?.stateful ?? {}),
+            providedKeys,
+          },
+        };
+      }
+
       const interaction: ToolInteraction = {
         toolName: tool.name,
-        question,
+        question: resolvedQuestion,
         response,
         error,
         analysis,
@@ -1497,6 +1957,11 @@ export class Interviewer {
         toolExecutionMs,
         llmAnalysisMs: 0, // No LLM in check mode
         personaId: 'check_mode',
+        outcomeAssessment,
+        assertionResults,
+        assertionsPassed,
+        mocked,
+        mockService,
       };
 
       interactions.push(interaction);
@@ -1517,6 +1982,10 @@ export class Interviewer {
       questionsAsked,
       toolCallCount,
       errorCount,
+      mocked: interactions.some((i) => i.mocked),
+      mockService: interactions.find((i) => i.mockService)?.mockService,
+      responseSchema: this.responseSchemas.get(tool.name),
+      dependencyInfo,
     };
   }
 
@@ -1557,7 +2026,12 @@ export class Interviewer {
     client: MCPClient,
     tools: MCPTool[],
     progress: InterviewProgress,
-    onProgress?: ProgressCallback
+    onProgress?: ProgressCallback,
+    options?: {
+      statefulRunner?: StatefulTestRunner;
+      dependencyMap?: Map<string, ToolDependencyInfo>;
+      statefulConfig?: InterviewConfig['statefulTesting'];
+    }
   ): Promise<{
     toolProfiles: ToolProfile[];
     scenarioResults: ScenarioResult[];
@@ -1566,9 +2040,12 @@ export class Interviewer {
     totalQuestionsAsked: number;
   }> {
     // Use concurrency=1 for sequential execution when parallelTools is disabled
-    const concurrency = this.config.parallelTools
-      ? (this.config.toolConcurrency ?? INTERVIEW.DEFAULT_TOOL_CONCURRENCY)
-      : 1;
+    const statefulEnabled = !!options?.statefulRunner;
+    const concurrency = statefulEnabled
+      ? 1
+      : this.config.parallelTools
+        ? (this.config.toolConcurrency ?? INTERVIEW.DEFAULT_TOOL_CONCURRENCY)
+        : 1;
     const toolCallMutex = createMutex(); // Shared mutex for serializing MCP client calls
 
     this.logger.info({
@@ -1582,10 +2059,18 @@ export class Interviewer {
       progress.currentTool = tool.name;
       onProgress?.(progress);
 
-      const result = await this.interviewToolInCheckMode(client, tool, toolCallMutex);
+      const result = await this.interviewToolInCheckMode(
+        client,
+        tool,
+        toolCallMutex,
+        options?.statefulRunner,
+        options?.dependencyMap?.get(tool.name),
+        options?.statefulConfig
+      );
 
       progress.toolsCompleted++;
       progress.questionsAsked += result.questionsAsked;
+      progress.lastCompletedTool = this.buildToolProgressSummary(result);
       onProgress?.(progress);
 
       return result;
@@ -1616,6 +2101,15 @@ export class Interviewer {
       const tool = tools.find(t => t.name === result.toolName);
       if (!tool) continue;
 
+      // Classify errors to separate tool correctness from environment issues
+      const errorClassification = this.classifyErrors(
+        result.interactions,
+        result.toolName,
+        tool.description ?? ''
+      );
+
+      const assertionSummary = summarizeAssertions(result.interactions);
+
       // Build minimal profile for check mode
       toolProfiles.push({
         name: result.toolName,
@@ -1625,6 +2119,14 @@ export class Interviewer {
         limitations: [],
         securityNotes: [],
         findingsByPersona: [],
+        errorClassification,
+        skipped: result.skipped,
+        skipReason: result.skipReason,
+        mocked: result.mocked,
+        mockService: result.mockService,
+        responseSchema: result.responseSchema,
+        assertionSummary,
+        dependencyInfo: result.dependencyInfo,
       });
 
       scenarioResults.push(...result.scenarioResults);
@@ -1645,6 +2147,51 @@ export class Interviewer {
       totalToolCallCount,
       totalErrorCount,
       totalQuestionsAsked,
+    };
+  }
+
+  private buildToolProgressSummary(result: ToolCheckResult): ToolProgressSummary {
+    const interactions = result.interactions.filter(i => !i.mocked);
+    const totalTests = interactions.length;
+    let passedTests = 0;
+    let validationTotal = 0;
+    let validationPassed = 0;
+    let totalDuration = 0;
+
+    for (const interaction of interactions) {
+      totalDuration += interaction.durationMs;
+      const assessment = interaction.outcomeAssessment;
+      if (assessment) {
+        if (assessment.correct) {
+          passedTests += 1;
+        }
+        if (assessment.expected === 'error') {
+          validationTotal += 1;
+          if (assessment.correct) {
+            validationPassed += 1;
+          }
+        }
+      } else {
+        const hasError = interaction.error || interaction.response?.isError;
+        if (!hasError) {
+          passedTests += 1;
+        }
+      }
+    }
+
+    const avgMs = totalTests > 0 ? Math.round(totalDuration / totalTests) : 0;
+
+    return {
+      toolName: result.toolName,
+      totalTests,
+      passedTests,
+      validationTotal,
+      validationPassed,
+      avgMs,
+      skipped: result.skipped,
+      skipReason: result.skipReason,
+      mocked: result.mocked,
+      mockService: result.mockService,
     };
   }
 
@@ -1685,6 +2232,7 @@ export class Interviewer {
     scenarios: TestScenario[]
   ): Promise<ScenarioResult[]> {
     const results: ScenarioResult[] = [];
+    const tool: MCPTool = { name: toolName, description: '' };
 
     for (const scenario of scenarios) {
       if (scenario.skip) {
@@ -1697,14 +2245,22 @@ export class Interviewer {
       let isError = false;
 
       try {
-        response = await client.callTool(toolName, scenario.args);
-        isError = response.isError ?? false;
-
-        if (isError) {
-          // Extract error text from response
-          const errorContent = response.content?.find(c => c.type === 'text');
-          if (errorContent && 'text' in errorContent) {
-            error = String(errorContent.text);
+        const result = await this.callToolWithPolicies(client, tool, scenario.args);
+        if (result.skipped) {
+          error = result.skipReason ?? 'Skipped: external service not configured';
+          isError = true;
+        } else {
+          response = result.response;
+          isError = response?.isError ?? false;
+          if (isError) {
+            const errorContent = response?.content?.find(c => c.type === 'text');
+            if (errorContent && 'text' in errorContent) {
+              error = String(errorContent.text);
+            }
+          }
+          if (result.error) {
+            error = result.error;
+            isError = true;
           }
         }
       } catch (e) {
@@ -1957,4 +2513,18 @@ export class Interviewer {
 
     return { results, summary };
   }
+}
+
+function summarizeAssertions(interactions: ToolInteraction[]): AssertionSummary | undefined {
+  const allResults = interactions
+    .filter((i) => !i.mocked)
+    .flatMap((i) => i.assertionResults ?? []);
+  if (allResults.length === 0) return undefined;
+  const passed = allResults.filter((r) => r.passed).length;
+  const failed = allResults.length - passed;
+  return {
+    total: allResults.length,
+    passed,
+    failed,
+  };
 }

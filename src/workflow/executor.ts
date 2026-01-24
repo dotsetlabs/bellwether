@@ -40,6 +40,7 @@ const DEFAULT_OPTIONS: Omit<Required<WorkflowExecutorOptions>, 'onProgress' | 's
   stepTimeout: DEFAULT_TIMEOUTS.toolCall,
   analyzeSteps: true,
   generateSummary: true,
+  requireSuccessfulDependencies: true,
   timeouts: {
     toolCall: DEFAULT_TIMEOUTS.toolCall,
     stateSnapshot: DEFAULT_TIMEOUTS.stateSnapshot,
@@ -162,6 +163,44 @@ export class WorkflowExecutor {
 
       // Check for abort before each step
       checkAborted(signal, `Workflow step ${i + 1}/${workflow.steps.length}`);
+
+      // Check if any dependency steps have failed (when requireSuccessfulDependencies is enabled)
+      const requireSuccessfulDeps = this.options.requireSuccessfulDependencies ?? DEFAULT_OPTIONS.requireSuccessfulDependencies;
+      if (requireSuccessfulDeps) {
+        const failedDependencies = this.getFailedDependencies(step, i);
+        if (failedDependencies.length > 0) {
+          const failedStepNames = failedDependencies.map((idx: number) =>
+            `step ${idx + 1} (${workflow.steps[idx]?.tool ?? 'unknown'})`
+          ).join(', ');
+
+          this.logger.debug({
+            stepIndex: i,
+            tool: step.tool,
+            failedDependencies,
+          }, 'Skipping step due to failed dependencies');
+
+          const skipResult: WorkflowStepResult = {
+            step,
+            stepIndex: i,
+            success: false,
+            response: null,
+            error: `Skipped: depends on failed ${failedStepNames}`,
+            resolvedArgs: step.args ?? {},
+            durationMs: 0,
+          };
+          this.stepResults.push(skipResult);
+
+          // Continue to next step (don't break, let the workflow continue)
+          // The step failure will be handled by the existing logic
+          if (!step.optional && !this.options.continueOnError) {
+            success = false;
+            failureReason = skipResult.error;
+            failedStepIndex = i;
+            break;
+          }
+          continue;
+        }
+      }
 
       // Emit executing progress before step
       this.emitProgress(workflow, 'executing', i, startTime, step);
@@ -575,6 +614,40 @@ export class WorkflowExecutor {
       return String(textContent.text);
     }
     return 'Unknown error';
+  }
+
+  /**
+   * Get indices of dependency steps that have failed.
+   * Dependencies are steps referenced in argMapping.
+   */
+  private getFailedDependencies(step: WorkflowStep, stepIndex: number): number[] {
+    if (!step.argMapping) {
+      return [];
+    }
+
+    const failedDeps: number[] = [];
+    const seenIndices = new Set<number>();
+
+    for (const pathExpr of Object.values(step.argMapping)) {
+      const match = pathExpr.match(/^\$steps\[(\d+)\]\.(.+)$/);
+      if (!match) continue;
+
+      const depIndex = parseInt(match[1], 10);
+
+      // Skip if we already checked this dependency
+      if (seenIndices.has(depIndex)) continue;
+      seenIndices.add(depIndex);
+
+      // Check if the dependency step exists and has failed
+      if (depIndex >= 0 && depIndex < stepIndex) {
+        const depResult = this.stepResults[depIndex];
+        if (depResult && !depResult.success) {
+          failedDeps.push(depIndex);
+        }
+      }
+    }
+
+    return failedDeps;
   }
 
   /**

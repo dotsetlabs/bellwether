@@ -37,7 +37,7 @@ All CLI commands (except `init`) require a config file. Run `bellwether init` on
 |:-------|:------------|:--------|
 | `-c, --config <path>` | Path to config file | `bellwether.yaml` |
 | `-l, --limit <n>` | Maximum number of results | `registry.limit` |
-| `--json` | Output as JSON | `registry.json` |
+| `--json` | Output as JSON | `false` |
 
 ## Examples
 

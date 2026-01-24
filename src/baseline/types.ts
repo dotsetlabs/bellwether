@@ -506,8 +506,14 @@ export type {
  * Indicates statistical validity of performance baselines.
  */
 export interface PerformanceConfidence {
-  /** Number of samples used to calculate metrics */
+  /** Number of samples used to calculate metrics (happy_path tests only) */
   sampleCount: number;
+  /** Number of successful happy_path samples (tool executed without error) */
+  successfulSamples: number;
+  /** Number of validation tests that correctly rejected invalid input */
+  validationSamples: number;
+  /** Total tests run including validation tests */
+  totalTests: number;
   /** Standard deviation of latency samples (ms) */
   standardDeviation: number;
   /** Coefficient of variation (stdDev / mean) - lower is more consistent */
