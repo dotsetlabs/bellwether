@@ -20,6 +20,21 @@ function resolveBaselinePath(pathValue: string, outputDir: string): string {
   return pathValue.startsWith('/') ? pathValue : join(outputDir, pathValue);
 }
 
+function isCloudBaselineLike(value: unknown): value is BellwetherBaseline {
+  if (!value || typeof value !== 'object') return false;
+  const parsed = value as Record<string, unknown>;
+
+  return typeof parsed.version === 'string' &&
+    typeof parsed.metadata === 'object' &&
+    typeof parsed.server === 'object' &&
+    typeof parsed.capabilities === 'object' &&
+    Array.isArray(parsed.interviews) &&
+    Array.isArray(parsed.toolProfiles) &&
+    Array.isArray(parsed.assertions) &&
+    typeof parsed.summary === 'string' &&
+    typeof parsed.hash === 'string';
+}
+
 export const uploadCommand = new Command('upload')
   .description('Upload a baseline to Bellwether Cloud')
   .argument('[baseline]', 'Path to baseline JSON file (defaults to baseline.path in config)')
@@ -96,9 +111,9 @@ export const uploadCommand = new Command('upload')
       const content = readFileSync(baselinePath, 'utf-8');
       const parsed = JSON.parse(content);
 
-      if (parsed.version === '1.0' && parsed.metadata?.formatVersion === '1.0') {
+      if (isCloudBaselineLike(parsed)) {
         // Already in cloud format
-        cloudBaseline = parsed as BellwetherBaseline;
+        cloudBaseline = parsed;
       } else {
         // Convert from local format
         const localBaseline = loadBaseline(baselinePath);

@@ -225,6 +225,16 @@ describe('convertToCloudBaseline', () => {
       expect(cloudBaseline.metadata.mode).toBe('check');
     });
 
+    it('should default to "check" when no interview result is provided', () => {
+      const baseline = createBaseline({ mode: 'check' });
+      const cloudBaseline = convertToCloudBaseline(baseline);
+
+      expect(cloudBaseline.metadata.mode).toBe('check');
+      expect(cloudBaseline.metadata.model).toBe('none');
+      expect(cloudBaseline.metadata.personas).toEqual([]);
+      expect(cloudBaseline.interviews).toEqual([]);
+    });
+
     it('should default to "explore" when model is an LLM name (not "check")', () => {
       const baseline = createBaseline({ mode: undefined });
       const interviewResult = createInterviewResult({
@@ -474,9 +484,16 @@ describe('convertToCloudBaseline', () => {
       expect(cloudBaseline.metadata.personas).toEqual(['technical_writer', 'security_tester']);
     });
 
-    it('should default to technical_writer when no personas in result', () => {
+    it('should default to technical_writer when no personas in explore result', () => {
+      const interviewResult = createInterviewResult({
+        metadata: {
+          ...createInterviewResult().metadata,
+          personas: undefined,
+          model: 'gpt-4',
+        },
+      });
       const baseline = createBaseline();
-      const cloudBaseline = convertToCloudBaseline(baseline);
+      const cloudBaseline = convertToCloudBaseline(baseline, undefined, interviewResult);
 
       expect(cloudBaseline.metadata.personas).toEqual(['technical_writer']);
     });

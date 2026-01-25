@@ -473,6 +473,8 @@ export const PATHS = {
   CONFIG_DIR: '.bellwether',
   /** Session storage file name */
   SESSION_FILE: 'session.json',
+  /** Device ID storage file name */
+  DEVICE_ID_FILE: 'device-id',
   /** Mock data directory for testing */
   MOCK_DATA_DIR: 'mock-cloud',
   /** Possible config file names (in order of preference) */

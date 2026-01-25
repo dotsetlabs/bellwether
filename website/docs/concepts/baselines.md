@@ -37,14 +37,14 @@ This generates `bellwether-baseline.json`:
 
 ```json
 {
-  "version": "1.0.0",
+  "version": "0.10.1",
   "createdAt": "2026-01-12T10:30:00Z",
   "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
   "mode": "check",
   "integrityHash": "abc123...",
   "server": {
     "name": "@modelcontextprotocol/server-filesystem",
-    "version": "1.0.0",
+    "version": "0.10.1",
     "protocolVersion": "2024-11-05",
     "capabilities": ["tools"]
   },
@@ -239,12 +239,12 @@ bellwether upload
 
 ## Baseline Format Versioning
 
-Baselines use semantic versioning for the format version (e.g., `1.0.0`):
+Baselines use the CLI package version as the format version (e.g., `0.10.1`):
 
 | Component | Description |
 |:----------|:------------|
-| **Major** | Breaking structural changes (removed fields, type changes) |
-| **Minor** | New optional fields (backwards compatible) |
+| **Major** | Breaking baseline format changes (migration required) |
+| **Minor** | Backwards-compatible format additions |
 | **Patch** | Bug fixes in baseline generation |
 
 ### Compatibility Rules

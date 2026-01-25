@@ -128,7 +128,7 @@ output:
   "timestamp": "2026-01-12T10:30:00Z",
   "server": {
     "name": "@modelcontextprotocol/server-filesystem",
-    "version": "1.0.0"
+    "version": "0.10.1"
   },
   "tools": [
     {
@@ -201,18 +201,20 @@ bellwether check npx your-server
 bellwether baseline compare ./bellwether-baseline.json
 ```
 
+Baseline format versions follow the CLI package version; baselines are compatible when their major versions match.
+
 ### Example Baseline
 
 ```json
 {
-  "version": "1.0.0",
+  "version": "0.10.1",
   "createdAt": "2026-01-12T10:30:00Z",
   "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
   "mode": "check",
   "integrityHash": "a1b2c3d4e5f6...",
   "server": {
     "name": "@modelcontextprotocol/server-filesystem",
-    "version": "1.0.0",
+    "version": "0.10.1",
     "protocolVersion": "2024-11-05",
     "capabilities": ["tools"]
   },

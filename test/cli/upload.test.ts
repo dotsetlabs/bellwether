@@ -11,6 +11,8 @@ import { tmpdir } from 'os';
 const mockUploadBaseline = vi.fn();
 const mockGetLatestDiff = vi.fn();
 const mockIsAuthenticated = vi.fn();
+const mockLoadBaseline = vi.fn();
+const mockConvertToCloudBaseline = vi.fn();
 
 vi.mock('../../src/cloud/client.js', () => ({
   createCloudClient: vi.fn(() => ({
@@ -18,6 +20,14 @@ vi.mock('../../src/cloud/client.js', () => ({
     uploadBaseline: mockUploadBaseline,
     getLatestDiff: mockGetLatestDiff,
   })),
+}));
+
+vi.mock('../../src/baseline/saver.js', () => ({
+  loadBaseline: (...args: unknown[]) => mockLoadBaseline(...args),
+}));
+
+vi.mock('../../src/baseline/converter.js', () => ({
+  convertToCloudBaseline: (...args: unknown[]) => mockConvertToCloudBaseline(...args),
 }));
 
 // Import types only - auth functions are imported dynamically after HOME is set
@@ -54,21 +64,38 @@ describe('upload command', () => {
 
   // Sample baselines
   const cloudFormatBaseline = {
-    version: '1.0',
+    version: '0.10.1',
     metadata: {
-      formatVersion: '1.0',
-      serverName: 'test-server',
-      cliVersion: '1.0.0',
+      mode: 'check',
       generatedAt: '2024-01-01T00:00:00Z',
+      cliVersion: '0.10.1',
+      serverCommand: 'npx test-server',
+      serverName: 'test-server',
+      durationMs: 1000,
+      personas: [],
+      model: 'none',
     },
-    tools: [
-      {
-        name: 'test_tool',
-        schema: { type: 'object', properties: {} },
-      },
-    ],
+    server: {
+      name: 'test-server',
+      version: '1.0.0',
+      protocolVersion: '2024-11-05',
+      capabilities: ['tools'],
+    },
+    capabilities: {
+      tools: [
+        {
+          name: 'test_tool',
+          description: 'Test tool',
+          inputSchema: { type: 'object', properties: {} },
+          schemaHash: 'hash123',
+        },
+      ],
+    },
+    interviews: [],
+    toolProfiles: [],
     assertions: [],
-    security: [],
+    summary: 'Test baseline',
+    hash: 'abc123def456',
   };
 
   const localFormatBaseline = {
@@ -135,6 +162,8 @@ describe('upload command', () => {
     mockUploadBaseline.mockReset();
     mockGetLatestDiff.mockReset();
     mockIsAuthenticated.mockReset();
+    mockLoadBaseline.mockReset();
+    mockConvertToCloudBaseline.mockReset();
 
     clearSession();
     removeProjectLink();
@@ -232,7 +261,7 @@ describe('upload command', () => {
       // Should pass through cloud format without conversion
       expect(mockUploadBaseline).toHaveBeenCalledWith(
         'proj_123',
-        expect.objectContaining({ version: '1.0' })
+        expect.objectContaining({ version: '0.10.1' })
       );
     });
 
@@ -308,6 +337,29 @@ describe('upload command', () => {
   });
 
   describe('upload success', () => {
+    it('should treat cloud-format baselines as already converted', async () => {
+      saveSession(createTestSession());
+      mockIsAuthenticated.mockReturnValue(true);
+      mockUploadBaseline.mockResolvedValue({
+        version: 1,
+        viewUrl: 'https://bellwether.sh/view/1',
+      });
+      mockLoadBaseline.mockImplementation(() => {
+        throw new Error('loadBaseline should not be called for cloud baselines');
+      });
+      mockConvertToCloudBaseline.mockImplementation(() => {
+        throw new Error('convertToCloudBaseline should not be called for cloud baselines');
+      });
+      saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
+      writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
+
+      const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
+      await uploadCommand.parseAsync(['node', 'test']);
+
+      expect(mockLoadBaseline).not.toHaveBeenCalled();
+      expect(mockConvertToCloudBaseline).not.toHaveBeenCalled();
+    });
+
     it('should show success message with version', async () => {
       saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);

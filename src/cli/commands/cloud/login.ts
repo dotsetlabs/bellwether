@@ -20,10 +20,12 @@ import {
   getBaseUrl,
   isMockSession,
   CONFIG_DIR,
+  getOrCreateDeviceId,
 } from '../../../cloud/auth.js';
 import { generateMockSession } from '../../../cloud/mock-client.js';
 import type { DeviceAuthorizationResponse, DevicePollResponse, StoredSession, AuthMeResponse, SessionTeam } from '../../../cloud/types.js';
 import { EXIT_CODES, TIME_CONSTANTS } from '../../../constants.js';
+import { USER_AGENT } from '../../../version.js';
 import { isLocalhost } from '../../../utils/index.js';
 import * as output from '../../output.js';
 
@@ -138,11 +140,16 @@ export const loginCommand = new Command('login')
           output: process.stdout,
         });
 
-        const hasInvite = await new Promise<string>((resolve) => {
-          rl.question('Do you have a beta invitation code? (y/n): ', resolve);
+        output.info('Options:');
+        output.info('  1. Enter a new invitation code');
+        output.info('  2. I already have beta access (sign in directly)');
+        output.info('  3. Join the waitlist\n');
+
+        const choice = await new Promise<string>((resolve) => {
+          rl.question('Enter choice (1, 2, or 3): ', resolve);
         });
 
-        if (hasInvite.toLowerCase() === 'y' || hasInvite.toLowerCase() === 'yes') {
+        if (choice === '1') {
           const code = await new Promise<string>((resolve) => {
             rl.question('Enter your invitation code (XXXX-XXXX): ', resolve);
           });
@@ -152,7 +159,8 @@ export const loginCommand = new Command('login')
           const verifyResult = await verifyBetaInvite(code.trim());
           if (!verifyResult.valid) {
             output.error('Invalid or expired invitation code.');
-            output.info('\nJoin the waitlist at https://bellwether.sh');
+            output.info('\nIf you\'ve already used this code, select option 2 to sign in directly.');
+            output.info('Otherwise, join the waitlist at https://bellwether.sh');
             process.exit(EXIT_CODES.ERROR);
           }
           output.info('Invitation verified! Proceeding with login...');
@@ -162,6 +170,11 @@ export const loginCommand = new Command('login')
             output.info('');
           }
           inviteToken = verifyResult.token;
+        } else if (choice === '2') {
+          rl.close();
+          output.info('Proceeding with sign in...');
+          output.info('Note: If you don\'t have beta access, the server will reject the login.\n');
+          // No inviteToken - proceed with OAuth and let server check beta access
         } else {
           rl.close();
           output.info('\nTo request beta access, visit https://bellwether.sh');
@@ -308,10 +321,16 @@ async function startDeviceFlow(provider: OAuthProvider, inviteToken?: string): P
     headers[BETA_INVITE_TOKEN_HEADER] = inviteToken;
   }
 
+  const deviceId = getOrCreateDeviceId();
+  const clientUserAgent = `${USER_AGENT} (${platform()})`;
+
   const response = await fetch(`${baseUrl}/auth/${provider}/device`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({}),
+    body: JSON.stringify({
+      deviceId,
+      clientUserAgent,
+    }),
   });
 
   if (!response.ok) {
@@ -388,6 +407,14 @@ async function pollForCompletion(
         `Email mismatch: This invitation was sent to ${result.expected_email}, ` +
         `but you signed in with an account using ${result.actual_email}. ` +
         `Please sign in with an account that has the email ${result.expected_email}.`
+      );
+    }
+
+    if (result.error === 'no_beta_access') {
+      process.stdout.write('\r                                    \r');
+      throw new Error(
+        'You do not have beta access. Please use a valid invitation code ' +
+        'or join the waitlist at https://bellwether.sh'
       );
     }
 
