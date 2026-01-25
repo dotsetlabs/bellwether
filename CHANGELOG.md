@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.2] - 2026-01-25
+
+### Features
+
+- **Device ID tracking**: CLI now generates a stable device ID per install for better session management
+  - Stored in `~/.bellwether/device-id`
+  - Sent during device auth flow for session tracking
+- **Improved beta login flow**: Clearer 3-option menu for beta access
+  - Option 1: Enter a new invitation code
+  - Option 2: Sign in directly (for users with existing beta access)
+  - Option 3: Join the waitlist
+
+### Fixes
+
+- **Fixed check mode baseline uploads**: Check mode baselines now upload correctly to cloud
+  - Personas array is now empty for check mode (no personas used)
+  - Model is set to 'none' for check mode
+  - Interviews array is now empty for check mode
+  - Previously these fields contained incorrect default values
+- **Improved cloud baseline format detection**: Upload command now uses structural validation instead of relying solely on version field
+  - Detects cloud format by checking for required fields (metadata, server, capabilities, interviews, toolProfiles, assertions, summary, hash)
+
 ## [0.10.1] - 2026-01-24
 
 ### Fixes

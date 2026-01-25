@@ -159,12 +159,23 @@ function convertAssertions(assertions: BehavioralAssertion[]): CloudAssertion[] 
  * Note: Baselines should only be created from check mode results,
  * but explore uploads are still supported for documentation tracking.
  */
-function deriveCloudMode(resultModel?: string): BaselineMode {
+function deriveCloudMode(resultModel?: string, baselineMode?: 'check'): BaselineMode {
   // Check mode results have model === 'check'
   if (resultModel === 'check') return 'check';
 
-  // Everything else (explore mode with LLM model names) is explore
-  return 'explore';
+  // LLM model names indicate explore mode
+  if (resultModel) return 'explore';
+
+  // Local baselines are check-only
+  if (baselineMode === 'check') return 'check';
+
+  // Default to check for legacy baselines without explicit mode
+  return 'check';
+}
+
+function deriveModel(resultModel: string | undefined, mode: BaselineMode): string {
+  if (mode === 'check') return 'none';
+  return resultModel ?? 'unknown';
 }
 
 /**
@@ -176,7 +187,7 @@ export function convertToCloudBaseline(
   interviewResult?: InterviewResult
 ): BellwetherBaseline {
   // Derive mode from result metadata
-  const mode = deriveCloudMode(interviewResult?.metadata.model);
+  const mode = deriveCloudMode(interviewResult?.metadata.model, baseline.mode);
 
   // Build metadata
   const metadata: BaselineMetadata = {
@@ -186,8 +197,8 @@ export function convertToCloudBaseline(
     serverCommand: baseline.serverCommand,
     serverName: baseline.server.name,
     durationMs: interviewResult?.metadata.durationMs ?? 0,
-    personas: extractPersonas(interviewResult),
-    model: interviewResult?.metadata.model ?? 'unknown',
+    personas: extractPersonas(interviewResult, mode),
+    model: deriveModel(interviewResult?.metadata.model, mode),
   };
 
   // Build server fingerprint
@@ -202,7 +213,7 @@ export function convertToCloudBaseline(
   const capabilities = buildCapabilities(baseline, discovery);
 
   // Build interviews
-  const interviews = buildInterviews(interviewResult);
+  const interviews = buildInterviews(interviewResult, mode);
 
   // Build tool profiles (with converted assertions)
   const toolProfiles = baseline.tools.map(convertToolFingerprint);
@@ -243,9 +254,13 @@ export function convertToCloudBaseline(
 /**
  * Extract persona names from interview result.
  */
-function extractPersonas(result?: InterviewResult): string[] {
-  if (!result?.metadata.personas) {
-    return ['technical_writer']; // Default persona
+function extractPersonas(result: InterviewResult | undefined, mode: BaselineMode): string[] {
+  if (mode === 'check') {
+    return [];
+  }
+
+  if (!result?.metadata.personas || result.metadata.personas.length === 0) {
+    return ['technical_writer']; // Default persona for explore
   }
 
   return result.metadata.personas.map((p) => p.id);
@@ -322,7 +337,11 @@ function getToolSchema(
 /**
  * Build interview summaries from interview result.
  */
-function buildInterviews(result?: InterviewResult): PersonaInterview[] {
+function buildInterviews(result: InterviewResult | undefined, mode: BaselineMode): PersonaInterview[] {
+  if (mode === 'check') {
+    return [];
+  }
+
   if (!result?.metadata.personas) {
     // Create a default technical_writer interview
     const totalQuestions = result?.toolProfiles.reduce(
@@ -534,8 +553,8 @@ export function createCloudBaseline(
     serverCommand,
     serverName: result.discovery.serverInfo.name,
     durationMs: result.metadata.durationMs,
-    personas: result.metadata.personas?.map((p) => p.id) ?? ['technical_writer'],
-    model: result.metadata.model ?? 'unknown',
+    personas: extractPersonas(result, mode),
+    model: deriveModel(result.metadata.model, mode),
   };
 
   // Build server fingerprint
@@ -585,7 +604,7 @@ export function createCloudBaseline(
       : undefined;
 
   // Build interviews
-  const interviews = buildInterviews(result);
+  const interviews = buildInterviews(result, mode);
 
   // Build tool profiles (with converted assertions)
   const toolProfiles: CloudToolProfile[] = result.toolProfiles.map((profile) => ({

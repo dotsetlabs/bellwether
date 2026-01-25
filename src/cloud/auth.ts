@@ -8,6 +8,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, statSync, chmodSync } from 'fs';
 import { join } from 'path';
 import { homedir, platform } from 'os';
+import { randomBytes } from 'crypto';
 import type { StoredSession, ProjectLink, SessionTeam } from './types.js';
 import { URLS, PATHS, PATTERNS, CLI_SECURITY } from '../constants.js';
 import { isLocalhost } from '../utils/index.js';
@@ -22,6 +23,10 @@ export const CONFIG_DIR = join(homedir(), PATHS.CONFIG_DIR);
  * Path to session file.
  */
 export const SESSION_FILE = join(CONFIG_DIR, PATHS.SESSION_FILE);
+/**
+ * Path to device ID file.
+ */
+export const DEVICE_ID_FILE = join(CONFIG_DIR, PATHS.DEVICE_ID_FILE);
 
 /**
  * Environment variable name for session token.
@@ -102,6 +107,33 @@ function verifySessionPermissions(): boolean {
     output.warn(`Warning: Could not verify session file permissions: ${error instanceof Error ? error.message : error}`);
     return false;
   }
+}
+
+/**
+ * Get or create a stable device ID for this CLI install.
+ */
+export function getOrCreateDeviceId(): string {
+  ensureConfigDir();
+
+  if (existsSync(DEVICE_ID_FILE)) {
+    try {
+      const deviceId = readFileSync(DEVICE_ID_FILE, 'utf-8').trim();
+      if (deviceId.length >= 16) {
+        return deviceId;
+      }
+    } catch {
+      // Fall through to regenerate.
+    }
+  }
+
+  const deviceId = randomBytes(16).toString('hex');
+  try {
+    writeFileSync(DEVICE_ID_FILE, deviceId, { mode: 0o600 });
+  } catch {
+    // Best effort; still return the generated ID.
+  }
+
+  return deviceId;
 }
 
 /**

@@ -277,10 +277,11 @@ bellwether baseline accept --force    # Required for breaking changes
 
 ### Baseline Format Versioning
 
-Baselines use semantic versioning (e.g., `1.0.0`) for the format version:
+Baselines use the CLI package version as the format version (e.g., `0.10.1`).
+Compatibility is determined by the **major** version:
 
-- **Major version** - Breaking contract changes (removed fields, type changes)
-- **Minor version** - New optional fields (backwards compatible)
+- **Major version** - Breaking baseline format changes (migration required)
+- **Minor version** - Backwards-compatible format additions
 - **Patch version** - Bug fixes in baseline generation
 
 **Compatibility rules:**
@@ -290,7 +291,7 @@ Baselines use semantic versioning (e.g., `1.0.0`) for the format version:
 When comparing baselines with incompatible versions, the CLI will show an error:
 
 ```
-Cannot compare baselines with incompatible format versions: v1.0.0 vs v2.0.0.
+Cannot compare baselines with incompatible format versions: v0.10.1 vs v1.0.0.
 Use 'bellwether baseline migrate' to upgrade the older baseline,
 or use --ignore-version-mismatch to force comparison (results may be incorrect).
 ```
