@@ -393,7 +393,9 @@ export function createCloudBaseline(
   // Build metadata
   const metadata: BaselineMetadata = {
     mode,
-    generatedAt: result.metadata.endTime.toISOString(),
+    generatedAt: result.metadata.endTime instanceof Date
+      ? result.metadata.endTime.toISOString()
+      : result.metadata.endTime,
     cliVersion: VERSION,
     serverCommand,
     serverName: result.discovery.serverInfo.name,
