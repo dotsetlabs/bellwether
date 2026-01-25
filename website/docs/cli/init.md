@@ -165,9 +165,9 @@ check:
 
   # Statistical sampling
   sampling:
-    minSamples: 3              # Minimum samples per tool
+    minSamples: 5              # Minimum samples per tool (CI optimized)
     targetConfidence: medium   # low, medium, or high
-    failOnLowConfidence: false
+    failOnLowConfidence: true
 
 # =============================================================================
 # BASELINE

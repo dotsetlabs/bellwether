@@ -207,27 +207,48 @@ Baseline format versions follow the CLI package version; baselines are compatibl
 
 ```json
 {
-  "version": "0.10.1",
-  "createdAt": "2026-01-12T10:30:00Z",
-  "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
-  "mode": "check",
-  "integrityHash": "a1b2c3d4e5f6...",
+  "version": "0.11.0",
+  "metadata": {
+    "mode": "check",
+    "generatedAt": "2026-01-25T10:30:00Z",
+    "cliVersion": "0.11.0",
+    "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
+    "serverName": "@modelcontextprotocol/server-filesystem",
+    "durationMs": 1823,
+    "personas": [],
+    "model": "none"
+  },
   "server": {
     "name": "@modelcontextprotocol/server-filesystem",
     "version": "0.10.1",
     "protocolVersion": "2024-11-05",
     "capabilities": ["tools"]
   },
-  "tools": [
+  "capabilities": {
+    "tools": [
+      {
+        "name": "read_file",
+        "description": "Read contents of a file",
+        "inputSchema": { "type": "object", "properties": { "path": { "type": "string" } } },
+        "schemaHash": "def456..."
+      }
+    ]
+  },
+  "interviews": [],
+  "toolProfiles": [
     {
       "name": "read_file",
       "description": "Read contents of a file",
       "schemaHash": "def456...",
-      "securityNotes": [...],
-      "limitations": [...]
+      "assertions": [],
+      "securityNotes": [],
+      "limitations": [],
+      "behavioralNotes": []
     }
   ],
-  "assertions": [...]
+  "assertions": [],
+  "summary": "Filesystem server with 1 tool",
+  "hash": "a1b2c3d4e5f6..."
 }
 ```
 

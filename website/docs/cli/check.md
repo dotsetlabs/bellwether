@@ -226,13 +226,13 @@ check:
 
   # Statistical sampling settings
   sampling:
-    minSamples: 3                # Minimum samples per tool (1-50)
-    targetConfidence: medium     # low, medium, or high
+    minSamples: 10               # Minimum samples per tool (1-50)
+    targetConfidence: low        # low, medium, or high
     failOnLowConfidence: false   # Fail if confidence below target
 
 # Workflow testing
 workflows:
-  autoGenerate: true             # Auto-generate from tool patterns
+  autoGenerate: false            # Auto-generate from tool patterns
   stepTimeout: 5000              # Timeout per step in ms
 
 scenarios:

@@ -21,7 +21,8 @@ import type { InterviewResult } from '../../src/interview/types.js';
 
 // Helper to create a valid mock interview result for baseline creation
 function createMockInterviewResult(): InterviewResult {
-  const now = new Date();
+  // Use fixed date for deterministic hashing
+  const now = new Date('2026-01-25T10:00:00.000Z');
   return {
     discovery: {
       serverInfo: { name: 'test-server', version: '1.0.0' },

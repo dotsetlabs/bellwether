@@ -275,36 +275,55 @@ A baseline file captures:
 | **Tools** | Name, description, schema hash |
 | **Security Notes** | Security observations per tool |
 | **Limitations** | Known limitations per tool |
-| **Integrity Hash** | Hash for detecting file tampering |
+| **Hash** | SHA-256 hash for detecting file tampering |
 | **Acceptance** | Optional: when/why drift was accepted (audit trail) |
 
 ### Sample Baseline Structure
 
 ```json
 {
-  "version": "0.14.0",
-  "createdAt": "2024-01-15T10:30:00Z",
-  "serverCommand": "npx @mcp/your-server",
-  "mode": "check",
-  "integrityHash": "abc123...",
+  "version": "0.11.0",
+  "metadata": {
+    "mode": "check",
+    "generatedAt": "2024-01-15T10:30:00Z",
+    "cliVersion": "0.11.0",
+    "serverCommand": "npx @mcp/your-server",
+    "serverName": "your-server",
+    "durationMs": 1234,
+    "personas": [],
+    "model": "none"
+  },
   "server": {
     "name": "your-server",
     "version": "1.0.0",
     "protocolVersion": "2024-11-05",
     "capabilities": ["tools", "prompts"]
   },
-  "tools": [
+  "capabilities": {
+    "tools": [
+      {
+        "name": "read_file",
+        "description": "Read contents of a file",
+        "inputSchema": { "type": "object", "properties": { "path": { "type": "string" } } },
+        "schemaHash": "def456..."
+      }
+    ]
+  },
+  "interviews": [],
+  "toolProfiles": [
     {
       "name": "read_file",
       "description": "Read contents of a file",
       "schemaHash": "def456...",
+      "assertions": [],
       "securityNotes": ["Path traversal possible"],
-      "limitations": ["Cannot read binary files"]
+      "limitations": ["Cannot read binary files"],
+      "behavioralNotes": []
     }
   ],
   "assertions": [],
-  "workflowSignatures": [],
-  "summary": "File system server with read capabilities"
+  "summary": "File system server with read capabilities",
+  "hash": "abc123..."
 }
 ```
 

@@ -37,56 +37,85 @@ This generates `bellwether-baseline.json`:
 
 ```json
 {
-  "version": "0.10.1",
-  "createdAt": "2026-01-12T10:30:00Z",
-  "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
-  "mode": "check",
-  "integrityHash": "abc123...",
+  "version": "0.11.0",
+  "metadata": {
+    "mode": "check",
+    "generatedAt": "2026-01-25T10:30:00Z",
+    "cliVersion": "0.11.0",
+    "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
+    "serverName": "@modelcontextprotocol/server-filesystem",
+    "durationMs": 2341,
+    "personas": [],
+    "model": "none"
+  },
   "server": {
     "name": "@modelcontextprotocol/server-filesystem",
     "version": "0.10.1",
     "protocolVersion": "2024-11-05",
     "capabilities": ["tools"]
   },
-  "tools": [
+  "capabilities": {
+    "tools": [
+      {
+        "name": "read_file",
+        "description": "Read contents of a file",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": { "type": "string", "description": "Path to file" }
+          },
+          "required": ["path"]
+        },
+        "schemaHash": "def456...",
+        "baselineP50Ms": 45,
+        "baselineP95Ms": 120,
+        "baselineSuccessRate": 0.98,
+        "lastTestedAt": "2026-01-25T10:30:00Z",
+        "inputSchemaHashAtTest": "def456...",
+        "performanceConfidence": {
+          "sampleCount": 15,
+          "successfulSamples": 15,
+          "validationSamples": 0,
+          "totalTests": 15,
+          "standardDeviation": 12.5,
+          "coefficientOfVariation": 0.28,
+          "confidenceLevel": "high"
+        },
+        "responseFingerprint": {
+          "contentType": "text",
+          "sizeCategory": "small",
+          "structureHash": "ghi789..."
+        }
+      }
+    ]
+  },
+  "interviews": [],
+  "toolProfiles": [
     {
       "name": "read_file",
       "description": "Read contents of a file",
       "schemaHash": "def456...",
+      "assertions": [
+        {
+          "type": "expects",
+          "condition": "Returns UTF-8 text for text files",
+          "tool": "read_file"
+        }
+      ],
       "securityNotes": ["Path traversal normalized within root"],
       "limitations": ["Maximum file size: 10MB"],
-      "baselineP50Ms": 45,
-      "baselineP95Ms": 120,
-      "baselineSuccessRate": 0.98,
-      "lastTestedAt": "2026-01-22T10:30:00Z",
-      "inputSchemaHashAtTest": "def456...",
-      "performanceConfidence": {
-        "sampleCount": 15,
-        "standardDeviation": 12.5,
-        "coefficientOfVariation": 0.28,
-        "confidenceLevel": "high"
-      },
-      "responseFingerprint": {
-        "contentType": "text",
-        "sizeCategory": "small",
-        "structureHash": "ghi789..."
-      }
+      "behavioralNotes": []
     }
   ],
+  "assertions": [],
+  "summary": "Filesystem server with 1 tool",
+  "hash": "abc123...",
   "documentationScore": {
     "overallScore": 85,
     "grade": "B",
     "toolCount": 3,
     "issueCount": 2
-  },
-  "assertions": [
-    {
-      "tool": "read_file",
-      "aspect": "behavior",
-      "assertion": "Returns UTF-8 text for text files",
-      "isPositive": true
-    }
-  ]
+  }
 }
 ```
 
@@ -239,7 +268,7 @@ bellwether upload
 
 ## Baseline Format Versioning
 
-Baselines use the CLI package version as the format version (e.g., `0.10.1`):
+Baselines use the CLI package version as the format version (e.g., `0.11.0`):
 
 | Component | Description |
 |:----------|:------------|
@@ -268,7 +297,7 @@ When comparing baselines with incompatible versions, recreate the older baseline
 | **Documentation** | Quality score, grade, and improvement suggestions |
 | **Assertions** | Behavioral assertions |
 | **Workflows** | Workflow signatures and results |
-| **Integrity** | Hash for detecting file tampering |
+| **Hash** | SHA-256 hash for detecting file tampering |
 | **Metadata** | Timestamp, mode, server command |
 | **Acceptance** | Optional: when/why drift was accepted |
 | **Incremental** | Schema hash and test timestamp for incremental checking |
