@@ -74,35 +74,57 @@ describe('baseline command', () => {
   // Sample baseline for testing
   const sampleBaseline = {
     version: '1.0.0',
-    createdAt: new Date().toISOString(),
-    serverCommand: 'npx @mcp/test-server',
-    mode: 'check',
-    integrityHash: 'abc123def456',
+    metadata: {
+      mode: 'check',
+      generatedAt: new Date().toISOString(),
+      cliVersion: '1.0.0',
+      serverCommand: 'npx @mcp/test-server',
+      durationMs: 1000,
+      personas: [],
+      model: 'none',
+    },
+    hash: 'abc123def456',
     server: {
       name: 'test-server',
       version: '1.0.0',
       protocolVersion: '2024-11-05',
       capabilities: ['tools'],
     },
-    tools: [
+    capabilities: {
+      tools: [
+        {
+          name: 'read_file',
+          description: 'Read contents of a file',
+          inputSchema: {
+            type: 'object',
+            properties: { path: { type: 'string' } },
+            required: ['path'],
+          },
+          schemaHash: 'schema123',
+        },
+      ],
+    },
+    interviews: [],
+    toolProfiles: [
       {
         name: 'read_file',
         description: 'Read contents of a file',
         schemaHash: 'schema123',
+        assertions: [],
         securityNotes: ['Path traversal possible'],
         limitations: ['Cannot read binary files'],
+        behavioralNotes: ['Returns file contents as string'],
       },
     ],
     assertions: [
       {
+        type: 'expects',
+        condition: 'Returns file contents as string',
         tool: 'read_file',
-        aspect: 'behavior',
-        assertion: 'Returns file contents as string',
-        isPositive: true,
-        confidence: 90,
+        severity: 'info',
       },
     ],
-    workflowSignatures: [],
+    workflows: [],
     summary: 'Test server with file reading capabilities',
   };
 
@@ -178,11 +200,47 @@ describe('baseline command', () => {
       formatDiffJson: vi.fn().mockReturnValue('{}'),
       formatDiffMarkdown: vi.fn().mockReturnValue('# No changes'),
       formatDiffCompact: vi.fn().mockReturnValue('0 changes'),
-      verifyIntegrity: vi.fn().mockReturnValue(true),
+      verifyBaselineHash: vi.fn().mockReturnValue(true),
+      getBaselineGeneratedAt: vi.fn().mockReturnValue(new Date()),
+      getBaselineMode: vi.fn().mockReturnValue('check'),
+      getBaselineServerCommand: vi.fn().mockReturnValue('npx @mcp/test-server'),
+      getToolFingerprints: vi.fn().mockReturnValue([
+        {
+          name: 'read_file',
+          description: 'Read contents of a file',
+          schemaHash: 'schema123',
+          inputSchema: {
+            type: 'object',
+            properties: { path: { type: 'string' } },
+            required: ['path'],
+          },
+          assertions: [
+            {
+              tool: 'read_file',
+              aspect: 'behavior',
+              assertion: 'Returns file contents as string',
+              isPositive: true,
+            },
+          ],
+          securityNotes: ['Path traversal possible'],
+          limitations: ['Cannot read binary files'],
+        },
+      ]),
     }));
 
     vi.doMock('../../src/baseline/converter.js', () => ({
-      createCloudBaseline: vi.fn().mockReturnValue({ version: '1.0', metadata: { formatVersion: '1.0' } }),
+      createCloudBaseline: vi.fn().mockReturnValue({
+        version: '1.0.0',
+        metadata: {
+          mode: 'check',
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx test-server',
+          durationMs: 1000,
+          personas: [],
+          model: 'none',
+        },
+      }),
     }));
   });
 
@@ -238,10 +296,10 @@ describe('baseline command', () => {
       expect(acceptCmd).toBeDefined();
     });
 
-    it('should have migrate subcommand', async () => {
+    it('should not include a migrate subcommand', async () => {
       const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
       const migrateCmd = baselineCommand.commands.find(c => c.name() === 'migrate');
-      expect(migrateCmd).toBeDefined();
+      expect(migrateCmd).toBeUndefined();
     });
   });
 
@@ -267,14 +325,6 @@ describe('baseline command', () => {
       const reportOpt = saveCmd?.options.find(o => o.long === '--report');
       expect(reportOpt).toBeDefined();
     });
-
-    it('should have cloud option', async () => {
-      const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
-      const saveCmd = baselineCommand.commands.find(c => c.name() === 'save');
-      const cloudOpt = saveCmd?.options.find(o => o.long === '--cloud');
-      expect(cloudOpt).toBeDefined();
-    });
-
 
     it('should have force option', async () => {
       const { baselineCommand } = await import('../../src/cli/commands/baseline.js');
@@ -443,7 +493,10 @@ describe('baseline command', () => {
       );
       writeFileSync(
         join(testDir, 'baseline2.json'),
-        JSON.stringify({ ...sampleBaseline, createdAt: new Date().toISOString() })
+        JSON.stringify({
+          ...sampleBaseline,
+          metadata: { ...sampleBaseline.metadata, generatedAt: new Date().toISOString() },
+        })
       );
 
       const { baselineCommand } = await import('../../src/cli/commands/baseline.js');

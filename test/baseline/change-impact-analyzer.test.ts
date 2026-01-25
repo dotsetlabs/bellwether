@@ -33,22 +33,58 @@ function createMockTool(overrides: Partial<ToolFingerprint> = {}): ToolFingerpri
 }
 
 // Helper to create a mock baseline
-function createMockBaseline(overrides: Partial<BehavioralBaseline> = {}): BehavioralBaseline {
+function createMockBaseline(
+  overrides: (Partial<BehavioralBaseline> & { tools?: ToolFingerprint[]; createdAt?: Date }) = {}
+): BehavioralBaseline {
+  const { tools = [], createdAt, ...restOverrides } = overrides;
+  const capabilityTools = restOverrides.capabilities?.tools ??
+    tools.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema ?? {},
+      schemaHash: tool.schemaHash,
+    }));
+  const toolProfiles = restOverrides.toolProfiles ?? tools.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    schemaHash: tool.schemaHash,
+    assertions: tool.assertions ?? [],
+    securityNotes: tool.securityNotes ?? [],
+    limitations: tool.limitations ?? [],
+    behavioralNotes: [],
+  }));
+  const generatedAt = restOverrides.metadata?.generatedAt ??
+    (createdAt ? createdAt.toISOString() : new Date().toISOString());
+
   return {
     version: '1.0.0',
-    createdAt: new Date(),
-    serverCommand: 'npx test-server',
+    metadata: {
+      mode: 'check',
+      generatedAt,
+      cliVersion: '1.0.0',
+      serverCommand: 'npx test-server',
+      durationMs: 1000,
+      personas: [],
+      model: 'none',
+      ...restOverrides.metadata,
+    },
     server: {
       name: 'test-server',
       version: '1.0.0',
       protocolVersion: '2024-11-05',
       capabilities: [],
+      ...restOverrides.server,
     },
-    tools: [],
+    capabilities: {
+      tools: capabilityTools,
+      ...restOverrides.capabilities,
+    },
+    interviews: restOverrides.interviews ?? [],
+    toolProfiles,
     summary: 'Test baseline',
     assertions: [],
-    integrityHash: 'hash123',
-    ...overrides,
+    hash: 'hash123',
+    ...restOverrides,
   };
 }
 

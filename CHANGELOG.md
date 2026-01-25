@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2026-01-25
+
+### Breaking Changes
+
+- **Removed `baseline migrate` command**: Baseline migration is no longer needed with the unified format
+  - Old baselines from incompatible versions should be recreated with the current CLI
+  - The `--info` and `--dry-run` flags for migration are also removed
+- **Removed `--cloud` flag from `baseline save`**: All baselines now use a single unified format
+  - Previously: `baseline save --cloud` for cloud-compatible format
+  - Now: `baseline save` always saves in the unified format compatible with both local and cloud
+
+### Features
+
+- **Unified baseline format**: Single canonical baseline schema for both local and cloud use
+  - Eliminates the need for format conversion when uploading to cloud
+  - Simplified baseline structure with consistent field naming
+  - New `hash` field replaces `integrityHash` for consistency with cloud API
+  - Metadata now grouped under `metadata` object (mode, generatedAt, cliVersion, etc.)
+  - Tool data now split into `capabilities.tools` and `toolProfiles` for better separation
+- **Baseline accessor functions**: New utility functions for safe baseline field access
+  - `getBaselineGeneratedAt()`, `getBaselineMode()`, `getBaselineServerCommand()`
+  - `getToolFingerprints()` - Converts unified format to legacy ToolFingerprint array
+  - `verifyBaselineHash()` - Replaces `verifyIntegrity()` for hash validation
+- **Improved baseline validation**: Enhanced Zod schemas for stricter baseline validation
+  - Tool capabilities now validated against cloud schema
+  - Performance metrics include min/max bounds
+  - Security fingerprints validated as structured objects
+
+### Internal Changes
+
+- Removed `src/baseline/migrations.ts` - No longer needed with unified format
+- Removed `src/cli/commands/baseline-migrate.ts` - Migration command removed
+- Added `src/baseline/accessors.ts` - Safe field accessor utilities
+- Added `src/baseline/baseline-hash.ts` - Hash calculation for baselines
+- Simplified `src/baseline/saver.ts` by removing dual-format logic (~450 lines removed)
+- Simplified `src/baseline/converter.ts` - Now only converts from interview results to baseline
+- Updated all tests to use unified baseline format
+
+### Documentation
+
+- Updated README to remove migration command examples
+- Updated baseline versioning documentation to recommend recreating incompatible baselines
+- Removed migration workflow from troubleshooting guide
+
 ## [0.10.2] - 2026-01-25
 
 ### Features
@@ -21,8 +65,8 @@ All notable changes to this project will be documented in this file.
   - Model is set to 'none' for check mode
   - Interviews array is now empty for check mode
   - Previously these fields contained incorrect default values
-- **Improved cloud baseline format detection**: Upload command now uses structural validation instead of relying solely on version field
-  - Detects cloud format by checking for required fields (metadata, server, capabilities, interviews, toolProfiles, assertions, summary, hash)
+- **Unified baseline format**: CLI now writes and uploads a single canonical baseline schema
+  - Removed local/cloud split and baseline migration command
 
 ## [0.10.1] - 2026-01-24
 

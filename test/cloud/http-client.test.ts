@@ -226,7 +226,7 @@ describe('HttpCloudClient', () => {
       const mockBaseline = {
         id: 'baseline-1',
         version: 1,
-        createdAt: new Date().toISOString(),
+        uploadedAt: new Date().toISOString(),
       };
       mockFetch.mockResolvedValue({
         ok: true,
@@ -236,10 +236,23 @@ describe('HttpCloudClient', () => {
 
       const client = new HttpCloudClient('https://api.example.com', 'token');
       const result = await client.uploadBaseline('proj-1', {
-        version: '1.0',
-        metadata: { formatVersion: '1.0' },
-        server: { name: 'test', version: '1.0' },
-        tools: [],
+        version: '1.0.0',
+        metadata: {
+          mode: 'check',
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx test-server',
+          durationMs: 1,
+          personas: [],
+          model: 'none',
+        },
+        server: { name: 'test', version: '1.0.0', protocolVersion: '2024-11-05', capabilities: [] },
+        capabilities: { tools: [], prompts: [], resources: [] },
+        interviews: [],
+        toolProfiles: [],
+        assertions: [],
+        summary: 'Test baseline',
+        hash: 'hash123',
       } as any);
 
       expect(result.baselineId).toBe('baseline-1');
@@ -267,8 +280,8 @@ describe('HttpCloudClient', () => {
   describe('getHistory', () => {
     it('should return baseline history', async () => {
       const mockBaselines = [
-        { id: 'b-1', version: 2, createdAt: new Date().toISOString() },
-        { id: 'b-2', version: 1, createdAt: new Date().toISOString() },
+        { id: 'b-1', version: 2, uploadedAt: new Date().toISOString() },
+        { id: 'b-2', version: 1, uploadedAt: new Date().toISOString() },
       ];
       mockFetch.mockResolvedValue({
         ok: true,

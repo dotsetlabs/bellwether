@@ -9,6 +9,7 @@ import type {
   ToolFingerprint,
   BehavioralBaseline,
 } from './types.js';
+import { getBaselineGeneratedAt, getToolFingerprints } from './accessors.js';
 import {
   analyzeSchemaChanges,
   type SchemaChangeDetail,
@@ -170,15 +171,18 @@ export function buildServerTimeline(
   for (let i = 0; i < baselines.length; i++) {
     const baseline = baselines[i];
     const previousBaseline = i > 0 ? baselines[i - 1] : undefined;
-    const currentTools = new Set(baseline.tools.map(t => t.name));
+    const currentToolsList = getToolFingerprints(baseline);
+    const currentTools = new Set(currentToolsList.map(t => t.name));
+    const previousTools = previousBaseline ? getToolFingerprints(previousBaseline) : [];
+    const baselineCreatedAt = getBaselineGeneratedAt(baseline);
 
     // Track new and updated tools
-    for (const tool of baseline.tools) {
+    for (const tool of currentToolsList) {
       seenTools.add(tool.name);
       removedTools.delete(tool.name); // Tool is back if it was removed
 
       const existingTimeline = toolTimelines.get(tool.name);
-      const previousTool = previousBaseline?.tools.find(t => t.name === tool.name);
+      const previousTool = previousTools.find(t => t.name === tool.name);
 
       if (!existingTimeline) {
         // New tool - create timeline
@@ -191,19 +195,19 @@ export function buildServerTimeline(
 
       // Track deprecation events
       if (tool.deprecated && !previousTool?.deprecated) {
-        addDeprecationEvent(toolTimelines.get(tool.name)!, tool, 'deprecated', baseline.createdAt);
+        addDeprecationEvent(toolTimelines.get(tool.name)!, tool, 'deprecated', baselineCreatedAt);
       }
     }
 
     // Track removed tools
     if (previousBaseline) {
-      for (const prevTool of previousBaseline.tools) {
+      for (const prevTool of previousTools) {
         if (!currentTools.has(prevTool.name)) {
           removedTools.add(prevTool.name);
           const timeline = toolTimelines.get(prevTool.name);
           if (timeline && !timeline.isRemoved) {
             timeline.isRemoved = true;
-            addDeprecationEvent(timeline, prevTool, 'removed', baseline.createdAt);
+            addDeprecationEvent(timeline, prevTool, 'removed', baselineCreatedAt);
           }
         }
       }
@@ -235,8 +239,8 @@ export function buildServerTimeline(
     toolTimelines,
     baselineCount: baselines.length,
     dateRange: {
-      earliest: earliestBaseline.createdAt,
-      latest: latestBaseline.createdAt,
+      earliest: getBaselineGeneratedAt(earliestBaseline),
+      latest: getBaselineGeneratedAt(latestBaseline),
     },
     stats: calculateTimelineStats(toolTimelines),
   };
@@ -269,8 +273,8 @@ function createToolTimeline(
     schemaHash: tool.schemaHash,
     changes: [],
     hasBreakingChanges: false,
-    registeredAt: baseline.createdAt,
-    sourceBaseline: baseline.integrityHash,
+    registeredAt: getBaselineGeneratedAt(baseline),
+    sourceBaseline: baseline.hash,
   };
 
   return {
@@ -278,8 +282,8 @@ function createToolTimeline(
     description: tool.description,
     versions: [initialVersion],
     deprecationHistory: [],
-    firstSeen: baseline.createdAt,
-    lastUpdated: baseline.createdAt,
+    firstSeen: getBaselineGeneratedAt(baseline),
+    lastUpdated: getBaselineGeneratedAt(baseline),
     isDeprecated: tool.deprecated ?? false,
     isRemoved: false,
     totalBreakingChanges: 0,
@@ -316,12 +320,12 @@ function updateToolTimeline(
       schemaHash: tool.schemaHash,
       changes,
       hasBreakingChanges: hasBreaking,
-      registeredAt: baseline.createdAt,
-      sourceBaseline: baseline.integrityHash,
+      registeredAt: getBaselineGeneratedAt(baseline),
+      sourceBaseline: baseline.hash,
     };
 
     timeline.versions.push(newVersion);
-    timeline.lastUpdated = baseline.createdAt;
+    timeline.lastUpdated = getBaselineGeneratedAt(baseline);
 
     if (hasBreaking) {
       timeline.totalBreakingChanges++;

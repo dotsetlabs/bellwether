@@ -6,7 +6,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { recalculateIntegrityHash, type BehavioralBaseline } from '../../../src/baseline/index.js';
+import { createBaseline, saveBaseline, type BehavioralBaseline } from '../../../src/baseline/index.js';
+import type { InterviewResult } from '../../../src/interview/types.js';
 
 // Mock the output module
 vi.mock('../../../src/cli/output.js', () => ({
@@ -31,7 +32,8 @@ describe('baseline accept command', () => {
    * Create a valid InterviewResult fixture for check mode.
    * This matches the InterviewResult interface requirements.
    */
-  function createCheckResult(tools: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }>) {
+  function createCheckResult(tools: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }>): InterviewResult {
+    const now = new Date();
     return {
       discovery: {
         serverInfo: {
@@ -46,8 +48,8 @@ describe('baseline accept command', () => {
         })),
         prompts: [],
         resources: [],
-        capabilities: { tools: true },
-        timestamp: new Date().toISOString(),
+        capabilities: { tools: true } as Record<string, unknown>,
+        timestamp: now,
         serverCommand: 'npx test-server',
         serverArgs: [],
       },
@@ -63,8 +65,8 @@ describe('baseline accept command', () => {
       limitations: [],
       recommendations: [],
       metadata: {
-        startTime: new Date().toISOString(),
-        endTime: new Date().toISOString(),
+        startTime: now,
+        endTime: now,
         durationMs: 1000,
         toolCallCount: tools.length,
         errorCount: 0,
@@ -80,55 +82,32 @@ describe('baseline accept command', () => {
    * Key requirements:
    * - version: semver string (e.g., "0.8.0")
    * - server.capabilities: string[] (not object)
-   * - tools[].assertions: BehavioralAssertion[] (not behavioralNotes)
-   * - tools[].securityNotes: string[]
-   * - tools[].limitations: string[]
+   * - capabilities.tools[]: tool capability data
+   * - toolProfiles[]: behavioral assertions and notes
    * - summary: string (required)
    * - assertions: BehavioralAssertion[]
-   * - integrityHash: computed from baseline data (required for loadBaseline verification)
+   * - hash: computed from baseline data (required for loadBaseline verification)
    *
    * IMPORTANT: Property order MUST match the Zod schema in saver.ts exactly!
    * When loadBaseline parses the JSON, Zod returns properties in schema order.
-   * The integrity hash is computed from JSON.stringify, which is property-order sensitive.
+   * The hash is computed from JSON.stringify, which is property-order sensitive.
    * If the order differs, the hash will not match after load.
    */
-  function createBaselineFixture(tools: Array<{ name: string; description: string; schemaHash: string; inputSchema?: Record<string, unknown> }>) {
-    // Property order matches the Zod baselineSchema in saver.ts:
-    // version, createdAt, mode, serverCommand, server, tools, summary, assertions, workflowSignatures
-    const baselineWithoutHash: Omit<BehavioralBaseline, 'integrityHash'> = {
-      version: '0.8.0',
-      createdAt: new Date(),
-      mode: 'check',
-      serverCommand: 'npx test-server',
-      server: {
-        name: 'test-server',
-        version: '1.0.0',
-        protocolVersion: '2024-11-05',
-        capabilities: ['tools'],
-      },
-      tools: tools.map((t) => ({
+  /**
+   * Create a baseline fixture by using the actual createBaseline function.
+   * This ensures property order and hash match what loadBaseline expects.
+   */
+  function createBaselineFixture(tools: Array<{ name: string; description: string; schemaHash?: string; inputSchema?: Record<string, unknown> }>): BehavioralBaseline {
+    // Create an InterviewResult that matches the tools
+    const interviewResult = createCheckResult(
+      tools.map(t => ({
         name: t.name,
         description: t.description,
-        schemaHash: t.schemaHash,
-        inputSchema: t.inputSchema,
-        assertions: [],
-        securityNotes: [],
-        limitations: [],
-        // responseFingerprint computed from empty interactions by createBaseline
-        responseFingerprint: {
-          structureHash: 'empty',
-          contentType: 'empty',
-          size: 'tiny',
-          isEmpty: true,
-          sampleCount: 0,
-          confidence: 0,
-        },
-      })),
-      summary: 'Test MCP server with file operations',
-      assertions: [],
-    };
-    // Use recalculateIntegrityHash to compute a valid hash
-    return recalculateIntegrityHash(baselineWithoutHash);
+        inputSchema: t.inputSchema ?? {},
+      }))
+    );
+    // Use the actual createBaseline function to ensure correct property order and hash
+    return createBaseline(interviewResult, 'npx test-server');
   }
 
   // Standard tool definitions for reuse
@@ -198,7 +177,7 @@ describe('baseline accept command', () => {
 
       // Create baseline but not report
       const baselinePath = join(testDir, 'bellwether-baseline.json');
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
 
       // Run command - should fail because report doesn't exist
       await expect(acceptCommand.parseAsync(['node', 'test'])).rejects.toThrow();
@@ -210,7 +189,7 @@ describe('baseline accept command', () => {
     it('should throw when report has invalid JSON', async () => {
       const baselinePath = join(testDir, 'bellwether-baseline.json');
       const reportPath = join(testDir, 'bellwether-check.json');
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
       writeFileSync(reportPath, 'invalid json {{{');
 
       const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');
@@ -223,7 +202,7 @@ describe('baseline accept command', () => {
     it('should throw when report is from explore mode', async () => {
       const baselinePath = join(testDir, 'bellwether-baseline.json');
       const reportPath = join(testDir, 'bellwether-check.json');
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
 
       // Create an explore mode result (model !== 'check')
       const exploreResult = createCheckResult([readFileTool]);
@@ -259,7 +238,7 @@ describe('baseline accept command', () => {
       const reportPath = join(testDir, 'bellwether-check.json');
 
       // Create baseline and check result with the same tools
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
       writeFileSync(reportPath, JSON.stringify(createCheckResult([readFileTool]), null, 2));
 
       const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');
@@ -276,7 +255,7 @@ describe('baseline accept command', () => {
       const reportPath = join(testDir, 'bellwether-check.json');
 
       // Create baseline with one tool, check result with two tools (added tool)
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
       writeFileSync(reportPath, JSON.stringify(createCheckResult([readFileTool, writeFileTool]), null, 2));
 
       const originalContent = readFileSync(baselinePath, 'utf-8');
@@ -297,7 +276,7 @@ describe('baseline accept command', () => {
       const reportPath = join(testDir, 'bellwether-check.json');
 
       // Create drift (added tool)
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
       writeFileSync(reportPath, JSON.stringify(createCheckResult([readFileTool, writeFileTool]), null, 2));
 
       const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');
@@ -316,7 +295,7 @@ describe('baseline accept command', () => {
       const reportPath = join(testDir, 'bellwether-check.json');
 
       // Create breaking change: remove a tool
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool, writeFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool, writeFileTool]), baselinePath);
       writeFileSync(reportPath, JSON.stringify(createCheckResult([readFileTool]), null, 2));
 
       const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');
@@ -332,7 +311,7 @@ describe('baseline accept command', () => {
       const reportPath = join(testDir, 'bellwether-check.json');
 
       // Create breaking change: remove a tool
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool, writeFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool, writeFileTool]), baselinePath);
       writeFileSync(reportPath, JSON.stringify(createCheckResult([readFileTool]), null, 2));
 
       const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');
@@ -349,7 +328,7 @@ describe('baseline accept command', () => {
       const reportPath = join(testDir, 'bellwether-check.json');
 
       // Create drift (added tool - not breaking)
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
       writeFileSync(reportPath, JSON.stringify(createCheckResult([readFileTool, writeFileTool]), null, 2));
 
       const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');
@@ -366,7 +345,7 @@ describe('baseline accept command', () => {
       const reportPath = join(testDir, 'bellwether-check.json');
 
       // Create drift (added tool)
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
       writeFileSync(reportPath, JSON.stringify(createCheckResult([readFileTool, writeFileTool]), null, 2));
 
       const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');
@@ -383,7 +362,7 @@ describe('baseline accept command', () => {
       const reportPath = join(testDir, 'bellwether-check.json');
 
       // Create drift (added tool)
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
       writeFileSync(reportPath, JSON.stringify(createCheckResult([readFileTool, writeFileTool]), null, 2));
 
       const beforeTime = new Date();
@@ -410,7 +389,7 @@ describe('baseline accept command', () => {
       const reportPath = join(testDir, 'bellwether-check.json');
 
       // Create files
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
       writeFileSync(reportPath, JSON.stringify(createCheckResult([readFileTool]), null, 2));
 
       const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');
@@ -425,7 +404,7 @@ describe('baseline accept command', () => {
       const customReportPath = join(testDir, 'custom-report.json');
 
       // Create files (no .bellwether directory needed)
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
       writeFileSync(customReportPath, JSON.stringify(createCheckResult([readFileTool]), null, 2));
 
       const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');
@@ -442,7 +421,7 @@ describe('baseline accept command', () => {
       const reportPath = join(testDir, 'bellwether-check.json');
 
       // Add a new tool
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
       writeFileSync(reportPath, JSON.stringify(createCheckResult([readFileTool, writeFileTool]), null, 2));
 
       const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');
@@ -459,7 +438,7 @@ describe('baseline accept command', () => {
       const reportPath = join(testDir, 'bellwether-check.json');
 
       // Remove a tool (breaking change)
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool, writeFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool, writeFileTool]), baselinePath);
       writeFileSync(reportPath, JSON.stringify(createCheckResult([readFileTool]), null, 2));
 
       const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');
@@ -476,7 +455,7 @@ describe('baseline accept command', () => {
       const reportPath = join(testDir, 'bellwether-check.json');
 
       // Add a new tool
-      writeFileSync(baselinePath, JSON.stringify(createBaselineFixture([readFileTool]), null, 2));
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
       writeFileSync(reportPath, JSON.stringify(createCheckResult([readFileTool, writeFileTool]), null, 2));
 
       const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');

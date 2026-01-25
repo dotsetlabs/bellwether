@@ -112,8 +112,16 @@ export interface ToolCapability {
   baselineP50Ms?: number;
   /** Baseline p95 latency in milliseconds */
   baselineP95Ms?: number;
+  /** Baseline p99 latency in milliseconds */
+  baselineP99Ms?: number;
   /** Baseline success rate (0-1) */
   baselineSuccessRate?: number;
+  /** Response schema evolution metadata */
+  responseSchemaEvolution?: ResponseSchemaEvolution;
+  /** ISO timestamp of last time this tool was tested */
+  lastTestedAt?: string;
+  /** Schema hash captured at the last test time */
+  inputSchemaHashAtTest?: string;
   /** Statistical confidence for performance baselines */
   performanceConfidence?: {
     sampleCount: number;
@@ -210,10 +218,59 @@ export interface CloudToolProfile {
 }
 
 /**
- * Cloud-ready baseline format.
+ * Snapshot of accepted drift for a baseline.
+ */
+export interface AcceptedDiff {
+  toolsAdded: string[];
+  toolsRemoved: string[];
+  toolsModified: string[];
+  severity: 'none' | 'info' | 'warning' | 'breaking';
+  breakingCount: number;
+  warningCount: number;
+  infoCount: number;
+}
+
+/**
+ * Drift acceptance metadata attached to a baseline.
+ */
+export interface DriftAcceptance {
+  acceptedAt: string | Date;
+  acceptedBy?: string;
+  reason?: string;
+  acceptedDiff: AcceptedDiff;
+}
+
+/**
+ * Serializable schema evolution data for cloud baselines.
+ */
+export interface ResponseSchemaEvolution {
+  currentHash: string;
+  history: Array<{
+    hash: string;
+    schema: InferredSchema;
+    observedAt: string | Date;
+    sampleCount: number;
+  }>;
+  isStable: boolean;
+  stabilityConfidence: number;
+  inconsistentFields: string[];
+  sampleCount: number;
+}
+
+/**
+ * Serializable documentation score summary for baseline storage.
+ */
+export interface DocumentationScoreSummary {
+  overallScore: number;
+  grade: string;
+  issueCount: number;
+  toolCount: number;
+}
+
+/**
+ * Canonical baseline format.
  *
- * This is the format used for uploading to Bellwether Cloud.
- * It's a superset of the local BehavioralBaseline with additional metadata.
+ * This is the single baseline schema used by both CLI and cloud.
  *
  * Versioning: Uses CLI package version for compatibility checking.
  * Baselines with the same CLI major version are compatible.
@@ -252,6 +309,12 @@ export interface BellwetherBaseline {
 
   /** SHA-256 hash of content (first 16 chars) for integrity */
   hash: string;
+
+  /** Drift acceptance metadata (optional) */
+  acceptance?: DriftAcceptance;
+
+  /** Optional documentation score summary */
+  documentationScore?: DocumentationScoreSummary;
 }
 /**
  * Configuration for the cloud client.

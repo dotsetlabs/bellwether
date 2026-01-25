@@ -91,7 +91,7 @@ export const watchCommand = new Command('watch')
     let lastBaselineHash: string | null = null;
     if (existsSync(baselinePath)) {
       const baseline = loadBaseline(baselinePath);
-      lastBaselineHash = baseline.integrityHash;
+      lastBaselineHash = baseline.hash;
       output.info(`Loaded existing baseline: ${lastBaselineHash.slice(0, 8)}`);
     }
 
@@ -178,8 +178,8 @@ export const watchCommand = new Command('watch')
 
         // Save new baseline
         saveBaseline(newBaseline, baselinePath);
-        lastBaselineHash = newBaseline.integrityHash;
-        output.info(`Baseline updated: ${newBaseline.integrityHash.slice(0, 8)}`);
+        lastBaselineHash = newBaseline.hash;
+        output.info(`Baseline updated: ${newBaseline.hash.slice(0, 8)}`);
 
       } catch (error) {
         output.error('Test failed: ' + (error instanceof Error ? error.message : String(error)));

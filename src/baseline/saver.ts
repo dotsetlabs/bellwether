@@ -2,51 +2,31 @@
  * Baseline save/load functionality.
  */
 
-import { createHash } from 'crypto';
 import { readFileSync, writeFileSync, existsSync, statSync } from 'fs';
 import { z } from 'zod';
-import type { InterviewResult, ToolProfile } from '../interview/types.js';
+import type { InterviewResult } from '../interview/types.js';
 import type {
   BehavioralBaseline,
   BehavioralDiff,
-  BaselineMode,
-  ToolFingerprint,
-  ServerFingerprint,
-  BehavioralAssertion,
-  WorkflowSignature,
   DriftAcceptance,
   AcceptedDiff,
 } from './types.js';
-import { computeConsensusSchemaHash } from './schema-compare.js';
 import {
   getBaselineVersion,
   parseVersion,
   formatVersion,
 } from './version.js';
-import { migrateBaseline, needsMigration } from './migrations.js';
-import { analyzeResponses, type InferredSchema } from './response-fingerprint.js';
-import { calculateMetrics, calculatePerformanceConfidence, type LatencySample } from './performance-tracker.js';
-import { PATTERNS, PAYLOAD_LIMITS } from '../constants.js';
+import { createCloudBaseline } from './converter.js';
+import { calculateBaselineHash } from './baseline-hash.js';
+import type { InferredSchema } from './response-fingerprint.js';
+import { PAYLOAD_LIMITS } from '../constants.js';
 import { getLogger } from '../logging/logger.js';
 
-/**
- * Zod schema for behavioral assertion validation.
- */
-const behavioralAssertionSchema = z.object({
-  tool: z.string(),
-  aspect: z.enum([
-    'response_format',
-    'response_structure',
-    'error_handling',
-    'error_pattern',
-    'security',
-    'performance',
-    'schema',
-    'description',
-  ]),
-  assertion: z.string(),
-  evidence: z.string().optional(),
-  isPositive: z.boolean(),
+const cloudAssertionSchema = z.object({
+  type: z.enum(['expects', 'requires', 'warns', 'notes']),
+  condition: z.string(),
+  tool: z.string().optional(),
+  severity: z.enum(['info', 'low', 'medium', 'high', 'critical']).optional(),
 });
 
 /**
@@ -104,23 +84,23 @@ const performanceConfidenceSchema = z.object({
 /**
  * Zod schema for tool fingerprint validation.
  */
-const toolFingerprintSchema = z.object({
+const toolCapabilitySchema = z.object({
   name: z.string(),
   description: z.string(),
+  inputSchema: z.record(z.unknown()),
   schemaHash: z.string(),
-  inputSchema: z.record(z.unknown()).optional(),
-  assertions: z.array(behavioralAssertionSchema),
-  securityNotes: z.array(z.string()),
-  limitations: z.array(z.string()),
-  // Response fingerprinting fields (check mode enhancement)
   responseFingerprint: responseFingerprintSchema.optional(),
   inferredOutputSchema: inferredSchemaSchema.optional(),
   errorPatterns: z.array(errorPatternSchema).optional(),
-  // Performance baseline fields
-  baselineP50Ms: z.number().optional(),
-  baselineP95Ms: z.number().optional(),
-  baselineSuccessRate: z.number().optional(),
+  baselineP50Ms: z.number().min(0).optional(),
+  baselineP95Ms: z.number().min(0).optional(),
+  baselineP99Ms: z.number().min(0).optional(),
+  baselineSuccessRate: z.number().min(0).max(1).optional(),
+  responseSchemaEvolution: z.record(z.unknown()).optional(),
+  lastTestedAt: z.string().optional(),
+  inputSchemaHashAtTest: z.string().optional(),
   performanceConfidence: performanceConfidenceSchema.optional(),
+  securityFingerprint: z.record(z.unknown()).optional(),
 });
 
 /**
@@ -133,9 +113,6 @@ const serverFingerprintSchema = z.object({
   capabilities: z.array(z.string()),
 });
 
-/**
- * Zod schema for workflow signature validation.
- */
 const workflowSignatureSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -167,43 +144,50 @@ const driftAcceptanceSchema = z.object({
   acceptedDiff: acceptedDiffSchema,
 });
 
-/**
- * Zod schema for baseline validation.
- * Validates untrusted JSON to prevent injection attacks.
- *
- * Version can be:
- * - A semver string like "1.0.0" (current format)
- * - A legacy number like 1 (old format, will be migrated)
- */
 const baselineSchema = z.object({
-  version: z.union([
-    z.string().regex(PATTERNS.SEMVER, 'Version must be semver format (e.g., "1.0.0")'),
-    z.number().int().positive(), // Legacy format support
-  ]),
-  createdAt: z.string().or(z.date()),
-  mode: z.enum(['check']).optional(),
-  serverCommand: z.string(),
+  version: z.string(),
+  metadata: z.object({
+    mode: z.enum(['check', 'explore']),
+    generatedAt: z.string(),
+    cliVersion: z.string(),
+    serverCommand: z.string(),
+    serverName: z.string().optional(),
+    durationMs: z.number().int().min(0),
+    personas: z.array(z.string()).optional(),
+    model: z.string().optional(),
+    branch: z.string().optional(),
+    gitSha: z.string().optional(),
+    environment: z.record(z.unknown()).optional(),
+    warmupRuns: z.number().int().min(0).max(10).optional(),
+  }),
   server: serverFingerprintSchema,
-  tools: z.array(toolFingerprintSchema),
+  capabilities: z.object({
+    tools: z.array(toolCapabilitySchema),
+    resources: z.array(z.record(z.unknown())).optional(),
+    prompts: z.array(z.record(z.unknown())).optional(),
+  }),
+  interviews: z.array(z.record(z.unknown())),
+  toolProfiles: z.array(z.object({
+    name: z.string(),
+    description: z.string().optional(),
+    schemaHash: z.string().optional(),
+    assertions: z.array(cloudAssertionSchema),
+    securityNotes: z.array(z.string()).optional(),
+    limitations: z.array(z.string()).optional(),
+    behavioralNotes: z.array(z.string()).optional(),
+  })),
+  workflows: z.array(workflowSignatureSchema).optional(),
+  assertions: z.array(cloudAssertionSchema),
   summary: z.string(),
-  assertions: z.array(behavioralAssertionSchema),
-  workflowSignatures: z.array(workflowSignatureSchema).optional(),
-  integrityHash: z.string(),
+  hash: z.string(),
   acceptance: driftAcceptanceSchema.optional(),
+  documentationScore: z.record(z.unknown()).optional(),
 });
 
 /**
  * Options for loading a baseline.
  */
 export interface LoadBaselineOptions {
-  /**
-   * Automatically migrate old baseline formats to the current version.
-   * If false and the baseline is outdated, a warning will be logged but
-   * the baseline will still be loaded (with potential compatibility issues).
-   * @default true
-   */
-  migrate?: boolean;
-
   /**
    * Skip integrity hash verification.
    * Use with caution - only for debugging or when you know the file was modified intentionally.
@@ -222,42 +206,7 @@ export function createBaseline(
   result: InterviewResult,
   serverCommand: string
 ): BehavioralBaseline {
-  // Baselines are always check mode
-  const effectiveMode: BaselineMode = 'check';
-
-  const server = createServerFingerprint(result);
-  // Create a map of tool name -> inputSchema from discovery
-  const schemaMap = new Map<string, Record<string, unknown>>();
-  for (const tool of result.discovery.tools) {
-    if (tool.inputSchema) {
-      schemaMap.set(tool.name, tool.inputSchema as Record<string, unknown>);
-    }
-  }
-  const tools = result.toolProfiles.map(profile =>
-    createToolFingerprint(profile, schemaMap.get(profile.name))
-  );
-  const assertions = extractAssertions(result);
-  const workflowSignatures = extractWorkflowSignatures(result);
-
-  const baselineData: Omit<BehavioralBaseline, 'integrityHash'> = {
-    version: getBaselineVersion(),
-    createdAt: new Date(),
-    mode: effectiveMode,
-    serverCommand,
-    server,
-    tools,
-    summary: result.summary,
-    assertions,
-    workflowSignatures,
-  };
-
-  // Calculate integrity hash
-  const integrityHash = calculateIntegrityHash(baselineData);
-
-  return {
-    ...baselineData,
-    integrityHash,
-  };
+  return createCloudBaseline(result, serverCommand);
 }
 
 /**
@@ -274,13 +223,13 @@ export function saveBaseline(baseline: BehavioralBaseline, path: string): void {
  *
  * @param path - Path to the baseline file
  * @param options - Load options
- * @returns Loaded baseline (migrated to current version if needed)
+ * @returns Loaded baseline
  */
 export function loadBaseline(
   path: string,
   options: LoadBaselineOptions = {}
 ): BehavioralBaseline {
-  const { migrate = true, skipIntegrityCheck = false } = options;
+  const { skipIntegrityCheck = false } = options;
 
   if (!existsSync(path)) {
     throw new Error(`Baseline file not found: ${path}`);
@@ -319,264 +268,55 @@ export function loadBaseline(
     throw new Error(`Invalid baseline format in ${path}:\n${issues.join('\n')}`);
   }
 
-  let baseline = result.data as unknown as Record<string, unknown>;
+  const baseline = result.data as unknown as BehavioralBaseline;
+  const baselineVersion = parseVersion(baseline.version);
+  const currentVersion = parseVersion(getBaselineVersion());
 
-  // Check if migration is needed
-  if (needsMigration(baseline)) {
-    const currentVersion = parseVersion(baseline.version as string | number);
+  if (baselineVersion.major !== currentVersion.major) {
+    getLogger('baseline').warn(
+      `Baseline uses CLI version ${formatVersion(baselineVersion.raw)}. ` +
+      `Current CLI version is ${formatVersion(currentVersion.raw)}. ` +
+      `Recreate the baseline with this CLI version for best results.`
+    );
+  }
 
-    if (migrate) {
-      // Automatically migrate to current version
-      baseline = migrateBaseline(baseline) as unknown as Record<string, unknown>;
-    } else {
-      // Log warning but continue with the old format
-      getLogger('baseline').warn(
-        `Baseline uses older CLI version ${formatVersion(currentVersion.raw)}. ` +
-        `Current CLI version is ${formatVersion(getBaselineVersion())}. ` +
-        `Run \`bellwether baseline migrate\` to upgrade.`
-      );
+  if (baseline.acceptance?.acceptedAt) {
+    baseline.acceptance.acceptedAt = new Date(baseline.acceptance.acceptedAt);
+  }
+
+  if (!skipIntegrityCheck) {
+    if (!verifyBaselineHash(baseline)) {
+      throw new Error('Baseline hash verification failed - file may have been modified');
     }
   }
 
-  const typedBaseline = baseline as unknown as BehavioralBaseline;
-
-  // Restore Date objects
-  typedBaseline.createdAt = new Date(typedBaseline.createdAt);
-  if (typedBaseline.acceptance?.acceptedAt) {
-    typedBaseline.acceptance.acceptedAt = new Date(typedBaseline.acceptance.acceptedAt);
-  }
-
-  // Verify integrity (unless skipped or just migrated)
-  if (!skipIntegrityCheck && !needsMigration(result.data as unknown as Record<string, unknown>)) {
-    if (!verifyIntegrity(typedBaseline)) {
-      throw new Error('Baseline integrity check failed - file may have been modified');
-    }
-  }
-
-  return typedBaseline;
+  return baseline;
 }
 
 /**
- * Verify baseline integrity.
+ * Verify baseline hash.
  */
-export function verifyIntegrity(baseline: BehavioralBaseline): boolean {
-  const { integrityHash, ...rest } = baseline;
-  const expectedHash = calculateIntegrityHash(rest);
-  return integrityHash === expectedHash;
+export function verifyBaselineHash(baseline: BehavioralBaseline): boolean {
+  const { hash, ...rest } = baseline;
+  const expectedHash = calculateBaselineHash(rest);
+  return hash === expectedHash;
 }
 
 /**
- * Recalculate and update the integrity hash for a baseline.
- * Useful after migration or manual modifications.
+ * Recalculate and update the hash for a baseline.
+ * Useful after manual modifications (e.g. acceptance metadata).
  */
-export function recalculateIntegrityHash(
-  baseline: Omit<BehavioralBaseline, 'integrityHash'>
+export function recalculateBaselineHash(
+  baseline: Omit<BehavioralBaseline, 'hash'>
 ): BehavioralBaseline {
-  const integrityHash = calculateIntegrityHash(baseline);
+  const hash = calculateBaselineHash(baseline);
   return {
     ...baseline,
-    integrityHash,
+    hash,
   };
 }
 
-/**
- * Create server fingerprint from discovery result.
- */
-function createServerFingerprint(result: InterviewResult): ServerFingerprint {
-  const { discovery } = result;
-  const capabilities: string[] = [];
-
-  if (discovery.capabilities.tools) capabilities.push('tools');
-  if (discovery.capabilities.prompts) capabilities.push('prompts');
-  if (discovery.capabilities.resources) capabilities.push('resources');
-  if (discovery.capabilities.logging) capabilities.push('logging');
-
-  return {
-    name: discovery.serverInfo.name,
-    version: discovery.serverInfo.version,
-    protocolVersion: discovery.protocolVersion,
-    capabilities,
-  };
-}
-
-/**
- * Create tool fingerprint from tool profile.
- * Includes response fingerprinting for enhanced structural drift detection.
- */
-function createToolFingerprint(
-  profile: ToolProfile,
-  inputSchema?: Record<string, unknown>
-): ToolFingerprint {
-  const assertions = extractToolAssertions(profile);
-
-  // Compute schema hash from all interactions (not just first)
-  // This includes argument types and infers schema from actual values
-  const interactions = profile.interactions.map(i => ({ args: i.question.args }));
-  const { hash: schemaHash } = computeConsensusSchemaHash(interactions);
-
-  // Analyze responses to create fingerprint (check mode enhancement)
-  const responseData = profile.interactions
-    .filter(i => !i.mocked)
-    .map(i => ({
-      response: i.response,
-      error: i.error,
-    }));
-  const responseAnalysis = analyzeResponses(responseData);
-
-  // Calculate performance metrics from interactions
-  const latencySamples: LatencySample[] = profile.interactions
-    .filter(i => i.toolExecutionMs !== undefined && !i.mocked)
-    .map(i => ({
-      toolName: profile.name,
-      durationMs: i.toolExecutionMs ?? 0,
-      success: !i.error && !i.response?.isError,
-      timestamp: new Date(),
-      expectedOutcome: i.question.expectedOutcome,
-      outcomeCorrect: i.outcomeAssessment?.correct,
-    }));
-
-  let baselineP50Ms: number | undefined;
-  let baselineP95Ms: number | undefined;
-  let baselineSuccessRate: number | undefined;
-
-  if (latencySamples.length > 0) {
-    const metrics = calculateMetrics(latencySamples);
-    if (metrics) {
-      baselineP50Ms = metrics.p50Ms;
-      baselineP95Ms = metrics.p95Ms;
-      baselineSuccessRate = metrics.successRate;
-    }
-  }
-
-  // Calculate performance confidence (sample count + coefficient of variation)
-  const performanceConfidence = calculatePerformanceConfidence(latencySamples);
-
-  return {
-    name: profile.name,
-    description: profile.description,
-    schemaHash,
-    inputSchema,
-    assertions,
-    securityNotes: [...profile.securityNotes],
-    limitations: [...profile.limitations],
-    // Response fingerprinting
-    responseFingerprint: responseAnalysis.fingerprint,
-    inferredOutputSchema: responseAnalysis.inferredSchema,
-    errorPatterns: responseAnalysis.errorPatterns.length > 0
-      ? responseAnalysis.errorPatterns
-      : undefined,
-    // Performance baseline
-    baselineP50Ms,
-    baselineP95Ms,
-    baselineSuccessRate,
-    performanceConfidence,
-  };
-}
-
-/**
- * Extract behavioral assertions from a tool profile.
- */
-function extractToolAssertions(profile: ToolProfile): BehavioralAssertion[] {
-  const assertions: BehavioralAssertion[] = [];
-
-  // Convert behavioral notes to assertions
-  for (const note of profile.behavioralNotes) {
-    assertions.push({
-      tool: profile.name,
-      aspect: 'response_format',
-      assertion: note,
-      isPositive: true,
-    });
-  }
-
-  // Convert limitations to negative assertions
-  for (const limitation of profile.limitations) {
-    assertions.push({
-      tool: profile.name,
-      aspect: 'error_handling',
-      assertion: limitation,
-      isPositive: false,
-    });
-  }
-
-  // Convert security notes to security assertions
-  for (const secNote of profile.securityNotes) {
-    assertions.push({
-      tool: profile.name,
-      aspect: 'security',
-      assertion: secNote,
-      isPositive: !secNote.toLowerCase().includes('risk') &&
-        !secNote.toLowerCase().includes('vulnerab') &&
-        !secNote.toLowerCase().includes('dangerous'),
-    });
-  }
-
-  return assertions;
-}
-
-/**
- * Extract all assertions from interview result.
- */
-function extractAssertions(result: InterviewResult): BehavioralAssertion[] {
-  const assertions: BehavioralAssertion[] = [];
-
-  // Extract from each tool
-  for (const profile of result.toolProfiles) {
-    assertions.push(...extractToolAssertions(profile));
-  }
-
-  // Add overall limitations as assertions
-  for (const limitation of result.limitations) {
-    assertions.push({
-      tool: 'server',
-      aspect: 'error_handling',
-      assertion: limitation,
-      isPositive: false,
-    });
-  }
-
-  return assertions;
-}
-
-/**
- * Extract workflow signatures from interview result.
- */
-function extractWorkflowSignatures(result: InterviewResult): WorkflowSignature[] {
-  if (!result.workflowResults || result.workflowResults.length === 0) {
-    return [];
-  }
-
-  return result.workflowResults.map((wr) => ({
-    id: wr.workflow.id,
-    name: wr.workflow.name,
-    toolSequence: wr.workflow.steps.map((s) => s.tool),
-    succeeded: wr.success,
-    summary: wr.summary,
-  }));
-}
-
-/**
- * Calculate integrity hash for baseline data.
- */
-function calculateIntegrityHash(data: Omit<BehavioralBaseline, 'integrityHash'>): string {
-  // Create a deterministic representation
-  const normalized = JSON.stringify(data, (_key, value) => {
-    // Normalize dates to ISO strings for consistent hashing
-    if (value instanceof Date) {
-      return value.toISOString();
-    }
-    return value;
-  });
-
-  return hashString(normalized);
-}
-
-/**
- * Create a SHA-256 hash of a string.
- */
-function hashString(input: string): string {
-  return createHash('sha256').update(input).digest('hex').slice(0, 16);
-}
+// Legacy local-baseline helpers removed.
 
 /**
  * Check if a baseline file exists.
@@ -638,26 +378,17 @@ export function acceptDrift(
     acceptedDiff,
   };
 
-  // Create new baseline with acceptance metadata
-  const baselineWithAcceptance: Omit<BehavioralBaseline, 'integrityHash'> = {
-    version: currentBaseline.version,
-    createdAt: currentBaseline.createdAt,
-    mode: currentBaseline.mode,
-    serverCommand: currentBaseline.serverCommand,
-    server: currentBaseline.server,
-    tools: currentBaseline.tools,
-    summary: currentBaseline.summary,
-    assertions: currentBaseline.assertions,
-    workflowSignatures: currentBaseline.workflowSignatures,
+  const { hash: oldHash, ...baselineWithoutHash } = currentBaseline;
+  void oldHash;
+  const baselineWithAcceptance: Omit<BehavioralBaseline, 'hash'> = {
+    ...baselineWithoutHash,
     acceptance,
   };
-
-  // Recalculate integrity hash with acceptance metadata
-  const integrityHash = calculateIntegrityHash(baselineWithAcceptance);
+  const hash = calculateBaselineHash(baselineWithAcceptance);
 
   return {
     ...baselineWithAcceptance,
-    integrityHash,
+    hash,
   };
 }
 
@@ -674,12 +405,10 @@ export function hasAcceptance(baseline: BehavioralBaseline): boolean {
  * Returns a new baseline without acceptance, with recalculated integrity hash.
  */
 export function clearAcceptance(baseline: BehavioralBaseline): BehavioralBaseline {
-  // Destructure to exclude acceptance (and integrityHash which needs recalculating)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { acceptance: _removed, integrityHash: _oldHash, ...baselineWithoutAcceptance } = baseline;
-
+  const { acceptance: _removed, hash: _oldHash, ...baselineWithoutAcceptance } = baseline;
   return {
     ...baselineWithoutAcceptance,
-    integrityHash: calculateIntegrityHash(baselineWithoutAcceptance),
+    hash: calculateBaselineHash(baselineWithoutAcceptance),
   };
 }

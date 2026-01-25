@@ -33,20 +33,50 @@ function createMockBaseline(
   tools: ToolFingerprint[] = [],
   overrides: Partial<BehavioralBaseline> = {}
 ): BehavioralBaseline {
+  const capabilityTools = tools.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    // Don't coerce undefined to {} - preserve undefined so tools without schemas are detected
+    inputSchema: tool.inputSchema as Record<string, unknown>,
+    schemaHash: tool.schemaHash,
+  }));
+  const toolProfiles = tools.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    schemaHash: tool.schemaHash,
+    assertions: tool.assertions ?? [],
+    securityNotes: tool.securityNotes ?? [],
+    limitations: tool.limitations ?? [],
+    behavioralNotes: [],
+  }));
+
   return {
     version: '1.0.0',
-    createdAt: new Date(),
-    serverCommand: 'npx test-server',
+    metadata: {
+      mode: 'check',
+      generatedAt: new Date().toISOString(),
+      cliVersion: '1.0.0',
+      serverCommand: 'npx test-server',
+      durationMs: 1000,
+      personas: [],
+      model: 'none',
+      ...overrides.metadata,
+    },
     server: {
       name: 'test-server',
       version: '1.0.0',
       protocolVersion: '2024-11-05',
       capabilities: [],
     },
-    tools,
+    capabilities: {
+      tools: capabilityTools,
+      ...overrides.capabilities,
+    },
+    interviews: overrides.interviews ?? [],
+    toolProfiles: overrides.toolProfiles ?? toolProfiles,
     summary: 'Test baseline',
     assertions: [],
-    integrityHash: 'hash123',
+    hash: 'hash123',
     ...overrides,
   };
 }

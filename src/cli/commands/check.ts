@@ -21,6 +21,8 @@ import {
   createBaseline,
   loadBaseline,
   saveBaseline,
+  getToolFingerprints,
+  toToolCapability,
   compareBaselines,
   acceptDrift,
   formatDiffText,
@@ -44,6 +46,7 @@ import {
   type SecurityCategory,
   type SecurityFingerprint,
 } from '../../baseline/index.js';
+import { convertAssertions } from '../../baseline/converter.js';
 import { getMetricsCollector, resetMetricsCollector } from '../../metrics/collector.js';
 import { getGlobalCache, resetGlobalCache } from '../../cache/response-cache.js';
 import { InterviewProgressBar, formatCheckBanner } from '../utils/progress.js';
@@ -717,28 +720,85 @@ export const checkCommand = new Command('check')
       if (securityEnabled && securityFingerprints.size > 0) {
         currentBaseline = {
           ...currentBaseline,
-          tools: currentBaseline.tools.map((tool) => {
-            const securityFp = securityFingerprints.get(tool.name);
-            if (securityFp) {
-              return { ...tool, securityFingerprint: securityFp };
-            }
-            return tool;
-          }),
+          capabilities: {
+            ...currentBaseline.capabilities,
+            tools: currentBaseline.capabilities.tools.map((tool) => {
+              const securityFp = securityFingerprints.get(tool.name);
+              if (securityFp) {
+                return { ...tool, securityFingerprint: securityFp };
+              }
+              return tool;
+            }),
+          },
         };
       }
 
       // Merge cached fingerprints in incremental mode
       if (incrementalResult && incrementalResult.cachedFingerprints.length > 0) {
         // Merge new fingerprints with cached ones
+        const cachedTools = incrementalResult.cachedFingerprints.map(toToolCapability);
         const mergedTools = [
-          ...currentBaseline.tools,
-          ...incrementalResult.cachedFingerprints,
+          ...currentBaseline.capabilities.tools,
+          ...cachedTools,
         ].sort((a, b) => a.name.localeCompare(b.name));
 
         currentBaseline = {
           ...currentBaseline,
-          tools: mergedTools,
+          capabilities: {
+            ...currentBaseline.capabilities,
+            tools: mergedTools,
+          },
         };
+
+        if (incrementalBaseline) {
+          const cachedToolNames = new Set(incrementalResult.cachedFingerprints.map((fp) => fp.name));
+          const profileMap = new Map(
+            (currentBaseline.toolProfiles ?? []).map((profile) => [profile.name, profile])
+          );
+
+          for (const profile of incrementalBaseline.toolProfiles ?? []) {
+            if (cachedToolNames.has(profile.name) && !profileMap.has(profile.name)) {
+              profileMap.set(profile.name, profile);
+            }
+          }
+
+          for (const fingerprint of incrementalResult.cachedFingerprints) {
+            if (!profileMap.has(fingerprint.name)) {
+              profileMap.set(fingerprint.name, {
+                name: fingerprint.name,
+                description: fingerprint.description,
+                schemaHash: fingerprint.schemaHash,
+                assertions: convertAssertions(fingerprint.assertions ?? []),
+                securityNotes: fingerprint.securityNotes,
+                limitations: fingerprint.limitations,
+                behavioralNotes: [],
+              });
+            }
+          }
+
+          const assertionMap = new Map(
+            (currentBaseline.assertions ?? []).map((assertion) => [
+              `${assertion.type}|${assertion.condition}|${assertion.tool ?? ''}|${assertion.severity ?? ''}`,
+              assertion,
+            ])
+          );
+
+          for (const assertion of incrementalBaseline.assertions ?? []) {
+            if (!assertion.tool || !cachedToolNames.has(assertion.tool)) {
+              continue;
+            }
+            const key = `${assertion.type}|${assertion.condition}|${assertion.tool ?? ''}|${assertion.severity ?? ''}`;
+            if (!assertionMap.has(key)) {
+              assertionMap.set(key, assertion);
+            }
+          }
+
+          currentBaseline = {
+            ...currentBaseline,
+            toolProfiles: Array.from(profileMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+            assertions: Array.from(assertionMap.values()),
+          };
+        }
 
         output.info(`Merged ${incrementalResult.cachedFingerprints.length} cached tool fingerprints`);
       }
@@ -749,7 +809,7 @@ export const checkCommand = new Command('check')
       const confidenceLevelOrder = ['low', 'medium', 'high'] as const;
       const targetIndex = confidenceLevelOrder.indexOf(targetConfidence);
 
-      for (const tool of currentBaseline.tools) {
+      for (const tool of currentBaseline.capabilities.tools) {
         // Use the actual computed confidence level (accounts for samples AND CV)
         const actualConfidence = tool.performanceConfidence?.confidenceLevel ?? 'low';
         const actualIndex = confidenceLevelOrder.indexOf(actualConfidence);
@@ -762,7 +822,7 @@ export const checkCommand = new Command('check')
 
       // Report confidence status
       if (lowConfidenceTools.length > 0) {
-        const totalTools = currentBaseline.tools.length;
+        const totalTools = getToolFingerprints(currentBaseline).length;
         const pct = Math.round((lowConfidenceTools.length / totalTools) * 100);
         const confidenceLabel = colorizeConfidence(
           formatConfidenceLevel(targetConfidence),
@@ -795,7 +855,7 @@ export const checkCommand = new Command('check')
 
       // Save baseline if configured
       if (saveBaselinePath) {
-        writeFileSync(saveBaselinePath, JSON.stringify(currentBaseline, null, 2));
+        saveBaseline(currentBaseline, saveBaselinePath);
         output.info(`\nBaseline saved: ${saveBaselinePath}`);
       }
 

@@ -6,6 +6,7 @@
  */
 
 import type { ToolFingerprint, BehavioralBaseline, ChangeSeverity } from './types.js';
+import { getToolFingerprints } from './accessors.js';
 import { DEPRECATION } from '../constants.js';
 /**
  * Deprecation status for a tool.
@@ -115,7 +116,7 @@ export function checkDeprecations(
 
   const now = new Date();
 
-  for (const tool of baseline.tools) {
+  for (const tool of getToolFingerprints(baseline)) {
     const warning = checkToolDeprecation(tool, now, fullConfig);
 
     if (warning) {
@@ -365,7 +366,7 @@ function generateDeprecationSummary(
  * Get all deprecated tools from a baseline.
  */
 export function getDeprecatedTools(baseline: BehavioralBaseline): ToolFingerprint[] {
-  return baseline.tools.filter(t => t.deprecated);
+  return getToolFingerprints(baseline).filter(t => t.deprecated);
 }
 
 /**
@@ -375,7 +376,7 @@ export function getExpiredTools(
   baseline: BehavioralBaseline,
   now: Date = new Date()
 ): ToolFingerprint[] {
-  return baseline.tools.filter(t => {
+  return getToolFingerprints(baseline).filter(t => {
     if (!t.deprecated || !t.removalDate) {
       return false;
     }
@@ -392,7 +393,7 @@ export function getUpcomingRemovals(
   withinDays: number = DEPRECATION_THRESHOLDS.UPCOMING_REMOVAL_DAYS,
   now: Date = new Date()
 ): ToolFingerprint[] {
-  return baseline.tools.filter(t => {
+  return getToolFingerprints(baseline).filter(t => {
     if (!t.deprecated || !t.removalDate) {
       return false;
     }

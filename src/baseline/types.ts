@@ -8,6 +8,14 @@ import type {
   InferredSchema,
   ErrorPattern,
 } from './response-fingerprint.js';
+import type {
+  BellwetherBaseline,
+  BaselineMode as CloudBaselineMode,
+  DriftAcceptance,
+  AcceptedDiff,
+} from '../cloud/types.js';
+
+export type { DriftAcceptance, AcceptedDiff };
 
 /**
  * Re-export ErrorPattern for use by other modules.
@@ -338,40 +346,17 @@ export interface SemanticInferenceRecord {
 /**
  * Server fingerprint for baseline comparison.
  */
-export interface ServerFingerprint {
-  name: string;
-  version: string;
-  protocolVersion: string;
-  capabilities: string[];
-}
-
-/**
- * Mode used to create the baseline.
- * Baselines are only created from check mode (deterministic, no LLM).
- * Explore mode results are for documentation only and don't create baselines.
- */
-export type BaselineMode = 'check';
+export type BaselineMode = CloudBaselineMode;
 
 /**
  * Baseline for an MCP server.
  */
-export interface BehavioralBaseline {
-  /** Format version using semantic versioning (e.g., "1.0.0") */
-  version: string;
-  createdAt: Date;
-  mode?: BaselineMode;
-  serverCommand: string;
-  server: ServerFingerprint;
-  tools: ToolFingerprint[];
-  summary: string;
-  assertions: BehavioralAssertion[];
-  workflowSignatures?: WorkflowSignature[];
-  integrityHash: string;
+export type BehavioralBaseline = BellwetherBaseline & {
   /** Drift acceptance metadata - present when drift was intentionally accepted */
   acceptance?: DriftAcceptance;
   /** Documentation quality score summary */
   documentationScore?: DocumentationScoreSummary;
-}
+};
 
 /**
  * Workflow signature for baseline tracking.
@@ -408,36 +393,6 @@ export interface CompareOptions {
  * Metadata about baseline drift acceptance.
  * Tracks when and why drift was intentionally accepted.
  */
-export interface DriftAcceptance {
-  /** When the drift was accepted */
-  acceptedAt: Date;
-  /** Who accepted the drift (optional, for audit trail) */
-  acceptedBy?: string;
-  /** Reason for accepting the drift */
-  reason?: string;
-  /** The diff that was accepted */
-  acceptedDiff: AcceptedDiff;
-}
-
-/**
- * Snapshot of the diff that was accepted.
- * Used to verify that the accepted drift matches current state.
- */
-export interface AcceptedDiff {
-  /** Tools that were added */
-  toolsAdded: string[];
-  /** Tools that were removed */
-  toolsRemoved: string[];
-  /** Tools that were modified */
-  toolsModified: string[];
-  /** Overall severity at time of acceptance */
-  severity: ChangeSeverity;
-  /** Counts at time of acceptance */
-  breakingCount: number;
-  warningCount: number;
-  infoCount: number;
-}
-
 /**
  * Configuration for severity thresholds.
  * Allows customizing how changes are classified and reported.

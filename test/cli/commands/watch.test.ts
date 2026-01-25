@@ -215,10 +215,27 @@ describe('watch command utilities', () => {
       // Create a mock baseline file
       const mockBaseline = {
         version: '1.0.0',
-        createdAt: new Date().toISOString(),
-        serverCommand: 'test',
-        tools: [],
-        integrityHash: 'abc123def456',
+        metadata: {
+          mode: 'check',
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'test',
+          durationMs: 1,
+          personas: [],
+          model: 'none',
+        },
+        server: {
+          name: 'test',
+          version: '1.0.0',
+          protocolVersion: '2024-11-05',
+          capabilities: [],
+        },
+        capabilities: { tools: [] },
+        interviews: [],
+        toolProfiles: [],
+        summary: 'test',
+        assertions: [],
+        hash: 'abc123def456',
       };
       writeFileSync(baselinePath, JSON.stringify(mockBaseline));
 
@@ -226,8 +243,8 @@ describe('watch command utilities', () => {
       expect(existsSync(baselinePath)).toBe(true);
 
       const loaded = JSON.parse(require('fs').readFileSync(baselinePath, 'utf-8'));
-      expect(loaded.integrityHash).toBe('abc123def456');
-      expect(loaded.integrityHash.slice(0, 8)).toBe('abc123de');
+      expect(loaded.hash).toBe('abc123def456');
+      expect(loaded.hash.slice(0, 8)).toBe('abc123de');
     });
 
     it('should handle missing baseline file', () => {
@@ -400,10 +417,10 @@ describe('watch mode integration scenarios', () => {
   describe('baseline update flow', () => {
     it('should update baseline hash after save', () => {
       let lastBaselineHash: string | null = 'old-hash';
-      const newBaseline = { integrityHash: 'new-hash-12345678' };
+      const newBaseline = { hash: 'new-hash-12345678' };
 
       // Simulate baseline update
-      lastBaselineHash = newBaseline.integrityHash;
+      lastBaselineHash = newBaseline.hash;
 
       expect(lastBaselineHash).toBe('new-hash-12345678');
       expect(lastBaselineHash.slice(0, 8)).toBe('new-hash');

@@ -136,6 +136,9 @@ export interface ResponseAnalysis {
   /** Aggregated response fingerprint */
   fingerprint: ResponseFingerprint;
 
+  /** Inferred schemas for each successful response */
+  schemas: InferredSchema[];
+
   /** Inferred output schema from successful responses */
   inferredSchema?: InferredSchema;
 
@@ -196,6 +199,7 @@ export function analyzeResponses(
 
   return {
     fingerprint,
+    schemas: inferredSchemas,
     inferredSchema,
     errorPatterns,
     enhancedErrorAnalyses,

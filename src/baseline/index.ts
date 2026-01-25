@@ -10,7 +10,6 @@ export type {
   ToolDiff,
   BehavioralDiff,
   ToolFingerprint,
-  ServerFingerprint,
   BehavioralBaseline,
   WorkflowSignature,
   CompareOptions,
@@ -36,12 +35,22 @@ export type {
 } from './types.js';
 
 export {
+  getBaselineGeneratedAt,
+  getBaselineHash,
+  getBaselineServerCommand,
+  getBaselineMode,
+  getBaselineWorkflows,
+  getToolFingerprints,
+  toToolCapability,
+} from './accessors.js';
+
+export {
   createBaseline,
   saveBaseline,
   loadBaseline,
-  verifyIntegrity,
+  verifyBaselineHash,
   baselineExists,
-  recalculateIntegrityHash,
+  recalculateBaselineHash,
   acceptDrift,
   hasAcceptance,
   clearAcceptance,
@@ -75,7 +84,6 @@ export {
 } from './diff.js';
 
 export {
-  convertToCloudBaseline,
   createCloudBaseline,
 } from './converter.js';
 
@@ -106,13 +114,7 @@ export {
   type VersionCompatibility,
 } from './version.js';
 
-export {
-  migrateBaseline,
-  canMigrate,
-  getMigrationsToApply,
-  needsMigration,
-  getMigrationInfo,
-} from './migrations.js';
+// Legacy baseline migrations removed; cloud baseline is canonical.
 
 // Incremental checking
 export {

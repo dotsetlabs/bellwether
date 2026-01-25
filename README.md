@@ -264,11 +264,6 @@ bellwether baseline show ./baseline.json --json
 bellwether baseline diff v1.json v2.json
 bellwether baseline diff v1.json v2.json --ignore-version-mismatch  # Force compare incompatible versions
 
-# Migrate baseline to current format version
-bellwether baseline migrate ./bellwether-baseline.json
-bellwether baseline migrate ./baseline.json --dry-run
-bellwether baseline migrate ./baseline.json --info
-
 # Accept drift as intentional (update baseline)
 bellwether baseline accept --reason "Intentional API change"
 bellwether baseline accept --dry-run  # Preview without saving
@@ -280,33 +275,20 @@ bellwether baseline accept --force    # Required for breaking changes
 Baselines use the CLI package version as the format version (e.g., `0.10.1`).
 Compatibility is determined by the **major** version:
 
-- **Major version** - Breaking baseline format changes (migration required)
+- **Major version** - Breaking baseline format changes (recreate baseline)
 - **Minor version** - Backwards-compatible format additions
 - **Patch version** - Bug fixes in baseline generation
 
 **Compatibility rules:**
 - Same major version = Compatible (can compare baselines)
-- Different major version = Incompatible (requires migration)
+- Different major version = Incompatible (recreate baseline)
 
 When comparing baselines with incompatible versions, the CLI will show an error:
 
 ```
 Cannot compare baselines with incompatible format versions: v0.10.1 vs v1.0.0.
-Use 'bellwether baseline migrate' to upgrade the older baseline,
+Recreate the older baseline with the latest CLI,
 or use --ignore-version-mismatch to force comparison (results may be incorrect).
-```
-
-To upgrade older baselines:
-
-```bash
-# Check if migration is needed
-bellwether baseline migrate ./baseline.json --info
-
-# Preview changes without writing
-bellwether baseline migrate ./baseline.json --dry-run
-
-# Perform migration
-bellwether baseline migrate ./baseline.json
 ```
 
 ### Cloud Commands

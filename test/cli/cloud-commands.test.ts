@@ -223,41 +223,6 @@ describe('cli/cloud-commands', () => {
     });
   });
 
-  describe('upload command - baseline handling', () => {
-    it('should detect cloud format baseline', () => {
-      const cloudBaseline = {
-        version: '1.0',
-        metadata: {
-          formatVersion: '1.0',
-          serverName: 'test',
-          cliVersion: '0.1.0',
-        },
-        tools: [],
-        assertions: [],
-      };
-
-      // Check format detection
-      const isCloudFormat =
-        cloudBaseline.version === '1.0' &&
-        cloudBaseline.metadata?.formatVersion === '1.0';
-
-      expect(isCloudFormat).toBe(true);
-    });
-
-    it('should detect local format baseline', () => {
-      const localBaseline = {
-        discovery: {
-          serverInfo: { name: 'test', version: '1.0.0' },
-        },
-        toolProfiles: [],
-      };
-
-      // Local format doesn't have version field
-      const isCloudFormat = 'version' in localBaseline;
-
-      expect(isCloudFormat).toBe(false);
-    });
-  });
 
   describe('history command - formatting', () => {
     it('should format date correctly', () => {

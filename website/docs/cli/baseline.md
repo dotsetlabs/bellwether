@@ -15,7 +15,6 @@ bellwether baseline compare [path]
 bellwether baseline show [path]
 bellwether baseline diff <path1> <path2>
 bellwether baseline accept
-bellwether baseline migrate [path]
 ```
 
 ## Description
@@ -41,7 +40,6 @@ bellwether baseline save [path]
 | `[path]` | Output path for baseline file | `baseline.savePath` or `baseline.path` |
 | `-c, --config <path>` | Path to config file | `bellwether.yaml` |
 | `--report <path>` | Path to check report JSON file | `output.files.checkReport` |
-| `--cloud` | Save in cloud-compatible format | `false` |
 | `-f, --force` | Overwrite existing baseline | `false` |
 
 **Examples:**
@@ -52,9 +50,6 @@ bellwether baseline save
 
 # Save to specific path
 bellwether baseline save ./baselines/v1.0.0.json
-
-# Save in cloud format for upload
-bellwether baseline save --cloud
 
 # Overwrite existing baseline
 bellwether baseline save --force
@@ -220,42 +215,6 @@ This creates an audit trail for compliance and team visibility:
     }
   }
 }
-```
-
-### migrate
-
-Migrate a baseline to the current format version.
-
-```bash
-bellwether baseline migrate [path]
-```
-
-| Option | Description | Default |
-|:-------|:------------|:--------|
-| `[path]` | Path to baseline file | `baseline.path` |
-| `-c, --config <path>` | Path to config file | `bellwether.yaml` |
-| `--dry-run` | Show what would change without writing | `false` |
-| `--info` | Show migration info without performing migration | `false` |
-| `-o, --output <path>` | Output path (default: overwrite input) | Input path |
-| `-f, --force` | Overwrite output file without prompting | `false` |
-
-**Examples:**
-
-```bash
-# Check if migration is needed
-bellwether baseline migrate ./baseline.json --info
-
-# Preview migration without writing
-bellwether baseline migrate ./baseline.json --dry-run
-
-# Migrate baseline (overwrites input file)
-bellwether baseline migrate ./baseline.json
-
-# Migrate to a new file
-bellwether baseline migrate ./old.json --output ./new.json
-
-# Force overwrite existing output file
-bellwether baseline migrate ./baseline.json --output ./other.json --force
 ```
 
 ## Workflow

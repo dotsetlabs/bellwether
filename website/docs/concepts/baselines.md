@@ -243,16 +243,16 @@ Baselines use the CLI package version as the format version (e.g., `0.10.1`):
 
 | Component | Description |
 |:----------|:------------|
-| **Major** | Breaking baseline format changes (migration required) |
+| **Major** | Breaking baseline format changes (recreate baseline) |
 | **Minor** | Backwards-compatible format additions |
 | **Patch** | Bug fixes in baseline generation |
 
 ### Compatibility Rules
 
 - **Same major version** = Compatible (can compare baselines)
-- **Different major version** = Incompatible (requires migration)
+- **Different major version** = Incompatible (recreate baseline)
 
-When comparing baselines with incompatible versions, use `bellwether baseline migrate` to upgrade older baselines first.
+When comparing baselines with incompatible versions, recreate the older baseline with the latest CLI.
 
 ## What's Captured
 

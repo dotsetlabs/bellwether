@@ -7,6 +7,7 @@
 
 import type { MCPTool } from '../transport/types.js';
 import type { BehavioralBaseline, ToolFingerprint } from './types.js';
+import { getToolFingerprints } from './accessors.js';
 import { computeSchemaHash } from './schema-compare.js';
 
 /**
@@ -107,7 +108,7 @@ export function analyzeForIncremental(
   const removedToolNames: string[] = [];
 
   // Build maps for comparison
-  const baselineToolMap = new Map(baseline.tools.map(t => [t.name, t]));
+  const baselineToolMap = new Map(getToolFingerprints(baseline).map(t => [t.name, t]));
   const currentToolSet = new Set(currentTools.map(t => t.name));
 
   // Check current tools against baseline

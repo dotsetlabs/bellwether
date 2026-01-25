@@ -107,7 +107,9 @@ describe('Incremental Checker', () => {
       const tools: MCPTool[] = [createMockTool('tool_a')];
       const baseline = createMockBaseline(['tool_a']);
       // Set lastTestedAt to 200 hours ago
-      baseline.tools[0].lastTestedAt = new Date(Date.now() - 200 * 60 * 60 * 1000);
+      baseline.capabilities.tools[0].lastTestedAt = new Date(
+        Date.now() - 200 * 60 * 60 * 1000
+      ).toISOString();
 
       const result = analyzeForIncremental(tools, baseline, {
         maxCacheAgeHours: 168, // 1 week
@@ -270,22 +272,36 @@ function createMockBaseline(toolNames: string[]): BehavioralBaseline {
     const fingerprint = createMockFingerprint(name);
     // Compute a consistent schema hash for the default tool schema
     fingerprint.schemaHash = computeSchemaHash(tool.inputSchema);
-    return fingerprint;
+    return {
+      name: fingerprint.name,
+      description: fingerprint.description,
+      inputSchema: tool.inputSchema,
+      schemaHash: fingerprint.schemaHash,
+    };
   });
 
   return {
     version: '1.0.0',
-    createdAt: new Date(),
-    serverCommand: 'npx test-server',
+    metadata: {
+      mode: 'check',
+      generatedAt: new Date().toISOString(),
+      cliVersion: '1.0.0',
+      serverCommand: 'npx test-server',
+      durationMs: 1000,
+      personas: [],
+      model: 'none',
+    },
     server: {
       name: 'test-server',
       version: '1.0.0',
       protocolVersion: '2024-11-05',
       capabilities: ['tools'],
     },
-    tools,
+    capabilities: { tools },
+    interviews: [],
+    toolProfiles: [],
     summary: 'Test baseline',
     assertions: [],
-    integrityHash: 'test-hash',
+    hash: 'test-hash',
   };
 }

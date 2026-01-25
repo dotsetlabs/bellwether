@@ -145,16 +145,16 @@ describe('cli/badge', () => {
  */
 function createMockBaseline(): BellwetherBaseline {
   return {
-    version: '1.0',
+    version: '1.0.0',
     metadata: {
-      formatVersion: '1.0',
       generatedAt: new Date().toISOString(),
-      cliVersion: '0.2.0',
+      cliVersion: '1.0.0',
       serverCommand: 'npx test-server',
       serverName: 'test-server',
       durationMs: 1000,
-      personas: ['technical_writer'],
-      model: 'gpt-4o-mini',
+      personas: [],
+      model: 'none',
+      mode: 'check',
     },
     server: {
       name: 'test-server',

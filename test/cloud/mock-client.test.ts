@@ -213,12 +213,22 @@ describe('MockCloudClient', () => {
 
   describe('baseline management', () => {
     const sampleBaseline = {
+      version: '1.0.0',
       hash: 'abc123def456',
       metadata: {
         mode: 'check' as const,
+        generatedAt: new Date().toISOString(),
         cliVersion: '1.0.0',
-        createdAt: new Date().toISOString(),
         serverCommand: 'npx test-server',
+        durationMs: 1000,
+        personas: [],
+        model: 'none',
+      },
+      server: {
+        name: 'test-server',
+        version: '1.0.0',
+        protocolVersion: '2024-11-05',
+        capabilities: ['tools'],
       },
       capabilities: {
         tools: [
@@ -232,7 +242,10 @@ describe('MockCloudClient', () => {
         prompts: [],
         resources: [],
       },
+      interviews: [],
+      toolProfiles: [],
       assertions: [],
+      summary: 'Test baseline',
     };
 
     it('should upload baseline to project', async () => {
@@ -317,19 +330,32 @@ describe('MockCloudClient', () => {
 
   describe('history', () => {
     const sampleBaseline = {
+      version: '1.0.0',
       hash: 'abc123',
       metadata: {
         mode: 'check' as const,
+        generatedAt: new Date().toISOString(),
         cliVersion: '1.0.0',
-        createdAt: new Date().toISOString(),
         serverCommand: 'npx test-server',
+        durationMs: 1000,
+        personas: [],
+        model: 'none',
+      },
+      server: {
+        name: 'test-server',
+        version: '1.0.0',
+        protocolVersion: '2024-11-05',
+        capabilities: ['tools'],
       },
       capabilities: {
         tools: [],
         prompts: [],
         resources: [],
       },
+      interviews: [],
+      toolProfiles: [],
       assertions: [],
+      summary: 'Test baseline',
     };
 
     it('should return empty history for new project', async () => {
@@ -398,14 +424,32 @@ describe('MockCloudClient', () => {
       const project = await client.createProject('Test', 'npx server');
 
       const baseline = {
+        version: '1.0.0',
         hash: 'same_hash',
-        metadata: { mode: 'check' as const, cliVersion: '1.0.0', createdAt: new Date().toISOString(), serverCommand: 'npx server' },
+        metadata: {
+          mode: 'check' as const,
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx server',
+          durationMs: 1000,
+          personas: [],
+          model: 'none',
+        },
+        server: {
+          name: 'test-server',
+          version: '1.0.0',
+          protocolVersion: '2024-11-05',
+          capabilities: ['tools'],
+        },
         capabilities: {
           tools: [{ name: 'tool1', description: 'desc', schemaHash: 'sch1', inputSchema: {} }],
           prompts: [],
           resources: [],
         },
+        interviews: [],
+        toolProfiles: [],
         assertions: [],
+        summary: 'Test baseline',
       };
 
       await client.uploadBaseline(project.id, baseline as any);
@@ -427,19 +471,52 @@ describe('MockCloudClient', () => {
       const project = await client.createProject('Test', 'npx server');
 
       const baseline1 = {
+        version: '1.0.0',
         hash: 'hash1',
-        metadata: { mode: 'check' as const, cliVersion: '1.0.0', createdAt: new Date().toISOString(), serverCommand: 'npx server' },
+        metadata: {
+          mode: 'check' as const,
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx server',
+          durationMs: 1000,
+          personas: [],
+          model: 'none',
+        },
+        server: {
+          name: 'test-server',
+          version: '1.0.0',
+          protocolVersion: '2024-11-05',
+          capabilities: ['tools'],
+        },
         capabilities: {
           tools: [{ name: 'tool1', description: 'desc', schemaHash: 'sch1', inputSchema: {} }],
           prompts: [],
           resources: [],
         },
+        interviews: [],
+        toolProfiles: [],
         assertions: [],
+        summary: 'Test baseline',
       };
 
       const baseline2 = {
+        version: '1.0.0',
         hash: 'hash2',
-        metadata: { mode: 'check' as const, cliVersion: '1.0.0', createdAt: new Date().toISOString(), serverCommand: 'npx server' },
+        metadata: {
+          mode: 'check' as const,
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx server',
+          durationMs: 1000,
+          personas: [],
+          model: 'none',
+        },
+        server: {
+          name: 'test-server',
+          version: '1.0.0',
+          protocolVersion: '2024-11-05',
+          capabilities: ['tools'],
+        },
         capabilities: {
           tools: [
             { name: 'tool1', description: 'desc', schemaHash: 'sch1', inputSchema: {} },
@@ -448,7 +525,10 @@ describe('MockCloudClient', () => {
           prompts: [],
           resources: [],
         },
+        interviews: [],
+        toolProfiles: [],
         assertions: [],
+        summary: 'Test baseline',
       };
 
       await client.uploadBaseline(project.id, baseline1 as any);
@@ -469,8 +549,23 @@ describe('MockCloudClient', () => {
       const project = await client.createProject('Test', 'npx server');
 
       const baseline1 = {
+        version: '1.0.0',
         hash: 'hash1',
-        metadata: { mode: 'check' as const, cliVersion: '1.0.0', createdAt: new Date().toISOString(), serverCommand: 'npx server' },
+        metadata: {
+          mode: 'check' as const,
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx server',
+          durationMs: 1000,
+          personas: [],
+          model: 'none',
+        },
+        server: {
+          name: 'test-server',
+          version: '1.0.0',
+          protocolVersion: '2024-11-05',
+          capabilities: ['tools'],
+        },
         capabilities: {
           tools: [
             { name: 'tool1', description: 'desc', schemaHash: 'sch1', inputSchema: {} },
@@ -479,18 +574,39 @@ describe('MockCloudClient', () => {
           prompts: [],
           resources: [],
         },
+        interviews: [],
+        toolProfiles: [],
         assertions: [],
+        summary: 'Test baseline',
       };
 
       const baseline2 = {
+        version: '1.0.0',
         hash: 'hash2',
-        metadata: { mode: 'check' as const, cliVersion: '1.0.0', createdAt: new Date().toISOString(), serverCommand: 'npx server' },
+        metadata: {
+          mode: 'check' as const,
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx server',
+          durationMs: 1000,
+          personas: [],
+          model: 'none',
+        },
+        server: {
+          name: 'test-server',
+          version: '1.0.0',
+          protocolVersion: '2024-11-05',
+          capabilities: ['tools'],
+        },
         capabilities: {
           tools: [{ name: 'tool1', description: 'desc', schemaHash: 'sch1', inputSchema: {} }],
           prompts: [],
           resources: [],
         },
+        interviews: [],
+        toolProfiles: [],
         assertions: [],
+        summary: 'Test baseline',
       };
 
       await client.uploadBaseline(project.id, baseline1 as any);
@@ -510,25 +626,61 @@ describe('MockCloudClient', () => {
       const project = await client.createProject('Test', 'npx server');
 
       const baseline1 = {
+        version: '1.0.0',
         hash: 'hash1',
-        metadata: { mode: 'check' as const, cliVersion: '1.0.0', createdAt: new Date().toISOString(), serverCommand: 'npx server' },
+        metadata: {
+          mode: 'check' as const,
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx server',
+          durationMs: 1000,
+          personas: [],
+          model: 'none',
+        },
+        server: {
+          name: 'test-server',
+          version: '1.0.0',
+          protocolVersion: '2024-11-05',
+          capabilities: ['tools'],
+        },
         capabilities: {
           tools: [{ name: 'tool1', description: 'desc', schemaHash: 'sch1', inputSchema: {} }],
           prompts: [],
           resources: [],
         },
+        interviews: [],
+        toolProfiles: [],
         assertions: [],
+        summary: 'Test baseline',
       };
 
       const baseline2 = {
+        version: '1.0.0',
         hash: 'hash2',
-        metadata: { mode: 'check' as const, cliVersion: '1.0.0', createdAt: new Date().toISOString(), serverCommand: 'npx server' },
+        metadata: {
+          mode: 'check' as const,
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx server',
+          durationMs: 1000,
+          personas: [],
+          model: 'none',
+        },
+        server: {
+          name: 'test-server',
+          version: '1.0.0',
+          protocolVersion: '2024-11-05',
+          capabilities: ['tools'],
+        },
         capabilities: {
           tools: [{ name: 'tool1', description: 'desc', schemaHash: 'sch_modified', inputSchema: {} }],
           prompts: [],
           resources: [],
         },
+        interviews: [],
+        toolProfiles: [],
         assertions: [],
+        summary: 'Test baseline',
       };
 
       await client.uploadBaseline(project.id, baseline1 as any);
@@ -558,10 +710,28 @@ describe('MockCloudClient', () => {
       const project = await client.createProject('Test', 'npx server');
 
       const baseline = {
+        version: '1.0.0',
         hash: 'hash1',
-        metadata: { mode: 'check' as const, cliVersion: '1.0.0', createdAt: new Date().toISOString(), serverCommand: 'npx server' },
+        metadata: {
+          mode: 'check' as const,
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx server',
+          durationMs: 1000,
+          personas: [],
+          model: 'none',
+        },
+        server: {
+          name: 'test-server',
+          version: '1.0.0',
+          protocolVersion: '2024-11-05',
+          capabilities: ['tools'],
+        },
         capabilities: { tools: [], prompts: [], resources: [] },
+        interviews: [],
+        toolProfiles: [],
         assertions: [],
+        summary: 'Test baseline',
       };
 
       await client.uploadBaseline(project.id, baseline as any);
@@ -618,10 +788,28 @@ describe('MockCloudClient', () => {
       const project = await client.createProject('Test', 'npx server');
 
       const baseline = {
+        version: '1.0.0',
         hash: 'hash1',
-        metadata: { mode: 'check' as const, cliVersion: '1.0.0', createdAt: new Date().toISOString(), serverCommand: 'npx server' },
+        metadata: {
+          mode: 'check' as const,
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx server',
+          durationMs: 1000,
+          personas: [],
+          model: 'none',
+        },
+        server: {
+          name: 'test-server',
+          version: '1.0.0',
+          protocolVersion: '2024-11-05',
+          capabilities: ['tools'],
+        },
         capabilities: { tools: [], prompts: [], resources: [] },
+        interviews: [],
+        toolProfiles: [],
         assertions: [],
+        summary: 'Test baseline',
       };
 
       await client.uploadBaseline(project.id, baseline as any);

@@ -12,7 +12,6 @@ const mockUploadBaseline = vi.fn();
 const mockGetLatestDiff = vi.fn();
 const mockIsAuthenticated = vi.fn();
 const mockLoadBaseline = vi.fn();
-const mockConvertToCloudBaseline = vi.fn();
 
 vi.mock('../../src/cloud/client.js', () => ({
   createCloudClient: vi.fn(() => ({
@@ -26,9 +25,7 @@ vi.mock('../../src/baseline/saver.js', () => ({
   loadBaseline: (...args: unknown[]) => mockLoadBaseline(...args),
 }));
 
-vi.mock('../../src/baseline/converter.js', () => ({
-  convertToCloudBaseline: (...args: unknown[]) => mockConvertToCloudBaseline(...args),
-}));
+vi.mock('../../src/baseline/converter.js', () => ({}));
 
 // Import types only - auth functions are imported dynamically after HOME is set
 import type { ProjectLink, StoredSession } from '../../src/cloud/types.js';
@@ -98,15 +95,6 @@ describe('upload command', () => {
     hash: 'abc123def456',
   };
 
-  const localFormatBaseline = {
-    discovery: {
-      serverInfo: { name: 'test-server', version: '1.0.0' },
-      tools: [{ name: 'local_tool', description: 'A local tool' }],
-    },
-    toolProfiles: [],
-    behaviorSignatures: [],
-    timestamp: '2024-01-01T00:00:00Z',
-  };
 
   beforeEach(async () => {
     // Create temp directory for test
@@ -163,7 +151,7 @@ describe('upload command', () => {
     mockGetLatestDiff.mockReset();
     mockIsAuthenticated.mockReset();
     mockLoadBaseline.mockReset();
-    mockConvertToCloudBaseline.mockReset();
+    mockLoadBaseline.mockReturnValue(cloudFormatBaseline);
 
     clearSession();
     removeProjectLink();
@@ -245,7 +233,7 @@ describe('upload command', () => {
       expect(mockUploadBaseline).toHaveBeenCalled();
     });
 
-    it('should handle cloud format baseline', async () => {
+    it('should handle baseline uploads', async () => {
       saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
@@ -258,7 +246,7 @@ describe('upload command', () => {
       const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
 
-      // Should pass through cloud format without conversion
+      // Should upload the canonical baseline format directly
       expect(mockUploadBaseline).toHaveBeenCalledWith(
         'proj_123',
         expect.objectContaining({ version: '0.10.1' })
@@ -270,6 +258,11 @@ describe('upload command', () => {
       mockIsAuthenticated.mockReturnValue(true);
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), 'not valid json');
+
+      // Configure mock to throw for this test (simulating invalid JSON parse error)
+      mockLoadBaseline.mockImplementation(() => {
+        throw new Error('Invalid JSON in baseline file');
+      });
 
       const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
 
@@ -337,27 +330,21 @@ describe('upload command', () => {
   });
 
   describe('upload success', () => {
-    it('should treat cloud-format baselines as already converted', async () => {
+    it('should load baseline from disk before upload', async () => {
       saveSession(createTestSession());
       mockIsAuthenticated.mockReturnValue(true);
       mockUploadBaseline.mockResolvedValue({
         version: 1,
         viewUrl: 'https://bellwether.sh/view/1',
       });
-      mockLoadBaseline.mockImplementation(() => {
-        throw new Error('loadBaseline should not be called for cloud baselines');
-      });
-      mockConvertToCloudBaseline.mockImplementation(() => {
-        throw new Error('convertToCloudBaseline should not be called for cloud baselines');
-      });
+      mockLoadBaseline.mockReturnValue(cloudFormatBaseline);
       saveProjectLink({ projectId: 'proj_123', projectName: 'Test', linkedAt: new Date().toISOString() });
       writeFileSync(join(testDir, 'bellwether-baseline.json'), JSON.stringify(cloudFormatBaseline));
 
       const { uploadCommand } = await import('../../src/cli/commands/cloud/upload.js');
       await uploadCommand.parseAsync(['node', 'test']);
 
-      expect(mockLoadBaseline).not.toHaveBeenCalled();
-      expect(mockConvertToCloudBaseline).not.toHaveBeenCalled();
+      expect(mockLoadBaseline).toHaveBeenCalled();
     });
 
     it('should show success message with version', async () => {
