@@ -5,11 +5,10 @@
  */
 
 import { Command } from 'commander';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import { getLinkedProject } from '../../../cloud/auth.js';
 import { loadBaseline } from '../../../baseline/saver.js';
-import { convertToCloudBaseline } from '../../../baseline/converter.js';
 import type { BellwetherBaseline } from '../../../cloud/types.js';
 import { EXIT_CODES } from '../../../constants.js';
 import * as output from '../../output.js';
@@ -18,21 +17,6 @@ import { loadConfigOrExit, getSessionTokenOrExit, createAuthenticatedClient } fr
 
 function resolveBaselinePath(pathValue: string, outputDir: string): string {
   return pathValue.startsWith('/') ? pathValue : join(outputDir, pathValue);
-}
-
-function isCloudBaselineLike(value: unknown): value is BellwetherBaseline {
-  if (!value || typeof value !== 'object') return false;
-  const parsed = value as Record<string, unknown>;
-
-  return typeof parsed.version === 'string' &&
-    typeof parsed.metadata === 'object' &&
-    typeof parsed.server === 'object' &&
-    typeof parsed.capabilities === 'object' &&
-    Array.isArray(parsed.interviews) &&
-    Array.isArray(parsed.toolProfiles) &&
-    Array.isArray(parsed.assertions) &&
-    typeof parsed.summary === 'string' &&
-    typeof parsed.hash === 'string';
 }
 
 export const uploadCommand = new Command('upload')
@@ -103,22 +87,10 @@ export const uploadCommand = new Command('upload')
       process.exit(EXIT_CODES.ERROR);
     }
 
-    // Load and convert baseline
+    // Load baseline (cloud format)
     let cloudBaseline: BellwetherBaseline;
-
     try {
-      // Try loading as cloud baseline first
-      const content = readFileSync(baselinePath, 'utf-8');
-      const parsed = JSON.parse(content);
-
-      if (isCloudBaselineLike(parsed)) {
-        // Already in cloud format
-        cloudBaseline = parsed;
-      } else {
-        // Convert from local format
-        const localBaseline = loadBaseline(baselinePath);
-        cloudBaseline = convertToCloudBaseline(localBaseline);
-      }
+      cloudBaseline = loadBaseline(baselinePath) as BellwetherBaseline;
     } catch (error) {
       if (isCiMode) {
         output.error(`Failed to load baseline: ${error instanceof Error ? error.message : error}`);

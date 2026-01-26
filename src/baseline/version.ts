@@ -148,7 +148,7 @@ export function getCompatibilityWarning(v1: FormatVersion, v2: FormatVersion): s
     return (
       `Baseline CLI versions are incompatible: v${v1.raw} vs v${v2.raw}. ` +
       `Major version mismatch may cause incorrect comparison results. ` +
-      `Use \`bellwether baseline migrate\` to upgrade baselines to the current format.`
+      `Recreate the older baseline with the current CLI version.`
     );
   }
 
@@ -201,7 +201,7 @@ export function assertVersionCompatibility(
   if (!areVersionsCompatible(v1, v2)) {
     throw new BaselineVersionError(
       `Cannot compare baselines with incompatible CLI versions: v${v1.raw} vs v${v2.raw}. ` +
-        `Use \`bellwether baseline migrate\` to upgrade the older baseline, ` +
+        `Recreate the older baseline with the current CLI version, ` +
         `or use --ignore-version-mismatch to force comparison (results may be incorrect).`,
       v1.raw,
       v2.raw

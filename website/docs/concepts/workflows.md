@@ -77,7 +77,7 @@ Check mode can auto-generate workflows from tool patterns and save them to `outp
 ```yaml
 # bellwether.yaml
 workflows:
-  autoGenerate: true
+  autoGenerate: false
 ```
 
 ```bash

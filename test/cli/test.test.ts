@@ -187,26 +187,74 @@ This is a test server.
       const baselinePath = join(outputDir, 'bellwether-baseline.json');
 
       const baseline = {
-        version: 1,
-        serverCommand: 'npx @test/server',
-        createdAt: new Date().toISOString(),
-        tools: [
-          { name: 'test_tool', hash: 'abc123' },
-        ],
+        version: '1.0.0',
+        metadata: {
+          mode: 'check',
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx @test/server',
+          durationMs: 1,
+          personas: [],
+          model: 'none',
+        },
+        server: {
+          name: 'test',
+          version: '1.0.0',
+          protocolVersion: '2024-11-05',
+          capabilities: ['tools'],
+        },
+        capabilities: {
+          tools: [
+            {
+              name: 'test_tool',
+              description: 'Test tool',
+              inputSchema: { type: 'object', properties: {} },
+              schemaHash: 'abc123',
+            },
+          ],
+        },
+        interviews: [],
+        toolProfiles: [],
+        assertions: [],
+        summary: 'Test baseline',
+        hash: 'abc123',
       };
       writeFileSync(baselinePath, JSON.stringify(baseline, null, 2));
 
       expect(existsSync(baselinePath)).toBe(true);
       const loaded = JSON.parse(readFileSync(baselinePath, 'utf-8'));
-      expect(loaded.version).toBe(1);
-      expect(loaded.tools[0].name).toBe('test_tool');
+      expect(loaded.version).toBe('1.0.0');
+      expect(loaded.capabilities.tools[0].name).toBe('test_tool');
     });
 
     it('should save baseline to custom path', () => {
       const customPath = join(testDir, 'custom', 'baseline.json');
       mkdirSync(join(testDir, 'custom'), { recursive: true });
 
-      const baseline = { version: 1, tools: [] };
+      const baseline = {
+        version: '1.0.0',
+        metadata: {
+          mode: 'check',
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx test-server',
+          durationMs: 1,
+          personas: [],
+          model: 'none',
+        },
+        server: {
+          name: 'test',
+          version: '1.0.0',
+          protocolVersion: '2024-11-05',
+          capabilities: [],
+        },
+        capabilities: { tools: [] },
+        interviews: [],
+        toolProfiles: [],
+        assertions: [],
+        summary: 'Test baseline',
+        hash: 'hash',
+      };
       writeFileSync(customPath, JSON.stringify(baseline));
 
       expect(existsSync(customPath)).toBe(true);
@@ -245,37 +293,57 @@ This is a test server.
     });
   });
 
-  describe('cloud format baseline', () => {
-    it('should create cloud-ready baseline format', () => {
+  describe('baseline format', () => {
+    it('should create canonical baseline format', () => {
       const cloudBaseline = {
-        version: '1.0',
+        version: '1.0.0',
         metadata: {
-          formatVersion: '1.0',
-          serverName: 'test-server',
-          cliVersion: '0.1.0',
-          createdAt: new Date().toISOString(),
+          mode: 'check',
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'npx test-server',
+          durationMs: 1000,
+          personas: [],
+          model: 'none',
         },
-        tools: [
+        server: {
+          name: 'test-server',
+          version: '1.0.0',
+          protocolVersion: '2024-11-05',
+          capabilities: ['tools'],
+        },
+        capabilities: {
+          tools: [
+            {
+              name: 'test_tool',
+              description: 'A test tool',
+              inputSchema: { type: 'object' },
+              schemaHash: 'hash123',
+            },
+          ],
+        },
+        interviews: [],
+        toolProfiles: [
           {
             name: 'test_tool',
             description: 'A test tool',
-            inputSchema: { type: 'object' },
+            schemaHash: 'hash123',
+            assertions: [],
+            securityNotes: [],
+            limitations: [],
+            behavioralNotes: [],
           },
         ],
-        assertions: [
-          {
-            toolName: 'test_tool',
-            aspect: 'behavior',
-            assertion: 'Returns expected output',
-          },
-        ],
+        assertions: [],
+        summary: 'Test baseline',
+        hash: 'hash123',
       };
 
       // Verify format
-      expect(cloudBaseline.version).toBe('1.0');
-      expect(cloudBaseline.metadata.formatVersion).toBe('1.0');
-      expect(cloudBaseline.tools).toHaveLength(1);
-      expect(cloudBaseline.assertions).toHaveLength(1);
+      expect(cloudBaseline.version).toBe('1.0.0');
+      expect(cloudBaseline.metadata.mode).toBe('check');
+      expect(cloudBaseline.capabilities.tools).toHaveLength(1);
+      expect(cloudBaseline.toolProfiles).toHaveLength(1);
     });
   });
 
@@ -370,19 +438,6 @@ This is a test server.
       expect(maxQuestions).toBe(3);
     });
 
-    it('should handle save-baseline option with and without path', () => {
-      // When provided as boolean (--save-baseline)
-      const booleanOption: boolean | string = true;
-      const defaultPath = 'bellwether-baseline.json';
-
-      const pathFromBoolean = typeof booleanOption === 'string' ? booleanOption : defaultPath;
-      expect(pathFromBoolean).toBe('bellwether-baseline.json');
-
-      // When provided with path (--save-baseline custom.json)
-      const stringOption: boolean | string = 'custom-baseline.json';
-      const pathFromString = typeof stringOption === 'string' ? stringOption : defaultPath;
-      expect(pathFromString).toBe('custom-baseline.json');
-    });
   });
 
   describe('error handling', () => {
@@ -647,56 +702,120 @@ describe('interview command integration scenarios', () => {
     // Save baseline
     const baselinePath = join(testDir, 'baseline.json');
     const baseline = {
-      version: 1,
-      createdAt: new Date().toISOString(),
-      serverCommand: 'npx test-server',
-      toolFingerprints: result.discovery.tools.map(t => ({
-        name: t.name,
-        hash: 'abc123',
-      })),
+      version: '1.0.0',
+      metadata: {
+        mode: 'check',
+        generatedAt: new Date().toISOString(),
+        cliVersion: '1.0.0',
+        serverCommand: 'npx test-server',
+        durationMs: 1,
+        personas: [],
+        model: 'none',
+      },
+      server: {
+        name: 'test',
+        version: '1.0.0',
+        protocolVersion: '2024-11-05',
+        capabilities: ['tools'],
+      },
+      capabilities: {
+        tools: result.discovery.tools.map(t => ({
+          name: t.name,
+          description: 'Test tool',
+          inputSchema: { type: 'object', properties: {} },
+          schemaHash: 'abc123',
+        })),
+      },
+      interviews: [],
+      toolProfiles: [],
+      assertions: [],
+      summary: 'Test baseline',
+      hash: 'abc123',
     };
     writeFileSync(baselinePath, JSON.stringify(baseline, null, 2));
 
     expect(existsSync(baselinePath)).toBe(true);
     const loaded = JSON.parse(readFileSync(baselinePath, 'utf-8'));
-    expect(loaded.version).toBe(1);
-    expect(loaded.toolFingerprints[0].name).toBe('tool1');
+    expect(loaded.version).toBe('1.0.0');
+    expect(loaded.capabilities.tools[0].name).toBe('tool1');
   });
 
   it('should handle interview with baseline comparison', () => {
     // Create previous baseline
     const previousBaseline = {
-      version: 1,
-      createdAt: '2024-01-01T00:00:00Z',
-      toolFingerprints: [
-        { name: 'tool1', hash: 'old-hash' },
-        { name: 'tool2', hash: 'removed' },
-      ],
+      version: '1.0.0',
+      metadata: {
+        mode: 'check',
+        generatedAt: '2024-01-01T00:00:00Z',
+        cliVersion: '1.0.0',
+        serverCommand: 'npx test-server',
+        durationMs: 1,
+        personas: [],
+        model: 'none',
+      },
+      server: {
+        name: 'test',
+        version: '1.0.0',
+        protocolVersion: '2024-11-05',
+        capabilities: ['tools'],
+      },
+      capabilities: {
+        tools: [
+          { name: 'tool1', description: 'Tool 1', inputSchema: {}, schemaHash: 'old-hash' },
+          { name: 'tool2', description: 'Tool 2', inputSchema: {}, schemaHash: 'removed' },
+        ],
+      },
+      interviews: [],
+      toolProfiles: [],
+      assertions: [],
+      summary: 'Previous baseline',
+      hash: 'prev-hash',
     };
     const baselinePath = join(testDir, 'previous-baseline.json');
     writeFileSync(baselinePath, JSON.stringify(previousBaseline));
 
     // Create current baseline (from interview)
     const currentBaseline = {
-      version: 1,
-      createdAt: new Date().toISOString(),
-      toolFingerprints: [
-        { name: 'tool1', hash: 'new-hash' },
-        { name: 'tool3', hash: 'added' },
-      ],
+      version: '1.0.0',
+      metadata: {
+        mode: 'check',
+        generatedAt: new Date().toISOString(),
+        cliVersion: '1.0.0',
+        serverCommand: 'npx test-server',
+        durationMs: 1,
+        personas: [],
+        model: 'none',
+      },
+      server: {
+        name: 'test',
+        version: '1.0.0',
+        protocolVersion: '2024-11-05',
+        capabilities: ['tools'],
+      },
+      capabilities: {
+        tools: [
+          { name: 'tool1', description: 'Tool 1', inputSchema: {}, schemaHash: 'new-hash' },
+          { name: 'tool3', description: 'Tool 3', inputSchema: {}, schemaHash: 'added' },
+        ],
+      },
+      interviews: [],
+      toolProfiles: [],
+      assertions: [],
+      summary: 'Current baseline',
+      hash: 'current-hash',
     };
 
     // Compare baselines
-    const previous = new Set(previousBaseline.toolFingerprints.map(t => t.name));
-    const current = new Set(currentBaseline.toolFingerprints.map(t => t.name));
+    const previous = new Set(previousBaseline.capabilities.tools.map(t => t.name));
+    const current = new Set(currentBaseline.capabilities.tools.map(t => t.name));
 
     const added = [...current].filter(t => !previous.has(t));
     const removed = [...previous].filter(t => !current.has(t));
     const modified = [...current].filter(t => {
       if (!previous.has(t)) return false;
-      const prevTool = previousBaseline.toolFingerprints.find(p => p.name === t);
-      const currTool = currentBaseline.toolFingerprints.find(c => c.name === t);
-      return prevTool?.hash !== currTool?.hash;
+      const prevTool = previousBaseline.capabilities.tools.find(p => p.name === t);
+      const currTool = currentBaseline.capabilities.tools.find(c => c.name === t);
+      return prevTool?.schemaHash !== currTool?.schemaHash;
     });
 
     expect(added).toEqual(['tool3']);

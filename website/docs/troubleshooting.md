@@ -263,10 +263,11 @@ If you're seeing drift you don't expect:
 Error: Version Compatibility Error
 ```
 
-**Solution:** Migrate your baseline to the current format:
+**Solution:** Recreate your baseline with the latest CLI:
 
 ```bash
-bellwether baseline migrate ./bellwether-baseline.json
+bellwether check
+bellwether baseline save
 ```
 
 Or force comparison (results may be less accurate):

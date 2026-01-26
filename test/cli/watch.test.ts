@@ -166,13 +166,13 @@ describe('watch command', () => {
 
     vi.doMock('../../src/baseline/index.js', () => ({
       createBaseline: vi.fn().mockReturnValue({
-        integrityHash: 'abc123',
+        hash: 'abc123',
         discovery: {},
         toolProfiles: [],
       }),
       saveBaseline: vi.fn(),
       loadBaseline: vi.fn().mockReturnValue({
-        integrityHash: 'def456',
+        hash: 'def456',
         discovery: {},
         toolProfiles: [],
       }),

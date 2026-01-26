@@ -18,23 +18,27 @@ interface DiscoverOptions {
  * Action handler for the discover command.
  */
 async function discoverAction(command: string | undefined, args: string[], options: DiscoverOptions): Promise<void> {
-  let config: BellwetherConfig;
+  // Config is optional for discover command - use defaults if not found
+  let config: BellwetherConfig | undefined;
   try {
     config = loadConfig(options.config);
   } catch (error) {
-    if (error instanceof ConfigNotFoundError) {
-      output.error(error.message);
-      process.exit(EXIT_CODES.ERROR);
+    if (!(error instanceof ConfigNotFoundError)) {
+      throw error;
     }
-    throw error;
+    // Config not found - use defaults
   }
 
-  const timeout = parseInt(options.timeout ?? String(config.discovery.timeout), 10);
-  const transportType = (options.transport ?? config.discovery.transport) as 'stdio' | 'sse' | 'streamable-http';
+  // Default values when no config
+  const defaultTimeout = 30000;
+  const defaultTransport = 'stdio';
+
+  const timeout = parseInt(options.timeout ?? '', 10) || config?.discovery?.timeout || defaultTimeout;
+  const transportType = (options.transport ?? config?.discovery?.transport ?? defaultTransport) as 'stdio' | 'sse' | 'streamable-http';
   const isRemoteTransport = transportType === 'sse' || transportType === 'streamable-http';
-  const outputJson = options.json ? true : config.discovery.json;
-  const remoteUrl = options.url ?? config.discovery.url;
-  const sessionId = options.sessionId ?? config.discovery.sessionId;
+  const outputJson = options.json ?? config?.discovery?.json ?? false;
+  const remoteUrl = options.url ?? config?.discovery?.url;
+  const sessionId = options.sessionId ?? config?.discovery?.sessionId;
 
   // Validate transport options
   if (isRemoteTransport && !remoteUrl) {
@@ -70,6 +74,27 @@ async function discoverAction(command: string | undefined, args: string[], optio
     output.info('Discovering capabilities...\n');
 
     const result = await discover(client, command ?? options.url!, args);
+
+    // Output discovery warnings (Issue D: anomaly detection)
+    if (result.warnings && result.warnings.length > 0) {
+      output.newline();
+      for (const warning of result.warnings) {
+        output.warn(`⚠ ${warning.message}`);
+      }
+    }
+
+    // Output transport errors from discovery
+    if (result.transportErrors && result.transportErrors.length > 0) {
+      output.newline();
+      output.warn('Transport errors during discovery:');
+      for (const err of result.transportErrors.slice(0, 3)) {
+        const typeLabel = err.category.replace(/_/g, ' ');
+        output.warn(`  ✗ ${typeLabel}: ${err.message.substring(0, 100)}`);
+      }
+      if (result.transportErrors.length > 3) {
+        output.warn(`  ... and ${result.transportErrors.length - 3} more`);
+      }
+    }
 
     if (outputJson) {
       output.json(result);

@@ -18,7 +18,7 @@ import {
   createBaseline,
   saveBaseline,
   loadBaseline,
-  verifyIntegrity,
+  verifyBaselineHash,
   computeSchemaHash,
   compareBaselines,
 } from '../../src/baseline/index.js';
@@ -44,16 +44,16 @@ describe('Baseline Determinism', () => {
       const baseline1 = createBaseline(result, 'npx test-server');
       const baseline2 = createBaseline(result, 'npx test-server');
 
-      // Note: integrityHash includes createdAt timestamp, so it differs per call
-      // Instead verify structural determinism of tools
-      expect(baseline1.tools.length).toBe(baseline2.tools.length);
-      for (let i = 0; i < baseline1.tools.length; i++) {
-        expect(baseline1.tools[i].schemaHash).toBe(baseline2.tools[i].schemaHash);
-        expect(baseline1.tools[i].name).toBe(baseline2.tools[i].name);
-        expect(baseline1.tools[i].description).toBe(baseline2.tools[i].description);
-        expect(JSON.stringify(baseline1.tools[i].assertions)).toBe(
-          JSON.stringify(baseline2.tools[i].assertions)
-        );
+      // Note: baseline hash includes metadata timestamps, so it can differ per call.
+      // Instead verify structural determinism of tool capabilities.
+      expect(baseline1.capabilities.tools.length).toBe(baseline2.capabilities.tools.length);
+      for (let i = 0; i < baseline1.capabilities.tools.length; i++) {
+        const tool1 = baseline1.capabilities.tools[i];
+        const tool2 = baseline2.capabilities.tools[i];
+        expect(tool1.schemaHash).toBe(tool2.schemaHash);
+        expect(tool1.name).toBe(tool2.name);
+        expect(tool1.description).toBe(tool2.description);
+        expect(JSON.stringify(tool1.inputSchema)).toBe(JSON.stringify(tool2.inputSchema));
       }
 
       // Verify server fingerprint is identical
@@ -68,8 +68,10 @@ describe('Baseline Determinism', () => {
         createBaseline(result, 'npx test-server')
       );
 
-      // Verify tool schemaHashes are consistent (not integrityHash which includes timestamp)
-      const toolHashes = new Set(baselines.map(b => b.tools.map(t => t.schemaHash).join(',')));
+      // Verify tool schemaHashes are consistent (hash can include timestamps)
+      const toolHashes = new Set(
+        baselines.map(b => b.capabilities.tools.map(t => t.schemaHash).join(','))
+      );
       expect(toolHashes.size).toBe(1);
     });
 
@@ -85,8 +87,8 @@ describe('Baseline Determinism', () => {
       const baseline1 = createBaseline(result, 'npx test-server');
       const baseline2 = createBaseline(result, 'npx test-server');
 
-      const order1 = baseline1.tools.map(t => t.name).join(',');
-      const order2 = baseline2.tools.map(t => t.name).join(',');
+      const order1 = baseline1.capabilities.tools.map(t => t.name).join(',');
+      const order2 = baseline2.capabilities.tools.map(t => t.name).join(',');
       expect(order1).toBe(order2);
     });
   });
@@ -188,18 +190,17 @@ describe('Baseline Determinism', () => {
       const loaded = loadBaseline(path);
 
       // Verify integrity is maintained
-      expect(verifyIntegrity(loaded)).toBe(true);
+      expect(verifyBaselineHash(loaded)).toBe(true);
 
       // Compare key fields (excluding dates which may serialize differently)
-      expect(loaded.tools.length).toBe(baseline.tools.length);
-      expect(loaded.integrityHash).toBe(baseline.integrityHash);
-      expect(loaded.serverCommand).toBe(baseline.serverCommand);
+      expect(loaded.capabilities.tools.length).toBe(baseline.capabilities.tools.length);
+      expect(loaded.hash).toBe(baseline.hash);
+      expect(loaded.metadata.serverCommand).toBe(baseline.metadata.serverCommand);
     });
 
     it('should maintain integrity through 10 save/load cycles', () => {
       const result = createMockInterviewResult();
       let baseline = createBaseline(result, 'npx test-server');
-      const originalHash = baseline.integrityHash;
 
       for (let i = 0; i < 10; i++) {
         const path = join(testDir, `baseline-${i}.json`);
@@ -207,9 +208,8 @@ describe('Baseline Determinism', () => {
         baseline = loadBaseline(path);
       }
 
-      expect(verifyIntegrity(baseline)).toBe(true);
-      // Hash should be stable through round-trips (excluding createdAt)
-      // Note: integrityHash includes createdAt, but verifyIntegrity re-calculates
+      expect(verifyBaselineHash(baseline)).toBe(true);
+      // Hash should remain stable through round-trips.
     });
 
     it('should produce identical JSON for same baseline', () => {
@@ -421,8 +421,9 @@ describe('Baseline Determinism', () => {
       const baseline1 = createBaseline(result, 'npx test-server');
       const baseline2 = createBaseline(result, 'npx test-server');
 
-      const assertions1 = JSON.stringify(baseline1.tools[0].assertions);
-      const assertions2 = JSON.stringify(baseline2.tools[0].assertions);
+      // Assertions are stored in toolProfiles, not directly on the baseline
+      const assertions1 = JSON.stringify(baseline1.toolProfiles[0].assertions);
+      const assertions2 = JSON.stringify(baseline2.toolProfiles[0].assertions);
 
       expect(assertions1).toBe(assertions2);
     });
@@ -443,11 +444,10 @@ describe('Baseline Determinism', () => {
       const baseline1 = createBaseline(result, 'npx test-server');
       const baseline2 = createBaseline(result, 'npx test-server');
 
-      // Note: integrityHash includes createdAt which changes per call
-      // Instead verify structural determinism via tool hashes and assertions
-      expect(baseline1.tools[0].schemaHash).toBe(baseline2.tools[0].schemaHash);
-      expect(JSON.stringify(baseline1.tools[0].assertions)).toBe(
-        JSON.stringify(baseline2.tools[0].assertions)
+      // Note: baseline hash can include timestamps, so compare stable fields.
+      expect(baseline1.capabilities.tools[0].schemaHash).toBe(baseline2.capabilities.tools[0].schemaHash);
+      expect(JSON.stringify(baseline1.toolProfiles[0].assertions)).toBe(
+        JSON.stringify(baseline2.toolProfiles[0].assertions)
       );
     });
   });

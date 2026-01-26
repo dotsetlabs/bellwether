@@ -2,6 +2,105 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2026-01-26
+
+### Breaking Changes
+
+- **Removed `baseline migrate` command**: Baseline migration is no longer needed with the unified format
+  - Old baselines from incompatible versions should be recreated with the current CLI
+  - The `--info` and `--dry-run` flags for migration are also removed
+- **Removed `--cloud` flag from `baseline save`**: All baselines now use a single unified format
+  - Previously: `baseline save --cloud` for cloud-compatible format
+  - Now: `baseline save` always saves in the unified format compatible with both local and cloud
+
+### Features
+
+- **Unified baseline format**: Single canonical baseline schema for both local and cloud use
+  - Eliminates the need for format conversion when uploading to cloud
+  - Simplified baseline structure with consistent field naming
+  - New `hash` field replaces `integrityHash` for consistency with cloud API
+  - Metadata now grouped under `metadata` object (mode, generatedAt, cliVersion, etc.)
+  - Tool data now split into `capabilities.tools` and `toolProfiles` for better separation
+- **Baseline accessor functions**: New utility functions for safe baseline field access
+  - `getBaselineGeneratedAt()`, `getBaselineMode()`, `getBaselineServerCommand()`
+  - `getToolFingerprints()` - Converts unified format to legacy ToolFingerprint array
+  - `verifyBaselineHash()` - Replaces `verifyIntegrity()` for hash validation
+- **Improved baseline validation**: Enhanced Zod schemas for stricter baseline validation
+  - Tool capabilities now validated against cloud schema
+  - Performance metrics include min/max bounds
+  - Security fingerprints validated as structured objects
+- **Config-optional commands**: `registry` and `discover` commands now work without a `bellwether.yaml` config file
+  - Uses sensible defaults (30s timeout, stdio transport)
+  - Enables quick ad-hoc server exploration without project setup
+  - Config settings still apply when present
+- **Coordinate value generation**: Smart detection of lat/lng fields with realistic defaults
+  - Detects `lat`, `latitude`, `lng`, `longitude` field names
+  - Generates San Francisco coordinates (37.7749, -122.4194) as default
+  - Improves test reliability for geo-aware tools
+- **Pagination value generation**: Smart detection of pagination parameters
+  - Detects `limit`, `offset`, `page`, `page_size`, `per_page` field names
+  - Uses sensible defaults: `limit=10`, `offset=0`, `page=1`
+  - Handles both offset-based and page-based pagination
+- **Test fixtures configuration**: New `check.testFixtures` config option for custom test values
+  - `parameterValues`: Exact match overrides (e.g., `latitude: 40.7128`)
+  - `patterns`: Regex-based overrides (e.g., `.*_id$: "fixture_id_123"`)
+  - Exact matches take precedence over patterns
+  - Enables production-like testing with realistic fixture values
+- **Discovery anomaly detection**: Warnings for server capability mismatches
+  - Warns when server advertises capabilities but returns no items
+  - Collects and displays transport-level errors
+  - Helps identify misconfigured or partially initialized servers
+- **Issue classification**: CONTRACT.md now categorizes issues by source
+  - **Server Bug**: Actual bugs in MCP server code
+  - **External Dependency**: Issues from unconfigured services (Plaid, Stripe, etc.)
+  - **Environment**: Missing environment variables or configuration
+  - **Validation**: Expected rejections of invalid input
+  - Helps users focus on real bugs vs configuration issues
+- **Transport error collection**: MCP client now tracks transport-level errors
+  - Errors categorized by type (initialization, transport, protocol, timeout)
+  - Included in discovery results for debugging
+
+### Enhanced CONTRACT.md Output
+
+- **Issues Detected section**: New table showing classified issues by category
+- **Transport errors section**: Shows transport-level errors encountered during discovery
+- **Improved skip reasons**: Better explanations for skipped tools (missing env vars, external services)
+
+### Configuration Changes
+
+- **New config option**: `check.testFixtures` for custom test value overrides
+  ```yaml
+  check:
+    testFixtures:
+      parameterValues:
+        latitude: 40.7128
+        longitude: -74.0060
+        limit: 25
+      patterns:
+        - match: ".*_id$"
+          value: "fixture_id_12345"
+  ```
+
+### Internal Changes
+
+- Removed `src/baseline/migrations.ts` - No longer needed with unified format
+- Removed `src/cli/commands/baseline-migrate.ts` - Migration command removed
+- Added `src/baseline/accessors.ts` - Safe field accessor utilities
+- Added `src/baseline/baseline-hash.ts` - Hash calculation for baselines
+- Simplified `src/baseline/saver.ts` by removing dual-format logic (~450 lines removed)
+- Simplified `src/baseline/converter.ts` - Now only converts from interview results to baseline
+- Updated all tests to use unified baseline format
+
+### Documentation
+
+- Updated README to remove migration command examples
+- Updated baseline versioning documentation to recommend recreating incompatible baselines
+- Removed migration workflow from troubleshooting guide
+
+### Fixes
+
+- **Config validation**: Added validation for `testFixtures` configuration schema
+
 ## [0.10.2] - 2026-01-25
 
 ### Features
@@ -21,8 +120,8 @@ All notable changes to this project will be documented in this file.
   - Model is set to 'none' for check mode
   - Interviews array is now empty for check mode
   - Previously these fields contained incorrect default values
-- **Improved cloud baseline format detection**: Upload command now uses structural validation instead of relying solely on version field
-  - Detects cloud format by checking for required fields (metadata, server, capabilities, interviews, toolProfiles, assertions, summary, hash)
+- **Unified baseline format**: CLI now writes and uploads a single canonical baseline schema
+  - Removed local/cloud split and baseline migration command
 
 ## [0.10.1] - 2026-01-24
 

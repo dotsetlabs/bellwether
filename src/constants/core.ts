@@ -47,6 +47,98 @@ export const MCP = {
   JSONRPC_VERSION: '2.0',
 } as const;
 
+// ==================== Transport Error Classification ====================
+
+/**
+ * Transport error detection patterns and classification.
+ * Used by MCPClient to classify transport-level errors for reporting.
+ */
+
+export const TRANSPORT_ERRORS = {
+  /** Patterns indicating invalid JSON output from server */
+  INVALID_JSON_PATTERNS: [
+    /Unexpected token/i,
+    /JSON\.parse/i,
+    /invalid json/i,
+    /SyntaxError.*JSON/i,
+    /Unexpected end of JSON/i,
+  ] as readonly RegExp[],
+
+  /** Patterns indicating buffer/memory issues */
+  BUFFER_OVERFLOW_PATTERNS: [
+    /buffer.*overflow/i,
+    /memory.*exceeded/i,
+    /too large/i,
+    /EMSGSIZE/i,
+    /ERR_CHILD_PROCESS_STDIO_MAXBUFFER/i,
+  ] as readonly RegExp[],
+
+  /** Patterns indicating connection refusal */
+  CONNECTION_REFUSED_PATTERNS: [
+    /ECONNREFUSED/i,
+    /ENOENT/i,
+    /spawn.*failed/i,
+    /command not found/i,
+    /cannot find module/i,
+    /not found/i,
+  ] as readonly RegExp[],
+
+  /** Patterns indicating connection was lost */
+  CONNECTION_LOST_PATTERNS: [
+    /ECONNRESET/i,
+    /EPIPE/i,
+    /connection.*closed/i,
+    /process.*exited/i,
+    /terminated/i,
+    /killed/i,
+  ] as readonly RegExp[],
+
+  /** Patterns indicating MCP protocol violations */
+  PROTOCOL_VIOLATION_PATTERNS: [
+    /invalid.*method/i,
+    /unknown method/i,
+    /protocol.*error/i,
+    /invalid.*request/i,
+    /missing.*id/i,
+  ] as readonly RegExp[],
+
+  /** Patterns indicating timeout */
+  TIMEOUT_PATTERNS: [
+    /timeout/i,
+    /timed out/i,
+    /ETIMEDOUT/i,
+    /deadline/i,
+  ] as readonly RegExp[],
+
+  /** Patterns indicating shutdown errors */
+  SHUTDOWN_PATTERNS: [
+    /shutdown/i,
+    /SIGTERM/i,
+    /SIGKILL/i,
+    /exit.*signal/i,
+  ] as readonly RegExp[],
+
+  /** Maximum transport errors to collect before stopping */
+  MAX_ERRORS_TO_COLLECT: 50,
+
+  /** Error messages that indicate a likely server bug (vs environment issue) */
+  SERVER_BUG_INDICATORS: [
+    /unexpected token/i,
+    /invalid json/i,
+    /protocol.*error/i,
+    /invalid.*response/i,
+  ] as readonly RegExp[],
+
+  /** Error messages that indicate environment/config issues */
+  ENVIRONMENT_ISSUE_INDICATORS: [
+    /ENOENT/i,
+    /not found/i,
+    /permission denied/i,
+    /EACCES/i,
+    /cannot find module/i,
+  ] as readonly RegExp[],
+} as const;
+
 // ==================== Interview Configuration ====================
 
 /**
@@ -170,6 +262,50 @@ export const DISPLAY_LIMITS = {
   ISSUES_DISPLAY_LIMIT: 20,
   /** Maximum issue tool names to show in CLI summary */
   SUMMARY_ISSUE_PREVIEW: 3,
+} as const;
+
+// ==================== Issue Classification ====================
+
+/**
+ * Issue classification configuration for CONTRACT.md reporting.
+ * Used by contract.ts to categorize issues by source.
+ */
+
+export const ISSUE_CLASSIFICATION = {
+  /** Category display names */
+  CATEGORIES: {
+    serverBug: 'Server Bug',
+    externalDependency: 'External Service',
+    environment: 'Environment',
+    validation: 'Validation',
+  } as const,
+
+  /** Category descriptions for the summary table */
+  DESCRIPTIONS: {
+    serverBug: 'Actual bugs in MCP server code',
+    externalDependency: 'Requires API credentials or external service',
+    environment: 'Missing configuration or credentials',
+    validation: 'Expected validation rejections',
+  } as const,
+
+  /** Category icons for visual distinction */
+  ICONS: {
+    serverBug: '🐛',
+    externalDependency: '🔌',
+    environment: '⚙️',
+    validation: '✓',
+  } as const,
+
+  /** Section headers for each category */
+  HEADERS: {
+    serverBug: 'Server Bugs (Require Fixing)',
+    externalDependency: 'External Service Dependencies',
+    environment: 'Environment Configuration',
+    validation: 'Validation Rejections (Expected)',
+  } as const,
+
+  /** Maximum validation issues to show before collapsing */
+  MAX_VALIDATION_DISPLAY: 10,
 } as const;
 
 // ==================== Mathematical Factors ====================

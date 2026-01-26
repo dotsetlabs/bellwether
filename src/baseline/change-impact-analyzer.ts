@@ -13,6 +13,7 @@ import type {
   BehavioralDiff,
   WorkflowSignature,
 } from './types.js';
+import { getToolFingerprints } from './accessors.js';
 import { CHANGE_IMPACT } from '../constants.js';
 /**
  * Type of schema change detected.
@@ -160,14 +161,17 @@ export function analyzeDiffImpact(
   const toolImpacts = new Map<string, ChangeImpact>();
   const actionItems: ActionItem[] = [];
   let totalBreakingChanges = 0;
+  const oldTools = getToolFingerprints(oldBaseline);
+  const newTools = getToolFingerprints(newBaseline);
+  const oldWorkflows = oldBaseline.workflows ?? [];
 
   // Analyze removed tools (always breaking)
   for (const toolName of diff.toolsRemoved) {
-    const oldTool = oldBaseline.tools.find(t => t.name === toolName);
+    const oldTool = oldTools.find(t => t.name === toolName);
     if (oldTool) {
       const impact: ChangeImpact = {
         severity: 'breaking',
-        affectedWorkflows: (oldBaseline.workflowSignatures || [])
+        affectedWorkflows: oldWorkflows
           .filter(w => w.toolSequence.includes(toolName))
           .map(w => w.id),
         affectedParameters: [],
@@ -198,14 +202,14 @@ export function analyzeDiffImpact(
 
   // Analyze modified tools
   for (const toolDiff of diff.toolsModified) {
-    const oldTool = oldBaseline.tools.find(t => t.name === toolDiff.tool);
-    const newTool = newBaseline.tools.find(t => t.name === toolDiff.tool);
+    const oldTool = oldTools.find(t => t.name === toolDiff.tool);
+    const newTool = newTools.find(t => t.name === toolDiff.tool);
 
     if (oldTool && newTool) {
       const impact = analyzeToolChangeImpact(
         oldTool,
         newTool,
-        oldBaseline.workflowSignatures || []
+        oldWorkflows
       );
       toolImpacts.set(toolDiff.tool, impact);
 
@@ -241,7 +245,7 @@ export function analyzeDiffImpact(
         parameterPath: toolName,
         breaking: false,
         before: null,
-        after: newBaseline.tools.find(t => t.name === toolName),
+        after: newTools.find(t => t.name === toolName),
         description: `New tool "${toolName}" has been added`,
       }],
       backwardsCompatible: true,

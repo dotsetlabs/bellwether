@@ -6,6 +6,7 @@
  */
 
 import type { BehavioralBaseline, ChangeSeverity, PerformanceConfidence } from './types.js';
+import { getBaselineGeneratedAt, getToolFingerprints } from './accessors.js';
 import { PERFORMANCE_TRACKING, PERFORMANCE_CONFIDENCE } from '../constants.js';
 /**
  * Latency trend direction.
@@ -482,7 +483,9 @@ export function extractPerformanceBaselines(
 ): Map<string, PerformanceBaseline> {
   const baselines = new Map<string, PerformanceBaseline>();
 
-  for (const tool of baseline.tools) {
+  const tools = getToolFingerprints(baseline);
+  const establishedAt = getBaselineGeneratedAt(baseline);
+  for (const tool of tools) {
     // Only create baseline if performance data exists
     if (tool.baselineP50Ms !== undefined && tool.baselineP95Ms !== undefined) {
       baselines.set(tool.name, {
@@ -492,7 +495,7 @@ export function extractPerformanceBaselines(
         baselineP99: tool.baselineP95Ms * 1.2, // Estimate p99 from p95 if not stored
         baselineSuccessRate: tool.baselineSuccessRate ?? 1.0,
         maxAllowedRegression: regressionThreshold,
-        establishedAt: baseline.createdAt,
+        establishedAt,
       });
     }
   }

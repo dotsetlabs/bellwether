@@ -24,6 +24,7 @@ import type {
   SeverityConfig,
 } from './types.js';
 import { createBaseline } from './saver.js';
+import { getToolFingerprints } from './accessors.js';
 import {
   compareFingerprints,
   compareErrorPatterns,
@@ -89,15 +90,17 @@ export function compareBaselines(
   if (!versionCompatibility.compatible && !options.ignoreVersionMismatch) {
     throw new BaselineVersionError(
       `Cannot compare baselines with incompatible format versions: v${v1.raw} vs v${v2.raw}. ` +
-        `Use \`bellwether baseline migrate\` to upgrade the older baseline, ` +
+        `Recreate the older baseline with the current CLI version, ` +
         `or use --ignore-version-mismatch to force comparison (results may be incorrect).`,
       v1.raw,
       v2.raw
     );
   }
 
-  const previousToolMap = new Map(previous.tools.map((t) => [t.name, t]));
-  const currentToolMap = new Map(current.tools.map((t) => [t.name, t]));
+  const previousTools = getToolFingerprints(previous);
+  const currentTools = getToolFingerprints(current);
+  const previousToolMap = new Map(previousTools.map((t) => [t.name, t]));
+  const currentToolMap = new Map(currentTools.map((t) => [t.name, t]));
 
   const toolsAdded: string[] = [];
   const toolsRemoved: string[] = [];
@@ -142,8 +145,8 @@ export function compareBaselines(
 
   // Compare workflows
   const workflowChanges = compareWorkflows(
-    previous.workflowSignatures || [],
-    current.workflowSignatures || []
+    previous.workflows || [],
+    current.workflows || []
   );
   behaviorChanges.push(...workflowChanges);
 
@@ -163,29 +166,29 @@ export function compareBaselines(
 
   // Generate performance regression report if performance data is available
   const performanceReport = comparePerformanceData(
-    previous,
-    current,
+    previousTools,
+    currentTools,
     options.performanceThreshold ?? PERFORMANCE_TRACKING.DEFAULT_REGRESSION_THRESHOLD
   );
 
   // Generate security diff report if security testing was performed
   const securityReport = compareSecurityData(
-    previous,
-    current,
+    previousTools,
+    currentTools,
     options.ignoreSecurityChanges ?? false
   );
 
   // Generate schema evolution report if schema evolution data is available
   const schemaEvolutionReport = generateSchemaEvolutionReport(
     toolsModified,
-    previous,
-    current
+    previousTools,
+    currentTools
   );
 
   // Generate error trend report if error pattern data is available
   const errorTrendReport = generateErrorTrendReport(
-    previous,
-    current,
+    previousTools,
+    currentTools,
     options.ignoreErrorPatternChanges ?? false
   );
 
@@ -772,8 +775,8 @@ export function checkBaselineVersionCompatibility(
  * @returns Performance regression report, or undefined if no performance data
  */
 function comparePerformanceData(
-  previous: BehavioralBaseline,
-  current: BehavioralBaseline,
+  previousTools: ToolFingerprint[],
+  currentTools: ToolFingerprint[],
   threshold: number
 ): PerformanceRegressionReport | undefined {
   const regressions: PerformanceRegression[] = [];
@@ -790,7 +793,7 @@ function comparePerformanceData(
       confidence?: 'high' | 'medium' | 'low';
     }
   >();
-  for (const tool of previous.tools) {
+  for (const tool of previousTools) {
     if (tool.baselineP50Ms !== undefined) {
       previousPerf.set(tool.name, {
         p50: tool.baselineP50Ms,
@@ -801,7 +804,7 @@ function comparePerformanceData(
   }
 
   // Compare current tool performance
-  for (const tool of current.tools) {
+  for (const tool of currentTools) {
     if (tool.baselineP50Ms === undefined) {
       continue; // No performance data
     }
@@ -894,8 +897,8 @@ function comparePerformanceData(
  * @returns Security diff report, or undefined if no security data
  */
 function compareSecurityData(
-  previous: BehavioralBaseline,
-  current: BehavioralBaseline,
+  previousTools: ToolFingerprint[],
+  currentTools: ToolFingerprint[],
   ignoreSecurityChanges: boolean
 ): SecurityDiff | undefined {
   if (ignoreSecurityChanges) {
@@ -903,8 +906,8 @@ function compareSecurityData(
   }
 
   // Check if either baseline has security data
-  const previousHasSecurity = previous.tools.some((t) => t.securityFingerprint?.tested);
-  const currentHasSecurity = current.tools.some((t) => t.securityFingerprint?.tested);
+  const previousHasSecurity = previousTools.some((t) => t.securityFingerprint?.tested);
+  const currentHasSecurity = currentTools.some((t) => t.securityFingerprint?.tested);
 
   if (!previousHasSecurity && !currentHasSecurity) {
     return undefined; // No security data to compare
@@ -915,7 +918,7 @@ function compareSecurityData(
   const currentFindings = new Map<string, SecurityFinding>();
 
   // Build finding maps keyed by a unique identifier (tool:category:cweId:parameter)
-  for (const tool of previous.tools) {
+  for (const tool of previousTools) {
     if (tool.securityFingerprint?.findings) {
       for (const finding of tool.securityFingerprint.findings) {
         const key = `${finding.tool}:${finding.category}:${finding.cweId}:${finding.parameter}`;
@@ -924,7 +927,7 @@ function compareSecurityData(
     }
   }
 
-  for (const tool of current.tools) {
+  for (const tool of currentTools) {
     if (tool.securityFingerprint?.findings) {
       for (const finding of tool.securityFingerprint.findings) {
         const key = `${finding.tool}:${finding.category}:${finding.cweId}:${finding.parameter}`;
@@ -955,14 +958,14 @@ function compareSecurityData(
   let previousToolCount = 0;
   let currentToolCount = 0;
 
-  for (const tool of previous.tools) {
+  for (const tool of previousTools) {
     if (tool.securityFingerprint?.tested) {
       previousRiskScore += tool.securityFingerprint.riskScore;
       previousToolCount++;
     }
   }
 
-  for (const tool of current.tools) {
+  for (const tool of currentTools) {
     if (tool.securityFingerprint?.tested) {
       currentRiskScore += tool.securityFingerprint.riskScore;
       currentToolCount++;
@@ -1022,12 +1025,12 @@ function compareSecurityData(
  */
 function generateSchemaEvolutionReport(
   toolsModified: ToolDiff[],
-  previous: BehavioralBaseline,
-  current: BehavioralBaseline
+  previousTools: ToolFingerprint[],
+  currentTools: ToolFingerprint[]
 ): SchemaEvolutionReport | undefined {
   // Check if either baseline has schema evolution data
-  const previousHasEvolution = previous.tools.some((t) => t.responseSchemaEvolution);
-  const currentHasEvolution = current.tools.some((t) => t.responseSchemaEvolution);
+  const previousHasEvolution = previousTools.some((t) => t.responseSchemaEvolution);
+  const currentHasEvolution = currentTools.some((t) => t.responseSchemaEvolution);
 
   if (!previousHasEvolution && !currentHasEvolution) {
     return undefined; // No schema evolution data to compare
@@ -1040,7 +1043,7 @@ function generateSchemaEvolutionReport(
   let hasBreakingChanges = false;
 
   // Analyze tools with schema evolution data
-  for (const tool of current.tools) {
+  for (const tool of currentTools) {
     const currEvolution = tool.responseSchemaEvolution;
     if (!currEvolution) continue;
 
@@ -1061,7 +1064,7 @@ function generateSchemaEvolutionReport(
       }
 
       // Find previous tool
-      const prevTool = previous.tools.find((t) => t.name === tool.name);
+      const prevTool = previousTools.find((t) => t.name === tool.name);
       const prevEvolution = prevTool?.responseSchemaEvolution;
       const becameUnstable = (prevEvolution?.isStable ?? false) && !currEvolution.isStable;
 
@@ -1075,7 +1078,7 @@ function generateSchemaEvolutionReport(
       });
     } else if (!currEvolution.isStable && currEvolution.inconsistentFields.length > 0) {
       // Tool with unstable schema (no change, but already unstable)
-      const prevTool = previous.tools.find((t) => t.name === tool.name);
+      const prevTool = previousTools.find((t) => t.name === tool.name);
       const prevEvolution = prevTool?.responseSchemaEvolution;
       const becameUnstable = (prevEvolution?.isStable ?? false) && !currEvolution.isStable;
 
@@ -1111,8 +1114,8 @@ function generateSchemaEvolutionReport(
  * @returns Error trend report, or undefined if no error pattern data
  */
 function generateErrorTrendReport(
-  previous: BehavioralBaseline,
-  current: BehavioralBaseline,
+  previousTools: ToolFingerprint[],
+  currentTools: ToolFingerprint[],
   ignoreErrorPatternChanges: boolean
 ): ErrorTrendReport | undefined {
   if (ignoreErrorPatternChanges) {
@@ -1120,10 +1123,10 @@ function generateErrorTrendReport(
   }
 
   // Check if either baseline has error pattern data
-  const previousHasErrors = previous.tools.some(
+  const previousHasErrors = previousTools.some(
     (t) => t.errorPatterns && t.errorPatterns.length > 0
   );
-  const currentHasErrors = current.tools.some(
+  const currentHasErrors = currentTools.some(
     (t) => t.errorPatterns && t.errorPatterns.length > 0
   );
 
@@ -1132,8 +1135,8 @@ function generateErrorTrendReport(
   }
 
   // Aggregate error patterns from all tools
-  const allPreviousPatterns = previous.tools.flatMap((t) => t.errorPatterns ?? []);
-  const allCurrentPatterns = current.tools.flatMap((t) => t.errorPatterns ?? []);
+  const allPreviousPatterns = previousTools.flatMap((t) => t.errorPatterns ?? []);
+  const allCurrentPatterns = currentTools.flatMap((t) => t.errorPatterns ?? []);
 
   return analyzeErrorTrends(allPreviousPatterns, allCurrentPatterns);
 }
@@ -1185,12 +1188,13 @@ function compareDocumentationData(
 function calculateDocScoreFromTools(
   baseline: BehavioralBaseline
 ): { overallScore: number; grade: string; issueCount: number; toolCount: number } | undefined {
-  if (!baseline.tools || baseline.tools.length === 0) {
+  const toolsFromBaseline = getToolFingerprints(baseline);
+  if (toolsFromBaseline.length === 0) {
     return undefined;
   }
 
   // Create minimal MCPTool objects from ToolFingerprint
-  const tools = baseline.tools.map((t) => ({
+  const tools = toolsFromBaseline.map((t) => ({
     name: t.name,
     description: t.description,
     inputSchema: t.inputSchema ?? {},

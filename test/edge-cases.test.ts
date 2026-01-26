@@ -374,7 +374,7 @@ describe('Large Baseline Performance Tests', () => {
     const baseline = createBaseline(result, 'npx large-server');
 
     const duration = Date.now() - startTime;
-    expect(baseline.tools).toHaveLength(100);
+    expect(baseline.capabilities.tools).toHaveLength(100);
     expect(baseline.assertions.length).toBeGreaterThan(0);
     // Should complete in reasonable time
     expect(duration).toBeLessThan(5000);
@@ -673,7 +673,7 @@ describe('Schema Comparison Edge Cases', () => {
     result.discovery.tools[0].inputSchema = { type: 'object' };
 
     const baseline = createBaseline(result, 'npx server');
-    expect(baseline.tools[0].schemaHash).toBeDefined();
+    expect(baseline.capabilities.tools[0].schemaHash).toBeDefined();
   });
 
   it('should handle schema with only required field', () => {
@@ -684,6 +684,6 @@ describe('Schema Comparison Edge Cases', () => {
     };
 
     const baseline = createBaseline(result, 'npx server');
-    expect(baseline.tools[0].schemaHash).toBeDefined();
+    expect(baseline.capabilities.tools[0].schemaHash).toBeDefined();
   });
 });

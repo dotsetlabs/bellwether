@@ -7,11 +7,10 @@
  *   - show [path]          Display baseline contents
  *   - diff <path1> <path2> Compare two baseline files
  *   - accept               Accept detected drift as intentional
- *   - migrate              Upgrade baseline to current format
  */
 
 import { Command } from 'commander';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join, basename } from 'path';
 import {
   createBaseline,
@@ -22,12 +21,14 @@ import {
   formatDiffJson,
   formatDiffMarkdown,
   formatDiffCompact,
-  verifyIntegrity,
+  verifyBaselineHash,
+  getBaselineGeneratedAt,
+  getBaselineMode,
+  getBaselineServerCommand,
+  getToolFingerprints,
 } from '../../baseline/index.js';
-import { createCloudBaseline } from '../../baseline/converter.js';
 import { BaselineVersionError } from '../../baseline/version.js';
 import { EXIT_CODES } from '../../constants.js';
-import { migrateCommand } from './baseline-migrate.js';
 import { acceptCommand } from './baseline-accept.js';
 import type { InterviewResult } from '../../interview/types.js';
 import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
@@ -100,12 +101,9 @@ Examples:
   $ bellwether baseline diff v1.json v2.json    # Compare two baselines
   $ bellwether baseline accept                  # Accept drift as intentional
   $ bellwether baseline accept --reason "Added new feature"
-  $ bellwether baseline migrate                 # Upgrade baseline to current format
-  $ bellwether baseline migrate --info          # Check if migration is needed
 `
   );
 
-baselineCommand.addCommand(migrateCommand);
 baselineCommand.addCommand(acceptCommand);
 
 // baseline save
@@ -116,7 +114,6 @@ baselineCommand
   .argument('[path]', 'Output path for baseline file')
   .option('-c, --config <path>', 'Path to config file')
   .option('--report <path>', 'Path to test report JSON file')
-  .option('--cloud', 'Save in cloud-compatible format')
   .option('-f, --force', 'Overwrite existing baseline without prompting')
   .action(async (baselinePath: string | undefined, options) => {
     const config = loadConfigOrExit(options.config);
@@ -156,16 +153,9 @@ baselineCommand
     // Extract server command from result metadata
     const serverCommand = result.metadata.serverCommand || 'unknown';
 
-    // Create and save baseline
-    if (options.cloud) {
-      const cloudBaseline = createCloudBaseline(result, serverCommand);
-      writeFileSync(finalPath, JSON.stringify(cloudBaseline, null, 2));
-      output.success(`Cloud baseline saved: ${finalPath}`);
-    } else {
-      const baseline = createBaseline(result, serverCommand);
-      saveBaseline(baseline, finalPath);
-      output.success(`Baseline saved: ${finalPath}`);
-    }
+    const baseline = createBaseline(result, serverCommand);
+    saveBaseline(baseline, finalPath);
+    output.success(`Baseline saved: ${finalPath}`);
 
     // Show summary
     const assertionCount = result.toolProfiles.reduce(
@@ -246,7 +236,7 @@ baselineCommand
         output.error(`\nBaseline version: ${error.sourceVersion}`);
         output.error(`Current version: ${error.targetVersion}`);
         output.error('\nTo fix this, either:');
-        output.error('  1. Run: bellwether baseline migrate <baseline-path>');
+        output.error('  1. Recreate the baseline with this CLI version');
         output.error('  2. Use: --ignore-version-mismatch (results may be incorrect)');
         process.exit(EXIT_CODES.ERROR);
       }
@@ -345,9 +335,9 @@ baselineCommand
     output.info('=== Baseline ===');
     output.info(`File: ${fullPath}`);
     output.info(`Format Version: ${baseline.version}`);
-    output.info(`Created: ${baseline.createdAt instanceof Date ? baseline.createdAt.toISOString() : baseline.createdAt}`);
-    output.info(`Mode: ${baseline.mode || 'check'}`);
-    output.info(`Server Command: ${baseline.serverCommand}`);
+    output.info(`Created: ${getBaselineGeneratedAt(baseline).toISOString()}`);
+    output.info(`Mode: ${getBaselineMode(baseline) || 'check'}`);
+    output.info(`Server Command: ${getBaselineServerCommand(baseline)}`);
     output.newline();
 
     output.info('--- Server ---');
@@ -358,9 +348,10 @@ baselineCommand
     output.newline();
 
     // Tools
+    const tools = getToolFingerprints(baseline);
     if (!options.assertions) {
-      output.info(`--- Tools (${baseline.tools.length}) ---`);
-      for (const tool of baseline.tools) {
+      output.info(`--- Tools (${tools.length}) ---`);
+      for (const tool of tools) {
         output.info(`\n  ${tool.name}`);
         output.info(`    Description: ${tool.description.slice(0, 80)}${tool.description.length > 80 ? '...' : ''}`);
         output.info(`    Schema Hash: ${tool.schemaHash}`);
@@ -379,16 +370,16 @@ baselineCommand
       output.info(`--- Assertions (${baseline.assertions.length}) ---`);
       const byTool = new Map<string, typeof baseline.assertions>();
       for (const assertion of baseline.assertions) {
-        const existing = byTool.get(assertion.tool) || [];
+        const tool = assertion.tool ?? 'server';
+        const existing = byTool.get(tool) || [];
         existing.push(assertion);
-        byTool.set(assertion.tool, existing);
+        byTool.set(tool, existing);
       }
 
       for (const [tool, assertions] of byTool) {
         output.info(`\n  ${tool}:`);
         for (const a of assertions.slice(0, 5)) {
-          const icon = a.isPositive ? '+' : '-';
-          output.info(`    [${icon}] ${a.aspect}: ${a.assertion.slice(0, 60)}${a.assertion.length > 60 ? '...' : ''}`);
+          output.info(`    [${a.type}] ${a.condition.slice(0, 60)}${a.condition.length > 60 ? '...' : ''}`);
         }
         if (assertions.length > 5) {
           output.info(`    ... and ${assertions.length - 5} more`);
@@ -398,9 +389,9 @@ baselineCommand
     }
 
     // Workflows
-    if (baseline.workflowSignatures && baseline.workflowSignatures.length > 0) {
-      output.info(`--- Workflows (${baseline.workflowSignatures.length}) ---`);
-      for (const wf of baseline.workflowSignatures) {
+    if (baseline.workflows && baseline.workflows.length > 0) {
+      output.info(`--- Workflows (${baseline.workflows.length}) ---`);
+      for (const wf of baseline.workflows) {
         const icon = wf.succeeded ? '\u2713' : '\u2717';
         output.info(`  ${icon} ${wf.name}: ${wf.toolSequence.join(' -> ')}`);
       }
@@ -413,7 +404,7 @@ baselineCommand
 
     // Integrity check
     output.newline();
-    const isValid = verifyIntegrity(baseline);
+    const isValid = verifyBaselineHash(baseline);
     if (isValid) {
       output.success('Integrity: Valid');
     } else {
@@ -466,7 +457,7 @@ baselineCommand
         output.error(`\nBaseline 1 version: ${error.sourceVersion}`);
         output.error(`Baseline 2 version: ${error.targetVersion}`);
         output.error('\nTo fix this, either:');
-        output.error('  1. Run: bellwether baseline migrate <baseline-path>');
+        output.error('  1. Recreate the baseline with this CLI version');
         output.error('  2. Use: --ignore-version-mismatch (results may be incorrect)');
         process.exit(EXIT_CODES.ERROR);
       }
@@ -475,8 +466,8 @@ baselineCommand
 
     // Header
     output.info(`Comparing baselines:`);
-    output.info(`  Old: ${basename(path1)} (${baseline1.createdAt instanceof Date ? baseline1.createdAt.toISOString().split('T')[0] : 'unknown'}) [${baseline1.version}]`);
-    output.info(`  New: ${basename(path2)} (${baseline2.createdAt instanceof Date ? baseline2.createdAt.toISOString().split('T')[0] : 'unknown'}) [${baseline2.version}]`);
+    output.info(`  Old: ${basename(path1)} (${getBaselineGeneratedAt(baseline1).toISOString().split('T')[0]}) [${baseline1.version}]`);
+    output.info(`  New: ${basename(path2)} (${getBaselineGeneratedAt(baseline2).toISOString().split('T')[0]}) [${baseline2.version}]`);
     output.newline();
 
     // Show version compatibility warning if applicable

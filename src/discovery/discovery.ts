@@ -1,5 +1,11 @@
 import type { MCPClient } from '../transport/mcp-client.js';
-import type { DiscoveryResult, ToolDetail, ToolInputSchema } from './types.js';
+import type {
+  DiscoveryResult,
+  ToolDetail,
+  ToolInputSchema,
+  TransportErrorRecord,
+  DiscoveryWarning,
+} from './types.js';
 import type { MCPTool, MCPPrompt, MCPResource } from '../transport/types.js';
 import { getLogger } from '../logging/logger.js';
 import { DISPLAY_LIMITS } from '../constants.js';
@@ -47,6 +53,18 @@ export async function discover(
     }
   }
 
+  // Collect transport errors from the client
+  const transportErrors: TransportErrorRecord[] = client.getTransportErrors();
+
+  // Generate warnings based on discovery results
+  const warnings: DiscoveryWarning[] = generateDiscoveryWarnings(
+    initResult.capabilities,
+    tools,
+    prompts,
+    resources,
+    transportErrors
+  );
+
   return {
     serverInfo: initResult.serverInfo,
     protocolVersion: initResult.protocolVersion,
@@ -57,7 +75,69 @@ export async function discover(
     timestamp: new Date(),
     serverCommand: command,
     serverArgs: args,
+    transportErrors: transportErrors.length > 0 ? transportErrors : undefined,
+    warnings: warnings.length > 0 ? warnings : undefined,
   };
+}
+
+/**
+ * Generate warnings based on discovery results.
+ */
+function generateDiscoveryWarnings(
+  capabilities: { tools?: unknown; prompts?: unknown; resources?: unknown },
+  tools: MCPTool[],
+  prompts: MCPPrompt[],
+  resources: MCPResource[],
+  transportErrors: TransportErrorRecord[]
+): DiscoveryWarning[] {
+  const warnings: DiscoveryWarning[] = [];
+
+  // Warn if server advertises tools capability but has no tools
+  if (capabilities.tools && tools.length === 0) {
+    warnings.push({
+      level: 'warning',
+      message: 'Server advertises tools capability but no tools were discovered',
+      recommendation: 'Check if the server requires configuration or environment setup to expose tools',
+    });
+  }
+
+  // Warn if server advertises prompts capability but has no prompts
+  if (capabilities.prompts && prompts.length === 0) {
+    warnings.push({
+      level: 'info',
+      message: 'Server advertises prompts capability but no prompts were discovered',
+    });
+  }
+
+  // Warn if server advertises resources capability but has no resources
+  if (capabilities.resources && resources.length === 0) {
+    warnings.push({
+      level: 'info',
+      message: 'Server advertises resources capability but no resources were discovered',
+    });
+  }
+
+  // Warn about transport errors that indicate server bugs
+  const serverBugErrors = transportErrors.filter(e => e.likelyServerBug);
+  if (serverBugErrors.length > 0) {
+    warnings.push({
+      level: 'error',
+      message: `${serverBugErrors.length} transport error(s) detected that likely indicate server bugs`,
+      recommendation: 'Review the Transport Issues section for details on protocol violations',
+    });
+  }
+
+  // Warn if there were non-bug transport errors
+  const envErrors = transportErrors.filter(e => !e.likelyServerBug);
+  if (envErrors.length > 0) {
+    warnings.push({
+      level: 'warning',
+      message: `${envErrors.length} transport error(s) detected (likely environment/configuration issues)`,
+      recommendation: 'Check server process configuration and ensure all dependencies are installed',
+    });
+  }
+
+  return warnings;
 }
 
 /**

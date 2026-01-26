@@ -1,7 +1,5 @@
 /**
- * Baseline format converter.
- *
- * Converts between local BehavioralBaseline format and cloud BellwetherBaseline format.
+ * Cloud baseline builder.
  *
  * ## Severity Type Mappings
  *
@@ -36,17 +34,16 @@
  */
 
 import { createHash } from 'crypto';
-import type { BehavioralBaseline, ToolFingerprint, BehavioralAssertion, ChangeSeverity } from './types.js';
+import type { BehavioralAssertion, BehavioralBaseline, ChangeSeverity } from './types.js';
 import type { InterviewResult, ToolProfile } from '../interview/types.js';
 import type { DiscoveryResult } from '../discovery/types.js';
 import { analyzeResponses } from './response-fingerprint.js';
+import { buildSchemaEvolution } from './response-schema-tracker.js';
 import type {
-  BellwetherBaseline,
   BaselineMetadata,
   BaselineMode,
   CloudServerFingerprint,
   ToolCapability,
-  ResourceCapability,
   PromptCapability,
   PersonaInterview,
   PersonaFinding,
@@ -55,12 +52,16 @@ import type {
   CloudAssertionType,
   CloudAssertionSeverity,
 } from '../cloud/types.js';
+import { calculateMetrics, calculatePerformanceConfidence, type LatencySample } from './performance-tracker.js';
+import { computeConsensusSchemaHash } from './schema-compare.js';
+import { calculateBaselineHash } from './baseline-hash.js';
 import { getBaselineVersion } from './version.js';
 import { VERSION } from '../version.js';
+import { scoreDocumentation, toDocumentationScoreSummary } from './documentation-scorer.js';
 
 /**
  * Map ChangeSeverity to CloudAssertionSeverity.
- * Used when converting local baselines to cloud format.
+ * Used when mapping CLI assertions to cloud severity levels.
  */
 export const CHANGE_TO_CLOUD_SEVERITY: Record<ChangeSeverity, CloudAssertionSeverity> = {
   none: 'info',
@@ -149,7 +150,7 @@ function convertAssertion(assertion: BehavioralAssertion): CloudAssertion {
 /**
  * Convert an array of BehavioralAssertions to CloudAssertions.
  */
-function convertAssertions(assertions: BehavioralAssertion[]): CloudAssertion[] {
+export function convertAssertions(assertions: BehavioralAssertion[]): CloudAssertion[] {
   return assertions.map(convertAssertion);
 }
 
@@ -166,7 +167,6 @@ function deriveCloudMode(resultModel?: string, baselineMode?: 'check'): Baseline
   // LLM model names indicate explore mode
   if (resultModel) return 'explore';
 
-  // Local baselines are check-only
   if (baselineMode === 'check') return 'check';
 
   // Default to check for legacy baselines without explicit mode
@@ -179,79 +179,6 @@ function deriveModel(resultModel: string | undefined, mode: BaselineMode): strin
 }
 
 /**
- * Convert a BehavioralBaseline to cloud BellwetherBaseline format.
- */
-export function convertToCloudBaseline(
-  baseline: BehavioralBaseline,
-  discovery?: DiscoveryResult,
-  interviewResult?: InterviewResult
-): BellwetherBaseline {
-  // Derive mode from result metadata
-  const mode = deriveCloudMode(interviewResult?.metadata.model, baseline.mode);
-
-  // Build metadata
-  const metadata: BaselineMetadata = {
-    mode,
-    generatedAt: baseline.createdAt.toISOString(),
-    cliVersion: VERSION,
-    serverCommand: baseline.serverCommand,
-    serverName: baseline.server.name,
-    durationMs: interviewResult?.metadata.durationMs ?? 0,
-    personas: extractPersonas(interviewResult, mode),
-    model: deriveModel(interviewResult?.metadata.model, mode),
-  };
-
-  // Build server fingerprint
-  const server: CloudServerFingerprint = {
-    name: baseline.server.name,
-    version: baseline.server.version,
-    protocolVersion: baseline.server.protocolVersion,
-    capabilities: baseline.server.capabilities,
-  };
-
-  // Build capabilities
-  const capabilities = buildCapabilities(baseline, discovery);
-
-  // Build interviews
-  const interviews = buildInterviews(interviewResult, mode);
-
-  // Build tool profiles (with converted assertions)
-  const toolProfiles = baseline.tools.map(convertToolFingerprint);
-
-  // Build workflows
-  const workflows = baseline.workflowSignatures;
-
-  // Convert assertions to cloud format
-  const assertions = convertAssertions(baseline.assertions);
-
-  // Build content hash
-  const contentForHash = JSON.stringify({
-    metadata,
-    server,
-    capabilities,
-    interviews,
-    toolProfiles,
-    workflows,
-    assertions,
-    summary: baseline.summary,
-  });
-  const hash = hashString(contentForHash);
-
-  return {
-    version: getBaselineVersion(),
-    metadata,
-    server,
-    capabilities,
-    interviews,
-    toolProfiles,
-    workflows,
-    assertions,
-    summary: baseline.summary,
-    hash,
-  };
-}
-
-/**
  * Extract persona names from interview result.
  */
 function extractPersonas(result: InterviewResult | undefined, mode: BaselineMode): string[] {
@@ -260,80 +187,15 @@ function extractPersonas(result: InterviewResult | undefined, mode: BaselineMode
   }
 
   if (!result?.metadata.personas || result.metadata.personas.length === 0) {
-    return ['technical_writer']; // Default persona for explore
+    return ['technical_writer'];
   }
 
   return result.metadata.personas.map((p) => p.id);
 }
 
 /**
- * Build capabilities from baseline and discovery.
- */
-function buildCapabilities(
-  baseline: BehavioralBaseline,
-  discovery?: DiscoveryResult
-): {
-  tools: ToolCapability[];
-  resources?: ResourceCapability[];
-  prompts?: PromptCapability[];
-} {
-  // Build tool capabilities
-  // Prefer discovery schema, fall back to stored inputSchema from baseline
-  // Include response fingerprinting data from baseline
-  const tools: ToolCapability[] = baseline.tools.map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    inputSchema: discovery
-      ? getToolSchema(discovery, tool.name)
-      : (tool.inputSchema ?? {}),
-    schemaHash: tool.schemaHash,
-    // Response fingerprinting (check mode enhancement)
-    responseFingerprint: tool.responseFingerprint,
-    inferredOutputSchema: tool.inferredOutputSchema,
-    errorPatterns: tool.errorPatterns,
-    baselineP50Ms: tool.baselineP50Ms,
-    baselineP95Ms: tool.baselineP95Ms,
-    baselineSuccessRate: tool.baselineSuccessRate,
-    performanceConfidence: tool.performanceConfidence,
-    securityFingerprint: tool.securityFingerprint,
-  }));
-
-  // Build resource capabilities (from discovery if available)
-  let resources: ResourceCapability[] | undefined;
-  // Note: Resources would come from discovery.resources if we had them
-
-  // Build prompt capabilities (from discovery if available)
-  let prompts: PromptCapability[] | undefined;
-  if (discovery?.prompts && discovery.prompts.length > 0) {
-    prompts = discovery.prompts.map((p) => ({
-      name: p.name,
-      description: p.description,
-      arguments: p.arguments?.map((a) => ({
-        name: a.name,
-        description: a.description,
-        required: a.required,
-      })),
-    }));
-  }
-
-  return {
-    tools,
-    resources,
-    prompts,
-  };
-}
-
-/**
  * Get tool schema from discovery.
  */
-function getToolSchema(
-  discovery: DiscoveryResult,
-  toolName: string
-): Record<string, unknown> {
-  const tool = discovery.tools.find((t) => t.name === toolName);
-  return tool?.inputSchema ?? {};
-}
-
 /**
  * Build interview summaries from interview result.
  */
@@ -517,23 +379,6 @@ function classifySeverity(
 }
 
 /**
- * Convert ToolFingerprint to CloudToolProfile.
- */
-function convertToolFingerprint(tool: ToolFingerprint): CloudToolProfile {
-  return {
-    name: tool.name,
-    description: tool.description,
-    schemaHash: tool.schemaHash,
-    assertions: convertAssertions(tool.assertions),
-    securityNotes: tool.securityNotes,
-    limitations: tool.limitations,
-    behavioralNotes: tool.assertions
-      .filter((a) => a.aspect === 'response_format' && a.isPositive)
-      .map((a) => a.assertion),
-  };
-}
-
-/**
  * Create a BellwetherBaseline directly from InterviewResult.
  *
  * This is the preferred method when you have fresh interview results.
@@ -541,14 +386,16 @@ function convertToolFingerprint(tool: ToolFingerprint): CloudToolProfile {
 export function createCloudBaseline(
   result: InterviewResult,
   serverCommand: string
-): BellwetherBaseline {
+): BehavioralBaseline {
   // Derive mode from result metadata
   const mode = deriveCloudMode(result.metadata.model);
 
   // Build metadata
   const metadata: BaselineMetadata = {
     mode,
-    generatedAt: new Date().toISOString(),
+    generatedAt: result.metadata.endTime instanceof Date
+      ? result.metadata.endTime.toISOString()
+      : result.metadata.endTime,
     cliVersion: VERSION,
     serverCommand,
     serverName: result.discovery.serverInfo.name,
@@ -565,28 +412,69 @@ export function createCloudBaseline(
     capabilities: buildCapabilityList(result.discovery),
   };
 
-  // Build response fingerprint map from tool profiles
-  const fingerprintMap = new Map<string, ReturnType<typeof analyzeResponses>>();
-  for (const profile of result.toolProfiles) {
-    const responseData = profile.interactions.map(i => ({
-      response: i.response,
-      error: i.error,
-    }));
-    fingerprintMap.set(profile.name, analyzeResponses(responseData));
+  const schemaMap = new Map<string, Record<string, unknown>>();
+  for (const tool of result.discovery.tools) {
+    if (tool.inputSchema) {
+      schemaMap.set(tool.name, tool.inputSchema as Record<string, unknown>);
+    }
   }
 
-  // Build capabilities (including response fingerprinting)
-  const tools: ToolCapability[] = result.discovery.tools.map((tool) => {
-    const analysis = fingerprintMap.get(tool.name);
+  const tools: ToolCapability[] = result.toolProfiles.map((profile) => {
+    const interactions = profile.interactions.map(i => ({ args: i.question.args }));
+    const { hash: schemaHash } = computeConsensusSchemaHash(interactions);
+    const responseData = profile.interactions
+      .filter(i => !i.mocked)
+      .map(i => ({
+        response: i.response,
+        error: i.error,
+      }));
+    const responseAnalysis = analyzeResponses(responseData);
+    const responseSchemaEvolution = responseAnalysis.schemas.length > 0
+      ? buildSchemaEvolution(responseAnalysis.schemas)
+      : undefined;
+
+    const latencySamples: LatencySample[] = profile.interactions
+      .filter(i => i.toolExecutionMs !== undefined && !i.mocked)
+      .map(i => ({
+        toolName: profile.name,
+        durationMs: i.toolExecutionMs ?? 0,
+        success: !i.error && !i.response?.isError,
+        timestamp: new Date(),
+        expectedOutcome: i.question.expectedOutcome,
+        outcomeCorrect: i.outcomeAssessment?.correct,
+      }));
+
+    let baselineP50Ms: number | undefined;
+    let baselineP95Ms: number | undefined;
+    let baselineP99Ms: number | undefined;
+    let baselineSuccessRate: number | undefined;
+
+    if (latencySamples.length > 0) {
+      const metrics = calculateMetrics(latencySamples);
+      if (metrics) {
+        baselineP50Ms = metrics.p50Ms;
+        baselineP95Ms = metrics.p95Ms;
+        baselineP99Ms = metrics.p99Ms;
+        baselineSuccessRate = metrics.successRate;
+      }
+    }
+
+    const performanceConfidence = calculatePerformanceConfidence(latencySamples);
+
     return {
-      name: tool.name,
-      description: tool.description ?? '',
-      inputSchema: tool.inputSchema ?? {},
-      schemaHash: hashString(JSON.stringify(tool.inputSchema ?? {})),
-      // Response fingerprinting (check mode enhancement)
-      responseFingerprint: analysis?.fingerprint,
-      inferredOutputSchema: analysis?.inferredSchema,
-      errorPatterns: analysis?.errorPatterns.length ? analysis.errorPatterns : undefined,
+      name: profile.name,
+      description: profile.description ?? '',
+      inputSchema: schemaMap.get(profile.name) ?? {},
+      schemaHash,
+      responseFingerprint: responseAnalysis.fingerprint,
+      inferredOutputSchema: responseAnalysis.inferredSchema,
+      responseSchemaEvolution,
+      errorPatterns: responseAnalysis.errorPatterns.length ? responseAnalysis.errorPatterns : undefined,
+      baselineP50Ms,
+      baselineP95Ms,
+      baselineP99Ms,
+      baselineSuccessRate,
+      performanceConfidence,
     };
   });
 
@@ -607,19 +495,18 @@ export function createCloudBaseline(
   const interviews = buildInterviews(result, mode);
 
   // Build tool profiles (with converted assertions)
-  const toolProfiles: CloudToolProfile[] = result.toolProfiles.map((profile) => ({
-    name: profile.name,
-    description: profile.description,
-    schemaHash: hashString(
-      JSON.stringify(
-        result.discovery.tools.find((t) => t.name === profile.name)?.inputSchema ?? {}
-      )
-    ),
-    assertions: convertAssertions(extractToolAssertions(profile)),
-    securityNotes: profile.securityNotes,
-    limitations: profile.limitations,
-    behavioralNotes: profile.behavioralNotes,
-  }));
+  const toolProfiles: CloudToolProfile[] = result.toolProfiles.map((profile) => {
+    const matchingCapability = tools.find((tool) => tool.name === profile.name);
+    return {
+      name: profile.name,
+      description: profile.description,
+      schemaHash: matchingCapability?.schemaHash ?? hashString(profile.name),
+      assertions: convertAssertions(extractToolAssertions(profile)),
+      securityNotes: profile.securityNotes,
+      limitations: profile.limitations,
+      behavioralNotes: profile.behavioralNotes,
+    };
+  });
 
   // Build workflows
   const workflows = result.workflowResults?.map((wr) => ({
@@ -630,23 +517,14 @@ export function createCloudBaseline(
     summary: wr.summary,
   }));
 
+  const documentationScore = toDocumentationScoreSummary(
+    scoreDocumentation(result.discovery.tools)
+  );
+
   // Build assertions (convert to cloud format)
   const assertions = convertAssertions(extractAllAssertions(result));
 
-  // Build content hash
-  const contentForHash = JSON.stringify({
-    metadata,
-    server,
-    capabilities: { tools, prompts },
-    interviews,
-    toolProfiles,
-    workflows,
-    assertions,
-    summary: result.summary,
-  });
-  const hash = hashString(contentForHash);
-
-  return {
+  const baselineWithoutHash: Omit<BehavioralBaseline, 'hash'> = {
     version: getBaselineVersion(),
     metadata,
     server,
@@ -656,6 +534,12 @@ export function createCloudBaseline(
     workflows,
     assertions,
     summary: result.summary,
+    documentationScore,
+  };
+  const hash = calculateBaselineHash(baselineWithoutHash);
+
+  return {
+    ...baselineWithoutHash,
     hash,
   };
 }

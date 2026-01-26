@@ -14,6 +14,7 @@ import type { PerformanceReport } from './performance-tracker.js';
 import type { DeprecationReport } from './deprecation-tracker.js';
 import type { DiffImpactAnalysis } from './change-impact-analyzer.js';
 import { HEALTH_SCORING } from '../constants.js';
+import { getToolFingerprints } from './accessors.js';
 /**
  * Health trend direction.
  */
@@ -196,15 +197,16 @@ function calculateOverallScore(components: HealthComponents): number {
  */
 function calculateTestCoverageScore(input: HealthInput): number {
   const { baseline, testResults } = input;
+  const tools = getToolFingerprints(baseline);
 
   if (!testResults || testResults.size === 0) {
     // If no explicit test results, use tool count as proxy for coverage
-    const toolCount = baseline.tools.length;
+    const toolCount = tools.length;
     if (toolCount === 0) return 100; // No tools = perfect score
     return 80; // Default score when no test data
   }
 
-  const totalTools = baseline.tools.length;
+  const totalTools = tools.length;
   const testedTools = testResults.size;
 
   // Coverage percentage
@@ -266,6 +268,7 @@ function calculatePerformanceScore(input: HealthInput): number {
  */
 function calculateDeprecationScore(input: HealthInput): number {
   const { baseline, deprecationReport } = input;
+  const tools = getToolFingerprints(baseline);
 
   // Start with perfect score
   let score = 100;
@@ -277,10 +280,10 @@ function calculateDeprecationScore(input: HealthInput): number {
     score -= deprecationReport.expiredCount * HEALTH_PENALTIES.expiredTool;
   } else {
     // Calculate from baseline directly
-    const deprecatedTools = baseline.tools.filter(t => t.deprecated);
+    const deprecatedTools = tools.filter(t => t.deprecated);
     score -= deprecatedTools.length * HEALTH_PENALTIES.deprecatedTool;
 
-    const expiredTools = baseline.tools.filter(t => {
+    const expiredTools = tools.filter(t => {
       if (!t.deprecated || !t.removalDate) return false;
       return new Date() > new Date(t.removalDate);
     });
@@ -329,14 +332,15 @@ function calculateBreakingChangeScore(input: HealthInput): number {
  */
 function calculateDocumentationScore(input: HealthInput): number {
   const { baseline } = input;
+  const tools = getToolFingerprints(baseline);
 
-  if (baseline.tools.length === 0) {
+  if (tools.length === 0) {
     return 100;
   }
 
   let score = 100;
 
-  for (const tool of baseline.tools) {
+  for (const tool of tools) {
     if (!tool.description || tool.description.trim() === '') {
       score -= HEALTH_PENALTIES.missingDescription;
     } else if (tool.description.length < HEALTH_SCORING.MIN_DESCRIPTION_LENGTH) {
@@ -478,7 +482,7 @@ function generateActionItems(input: HealthInput, components: HealthComponents): 
 
   // Documentation issues
   if (components.documentationScore < 80) {
-    const undocumented = input.baseline.tools.filter(
+    const undocumented = getToolFingerprints(input.baseline).filter(
       t => !t.description || t.description.trim() === ''
     );
     if (undocumented.length > 0) {

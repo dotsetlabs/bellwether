@@ -36,22 +36,23 @@ async function handleRegistry(
   query: string | undefined,
   options: { config?: string; limit?: string; json?: boolean }
 ): Promise<void> {
-  let config: BellwetherConfig;
+  // Config is optional for registry command - use defaults if not found
+  let config: BellwetherConfig | undefined;
   try {
     config = loadConfig(options.config);
   } catch (error) {
-    if (error instanceof ConfigNotFoundError) {
-      output.error(error.message);
-      process.exit(EXIT_CODES.ERROR);
+    if (!(error instanceof ConfigNotFoundError)) {
+      throw error;
     }
-    throw error;
+    // Config not found - use defaults
   }
 
   // Allow overriding registry URL for testing
   const registryUrl = process.env.BELLWETHER_REGISTRY_URL;
   const client = new RegistryClient(registryUrl ? { baseUrl: registryUrl } : undefined);
-  const limit = parseInt(options.limit ?? String(config.registry.limit), 10) || config.registry.limit;
-  const outputJson = options.json ? true : config.registry.json;
+  const defaultLimit = 10;
+  const limit = parseInt(options.limit ?? '', 10) || config?.registry?.limit || defaultLimit;
+  const outputJson = options.json ?? config?.registry?.json ?? false;
 
   try {
     let servers: RegistryServerEntry[];

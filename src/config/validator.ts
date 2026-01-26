@@ -331,6 +331,28 @@ export const rateLimitConfigSchema = z.object({
 }).default(CONFIG_DEFAULTS.check.rateLimit);
 
 /**
+ * Test fixture pattern schema.
+ * Allows matching parameter names by regex pattern.
+ */
+export const testFixturePatternSchema = z.object({
+  /** Regex pattern to match parameter names */
+  match: z.string(),
+  /** Value to use for matching parameters */
+  value: z.unknown(),
+});
+
+/**
+ * Test fixtures configuration schema.
+ * Allows users to customize test values for production server testing.
+ */
+export const testFixturesConfigSchema = z.object({
+  /** Custom values for specific parameter names (exact match) */
+  parameterValues: z.record(z.unknown()).optional(),
+  /** Custom values for parameters matching regex patterns */
+  patterns: z.array(testFixturePatternSchema).optional(),
+}).optional();
+
+/**
  * Check command configuration schema.
  * Controls behavior of `bellwether check`.
  */
@@ -365,6 +387,8 @@ export const checkConfigSchema = z.object({
   security: securityConfigSchema,
   /** Statistical sampling settings */
   sampling: samplingConfigSchema,
+  /** Test fixtures for production server testing */
+  testFixtures: testFixturesConfigSchema,
 }).default(() => ({
   incremental: CONFIG_DEFAULTS.check.incremental,
   incrementalCacheHours: CONFIG_DEFAULTS.check.incrementalCacheHours,

@@ -101,7 +101,8 @@ export const linkCommand = new Command('link')
     output.info(`Server command: ${project.serverCommand}`);
     output.info('\nSaved to .bellwether/link.json');
     output.info('\nYou can now run:');
-    output.info('  bellwether check <server> --save-baseline');
+    output.info('  bellwether check <server>');
+    output.info('  bellwether baseline save');
     output.info('  bellwether upload');
   });
 

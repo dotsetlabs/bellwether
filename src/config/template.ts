@@ -257,6 +257,22 @@ ${formatYamlList(defaults.check.security.categories, 6)}
     # Fail if confidence is below target (useful for CI)
     failOnLowConfidence: ${defaults.check.sampling.failOnLowConfidence}
 
+  # Test fixtures for production server testing
+  # Override default test values for more realistic testing
+  # testFixtures:
+  #   # Exact parameter name matches
+  #   parameterValues:
+  #     latitude: 37.7749
+  #     longitude: -122.4194
+  #     query: "San Francisco"
+  #     limit: 10
+  #   # Regex pattern matches
+  #   patterns:
+  #     - match: ".*[Ii]d$"
+  #       value: "test_id_12345"
+  #     - match: ".*[Tt]oken$"
+  #       value: "test-token-abc123"
+
   # Metrics configuration
   metrics:
     # Count validation rejections as successes in reliability metrics

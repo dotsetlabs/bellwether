@@ -238,7 +238,7 @@ describe('SchemaTestGenerator', () => {
         });
 
         describe('array handling', () => {
-            it('should test empty array for array parameters', () => {
+            it('should test empty array for array parameters without minItems', () => {
                 const tool = createMockTool({
                     type: 'object',
                     properties: {
@@ -256,6 +256,165 @@ describe('SchemaTestGenerator', () => {
                         (t) => Array.isArray(t.args.items) && t.args.items.length === 0
                     )
                 ).toBe(true);
+            });
+
+            it('should NOT test empty array when minItems > 0', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        items: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            minItems: 2,
+                        },
+                    },
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                // Should NOT have an empty array test
+                const emptyArrayTests = tests.filter(
+                    (t) => Array.isArray(t.args.items) && t.args.items.length === 0
+                );
+                expect(emptyArrayTests.length).toBe(0);
+            });
+
+            it('should test underflow (below minItems) as error case', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        items: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            minItems: 3,
+                        },
+                    },
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                // Should have a test with items below minItems (expecting error)
+                const underflowTest = tests.find(
+                    (t) =>
+                        Array.isArray(t.args.items) &&
+                        t.args.items.length < 3 &&
+                        t.expectedOutcome === 'error'
+                );
+                expect(underflowTest).toBeDefined();
+            });
+
+            it('should test overflow (above maxItems) as error case', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        items: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            maxItems: 3,
+                        },
+                    },
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                // Should have a test with items above maxItems (expecting error)
+                const overflowTest = tests.find(
+                    (t) =>
+                        Array.isArray(t.args.items) &&
+                        t.args.items.length > 3 &&
+                        t.expectedOutcome === 'error'
+                );
+                expect(overflowTest).toBeDefined();
+            });
+
+            it('should generate exact minItems for happy path array with minItems constraint', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        items: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            minItems: 2,
+                        },
+                    },
+                    required: ['items'],
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                // Happy path should have at least minItems elements
+                const happyPath = tests.find(
+                    (t) => t.category === 'happy_path' && Array.isArray(t.args.items)
+                );
+                expect(happyPath).toBeDefined();
+                expect((happyPath?.args.items as unknown[]).length).toBeGreaterThanOrEqual(2);
+            });
+
+            it('should test exact minItems boundary', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        data: {
+                            type: 'array',
+                            items: { type: 'number' },
+                            minItems: 3,
+                        },
+                    },
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                // Should have a test with exactly minItems
+                const exactMinTest = tests.find(
+                    (t) => Array.isArray(t.args.data) && t.args.data.length === 3
+                );
+                expect(exactMinTest).toBeDefined();
+            });
+
+            it('should test exact maxItems boundary', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        data: {
+                            type: 'array',
+                            items: { type: 'number' },
+                            maxItems: 5,
+                        },
+                    },
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                // Should have a test with exactly maxItems
+                const exactMaxTest = tests.find(
+                    (t) => Array.isArray(t.args.data) && t.args.data.length === 5
+                );
+                expect(exactMaxTest).toBeDefined();
+            });
+
+            it('should generate correct item types based on item schema', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        numbers: {
+                            type: 'array',
+                            items: { type: 'number' },
+                            minItems: 2,
+                        },
+                    },
+                    required: ['numbers'],
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                const happyPath = tests.find(
+                    (t) => t.category === 'happy_path' && Array.isArray(t.args.numbers)
+                );
+                expect(happyPath).toBeDefined();
+                const numbers = happyPath?.args.numbers as unknown[];
+                expect(numbers.length).toBeGreaterThanOrEqual(2);
+                // All items should be numbers
+                numbers.forEach(n => expect(typeof n).toBe('number'));
             });
 
             it('should test single item array', () => {
@@ -278,7 +437,7 @@ describe('SchemaTestGenerator', () => {
                 ).toBe(true);
             });
 
-            it('should test many items array', () => {
+            it('should test many items array when within maxItems', () => {
                 const tool = createMockTool({
                     type: 'object',
                     properties: {
@@ -296,6 +455,29 @@ describe('SchemaTestGenerator', () => {
                         (t) => Array.isArray(t.args.values) && t.args.values.length >= 10
                     )
                 ).toBe(true);
+            });
+
+            it('should not exceed maxItems in many items test', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        values: {
+                            type: 'array',
+                            items: { type: 'number' },
+                            maxItems: 5,
+                        },
+                    },
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                // Valid tests should not exceed maxItems
+                const validTests = tests.filter(
+                    (t) => t.expectedOutcome !== 'error' && Array.isArray(t.args.values)
+                );
+                validTests.forEach(t => {
+                    expect((t.args.values as unknown[]).length).toBeLessThanOrEqual(5);
+                });
             });
         });
 
@@ -595,6 +777,283 @@ describe('SchemaTestGenerator', () => {
 
                 // Should still generate tests
                 expect(tests.length).toBeGreaterThanOrEqual(1);
+            });
+        });
+
+        describe('test fixtures configuration', () => {
+            it('should use exact match parameter values from fixtures', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        latitude: { type: 'number' },
+                        longitude: { type: 'number' },
+                    },
+                    required: ['latitude', 'longitude'],
+                });
+
+                const tests = generateSchemaTests(tool, {
+                    testFixtures: {
+                        parameterValues: {
+                            latitude: 40.7128,
+                            longitude: -74.0060,
+                        },
+                    },
+                });
+
+                const happyPath = tests.find(
+                    (t) => t.category === 'happy_path' && t.args.latitude !== undefined
+                );
+                expect(happyPath?.args.latitude).toBe(40.7128);
+                expect(happyPath?.args.longitude).toBe(-74.0060);
+            });
+
+            it('should use pattern match values from fixtures', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        user_id: { type: 'string' },
+                        item_id: { type: 'string' },
+                    },
+                    required: ['user_id', 'item_id'],
+                });
+
+                const tests = generateSchemaTests(tool, {
+                    testFixtures: {
+                        patterns: [
+                            { match: '.*_id$', value: 'fixture_id_12345' },
+                        ],
+                    },
+                });
+
+                const happyPath = tests.find(
+                    (t) => t.category === 'happy_path' && t.args.user_id !== undefined
+                );
+                expect(happyPath?.args.user_id).toBe('fixture_id_12345');
+                expect(happyPath?.args.item_id).toBe('fixture_id_12345');
+            });
+
+            it('should prioritize exact match over pattern match', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        user_id: { type: 'string' },
+                        item_id: { type: 'string' },
+                    },
+                    required: ['user_id', 'item_id'],
+                });
+
+                const tests = generateSchemaTests(tool, {
+                    testFixtures: {
+                        parameterValues: {
+                            user_id: 'exact_user_123',
+                        },
+                        patterns: [
+                            { match: '.*_id$', value: 'pattern_id_456' },
+                        ],
+                    },
+                });
+
+                const happyPath = tests.find(
+                    (t) => t.category === 'happy_path' && t.args.user_id !== undefined
+                );
+                // user_id should use exact match
+                expect(happyPath?.args.user_id).toBe('exact_user_123');
+                // item_id should use pattern match
+                expect(happyPath?.args.item_id).toBe('pattern_id_456');
+            });
+
+            it('should fall back to smart generation when no fixture matches', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        user_email: { type: 'string' },
+                        query: { type: 'string' },
+                    },
+                    required: ['user_email', 'query'],
+                });
+
+                const tests = generateSchemaTests(tool, {
+                    testFixtures: {
+                        parameterValues: {
+                            unrelated_param: 'some_value',
+                        },
+                    },
+                });
+
+                const happyPath = tests.find(
+                    (t) => t.category === 'happy_path' && t.args.user_email !== undefined
+                );
+                // Should use smart generation fallback
+                expect(happyPath?.args.user_email).toBe('test@example.com');
+            });
+
+            it('should support fixture values for numbers', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        limit: { type: 'integer' },
+                        offset: { type: 'integer' },
+                    },
+                    required: ['limit', 'offset'],
+                });
+
+                const tests = generateSchemaTests(tool, {
+                    testFixtures: {
+                        parameterValues: {
+                            limit: 25,
+                            offset: 100,
+                        },
+                    },
+                });
+
+                const happyPath = tests.find(
+                    (t) => t.category === 'happy_path' && t.args.limit !== undefined
+                );
+                expect(happyPath?.args.limit).toBe(25);
+                expect(happyPath?.args.offset).toBe(100);
+            });
+
+            it('should handle empty fixtures gracefully', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        name: { type: 'string' },
+                    },
+                    required: ['name'],
+                });
+
+                const tests = generateSchemaTests(tool, {
+                    testFixtures: {},
+                });
+
+                // Should still generate tests using smart defaults
+                expect(tests.length).toBeGreaterThan(0);
+                const happyPath = tests.find(
+                    (t) => t.category === 'happy_path' && t.args.name !== undefined
+                );
+                expect(happyPath?.args.name).toBe('test-name');
+            });
+
+            it('should apply fixtures to array item generation', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        items: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    item_id: { type: 'string' },
+                                },
+                                required: ['item_id'],
+                            },
+                            minItems: 2,
+                        },
+                    },
+                    required: ['items'],
+                });
+
+                const tests = generateSchemaTests(tool, {
+                    testFixtures: {
+                        parameterValues: {
+                            item_id: 'array_item_fixture',
+                        },
+                    },
+                });
+
+                const happyPath = tests.find(
+                    (t) => t.category === 'happy_path' && Array.isArray(t.args.items)
+                );
+                expect(happyPath).toBeDefined();
+                const items = happyPath?.args.items as Array<{item_id: string}>;
+                expect(items.length).toBeGreaterThanOrEqual(2);
+                // Each item should use the fixture value
+                items.forEach(item => {
+                    expect(item.item_id).toBe('array_item_fixture');
+                });
+            });
+        });
+
+        describe('coordinate value generation', () => {
+            it('should generate realistic latitude values', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        lat: { type: 'number' },
+                        lng: { type: 'number' },
+                    },
+                    required: ['lat', 'lng'],
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                const happyPath = tests.find(
+                    (t) => t.category === 'happy_path' && t.args.lat !== undefined
+                );
+                // Should use San Francisco coordinates as default
+                expect(happyPath?.args.lat).toBe(37.7749);
+                expect(happyPath?.args.lng).toBe(-122.4194);
+            });
+
+            it('should detect latitude/longitude fields', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        latitude: { type: 'number' },
+                        longitude: { type: 'number' },
+                    },
+                    required: ['latitude', 'longitude'],
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                const happyPath = tests.find(
+                    (t) => t.category === 'happy_path' && t.args.latitude !== undefined
+                );
+                expect(happyPath?.args.latitude).toBe(37.7749);
+                expect(happyPath?.args.longitude).toBe(-122.4194);
+            });
+        });
+
+        describe('pagination value generation', () => {
+            it('should generate sensible pagination values', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        limit: { type: 'integer' },
+                        offset: { type: 'integer' },
+                    },
+                    required: ['limit', 'offset'],
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                const happyPath = tests.find(
+                    (t) => t.category === 'happy_path' && t.args.limit !== undefined
+                );
+                // Should use sensible defaults
+                expect(happyPath?.args.limit).toBe(10);
+                expect(happyPath?.args.offset).toBe(0);
+            });
+
+            it('should detect page parameter vs offset', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        page: { type: 'integer' },
+                        page_size: { type: 'integer' },
+                    },
+                    required: ['page', 'page_size'],
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                const happyPath = tests.find(
+                    (t) => t.category === 'happy_path' && t.args.page !== undefined
+                );
+                // page should start at 1, not 0
+                expect(happyPath?.args.page).toBe(1);
+                expect(happyPath?.args.page_size).toBe(10);
             });
         });
     });

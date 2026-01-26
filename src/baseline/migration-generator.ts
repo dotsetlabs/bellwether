@@ -10,6 +10,7 @@ import type {
   BehavioralDiff,
   ChangeSeverity,
 } from './types.js';
+import { getBaselineGeneratedAt, getToolFingerprints } from './accessors.js';
 import {
   analyzeSchemaChanges,
   type SchemaChangeDetail,
@@ -156,7 +157,7 @@ export function generateMigrationGuide(
   // Process removed tools
   const removedTools = diff?.toolsRemoved ?? findRemovedTools(oldBaseline, newBaseline);
   for (const toolName of removedTools) {
-    const oldTool = oldBaseline.tools.find(t => t.name === toolName);
+    const oldTool = getToolFingerprints(oldBaseline).find(t => t.name === toolName);
     if (oldTool) {
       breakingChanges.push({
         toolName,
@@ -185,7 +186,7 @@ export function generateMigrationGuide(
   // Process added tools (non-breaking, but noteworthy)
   const addedTools = diff?.toolsAdded ?? findAddedTools(oldBaseline, newBaseline);
   for (const toolName of addedTools) {
-    const newTool = newBaseline.tools.find(t => t.name === toolName);
+    const newTool = getToolFingerprints(newBaseline).find(t => t.name === toolName);
     if (newTool) {
       steps.push({
         stepNumber: ++stepNumber,
@@ -204,8 +205,8 @@ export function generateMigrationGuide(
   // Process modified tools
   const modifiedToolNames = diff?.toolsModified.map(t => t.tool) ?? findModifiedTools(oldBaseline, newBaseline);
   for (const toolName of modifiedToolNames) {
-    const oldTool = oldBaseline.tools.find(t => t.name === toolName);
-    const newTool = newBaseline.tools.find(t => t.name === toolName);
+    const oldTool = getToolFingerprints(oldBaseline).find(t => t.name === toolName);
+    const newTool = getToolFingerprints(newBaseline).find(t => t.name === toolName);
 
     if (oldTool && newTool) {
       const schemaChanges = analyzeSchemaChanges(oldTool.inputSchema, newTool.inputSchema);
@@ -262,8 +263,8 @@ export function generateMigrationGuide(
     fromVersion: oldBaseline.version,
     toVersion: newBaseline.version,
     dateRange: {
-      from: oldBaseline.createdAt,
-      to: newBaseline.createdAt,
+      from: getBaselineGeneratedAt(oldBaseline),
+      to: getBaselineGeneratedAt(newBaseline),
     },
     breakingChanges,
     steps: limitedSteps,
@@ -285,16 +286,16 @@ export function generateMigrationGuide(
  * Find tools that were removed.
  */
 function findRemovedTools(oldBaseline: BehavioralBaseline, newBaseline: BehavioralBaseline): string[] {
-  const newToolNames = new Set(newBaseline.tools.map(t => t.name));
-  return oldBaseline.tools.filter(t => !newToolNames.has(t.name)).map(t => t.name);
+  const newToolNames = new Set(getToolFingerprints(newBaseline).map(t => t.name));
+  return getToolFingerprints(oldBaseline).filter(t => !newToolNames.has(t.name)).map(t => t.name);
 }
 
 /**
  * Find tools that were added.
  */
 function findAddedTools(oldBaseline: BehavioralBaseline, newBaseline: BehavioralBaseline): string[] {
-  const oldToolNames = new Set(oldBaseline.tools.map(t => t.name));
-  return newBaseline.tools.filter(t => !oldToolNames.has(t.name)).map(t => t.name);
+  const oldToolNames = new Set(getToolFingerprints(oldBaseline).map(t => t.name));
+  return getToolFingerprints(newBaseline).filter(t => !oldToolNames.has(t.name)).map(t => t.name);
 }
 
 /**
@@ -302,9 +303,9 @@ function findAddedTools(oldBaseline: BehavioralBaseline, newBaseline: Behavioral
  */
 function findModifiedTools(oldBaseline: BehavioralBaseline, newBaseline: BehavioralBaseline): string[] {
   const modified: string[] = [];
-  const oldToolMap = new Map(oldBaseline.tools.map(t => [t.name, t]));
+  const oldToolMap = new Map(getToolFingerprints(oldBaseline).map(t => [t.name, t]));
 
-  for (const newTool of newBaseline.tools) {
+  for (const newTool of getToolFingerprints(newBaseline)) {
     const oldTool = oldToolMap.get(newTool.name);
     if (oldTool && oldTool.schemaHash !== newTool.schemaHash) {
       modified.push(newTool.name);

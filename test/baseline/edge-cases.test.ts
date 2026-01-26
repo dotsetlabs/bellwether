@@ -10,41 +10,62 @@ import {
   loadBaseline,
   saveBaseline,
   baselineExists,
-  verifyIntegrity,
-  recalculateIntegrityHash,
+  verifyBaselineHash,
+  recalculateBaselineHash,
   hasAcceptance,
   clearAcceptance,
+  createBaseline,
   type BehavioralBaseline,
 } from '../../src/baseline/index.js';
+import type { InterviewResult } from '../../src/interview/types.js';
 
-// Helper to create a valid mock baseline
-function createValidBaseline(): BehavioralBaseline {
+// Helper to create a valid mock interview result for baseline creation
+function createMockInterviewResult(): InterviewResult {
+  // Use fixed date for deterministic hashing
+  const now = new Date('2026-01-25T10:00:00.000Z');
   return {
-    version: '1.0.0',
-    createdAt: new Date(),
-    mode: 'check',
-    serverCommand: 'npx test-server',
-    server: {
-      name: 'test-server',
-      version: '1.0.0',
+    discovery: {
+      serverInfo: { name: 'test-server', version: '1.0.0' },
       protocolVersion: '2024-11-05',
-      capabilities: ['tools'],
-    },
-    tools: [
-      {
+      tools: [{
         name: 'test_tool',
         description: 'A test tool',
-        schemaHash: 'abc123',
-        assertions: [],
-        securityNotes: [],
-        limitations: [],
-      },
-    ],
+        inputSchema: { type: 'object', properties: {} },
+      }],
+      prompts: [],
+      resources: [],
+      capabilities: { tools: true } as Record<string, unknown>,
+      timestamp: now,
+      serverCommand: 'npx test-server',
+      serverArgs: [],
+    },
+    toolProfiles: [{
+      name: 'test_tool',
+      description: 'A test tool',
+      interactions: [],
+      behavioralNotes: [],
+      limitations: [],
+      securityNotes: [],
+    }],
     summary: 'Test baseline',
-    assertions: [],
-    workflowSignatures: [],
-    integrityHash: '', // Will be set
+    limitations: [],
+    recommendations: [],
+    metadata: {
+      startTime: now,
+      endTime: now,
+      durationMs: 1000,
+      toolCallCount: 1,
+      errorCount: 0,
+      model: 'check',
+      personas: [],
+      serverCommand: 'npx test-server',
+    },
   };
+}
+
+// Helper to create a valid baseline using the production createBaseline function
+function createValidBaseline(): BehavioralBaseline {
+  return createBaseline(createMockInterviewResult(), 'npx test-server');
 }
 
 describe('baseline loading edge cases', () => {
@@ -110,11 +131,29 @@ describe('baseline loading edge cases', () => {
       expect(() => loadBaseline(path)).toThrow('Invalid baseline format');
     });
 
-    it('should reject baseline with invalid version format', () => {
+    // Note: The Zod schema validates version as z.string(), so any string is valid.
+    // This test verifies that non-string versions (like numbers) are rejected.
+    it('should reject baseline with non-string version', () => {
       const path = join(tempDir, 'invalid-version.json');
-      const baseline = createValidBaseline();
-      (baseline as any).version = 'invalid';
-      writeFileSync(path, JSON.stringify(baseline));
+      writeFileSync(path, JSON.stringify({
+        version: 123, // Number instead of string
+        metadata: {
+          mode: 'check',
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'test',
+          durationMs: 1,
+          personas: [],
+          model: 'none',
+        },
+        server: { name: 'test', version: '1.0.0', protocolVersion: '2024-11-05', capabilities: ['tools'] },
+        capabilities: { tools: [] },
+        interviews: [],
+        toolProfiles: [],
+        assertions: [],
+        summary: 'test',
+        hash: 'abc123',
+      }));
 
       expect(() => loadBaseline(path)).toThrow('Invalid baseline format');
     });
@@ -123,66 +162,84 @@ describe('baseline loading edge cases', () => {
       const path = join(tempDir, 'invalid-tool.json');
       const baseline = {
         version: '1.0.0',
-        createdAt: new Date().toISOString(),
-        serverCommand: 'test',
+        metadata: {
+          mode: 'check',
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'test',
+          durationMs: 1,
+          personas: [],
+          model: 'none',
+        },
         server: {
           name: 'test',
           version: '1.0.0',
           protocolVersion: '2024-11-05',
           capabilities: ['tools'],
         },
-        tools: [
-          {
-            // Missing required fields like name, description, schemaHash
-            invalid: 'tool',
-          },
-        ],
+        capabilities: {
+          tools: [
+            {
+              // Missing required fields like name, description, schemaHash
+              invalid: 'tool',
+            },
+          ],
+        },
+        interviews: [],
+        toolProfiles: [],
         summary: 'test',
         assertions: [],
-        integrityHash: 'abc123',
+        hash: 'abc123',
       };
       writeFileSync(path, JSON.stringify(baseline));
 
       expect(() => loadBaseline(path)).toThrow('Invalid baseline format');
     });
 
-    it('should accept legacy numeric version', () => {
+    it('should reject legacy numeric version', () => {
       const path = join(tempDir, 'legacy-version.json');
       const baseline = {
         version: 1, // Legacy numeric version
-        createdAt: new Date().toISOString(),
-        serverCommand: 'test',
+        metadata: {
+          mode: 'check',
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'test',
+          durationMs: 1,
+          personas: [],
+          model: 'none',
+        },
         server: {
           name: 'test',
           version: '1.0.0',
           protocolVersion: '2024-11-05',
           capabilities: ['tools'],
         },
-        tools: [],
+        capabilities: { tools: [] },
+        interviews: [],
+        toolProfiles: [],
         summary: 'test',
         assertions: [],
-        integrityHash: 'abc123',
+        hash: 'abc123',
       };
       writeFileSync(path, JSON.stringify(baseline));
 
-      // Should not throw - legacy version is supported
-      const loaded = loadBaseline(path, { skipIntegrityCheck: true });
-      expect(loaded).toBeDefined();
+      expect(() => loadBaseline(path)).toThrow('Invalid baseline format');
     });
   });
 
   describe('integrity verification', () => {
     it('should fail verification for modified baseline', () => {
       const baseline = createValidBaseline();
-      baseline.integrityHash = 'incorrect_hash';
+      baseline.hash = 'incorrect_hash';
 
-      expect(verifyIntegrity(baseline)).toBe(false);
+      expect(verifyBaselineHash(baseline)).toBe(false);
     });
 
     it('should verify integrity after save/load cycle', () => {
       const path = join(tempDir, 'verify-integrity.json');
       const baseline = createValidBaseline();
-      const withHash = recalculateIntegrityHash(baseline);
+      const withHash = recalculateBaselineHash(baseline);
 
       // Save and reload
       saveBaseline(withHash, path);
@@ -191,26 +248,35 @@ describe('baseline loading edge cases', () => {
       // Manually verify the reloaded baseline matches expected structure
       // Note: version may be migrated during load, so we just verify it's a valid semver
       expect(loaded.version).toMatch(/^\d+\.\d+\.\d+$/);
-      expect(loaded.serverCommand).toBe(withHash.serverCommand);
-      expect(loaded.tools.length).toBe(withHash.tools.length);
+      expect(loaded.metadata.serverCommand).toBe(withHash.metadata.serverCommand);
+      expect(loaded.capabilities.tools.length).toBe(withHash.capabilities.tools.length);
     });
 
     it('should skip integrity check when option is set', () => {
       const path = join(tempDir, 'modified.json');
       const baseline = {
         version: '1.0.0',
-        createdAt: new Date().toISOString(),
-        serverCommand: 'test',
+        metadata: {
+          mode: 'check',
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'test',
+          durationMs: 1,
+          personas: [],
+          model: 'none',
+        },
         server: {
           name: 'test',
           version: '1.0.0',
           protocolVersion: '2024-11-05',
           capabilities: ['tools'],
         },
-        tools: [],
+        capabilities: { tools: [] },
+        interviews: [],
+        toolProfiles: [],
         summary: 'test',
         assertions: [],
-        integrityHash: 'wrong_hash',
+        hash: 'wrong_hash',
       };
       writeFileSync(path, JSON.stringify(baseline));
 
@@ -227,19 +293,28 @@ describe('baseline loading edge cases', () => {
       // Create a baseline with a very large summary to exceed limits
       const baseline = {
         version: '1.0.0',
-        createdAt: new Date().toISOString(),
-        serverCommand: 'test',
+        metadata: {
+          mode: 'check',
+          generatedAt: new Date().toISOString(),
+          cliVersion: '1.0.0',
+          serverCommand: 'test',
+          durationMs: 1,
+          personas: [],
+          model: 'none',
+        },
         server: {
           name: 'test',
           version: '1.0.0',
           protocolVersion: '2024-11-05',
           capabilities: ['tools'],
         },
-        tools: [],
+        capabilities: { tools: [] },
+        interviews: [],
+        toolProfiles: [],
         // Create large content to exceed the limit
         summary: 'x'.repeat(60 * 1024 * 1024), // 60MB of x's
         assertions: [],
-        integrityHash: 'abc123',
+        hash: 'abc123',
       };
 
       writeFileSync(path, JSON.stringify(baseline));
@@ -266,7 +341,7 @@ describe('baseline saving', () => {
   it('should save baseline to file', () => {
     const path = join(tempDir, 'saved.json');
     const baseline = createValidBaseline();
-    const withHash = recalculateIntegrityHash(baseline);
+    const withHash = recalculateBaselineHash(baseline);
 
     saveBaseline(withHash, path);
 
@@ -275,17 +350,18 @@ describe('baseline saving', () => {
 
   it('should overwrite existing baseline', () => {
     const path = join(tempDir, 'overwrite.json');
-    const baseline1 = createValidBaseline();
-    baseline1.summary = 'first';
-    const withHash1 = recalculateIntegrityHash(baseline1);
 
-    saveBaseline(withHash1, path);
+    // Create first baseline - use production createBaseline to ensure correct format
+    const result1 = createMockInterviewResult();
+    (result1 as any).summary = 'first';
+    const baseline1 = createBaseline(result1, 'npx test-server');
+    saveBaseline(baseline1, path);
 
-    const baseline2 = createValidBaseline();
-    baseline2.summary = 'second';
-    const withHash2 = recalculateIntegrityHash(baseline2);
-
-    saveBaseline(withHash2, path);
+    // Create second baseline with different summary
+    const result2 = createMockInterviewResult();
+    (result2 as any).summary = 'second';
+    const baseline2 = createBaseline(result2, 'npx test-server');
+    saveBaseline(baseline2, path);
 
     const loaded = loadBaseline(path);
     expect(loaded.summary).toBe('second');
@@ -327,25 +403,25 @@ describe('baselineExists', () => {
   });
 });
 
-describe('recalculateIntegrityHash', () => {
+describe('recalculateBaselineHash', () => {
   it('should recalculate hash for modified baseline', () => {
     const baseline = createValidBaseline();
-    const original = recalculateIntegrityHash(baseline);
-    const originalHash = original.integrityHash;
+    const original = recalculateBaselineHash(baseline);
+    const originalHash = original.hash;
 
     // Modify the baseline
     baseline.summary = 'modified summary';
-    const recalculated = recalculateIntegrityHash(baseline);
+    const recalculated = recalculateBaselineHash(baseline);
 
-    expect(recalculated.integrityHash).not.toBe(originalHash);
+    expect(recalculated.hash).not.toBe(originalHash);
   });
 
   it('should produce same hash for identical baselines', () => {
     const baseline1 = createValidBaseline();
     const baseline2 = createValidBaseline();
 
-    const hash1 = recalculateIntegrityHash(baseline1).integrityHash;
-    const hash2 = recalculateIntegrityHash(baseline2).integrityHash;
+    const hash1 = recalculateBaselineHash(baseline1).hash;
+    const hash2 = recalculateBaselineHash(baseline2).hash;
 
     expect(hash1).toBe(hash2);
   });
@@ -354,7 +430,7 @@ describe('recalculateIntegrityHash', () => {
 describe('acceptance metadata', () => {
   it('should detect baseline without acceptance', () => {
     const baseline = createValidBaseline();
-    const withHash = recalculateIntegrityHash(baseline);
+    const withHash = recalculateBaselineHash(baseline);
 
     expect(hasAcceptance(withHash)).toBe(false);
   });
@@ -375,7 +451,7 @@ describe('acceptance metadata', () => {
         infoCount: 1,
       },
     };
-    const withHash = recalculateIntegrityHash(baseline);
+    const withHash = recalculateBaselineHash(baseline);
 
     expect(hasAcceptance(withHash)).toBe(true);
   });
@@ -396,12 +472,12 @@ describe('acceptance metadata', () => {
         infoCount: 1,
       },
     };
-    const withHash = recalculateIntegrityHash(baseline);
+    const withHash = recalculateBaselineHash(baseline);
 
     const cleared = clearAcceptance(withHash);
 
     expect(hasAcceptance(cleared)).toBe(false);
-    expect(verifyIntegrity(cleared)).toBe(true);
+    expect(verifyBaselineHash(cleared)).toBe(true);
   });
 });
 
@@ -419,47 +495,64 @@ describe('date handling', () => {
     }
   });
 
-  it('should restore Date objects when loading', () => {
+  it('should preserve ISO timestamps when loading', () => {
     const path = join(tempDir, 'dates.json');
     const baseline = {
       version: '1.0.0',
-      createdAt: '2024-01-15T12:00:00.000Z',
-      serverCommand: 'test',
+      metadata: {
+        mode: 'check',
+        generatedAt: '2024-01-15T12:00:00.000Z',
+        cliVersion: '1.0.0',
+        serverCommand: 'test',
+        durationMs: 1,
+        personas: [],
+        model: 'none',
+      },
       server: {
         name: 'test',
         version: '1.0.0',
         protocolVersion: '2024-11-05',
         capabilities: ['tools'],
       },
-      tools: [],
+      capabilities: { tools: [] },
+      interviews: [],
+      toolProfiles: [],
       summary: 'test',
       assertions: [],
-      integrityHash: 'will_be_ignored',
+      hash: 'will_be_ignored',
     };
     writeFileSync(path, JSON.stringify(baseline));
 
     const loaded = loadBaseline(path, { skipIntegrityCheck: true });
 
-    expect(loaded.createdAt).toBeInstanceOf(Date);
-    expect(loaded.createdAt.toISOString()).toBe('2024-01-15T12:00:00.000Z');
+    expect(loaded.metadata.generatedAt).toBe('2024-01-15T12:00:00.000Z');
   });
 
-  it('should restore acceptance date', () => {
+  it('should preserve acceptance timestamps', () => {
     const path = join(tempDir, 'acceptance-date.json');
     const baseline = {
       version: '1.0.0',
-      createdAt: '2024-01-15T12:00:00.000Z',
-      serverCommand: 'test',
+      metadata: {
+        mode: 'check',
+        generatedAt: '2024-01-15T12:00:00.000Z',
+        cliVersion: '1.0.0',
+        serverCommand: 'test',
+        durationMs: 1,
+        personas: [],
+        model: 'none',
+      },
       server: {
         name: 'test',
         version: '1.0.0',
         protocolVersion: '2024-11-05',
         capabilities: ['tools'],
       },
-      tools: [],
+      capabilities: { tools: [] },
+      interviews: [],
+      toolProfiles: [],
       summary: 'test',
       assertions: [],
-      integrityHash: 'will_be_ignored',
+      hash: 'will_be_ignored',
       acceptance: {
         acceptedAt: '2024-01-16T12:00:00.000Z',
         reason: 'test',
@@ -478,8 +571,8 @@ describe('date handling', () => {
 
     const loaded = loadBaseline(path, { skipIntegrityCheck: true });
 
-    expect(loaded.acceptance?.acceptedAt).toBeInstanceOf(Date);
-    expect(loaded.acceptance?.acceptedAt.toISOString()).toBe('2024-01-16T12:00:00.000Z');
+    // loadBaseline converts acceptedAt to Date object
+    expect((loaded.acceptance?.acceptedAt as Date).toISOString()).toBe('2024-01-16T12:00:00.000Z');
   });
 });
 
@@ -501,15 +594,33 @@ describe('tool fingerprint edge cases', () => {
     const path = join(tempDir, 'no-assertions.json');
     const baseline = {
       version: '1.0.0',
-      createdAt: new Date().toISOString(),
-      serverCommand: 'test',
+      metadata: {
+        mode: 'check',
+        generatedAt: new Date().toISOString(),
+        cliVersion: '1.0.0',
+        serverCommand: 'test',
+        durationMs: 1,
+        personas: [],
+        model: 'none',
+      },
       server: {
         name: 'test',
         version: '1.0.0',
         protocolVersion: '2024-11-05',
         capabilities: ['tools'],
       },
-      tools: [
+      capabilities: {
+        tools: [
+          {
+            name: 'simple_tool',
+            description: 'A simple tool',
+            inputSchema: { type: 'object', properties: {} },
+            schemaHash: 'abc123',
+          },
+        ],
+      },
+      interviews: [],
+      toolProfiles: [
         {
           name: 'simple_tool',
           description: 'A simple tool',
@@ -517,32 +628,60 @@ describe('tool fingerprint edge cases', () => {
           assertions: [],
           securityNotes: [],
           limitations: [],
+          behavioralNotes: [],
         },
       ],
       summary: 'test',
       assertions: [],
-      integrityHash: 'placeholder',
+      hash: 'placeholder',
     };
     writeFileSync(path, JSON.stringify(baseline));
 
     const loaded = loadBaseline(path, { skipIntegrityCheck: true });
 
-    expect(loaded.tools[0].assertions).toEqual([]);
+    expect(loaded.toolProfiles[0].assertions).toEqual([]);
   });
 
   it('should handle tools with response fingerprints', () => {
     const path = join(tempDir, 'with-fingerprint.json');
     const baseline = {
       version: '1.0.0',
-      createdAt: new Date().toISOString(),
-      serverCommand: 'test',
+      metadata: {
+        mode: 'check',
+        generatedAt: new Date().toISOString(),
+        cliVersion: '1.0.0',
+        serverCommand: 'test',
+        durationMs: 1,
+        personas: [],
+        model: 'none',
+      },
       server: {
         name: 'test',
         version: '1.0.0',
         protocolVersion: '2024-11-05',
         capabilities: ['tools'],
       },
-      tools: [
+      capabilities: {
+        tools: [
+          {
+            name: 'tool_with_fingerprint',
+            description: 'A tool with fingerprint',
+            inputSchema: { type: 'object', properties: {} },
+            schemaHash: 'abc123',
+            responseFingerprint: {
+              structureHash: 'struct_hash',
+              contentType: 'object',
+              fields: ['field1', 'field2'],
+              size: 'small',
+              isEmpty: false,
+              sampleCount: 5,
+              confidence: 0.95,
+            },
+          },
+        ],
+      },
+      interviews: [],
+      toolProfiles: [
         {
           name: 'tool_with_fingerprint',
           description: 'A tool with fingerprint',
@@ -550,42 +689,60 @@ describe('tool fingerprint edge cases', () => {
           assertions: [],
           securityNotes: [],
           limitations: [],
-          responseFingerprint: {
-            structureHash: 'struct_hash',
-            contentType: 'object',
-            fields: ['field1', 'field2'],
-            size: 'small',
-            isEmpty: false,
-            sampleCount: 5,
-            confidence: 0.95,
-          },
+          behavioralNotes: [],
         },
       ],
       summary: 'test',
       assertions: [],
-      integrityHash: 'placeholder',
+      hash: 'placeholder',
     };
     writeFileSync(path, JSON.stringify(baseline));
 
     const loaded = loadBaseline(path, { skipIntegrityCheck: true });
 
-    expect(loaded.tools[0].responseFingerprint).toBeDefined();
-    expect(loaded.tools[0].responseFingerprint?.contentType).toBe('object');
+    expect(loaded.capabilities.tools[0].responseFingerprint).toBeDefined();
+    expect(loaded.capabilities.tools[0].responseFingerprint?.contentType).toBe('object');
   });
 
   it('should handle tools with error patterns', () => {
     const path = join(tempDir, 'with-errors.json');
     const baseline = {
       version: '1.0.0',
-      createdAt: new Date().toISOString(),
-      serverCommand: 'test',
+      metadata: {
+        mode: 'check',
+        generatedAt: new Date().toISOString(),
+        cliVersion: '1.0.0',
+        serverCommand: 'test',
+        durationMs: 1,
+        personas: [],
+        model: 'none',
+      },
       server: {
         name: 'test',
         version: '1.0.0',
         protocolVersion: '2024-11-05',
         capabilities: ['tools'],
       },
-      tools: [
+      capabilities: {
+        tools: [
+          {
+            name: 'error_tool',
+            description: 'A tool with errors',
+            inputSchema: { type: 'object', properties: {} },
+            schemaHash: 'abc123',
+            errorPatterns: [
+              {
+                category: 'validation',
+                patternHash: 'err_hash',
+                example: 'Invalid input',
+                count: 3,
+              },
+            ],
+          },
+        ],
+      },
+      interviews: [],
+      toolProfiles: [
         {
           name: 'error_tool',
           description: 'A tool with errors',
@@ -593,26 +750,19 @@ describe('tool fingerprint edge cases', () => {
           assertions: [],
           securityNotes: [],
           limitations: [],
-          errorPatterns: [
-            {
-              category: 'validation',
-              patternHash: 'err_hash',
-              example: 'Invalid input',
-              count: 3,
-            },
-          ],
+          behavioralNotes: [],
         },
       ],
       summary: 'test',
       assertions: [],
-      integrityHash: 'placeholder',
+      hash: 'placeholder',
     };
     writeFileSync(path, JSON.stringify(baseline));
 
     const loaded = loadBaseline(path, { skipIntegrityCheck: true });
 
-    expect(loaded.tools[0].errorPatterns).toBeDefined();
-    expect(loaded.tools[0].errorPatterns?.[0].category).toBe('validation');
+    expect(loaded.capabilities.tools[0].errorPatterns).toBeDefined();
+    expect(loaded.capabilities.tools[0].errorPatterns?.[0].category).toBe('validation');
   });
 });
 
@@ -634,19 +784,28 @@ describe('workflow signature edge cases', () => {
     const path = join(tempDir, 'workflows.json');
     const baseline = {
       version: '1.0.0',
-      createdAt: new Date().toISOString(),
-      serverCommand: 'test',
+      metadata: {
+        mode: 'check',
+        generatedAt: new Date().toISOString(),
+        cliVersion: '1.0.0',
+        serverCommand: 'test',
+        durationMs: 1,
+        personas: [],
+        model: 'none',
+      },
       server: {
         name: 'test',
         version: '1.0.0',
         protocolVersion: '2024-11-05',
         capabilities: ['tools'],
       },
-      tools: [],
+      capabilities: { tools: [] },
+      interviews: [],
+      toolProfiles: [],
       summary: 'test',
       assertions: [],
-      integrityHash: 'placeholder',
-      workflowSignatures: [
+      hash: 'placeholder',
+      workflows: [
         {
           id: 'workflow_1',
           name: 'Test Workflow',
@@ -660,34 +819,43 @@ describe('workflow signature edge cases', () => {
 
     const loaded = loadBaseline(path, { skipIntegrityCheck: true });
 
-    expect(loaded.workflowSignatures).toBeDefined();
-    expect(loaded.workflowSignatures?.length).toBe(1);
-    expect(loaded.workflowSignatures?.[0].name).toBe('Test Workflow');
+    expect(loaded.workflows).toBeDefined();
+    expect(loaded.workflows?.length).toBe(1);
+    expect(loaded.workflows?.[0].name).toBe('Test Workflow');
   });
 
   it('should handle baseline without workflows', () => {
     const path = join(tempDir, 'no-workflows.json');
     const baseline = {
       version: '1.0.0',
-      createdAt: new Date().toISOString(),
-      serverCommand: 'test',
+      metadata: {
+        mode: 'check',
+        generatedAt: new Date().toISOString(),
+        cliVersion: '1.0.0',
+        serverCommand: 'test',
+        durationMs: 1,
+        personas: [],
+        model: 'none',
+      },
       server: {
         name: 'test',
         version: '1.0.0',
         protocolVersion: '2024-11-05',
         capabilities: ['tools'],
       },
-      tools: [],
+      capabilities: { tools: [] },
+      interviews: [],
+      toolProfiles: [],
       summary: 'test',
       assertions: [],
-      integrityHash: 'placeholder',
-      // No workflowSignatures field
+      hash: 'placeholder',
+      // No workflows field
     };
     writeFileSync(path, JSON.stringify(baseline));
 
     const loaded = loadBaseline(path, { skipIntegrityCheck: true });
 
-    // Should handle missing workflowSignatures gracefully
-    expect(loaded.workflowSignatures).toBeUndefined();
+    // Should handle missing workflows gracefully
+    expect(loaded.workflows).toBeUndefined();
   });
 });
