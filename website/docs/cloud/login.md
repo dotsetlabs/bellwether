@@ -23,7 +23,7 @@ bellwether login [options]
 
 The `login` command authenticates you with Bellwether Cloud, enabling baseline syncing and history tracking.
 
-During beta, you'll be prompted for an invitation code if you don't already have beta access. Enter your code when prompted, then complete the GitHub OAuth flow.
+During beta, you'll be prompted for an invitation code if you don't already have beta access. Enter your code when prompted, then complete the GitHub or Google OAuth flow.
 
 :::note Config Required
 All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `login`.
@@ -41,6 +41,7 @@ Your invitation code is tied to a specific email address. When logging in, you m
 | `--logout` | Log out and clear stored credentials |
 | `--mock` | Generate a mock session for local development |
 | `--no-browser` | Do not automatically open browser |
+| `--provider <provider>` | OAuth provider (`github` or `google`) |
 
 ## Examples
 

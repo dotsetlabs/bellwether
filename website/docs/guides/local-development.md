@@ -65,7 +65,7 @@ Bellwether communicates with your server via stdin/stdout using JSON-RPC 2.0.
 
 ### Localhost HTTP Servers
 
-If your server runs as an HTTP service locally, configure transport in `bellwether.yaml`:
+If your server runs as an HTTP service locally, configure the server transport in `bellwether.yaml`:
 
 ```yaml
 server:
@@ -79,6 +79,7 @@ Or for streamable HTTP:
 server:
   transport: streamable-http
   url: http://localhost:8000/mcp
+  # sessionId: "your-auth-token"
 ```
 
 ## Development Workflow

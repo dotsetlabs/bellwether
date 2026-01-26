@@ -15,7 +15,7 @@ bellwether explore [server-command] [args...]
 
 ## Description
 
-The `explore` command uses LLMs to deeply probe your MCP server from multiple perspectives. Four personas test your server:
+The `explore` command uses LLMs to deeply probe your MCP server from multiple perspectives. By default it runs the **Technical Writer** persona; you can add more in `bellwether.yaml`:
 
 - **Technical Writer** - Documentation quality and completeness
 - **Security Tester** - Vulnerabilities, injection, path traversal
@@ -92,6 +92,7 @@ bellwether explore
 | `bellwether-explore.json` | Machine-readable exploration results (configurable via `output.files.exploreReport`) |
 
 Output locations are controlled by `output.dir` (JSON) and `output.docsDir` (docs).
+Which files are written is controlled by `output.format` (`agents.md`, `json`, or `both`).
 
 ### AGENTS.md Contents
 

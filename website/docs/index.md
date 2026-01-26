@@ -8,7 +8,7 @@ sidebar_position: 1
 
 > **Catch drift in your MCP servers. Generate documentation for free.**
 
-Bellwether is a CLI tool for **structural drift detection** in MCP servers. It catches breaking changes before deployment and generates CONTRACT.md documentation as a byproduct—all without requiring an LLM.
+Bellwether is a CLI tool for **structural drift detection** in MCP servers. It catches breaking changes before deployment and can generate CONTRACT.md documentation as a byproduct (controlled by `output.format`)—all without requiring an LLM.
 
 ## What is MCP?
 
@@ -64,13 +64,13 @@ bellwether check --fail-on-drift
 ## What You Get
 
 ### From `bellwether check` (free, no LLM):
-- **CONTRACT.md** - Structural documentation of tool schemas and parameters (configurable via `output.files.contractDoc`)
-- **bellwether-check.json** - Machine-readable validation results (configurable via `output.files.checkReport`)
+- **CONTRACT.md** - Structural documentation of tool schemas and parameters (generated when `output.format` includes docs; configurable via `output.files.contractDoc`)
+- **bellwether-check.json** - Machine-readable validation results (generated when `output.format` includes `json`; configurable via `output.files.checkReport`)
 - **bellwether-baseline.json** - Baseline for drift comparison (configurable via `baseline.path` / `baseline.savePath`)
 
 ### From `bellwether explore` (requires LLM):
-- **AGENTS.md** - Behavioral documentation from multi-persona exploration (configurable via `output.files.agentsDoc`)
-- **bellwether-explore.json** - Detailed exploration results (configurable via `output.files.exploreReport`)
+- **AGENTS.md** - Behavioral documentation from multi-persona exploration (generated when `output.format` includes docs; configurable via `output.files.agentsDoc`)
+- **bellwether-explore.json** - Detailed exploration results (generated when `output.format` includes `json`; configurable via `output.files.exploreReport`)
 
 ## Next Steps
 

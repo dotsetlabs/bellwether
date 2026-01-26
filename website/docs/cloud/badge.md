@@ -156,7 +156,6 @@ done
 
 ## Prerequisites
 
-- Must be logged in to Bellwether Cloud (`bellwether login`)
 - Project must be linked (`bellwether link`) or specified with `--project`
 - At least one baseline must be uploaded for meaningful badge status
 

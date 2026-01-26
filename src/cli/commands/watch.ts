@@ -24,7 +24,7 @@ import {
   compareBaselines,
   formatDiffText,
 } from '../../baseline/index.js';
-import { EXIT_CODES, CHECK_SAMPLING } from '../../constants.js';
+import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
 
 export const watchCommand = new Command('watch')
@@ -48,6 +48,9 @@ export const watchCommand = new Command('watch')
     // Determine server command (CLI arg overrides config)
     const serverCommand = serverCommandArg || config.server.command;
     const args = serverArgs.length > 0 ? serverArgs : config.server.args;
+    const transport = config.server.transport ?? 'stdio';
+    const remoteUrl = config.server.url?.trim();
+    const remoteSessionId = config.server.sessionId?.trim();
 
     // Validate config for check mode (watch only does check, not explore)
     try {
@@ -62,10 +65,7 @@ export const watchCommand = new Command('watch')
     const interval = config.watch.interval;
     const extensions = config.watch.extensions;
     const onDriftCommand = config.watch.onDrift;
-    const minSamplesForConfidence = CHECK_SAMPLING.SAMPLES_FOR_CONFIDENCE[
-      config.check.sampling.targetConfidence as 'low' | 'medium' | 'high'
-    ];
-    const minSamples = Math.max(config.check.sampling.minSamples, minSamplesForConfidence);
+    const minSamples = config.check.sampling.minSamples;
 
     // Baseline path for watch mode (use savePath or baseline default)
     const baselinePathValue = config.baseline.savePath ?? config.baseline.path;
@@ -78,7 +78,10 @@ export const watchCommand = new Command('watch')
     const verbose = config.logging.verbose;
 
     output.info('Bellwether Watch Mode\n');
-    output.info(`Server: ${serverCommand} ${args.join(' ')}`);
+    const serverIdentifier = transport === 'stdio'
+      ? `${serverCommand} ${args.join(' ')}`.trim()
+      : (remoteUrl ?? 'unknown');
+    output.info(`Server: ${serverIdentifier}`);
     output.info(`Mode: check (schema validation)`);
     output.info(`Watching: ${watchPath}`);
     output.info(`Baseline: ${baselinePath}`);
@@ -99,14 +102,25 @@ export const watchCommand = new Command('watch')
     const fileModTimes = new Map<string, number>();
 
     async function runTest(): Promise<void> {
-      const mcpClient = new MCPClient({ timeout });
+      const mcpClient = new MCPClient({ timeout, transport });
 
       try {
         output.info('\n--- Running Test ---');
         output.info(`[${new Date().toLocaleTimeString()}] Starting test...`);
 
-        await mcpClient.connect(serverCommand, args, config.server.env);
-        const discovery = await discover(mcpClient, serverCommand, args);
+        if (transport === 'stdio') {
+          await mcpClient.connect(serverCommand, args, config.server.env);
+        } else {
+          await mcpClient.connectRemote(remoteUrl!, {
+            transport,
+            sessionId: remoteSessionId || undefined,
+          });
+        }
+        const discovery = await discover(
+          mcpClient,
+          transport === 'stdio' ? serverCommand : remoteUrl ?? serverCommand,
+          transport === 'stdio' ? args : []
+        );
         output.info(`Found ${discovery.tools.length} tools`);
 
         if (discovery.tools.length === 0) {
@@ -115,7 +129,7 @@ export const watchCommand = new Command('watch')
           return;
         }
 
-        const fullServerCommand = `${serverCommand} ${args.join(' ')}`.trim();
+        const fullServerCommand = serverIdentifier;
         // Watch mode uses check (no LLM) for fast, deterministic drift detection
         const interviewer = new Interviewer(null, {
           maxQuestionsPerTool: minSamples,

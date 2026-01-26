@@ -2,7 +2,7 @@
  * Check command - Schema validation and drift detection for MCP servers.
  *
  * Purpose: Fast, free, deterministic checking of MCP server contracts.
- * Output: Documentation + JSON report (filenames configurable via output.files)
+ * Output: Documentation and/or JSON report (controlled by output.format)
  * Baseline: Full support (save, compare, diff)
  * LLM: None required
  */
@@ -108,6 +108,9 @@ export const checkCommand = new Command('check')
     // Determine server command (CLI arg overrides config)
     const serverCommand = serverCommandArg || config.server.command;
     const args = serverArgs.length > 0 ? serverArgs : config.server.args;
+    const transport = config.server.transport ?? 'stdio';
+    const remoteUrl = config.server.url?.trim();
+    const remoteSessionId = config.server.sessionId?.trim();
 
     // Validate config for check
     try {
@@ -133,6 +136,7 @@ export const checkCommand = new Command('check')
     const cacheEnabled = config.cache.enabled;
     const verbose = config.logging.verbose;
     const logLevel = config.logging.level;
+    const outputFormat = config.output.format;
 
     if (!process.env.BELLWETHER_LOG_OVERRIDE) {
       // Configure logger based on config settings
@@ -188,9 +192,13 @@ export const checkCommand = new Command('check')
     const exampleLength = config.output.examples.maxLength;
     const maxExamplesPerTool = config.output.examples.maxPerTool;
 
+    const serverIdentifier = transport === 'stdio'
+      ? `${serverCommand} ${args.join(' ')}`.trim()
+      : (remoteUrl ?? 'unknown');
+
     // Display startup banner
     const banner = formatCheckBanner({
-      serverCommand: `${serverCommand} ${args.join(' ')}`,
+      serverCommand: serverIdentifier,
     });
     output.info(banner);
     output.newline();
@@ -213,17 +221,28 @@ export const checkCommand = new Command('check')
     const mcpClient = new MCPClient({
       timeout,
       debug: logLevel === 'debug',
-      transport: 'stdio',
+      transport,
     });
 
     try {
       // Connect to MCP server
       output.info('Connecting to MCP server...');
-      await mcpClient.connect(serverCommand, args, config.server.env);
+      if (transport === 'stdio') {
+        await mcpClient.connect(serverCommand, args, config.server.env);
+      } else {
+        await mcpClient.connectRemote(remoteUrl!, {
+          transport,
+          sessionId: remoteSessionId || undefined,
+        });
+      }
 
       // Discovery phase
       output.info('Discovering capabilities...');
-      const discovery = await discover(mcpClient, serverCommand, args);
+      const discovery = await discover(
+        mcpClient,
+        transport === 'stdio' ? serverCommand : remoteUrl ?? serverCommand,
+        transport === 'stdio' ? args : []
+      );
       const resourceCount = discovery.resources?.length ?? 0;
       const discoveryParts = [`${discovery.tools.length} tools`, `${discovery.prompts.length} prompts`];
       if (resourceCount > 0) {
@@ -316,7 +335,7 @@ export const checkCommand = new Command('check')
       }
 
       // Create interviewer for check mode (no LLM required)
-      const fullServerCommand = `${serverCommand} ${args.join(' ')}`.trim();
+      const fullServerCommand = serverIdentifier;
 
       // Validate parallel workers (already resolved from config + CLI override)
       let toolConcurrency = parallelWorkers;
@@ -375,11 +394,13 @@ export const checkCommand = new Command('check')
       }
 
       // Extract server context
-      const serverContext = extractServerContextFromArgs(serverCommand, args);
-      if (serverContext.allowedDirectories && serverContext.allowedDirectories.length > 0) {
-        output.info(`Detected allowed directories: ${serverContext.allowedDirectories.join(', ')}`);
+      if (transport === 'stdio') {
+        const serverContext = extractServerContextFromArgs(serverCommand, args);
+        if (serverContext.allowedDirectories && serverContext.allowedDirectories.length > 0) {
+          output.info(`Detected allowed directories: ${serverContext.allowedDirectories.join(', ')}`);
+        }
+        interviewer.setServerContext(serverContext);
       }
-      interviewer.setServerContext(serverContext);
 
       // Set up progress display
       const progressBar = new InterviewProgressBar({ enabled: !verbose });
@@ -701,38 +722,44 @@ export const checkCommand = new Command('check')
 
       // Generate documentation (after security testing so findings can be included)
       output.info('Generating documentation...');
-      const contractMd = generateContractMd(result, {
-        securityFingerprints: securityEnabled ? securityFingerprints : undefined,
-        workflowResults: workflowResults.length > 0 ? workflowResults : undefined,
-        exampleLength,
-        fullExamples,
-        maxExamplesPerTool,
-        targetConfidence,
-        countValidationAsSuccess: config.check.metrics.countValidationAsSuccess,
-        separateValidationMetrics: config.check.metrics.separateValidationMetrics,
-      });
-      const contractMdPath = join(docsDir, config.output.files.contractDoc);
-      writeFileSync(contractMdPath, contractMd);
-      output.info(`Written: ${contractMdPath}`);
+      const writeDocs = outputFormat === 'both' || outputFormat === 'agents.md';
+      const writeJson = outputFormat === 'both' || outputFormat === 'json';
 
-      // Always generate JSON report for check command
-      // Add workflow results to the result object for the JSON report
-      const resultWithWorkflows = workflowResults.length > 0
-        ? { ...result, workflowResults }
-        : result;
-      let jsonReport: string;
-      try {
-        jsonReport = generateJsonReport(resultWithWorkflows, {
-          schemaUrl: REPORT_SCHEMAS.CHECK_REPORT_SCHEMA_URL,
-          validate: true,
+      if (writeDocs) {
+        const contractMd = generateContractMd(result, {
+          securityFingerprints: securityEnabled ? securityFingerprints : undefined,
+          workflowResults: workflowResults.length > 0 ? workflowResults : undefined,
+          exampleLength,
+          fullExamples,
+          maxExamplesPerTool,
+          targetConfidence,
+          countValidationAsSuccess: config.check.metrics.countValidationAsSuccess,
+          separateValidationMetrics: config.check.metrics.separateValidationMetrics,
         });
-      } catch (error) {
-        output.error(error instanceof Error ? error.message : String(error));
-        process.exit(EXIT_CODES.ERROR);
+        const contractMdPath = join(docsDir, config.output.files.contractDoc);
+        writeFileSync(contractMdPath, contractMd);
+        output.info(`Written: ${contractMdPath}`);
       }
-      const jsonPath = join(outputDir, config.output.files.checkReport);
-      writeFileSync(jsonPath, jsonReport);
-      output.info(`Written: ${jsonPath}`);
+
+      if (writeJson) {
+        // Add workflow results to the result object for the JSON report
+        const resultWithWorkflows = workflowResults.length > 0
+          ? { ...result, workflowResults }
+          : result;
+        let jsonReport: string;
+        try {
+          jsonReport = generateJsonReport(resultWithWorkflows, {
+            schemaUrl: REPORT_SCHEMAS.CHECK_REPORT_SCHEMA_URL,
+            validate: true,
+          });
+        } catch (error) {
+          output.error(error instanceof Error ? error.message : String(error));
+          process.exit(EXIT_CODES.ERROR);
+        }
+        const jsonPath = join(outputDir, config.output.files.checkReport);
+        writeFileSync(jsonPath, jsonReport);
+        output.info(`Written: ${jsonPath}`);
+      }
 
       // Create baseline from results
       let currentBaseline = createBaseline(result, fullServerCommand);

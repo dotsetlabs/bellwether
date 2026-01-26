@@ -7,6 +7,9 @@ export const CONFIG_DEFAULTS = {
     command: '',
     args: [] as string[],
     timeout: TIMEOUTS.DEFAULT,
+    transport: 'stdio' as const,
+    url: '',
+    sessionId: '',
   },
   llm: {
     provider: 'ollama' as const,
@@ -135,6 +138,8 @@ export const CONFIG_DEFAULTS = {
     json: false,
     timeout: TIMEOUTS.DEFAULT,
     transport: 'stdio' as const,
+    url: '',
+    sessionId: '',
   },
   registry: {
     limit: 10,

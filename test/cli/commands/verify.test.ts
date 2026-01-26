@@ -68,6 +68,7 @@ vi.mock('../../../src/llm/index.js', () => ({
 // Shared mock instance for MCPClient
 const mockMCPClientInstance = {
   connect: vi.fn().mockResolvedValue(undefined),
+  connectRemote: vi.fn().mockResolvedValue(undefined),
   disconnect: vi.fn().mockResolvedValue(undefined),
 };
 
@@ -75,6 +76,7 @@ const mockMCPClientInstance = {
 vi.mock('../../../src/transport/mcp-client.js', () => ({
   MCPClient: class MockMCPClient {
     connect = mockMCPClientInstance.connect;
+    connectRemote = mockMCPClientInstance.connectRemote;
     disconnect = mockMCPClientInstance.disconnect;
   },
 }));
@@ -182,6 +184,7 @@ describe('Verify Command', () => {
 
     // Reset shared mock instances
     mockMCPClientInstance.connect.mockReset().mockResolvedValue(undefined);
+    mockMCPClientInstance.connectRemote.mockReset().mockResolvedValue(undefined);
     mockMCPClientInstance.disconnect.mockReset().mockResolvedValue(undefined);
     mockInterviewerInstance.interview.mockReset().mockResolvedValue({
       discovery: { serverInfo: { name: 'test-server', version: '1.0.0' } },

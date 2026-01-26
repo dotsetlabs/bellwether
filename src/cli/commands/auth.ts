@@ -212,31 +212,10 @@ async function interactiveSetup(): Promise<void> {
       await keychain.setApiKey(provider, apiKey);
       output.success(`\n\u2713 API key stored in system keychain`);
     } else {
-      // Store in ~/.bellwether/.env
-      const fs = await import('fs');
-      const path = await import('path');
-      const os = await import('os');
-
-      const envDir = path.join(os.homedir(), '.bellwether');
-      const envPath = path.join(envDir, '.env');
-
-      if (!fs.existsSync(envDir)) {
-        fs.mkdirSync(envDir, { recursive: true, mode: 0o700 });
-      }
-
-      // Read existing .env or create new
-      let envContent = '';
-      if (fs.existsSync(envPath)) {
-        envContent = fs.readFileSync(envPath, 'utf-8');
-      }
-
-      // Update or add the key
-      const envVar = info.envVar;
-      const lines = envContent.split('\n').filter(line => !line.startsWith(`${envVar}=`));
-      lines.push(`${envVar}=${apiKey}`);
-
-      fs.writeFileSync(envPath, lines.filter(l => l).join('\n') + '\n', { mode: 0o600 });
-      output.success(`\n\u2713 API key stored in ~/.bellwether/.env`);
+      // Store in ~/.bellwether/.env using encrypted file backend
+      keychain.enableFileBackend();
+      await keychain.setApiKey(provider, apiKey);
+      output.success(`\n\u2713 API key stored in ~/.bellwether/.env (encrypted)`);
     }
 
     output.info(`\nYou're all set! Bellwether will now use ${info.name} for tests.`);
@@ -305,9 +284,9 @@ async function showStatus(): Promise<void> {
   // Show priority order
   output.info('Credential resolution order:');
   output.info('  1. Environment variables (highest priority)');
-  output.info('  2. System keychain');
+  output.info('  2. Project .env file');
   output.info('  3. ~/.bellwether/.env file');
-  output.info('  4. Project .env file');
+  output.info('  4. System keychain');
 }
 
 /**

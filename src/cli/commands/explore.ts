@@ -2,7 +2,7 @@
  * Explore command - LLM-powered behavioral exploration for MCP servers.
  *
  * Purpose: Deep exploration and documentation of MCP server behavior.
- * Output: Documentation + JSON report (filenames configurable via output.files)
+ * Output: Documentation and/or JSON report (controlled by output.format)
  * Baseline: None (use 'bellwether check' for drift detection)
  * LLM: Required (OpenAI, Anthropic, or Ollama)
  */
@@ -71,6 +71,9 @@ export const exploreCommand = new Command('explore')
     // Determine server command (CLI arg overrides config)
     const serverCommand = serverCommandArg || config.server.command;
     const args = serverArgs.length > 0 ? serverArgs : config.server.args;
+    const transport = config.server.transport ?? 'stdio';
+    const remoteUrl = config.server.url?.trim();
+    const remoteSessionId = config.server.sessionId?.trim();
 
     // Validate config for explore
     try {
@@ -87,6 +90,7 @@ export const exploreCommand = new Command('explore')
     const cacheEnabled = config.cache.enabled;
     const verbose = config.logging.verbose;
     const logLevel = config.logging.level;
+    const outputFormat = config.output.format;
 
     if (!process.env.BELLWETHER_LOG_OVERRIDE) {
       const effectiveLogLevel: LogLevel = verbose ? (logLevel as LogLevel) : 'silent';
@@ -104,8 +108,12 @@ export const exploreCommand = new Command('explore')
     const model = config.llm.model || undefined;
 
     // Display startup banner
+    const serverIdentifier = transport === 'stdio'
+      ? `${serverCommand} ${args.join(' ')}`.trim()
+      : (remoteUrl ?? 'unknown');
+
     const banner = formatExploreBanner({
-      serverCommand: `${serverCommand} ${args.join(' ')}`,
+      serverCommand: serverIdentifier,
       provider,
       model: model || 'default',
       personas: selectedPersonas.map((p) => p.name),
@@ -135,7 +143,7 @@ export const exploreCommand = new Command('explore')
     const mcpClient = new MCPClient({
       timeout,
       debug: logLevel === 'debug',
-      transport: 'stdio',
+      transport,
     });
 
     // Initialize LLM client
@@ -164,11 +172,22 @@ export const exploreCommand = new Command('explore')
     try {
       // Connect to MCP server
       output.info('Connecting to MCP server...');
-      await mcpClient.connect(serverCommand, args, config.server.env);
+      if (transport === 'stdio') {
+        await mcpClient.connect(serverCommand, args, config.server.env);
+      } else {
+        await mcpClient.connectRemote(remoteUrl!, {
+          transport,
+          sessionId: remoteSessionId || undefined,
+        });
+      }
 
       // Discovery phase
       output.info('Discovering capabilities...');
-      const discovery = await discover(mcpClient, serverCommand, args);
+      const discovery = await discover(
+        mcpClient,
+        transport === 'stdio' ? serverCommand : remoteUrl ?? serverCommand,
+        transport === 'stdio' ? args : []
+      );
       const resourceCount = discovery.resources?.length ?? 0;
       const discoveryParts = [`${discovery.tools.length} tools`, `${discovery.prompts.length} prompts`];
       if (resourceCount > 0) {
@@ -343,11 +362,13 @@ export const exploreCommand = new Command('explore')
       });
 
       // Extract server context
-      const serverContext = extractServerContextFromArgs(serverCommand, args);
-      if (serverContext.allowedDirectories && serverContext.allowedDirectories.length > 0) {
-        output.info(`Detected allowed directories: ${serverContext.allowedDirectories.join(', ')}`);
+      if (transport === 'stdio') {
+        const serverContext = extractServerContextFromArgs(serverCommand, args);
+        if (serverContext.allowedDirectories && serverContext.allowedDirectories.length > 0) {
+          output.info(`Detected allowed directories: ${serverContext.allowedDirectories.join(', ')}`);
+        }
+        interviewer.setServerContext(serverContext);
       }
-      interviewer.setServerContext(serverContext);
 
       // Set up progress display
       const progressBar = new InterviewProgressBar({ enabled: !verbose && !streamingCallbacks });
@@ -395,16 +416,22 @@ export const exploreCommand = new Command('explore')
         mkdirSync(docsDir, { recursive: true });
       }
 
-      const agentsMd = generateAgentsMd(result);
-      const agentsMdPath = join(docsDir, config.output.files.agentsDoc);
-      writeFileSync(agentsMdPath, agentsMd);
-      output.info(`Written: ${agentsMdPath}`);
+      const writeDocs = outputFormat === 'both' || outputFormat === 'agents.md';
+      const writeJson = outputFormat === 'both' || outputFormat === 'json';
 
-      // Generate JSON report
-      const jsonReport = generateJsonReport(result);
-      const jsonPath = join(outputDir, config.output.files.exploreReport);
-      writeFileSync(jsonPath, jsonReport);
-      output.info(`Written: ${jsonPath}`);
+      if (writeDocs) {
+        const agentsMd = generateAgentsMd(result);
+        const agentsMdPath = join(docsDir, config.output.files.agentsDoc);
+        writeFileSync(agentsMdPath, agentsMd);
+        output.info(`Written: ${agentsMdPath}`);
+      }
+
+      if (writeJson) {
+        const jsonReport = generateJsonReport(result);
+        const jsonPath = join(outputDir, config.output.files.exploreReport);
+        writeFileSync(jsonPath, jsonReport);
+        output.info(`Written: ${jsonPath}`);
+      }
 
       // End metrics
       metricsCollector.endInterview();

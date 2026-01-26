@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync } from 'fs';
 import { join } from 'path';
-import { tmpdir, homedir } from 'os';
+import { tmpdir } from 'os';
 
 // Mock output module
 vi.mock('../../src/cli/output.js', () => ({
@@ -118,93 +118,106 @@ describe('API key validation', () => {
 
 describe('File backend security', () => {
   let tempDir: string;
+  let originalHome: string | undefined;
 
   beforeEach(() => {
     tempDir = join(tmpdir(), `bellwether-auth-test-${Date.now()}`);
     mkdirSync(tempDir, { recursive: true });
+    mkdirSync(join(tempDir, '.bellwether'), { recursive: true });
+    originalHome = process.env.HOME;
+    process.env.HOME = tempDir;
   });
 
   afterEach(() => {
+    if (originalHome !== undefined) {
+      process.env.HOME = originalHome;
+    }
     if (tempDir && existsSync(tempDir)) {
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
 
   describe('file permissions', () => {
-    it('should create credentials file with restrictive permissions', () => {
-      const credentialsPath = join(tempDir, 'credentials.json');
+    it('should create env file with restrictive permissions', () => {
+      const envPath = join(tempDir, '.bellwether', '.env');
 
       // Write with restrictive permissions
-      writeFileSync(credentialsPath, '{}', { mode: 0o600 });
+      writeFileSync(envPath, 'OPENAI_API_KEY=enc:placeholder\n', { mode: 0o600 });
 
-      const stats = statSync(credentialsPath);
+      const stats = statSync(envPath);
       // Check file permissions (0600 = owner read/write only)
       const mode = stats.mode & 0o777;
       expect(mode).toBe(0o600);
     });
 
-    it('should create directory with restrictive permissions', () => {
-      const secureDir = join(tempDir, 'secure');
+    it('should create key file with restrictive permissions', () => {
+      const keyPath = join(tempDir, '.bellwether', '.env.key');
 
-      mkdirSync(secureDir, { mode: 0o700 });
+      writeFileSync(keyPath, 'deadbeef', { mode: 0o600 });
 
-      const stats = statSync(secureDir);
-      // Check directory permissions (0700 = owner rwx only)
+      const stats = statSync(keyPath);
+      // Check file permissions (0600 = owner read/write only)
       const mode = stats.mode & 0o777;
-      expect(mode).toBe(0o700);
+      expect(mode).toBe(0o600);
     });
   });
 
   describe('credential storage', () => {
-    it('should store credentials as JSON', () => {
-      const credentialsPath = join(tempDir, 'credentials.json');
-      const credentials = {
-        bellwether: {
-          'openai-api-key': 'sk-test123',
-        },
-      };
+    it('should store credentials as encrypted env values', async () => {
+      const envPath = join(tempDir, '.bellwether', '.env');
+      const { encryptEnvValue, decryptEnvValue } = await import('../../src/auth/keychain.js');
+      const encrypted = encryptEnvValue('sk-test123');
 
-      writeFileSync(credentialsPath, JSON.stringify(credentials, null, 2));
+      writeFileSync(envPath, `OPENAI_API_KEY=${encrypted}\n`);
 
-      const loaded = JSON.parse(readFileSync(credentialsPath, 'utf-8'));
-      expect(loaded.bellwether['openai-api-key']).toBe('sk-test123');
+      const loaded = readFileSync(envPath, 'utf-8');
+      expect(loaded).toContain('OPENAI_API_KEY=enc:');
+      expect(decryptEnvValue(encrypted)).toBe('sk-test123');
     });
 
-    it('should handle empty credentials file', () => {
-      const credentialsPath = join(tempDir, 'credentials.json');
-      writeFileSync(credentialsPath, '{}');
+    it('should handle empty env file', () => {
+      const envPath = join(tempDir, '.bellwether', '.env');
+      writeFileSync(envPath, '');
 
-      const loaded = JSON.parse(readFileSync(credentialsPath, 'utf-8'));
-      expect(loaded).toEqual({});
+      const loaded = readFileSync(envPath, 'utf-8');
+      expect(loaded).toBe('');
     });
 
-    it('should handle missing credentials file', () => {
-      const credentialsPath = join(tempDir, 'nonexistent.json');
+    it('should handle missing env file', () => {
+      const envPath = join(tempDir, '.bellwether', 'nonexistent.env');
 
-      expect(existsSync(credentialsPath)).toBe(false);
+      expect(existsSync(envPath)).toBe(false);
     });
   });
 });
 
 describe('env file handling', () => {
   let tempDir: string;
+  let originalHome: string | undefined;
 
   beforeEach(() => {
     tempDir = join(tmpdir(), `bellwether-env-test-${Date.now()}`);
     mkdirSync(tempDir, { recursive: true });
+    mkdirSync(join(tempDir, '.bellwether'), { recursive: true });
+    originalHome = process.env.HOME;
+    process.env.HOME = tempDir;
   });
 
   afterEach(() => {
+    if (originalHome !== undefined) {
+      process.env.HOME = originalHome;
+    }
     if (tempDir && existsSync(tempDir)) {
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
 
   describe('.env file operations', () => {
-    it('should add new API key to empty .env', () => {
-      const envPath = join(tempDir, '.env');
+    it('should add new API key to empty .env', async () => {
+      const envPath = join(tempDir, '.bellwether', '.env');
       const envVar = 'OPENAI_API_KEY';
-      const apiKey = 'sk-test123456789012345';
+      const { encryptEnvValue } = await import('../../src/auth/keychain.js');
+      const apiKey = encryptEnvValue('sk-test123456789012345');
 
       // Simulate adding API key
       let envContent = '';
@@ -215,14 +228,15 @@ describe('env file handling', () => {
       writeFileSync(envPath, newContent, { mode: 0o600 });
 
       const saved = readFileSync(envPath, 'utf-8');
-      expect(saved).toContain('OPENAI_API_KEY=sk-test123456789012345');
+      expect(saved).toContain('OPENAI_API_KEY=enc:');
     });
 
-    it('should update existing API key in .env', () => {
-      const envPath = join(tempDir, '.env');
+    it('should update existing API key in .env', async () => {
+      const envPath = join(tempDir, '.bellwether', '.env');
       const envVar = 'ANTHROPIC_API_KEY';
-      const oldKey = 'sk-ant-old123456789012345';
-      const newKey = 'sk-ant-new123456789012345';
+      const { encryptEnvValue } = await import('../../src/auth/keychain.js');
+      const oldKey = encryptEnvValue('sk-ant-old123456789012345');
+      const newKey = encryptEnvValue('sk-ant-new123456789012345');
 
       // Create existing .env
       writeFileSync(envPath, `${envVar}=${oldKey}\nOTHER_VAR=value\n`);
@@ -240,16 +254,19 @@ describe('env file handling', () => {
       expect(saved).toContain('OTHER_VAR=value');
     });
 
-    it('should preserve other variables when updating', () => {
-      const envPath = join(tempDir, '.env');
+    it('should preserve other variables when updating', async () => {
+      const envPath = join(tempDir, '.bellwether', '.env');
+      const { encryptEnvValue } = await import('../../src/auth/keychain.js');
+      const oldKey = encryptEnvValue('old');
+      const newKey = encryptEnvValue('new');
 
       // Create .env with multiple variables
-      writeFileSync(envPath, 'VAR1=value1\nVAR2=value2\nOPENAI_API_KEY=old\nVAR3=value3\n');
+      writeFileSync(envPath, `VAR1=value1\nVAR2=value2\nOPENAI_API_KEY=${oldKey}\nVAR3=value3\n`);
 
       // Read and update only OPENAI_API_KEY
       let envContent = readFileSync(envPath, 'utf-8');
       const lines = envContent.split('\n').filter(line => !line.startsWith('OPENAI_API_KEY='));
-      lines.push('OPENAI_API_KEY=new');
+      lines.push(`OPENAI_API_KEY=${newKey}`);
 
       writeFileSync(envPath, lines.filter(l => l).join('\n') + '\n');
 
@@ -257,7 +274,7 @@ describe('env file handling', () => {
       expect(saved).toContain('VAR1=value1');
       expect(saved).toContain('VAR2=value2');
       expect(saved).toContain('VAR3=value3');
-      expect(saved).toContain('OPENAI_API_KEY=new');
+      expect(saved).toContain(`OPENAI_API_KEY=${newKey}`);
     });
   });
 });

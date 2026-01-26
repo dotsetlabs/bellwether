@@ -73,7 +73,11 @@ async function discoverAction(command: string | undefined, args: string[], optio
 
     output.info('Discovering capabilities...\n');
 
-    const result = await discover(client, command ?? options.url!, args);
+    const result = await discover(
+      client,
+      isRemoteTransport ? remoteUrl! : command!,
+      isRemoteTransport ? [] : args
+    );
 
     // Output discovery warnings (Issue D: anomaly detection)
     if (result.warnings && result.warnings.length > 0) {

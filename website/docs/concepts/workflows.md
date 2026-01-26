@@ -77,7 +77,7 @@ Check mode can auto-generate workflows from tool patterns and save them to `outp
 ```yaml
 # bellwether.yaml
 workflows:
-  autoGenerate: false
+  autoGenerate: true
 ```
 
 ```bash
@@ -239,13 +239,7 @@ steps:
 
 ## Environment Variables
 
-Use environment variables in workflow arguments:
-
-```yaml
-args:
-  password: ${TEST_PASSWORD}
-  api_key: ${API_KEY}
-```
+Workflow arguments are treated as literal values. Keep secrets in `bellwether.yaml` under `server.env` instead of embedding them in workflow files.
 
 ## Best Practices
 

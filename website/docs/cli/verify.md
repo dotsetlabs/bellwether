@@ -25,6 +25,10 @@ All verification tiers require an LLM. The `verify` command uses LLM-powered int
 Like `bellwether check` and `bellwether explore`, the `verify` command reads configuration from `bellwether.yaml`. Simply run `bellwether verify` and it uses your config file for the server command, LLM settings, and output options. CLI arguments override config values when provided.
 :::
 
+:::note Remote Servers
+To verify a remote MCP server, set `server.transport` to `sse` or `streamable-http` and provide `server.url` in `bellwether.yaml`. When using remote transports, CLI `[server-command]` and `[args...]` are ignored.
+:::
+
 :::note Config Required
 All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `verify`.
 :::
@@ -51,7 +55,7 @@ All CLI commands (except `init`) require a config file. Run `bellwether init` on
 | `--tier <tier>` | Target tier: `bronze`, `silver`, `gold`, `platinum` | `silver` |
 | `--server-id <id>` | Server identifier (namespace/name) | Auto-detect |
 | `--version <version>` | Server version to verify | Auto-detect |
-| `--security` | Include security testing (required for gold+ tiers) | `false` |
+| `--security` | Include security testing (optional for any tier) | `false` |
 
 ### Output Options
 
@@ -95,7 +99,7 @@ All CLI commands (except `init`) require a config file. Run `bellwether init` on
 - Good coverage of edge cases
 
 **Gold** - Thorough verification
-- 3 personas (adds Security Tester with `--security`, or Novice User)
+- 3 personas (Security Tester with `--security`, otherwise Novice User)
 - 4 questions per tool
 - Pass rate: 85%+
 

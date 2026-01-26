@@ -206,20 +206,7 @@ steps:
 
 ## Environment Variables
 
-Use environment variables in workflows:
-
-```yaml
-args:
-  api_key: ${API_KEY}
-  password: ${TEST_PASSWORD}
-```
-
-Set before running:
-
-```bash
-export TEST_PASSWORD=secret
-bellwether check
-```
+Workflow arguments are treated as literal values. Keep secrets in `bellwether.yaml` under `server.env` instead of embedding them in workflow files.
 
 ## Running Workflows
 

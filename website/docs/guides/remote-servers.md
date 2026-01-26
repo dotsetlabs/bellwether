@@ -5,7 +5,7 @@ sidebar_position: 6
 
 # Remote MCP Servers
 
-Bellwether can discover remote MCP servers over HTTP using SSE (Server-Sent Events) or Streamable HTTP transports. `bellwether check` and `bellwether explore` currently require local stdio servers.
+Bellwether can connect to remote MCP servers over HTTP using SSE (Server-Sent Events) or Streamable HTTP transports. `bellwether check` and `bellwether explore` support these transports when configured in `bellwether.yaml`.
 
 ## Transport Types
 
@@ -14,6 +14,17 @@ Bellwether can discover remote MCP servers over HTTP using SSE (Server-Sent Even
 | `stdio` | Standard input/output (default) | Local servers, CLI tools |
 | `sse` | Server-Sent Events | Real-time streaming, persistent connections |
 | `streamable-http` | HTTP with streaming | REST-like APIs, stateless requests |
+
+## Using Remote Transports with check/explore
+
+Configure the server transport in `bellwether.yaml`:
+
+```yaml
+server:
+  transport: sse
+  url: https://api.example.com/mcp
+  # sessionId: "your-auth-token"
+```
 
 ## SSE Transport
 

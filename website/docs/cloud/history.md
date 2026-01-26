@@ -64,22 +64,19 @@ bellwether history --json
 ```
 
 ```json
-{
-  "projectId": "proj_abc123",
-  "baselines": [
-    {
-      "version": 12,
-      "createdAt": "2026-01-12T10:30:00Z",
-      "branch": "main",
-      "commit": "abc123",
-      "summary": {
-        "added": 1,
-        "modified": 2,
-        "removed": 0
-      }
+[
+  {
+    "version": 12,
+    "uploadedAt": "2026-01-12T10:30:00Z",
+    "branch": "main",
+    "commit": "abc123",
+    "summary": {
+      "added": 1,
+      "modified": 2,
+      "removed": 0
     }
-  ]
-}
+  }
+]
 ```
 
 ### View More History

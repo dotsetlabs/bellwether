@@ -17,6 +17,7 @@ import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
 import { createLLMClient, DEFAULT_MODELS } from '../../llm/index.js';
 import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
+import { validateConfigForVerify } from '../../config/validator.js';
 import { CostTracker } from '../../cost/index.js';
 import { BUILTIN_PERSONAS } from '../../persona/builtins.js';
 import type { Persona } from '../../persona/types.js';
@@ -45,7 +46,7 @@ export function createVerifyCommand(): Command {
     .option('--server-id <id>', 'Server identifier (namespace/name)')
     .option('--version <version>', 'Server version to verify')
     .option('--tier <tier>', 'Target verification tier (bronze, silver, gold, platinum)')
-    .option('--security', 'Include security testing (required for gold+ tiers)')
+    .option('--security', 'Include security testing (optional for any tier)')
     .option('--json', 'Output verification result as JSON')
     .option('--badge-only', 'Only output badge URL')
     .option('-p, --project <id>', 'Project ID to submit verification to (requires login)')
@@ -88,10 +89,14 @@ async function handleVerify(
   // Determine server command (CLI arg overrides config)
   const serverCommand = serverCommandArg || bellwetherConfig.server.command;
   const args = serverArgs.length > 0 ? serverArgs : bellwetherConfig.server.args;
+  const transport = bellwetherConfig.server.transport ?? 'stdio';
+  const remoteUrl = bellwetherConfig.server.url?.trim();
+  const remoteSessionId = bellwetherConfig.server.sessionId?.trim();
 
-  if (!serverCommand) {
-    output.error('Error: No server command provided.');
-    output.error('Either specify a server command as an argument or configure it in bellwether.yaml');
+  try {
+    validateConfigForVerify(bellwetherConfig, serverCommand);
+  } catch (error) {
+    output.error(error instanceof Error ? error.message : String(error));
     process.exit(EXIT_CODES.ERROR);
   }
 
@@ -128,12 +133,28 @@ async function handleVerify(
   output.info(chalk.gray(`Using model: ${effectiveModel}`));
 
   // Connect to server
-  output.info(chalk.gray(`Connecting to ${serverCommand} ${args.join(' ')}...`));
-  const client = new MCPClient({ timeout: serverTimeout });
+  const serverIdentifier = transport === 'stdio'
+    ? `${serverCommand} ${args.join(' ')}`.trim()
+    : (remoteUrl ?? 'unknown');
+
+  output.info(chalk.gray(`Connecting to ${serverIdentifier}...`));
+  const client = new MCPClient({ timeout: serverTimeout, transport });
 
   try {
-    await client.connect(serverCommand, args, serverEnv);
-    const discovery = await discover(client, serverCommand, args);
+    if (transport === 'stdio') {
+      await client.connect(serverCommand, args, serverEnv);
+    } else {
+      await client.connectRemote(remoteUrl!, {
+        transport,
+        sessionId: remoteSessionId || undefined,
+      });
+    }
+
+    const discovery = await discover(
+      client,
+      transport === 'stdio' ? serverCommand : remoteUrl ?? serverCommand,
+      transport === 'stdio' ? args : []
+    );
 
     output.info(chalk.green(`✓ Connected to ${discovery.serverInfo.name} v${discovery.serverInfo.version}`));
     output.info(chalk.gray(`  ${discovery.tools.length} tools, ${discovery.prompts.length} prompts, ${(discovery.resources ?? []).length} resources`));

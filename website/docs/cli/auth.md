@@ -171,9 +171,9 @@ Bellwether checks for API keys in this order:
    - `~/.bellwether/.env`
 
 4. **System keychain**
-   - macOS: Keychain Access
-   - Windows: Credential Manager
-   - Linux: Secret Service (libsecret)
+  - macOS: Keychain Access
+  - Windows: Credential Manager
+  - Linux: Secret Service (libsecret)
 
 ## Storage Options
 
@@ -192,7 +192,7 @@ bellwether auth add openai
 
 ### File-Based Storage
 
-Falls back to encrypted file storage at `~/.bellwether/.env`:
+Falls back to encrypted file storage at `~/.bellwether/.env` (encryption key stored at `~/.bellwether/.env.key`):
 
 ```bash
 bellwether auth add openai

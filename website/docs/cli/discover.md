@@ -17,8 +17,8 @@ bellwether discover [command] [args...] [options]
 
 The `discover` command connects to an MCP server and lists its capabilities (tools, prompts, and resources) without conducting a full check. This is useful for quick reconnaissance or verifying server connectivity.
 
-:::note Config Required
-All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `discover`.
+:::note Config Optional
+`discover` can run without a config file. If `bellwether.yaml` is present, its discovery settings are used.
 :::
 
 For remote MCP servers, use `--transport sse` or `--transport streamable-http` with `--url` instead of providing a command.

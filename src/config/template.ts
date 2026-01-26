@@ -77,6 +77,15 @@ server:
   command: "${serverCommand}"
   # Arguments to pass to the server command${serverArgsYaml}
 
+  # Transport type: stdio, sse, streamable-http
+  transport: ${defaults.server.transport}
+
+  # Remote MCP server URL (required for sse/streamable-http)
+  # url: "https://api.example.com/mcp"
+
+  # Session ID for remote authentication (optional)
+  # sessionId: "your-session-id"
+
   # Timeout for server startup and tool calls (milliseconds, default: ${defaults.server.timeout})
   timeout: ${defaults.server.timeout}
 
