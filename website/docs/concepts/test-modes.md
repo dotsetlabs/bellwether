@@ -16,7 +16,7 @@ Bellwether offers two commands to fit different workflows and budgets.
 | **LLM Required** | No | Yes |
 | **Deterministic** | 100% | No (LLM variation) |
 | **What it does** | Schema validation, drift detection | Behavioral analysis, edge cases, security |
-| **Output** | `CONTRACT.md`, `bellwether-check.json` | `AGENTS.md`, `bellwether-explore.json` |
+| **Output** | Docs and/or JSON (default: `CONTRACT.md`, `bellwether-check.json`) | Docs and/or JSON (default: `AGENTS.md`, `bellwether-explore.json`) |
 
 ## bellwether check (Free)
 
@@ -26,7 +26,7 @@ The check command validates tool schemas, parameter types, and descriptions with
 - **Fast** - Completes in seconds
 - **Deterministic** - Same input always produces same output
 - **CI/CD friendly** - No API keys required
-- **Output** - Generates `CONTRACT.md` and `bellwether-check.json`
+- **Output** - Generates docs and/or JSON based on `output.format` (default is both)
 
 ```bash
 # Initialize config and run check
@@ -58,7 +58,7 @@ The explore command uses an LLM to intelligently probe your server from multiple
 
 - **Comprehensive** - Tests edge cases, error handling, security
 - **Multi-persona** - Technical writer, security tester, QA engineer, novice user perspectives
-- **Rich documentation** - Generates detailed `AGENTS.md` with observed behavior
+- **Rich documentation** - Generates detailed `AGENTS.md` when `output.format` includes docs
 
 ```bash
 # Initialize with local preset and run explore

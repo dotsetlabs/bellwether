@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
 - **Removed `--cloud` flag from `baseline save`**: All baselines now use a single unified format
   - Previously: `baseline save --cloud` for cloud-compatible format
   - Now: `baseline save` always saves in the unified format compatible with both local and cloud
+- **Credential file format changed**: The file-based credential backend now uses `~/.bellwether/.env` format
+  - Previously: `~/.bellwether/credentials.json` (plain text JSON)
+  - Now: `~/.bellwether/.env` (encrypted at rest with AES-256-GCM)
+  - Encryption key auto-generated and stored in `~/.bellwether/.env.key`
+  - Existing credentials will need to be re-added via `bellwether auth add <provider>`
 
 ### Features
 
@@ -59,6 +64,16 @@ All notable changes to this project will be documented in this file.
 - **Transport error collection**: MCP client now tracks transport-level errors
   - Errors categorized by type (initialization, transport, protocol, timeout)
   - Included in discovery results for debugging
+- **Remote MCP server support**: All core commands now support remote servers via SSE and streamable-http transports
+  - `check`, `explore`, `verify`, and `watch` commands can connect to remote MCP servers
+  - Configure in `server:` section with `transport`, `url`, and `sessionId` fields
+  - Example: `transport: sse`, `url: https://your-server.example.com/mcp`
+  - Validation updated to require URL for remote transports, command for stdio
+- **Encrypted credential storage**: File-based credential backend now encrypts API keys at rest
+  - Uses AES-256-GCM authenticated encryption
+  - Encryption key auto-generated per installation (`~/.bellwether/.env.key`)
+  - Credentials stored in `~/.bellwether/.env` with `enc:` prefix
+  - Transparent decryption at CLI startup
 
 ### Enhanced CONTRACT.md Output
 
@@ -80,6 +95,13 @@ All notable changes to this project will be documented in this file.
         - match: ".*_id$"
           value: "fixture_id_12345"
   ```
+- **New server config options**: Transport settings for remote MCP servers
+  ```yaml
+  server:
+    transport: sse  # stdio (default), sse, or streamable-http
+    url: "https://your-server.example.com/mcp"
+    sessionId: "optional-session-id"  # For authenticated remote servers
+  ```
 
 ### Internal Changes
 
@@ -90,16 +112,31 @@ All notable changes to this project will be documented in this file.
 - Simplified `src/baseline/saver.ts` by removing dual-format logic (~450 lines removed)
 - Simplified `src/baseline/converter.ts` - Now only converts from interview results to baseline
 - Updated all tests to use unified baseline format
+- Added encryption utilities to `src/auth/keychain.ts` for secure credential storage
+- Added `validateConfigForVerify()` for verify command config validation
+- **Comprehensive test coverage**: Added ~4,500 lines of new integration tests
+  - `test/baseline/comparator.test.ts` - 47 tests for baseline comparison
+  - `test/baseline/converter.test.ts` - 43 tests for interview-to-baseline conversion
+  - `test/baseline/saver.test.ts` - 32 tests for baseline save/load operations
+  - `test/baseline/accessors.test.ts` - 23 tests for baseline accessor functions
+  - `test/interview/schema-inferrer.test.ts` - 30 tests for response schema inference
+  - `test/cli/commands/check.test.ts` - 41 integration tests for check command
+  - `test/workflow/executor.test.ts` - 37 integration tests for workflow execution
+  - Tests use mock MCP servers for reliable, deterministic execution
 
 ### Documentation
 
 - Updated README to remove migration command examples
 - Updated baseline versioning documentation to recommend recreating incompatible baselines
 - Removed migration workflow from troubleshooting guide
+- Updated website documentation for remote server configuration
+- Updated CLI command documentation with transport options
 
 ### Fixes
 
 - **Config validation**: Added validation for `testFixtures` configuration schema
+- **Verify command**: Changed `--security` flag description to "optional for any tier" (was incorrectly marked as required for gold+)
+- **Credentials test**: Fixed keychain source detection in tests (now correctly identifies `global-env` vs `keychain`)
 
 ## [0.10.2] - 2026-01-25
 

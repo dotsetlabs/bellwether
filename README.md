@@ -133,7 +133,7 @@ bellwether check
 - **Free** - No token costs
 - **Deterministic** - Same input = same output
 - **Fast** - Runs in seconds (use `check.parallel` in config for more speed)
-- **Output** - Writes `CONTRACT.md` to `output.docsDir` and `bellwether-check.json` to `output.dir` (filenames configurable via `output.files.contractDoc` and `output.files.checkReport`)
+- **Output** - Writes docs and/or JSON based on `output.format` (`CONTRACT.md` and `bellwether-check.json` by default; filenames configurable via `output.files`)
 - **CI-Optimized** - Granular exit codes (0-5), JUnit/SARIF output formats
 
 #### Check Mode Enhancements
@@ -195,7 +195,7 @@ bellwether explore
 
 - Requires LLM (Ollama for free local, or OpenAI/Anthropic)
 - Multi-persona testing (technical writer, security tester, QA, novice)
-- Generates `AGENTS.md` documentation (filename configurable via `output.files.agentsDoc`)
+- Generates documentation and/or JSON based on `output.format` (`AGENTS.md` by default; filename configurable via `output.files.agentsDoc`)
 - Better for local development and deep exploration
 
 ### Core Commands

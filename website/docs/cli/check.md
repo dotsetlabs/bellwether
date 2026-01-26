@@ -154,6 +154,7 @@ The `--accepted-by` option is only available in `bellwether baseline accept`. Th
 | `bellwether-check.json` | Machine-readable validation results (configurable via `output.files.checkReport`) |
 
 Output locations are controlled by `output.dir` (JSON) and `output.docsDir` (docs).
+Which files are written is controlled by `output.format` (`agents.md`, `json`, or `both`).
 
 ### CONTRACT.md Contents
 
@@ -424,13 +425,14 @@ Check mode supports custom YAML test scenarios for deterministic testing:
 
 ```yaml
 # bellwether-tests.yaml
-tools:
+scenarios:
   - tool: read_file
     description: "File reading works"
-    input:
+    args:
       path: "/tmp/test.txt"
     assertions:
-      - type: contains
+      - path: "content"
+        condition: "contains"
         value: "expected content"
 ```
 

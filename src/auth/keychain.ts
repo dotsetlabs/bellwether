@@ -12,6 +12,7 @@
 import { homedir } from 'os';
 import { join } from 'path';
 import { createRequire } from 'module';
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import type { LLMProviderId } from '../llm/client.js';
 
 // Create require function for loading CommonJS optional dependencies in ESM
@@ -26,6 +27,78 @@ const PROVIDER_ACCOUNTS: Record<LLMProviderId, string> = {
   anthropic: 'anthropic-api-key',
   ollama: 'ollama', // Ollama doesn't use API keys, but included for completeness
 };
+
+const ACCOUNT_ENV_VARS: Record<string, string> = {
+  [PROVIDER_ACCOUNTS.openai]: 'OPENAI_API_KEY',
+  [PROVIDER_ACCOUNTS.anthropic]: 'ANTHROPIC_API_KEY',
+};
+
+const ENV_CREDENTIALS_FILE = '.env';
+const ENV_KEY_FILE = '.env.key';
+const ENCRYPTION_PREFIX = 'enc:';
+
+function getEnvCredentialsPath(): string {
+  return join(homedir(), '.bellwether', ENV_CREDENTIALS_FILE);
+}
+
+function getEnvKeyPath(): string {
+  return join(homedir(), '.bellwether', ENV_KEY_FILE);
+}
+
+function loadOrCreateKey(): Buffer {
+  const fs = require('fs') as typeof import('fs');
+  const keyPath = getEnvKeyPath();
+  if (fs.existsSync(keyPath)) {
+    const keyHex = fs.readFileSync(keyPath, 'utf-8').trim();
+    return Buffer.from(keyHex, 'hex');
+  }
+
+  const key = randomBytes(32);
+  const dir = join(homedir(), '.bellwether');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  }
+  fs.writeFileSync(keyPath, key.toString('hex'), { mode: 0o600 });
+  return key;
+}
+
+export function isEncryptedEnvValue(value: string): boolean {
+  return value.startsWith(ENCRYPTION_PREFIX);
+}
+
+export function encryptEnvValue(value: string): string {
+  const key = loadOrCreateKey();
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${ENCRYPTION_PREFIX}${iv.toString('hex')}:${tag.toString('hex')}:${ciphertext.toString('hex')}`;
+}
+
+export function decryptEnvValue(value: string): string | undefined {
+  if (!isEncryptedEnvValue(value)) {
+    return value;
+  }
+
+  const payload = value.slice(ENCRYPTION_PREFIX.length);
+  const parts = payload.split(':');
+  if (parts.length !== 3) {
+    return undefined;
+  }
+
+  const [ivHex, tagHex, dataHex] = parts;
+  try {
+    const key = loadOrCreateKey();
+    const iv = Buffer.from(ivHex, 'hex');
+    const tag = Buffer.from(tagHex, 'hex');
+    const data = Buffer.from(dataHex, 'hex');
+    const decipher = createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Keychain interface - can be implemented by different backends.
@@ -98,35 +171,35 @@ class KeytarBackend implements KeychainBackend {
 
 /**
  * File-based fallback for environments without keychain access.
- * Stores credentials in ~/.bellwether/credentials (with restrictive permissions).
+ * Stores credentials in ~/.bellwether/.env (with restrictive permissions).
  *
  * NOTE: This is less secure than system keychain but better than nothing.
- * Credentials are stored in plain text but with 0600 permissions.
+ * Credentials are stored encrypted at rest with 0600 permissions.
  */
 class FileBackend implements KeychainBackend {
   private credentialsPath: string;
-  private credentials: Record<string, Record<string, string>> | null = null;
+  private envLines: string[] | null = null;
 
   constructor() {
-    this.credentialsPath = join(homedir(), '.bellwether', 'credentials.json');
+    this.credentialsPath = getEnvCredentialsPath();
   }
 
-  private async load(): Promise<Record<string, Record<string, string>>> {
-    if (this.credentials) return this.credentials;
+  private async load(): Promise<string[]> {
+    if (this.envLines) return this.envLines;
 
     const fs = await import('fs');
     try {
       if (fs.existsSync(this.credentialsPath)) {
         const content = fs.readFileSync(this.credentialsPath, 'utf-8');
-        this.credentials = JSON.parse(content) as Record<string, Record<string, string>>;
+        this.envLines = content.split('\n');
       } else {
-        this.credentials = {};
+        this.envLines = [];
       }
     } catch {
-      this.credentials = {};
+      this.envLines = [];
     }
 
-    return this.credentials!;
+    return this.envLines!;
   }
 
   private async save(): Promise<void> {
@@ -139,38 +212,88 @@ class FileBackend implements KeychainBackend {
       fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     }
 
-    fs.writeFileSync(
-      this.credentialsPath,
-      JSON.stringify(this.credentials, null, 2),
-      { mode: 0o600 }
-    );
+    fs.writeFileSync(this.credentialsPath, this.envLines?.join('\n') ?? '', { mode: 0o600 });
   }
 
   async getPassword(service: string, account: string): Promise<string | null> {
-    const creds = await this.load();
-    return creds[service]?.[account] ?? null;
+    void service;
+    const envVar = ACCOUNT_ENV_VARS[account] ?? account;
+    const lines = await this.load();
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex === -1) continue;
+      const key = trimmed.substring(0, eqIndex).trim();
+      if (key !== envVar) continue;
+      const rawValue = trimmed.substring(eqIndex + 1).trim();
+      const decrypted = decryptEnvValue(rawValue);
+      return decrypted ?? null;
+    }
+
+    return null;
   }
 
   async setPassword(service: string, account: string, password: string): Promise<void> {
-    const creds = await this.load();
-    if (!creds[service]) {
-      creds[service] = {};
+    void service;
+    const envVar = ACCOUNT_ENV_VARS[account] ?? account;
+    const encrypted = encryptEnvValue(password);
+    const lines = await this.load();
+    let updated = false;
+    const nextLines = lines.map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        return line;
+      }
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex === -1) {
+        return line;
+      }
+      const key = trimmed.substring(0, eqIndex).trim();
+      if (key !== envVar) {
+        return line;
+      }
+      updated = true;
+      return `${envVar}=${encrypted}`;
+    });
+
+    if (!updated) {
+      nextLines.push(`${envVar}=${encrypted}`);
     }
-    creds[service][account] = password;
+
+    this.envLines = nextLines;
     await this.save();
   }
 
   async deletePassword(service: string, account: string): Promise<boolean> {
-    const creds = await this.load();
-    if (creds[service]?.[account]) {
-      delete creds[service][account];
-      if (Object.keys(creds[service]).length === 0) {
-        delete creds[service];
+    void service;
+    const envVar = ACCOUNT_ENV_VARS[account] ?? account;
+    const lines = await this.load();
+    let removed = false;
+    const nextLines = lines.filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        return true;
       }
-      await this.save();
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex === -1) {
+        return true;
+      }
+      const key = trimmed.substring(0, eqIndex).trim();
+      if (key === envVar) {
+        removed = true;
+        return false;
+      }
       return true;
+    });
+
+    if (removed) {
+      this.envLines = nextLines;
+      await this.save();
     }
-    return false;
+
+    return removed;
   }
 }
 

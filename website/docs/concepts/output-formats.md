@@ -110,7 +110,7 @@ The `CONTRACT.md` output includes:
 
 Machine-readable format for programmatic access.
 
-JSON reports are always generated for both commands. File names and locations are configurable in `bellwether.yaml`:
+JSON reports are generated when `output.format` includes `json`. File names and locations are configurable in `bellwether.yaml`:
 
 ```yaml
 output:
@@ -254,7 +254,7 @@ Baseline format versions follow the CLI package version; baselines are compatibl
 
 ## Multiple Formats
 
-Both documentation and JSON reports are always generated. Control their locations in `bellwether.yaml`:
+Documentation and JSON reports are written based on `output.format`. Control their locations in `bellwether.yaml`:
 
 ```yaml
 output:

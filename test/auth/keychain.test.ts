@@ -47,8 +47,10 @@ describe('KeychainService', () => {
       expect(retrieved).toBe(testKey);
 
       // Check file was created with correct permissions
-      const credPath = join(testDir, '.bellwether', 'credentials.json');
-      expect(existsSync(credPath)).toBe(true);
+      const envPath = join(testDir, '.bellwether', '.env');
+      const keyPath = join(testDir, '.bellwether', '.env.key');
+      expect(existsSync(envPath)).toBe(true);
+      expect(existsSync(keyPath)).toBe(true);
     });
 
     it('should delete API key', async () => {
@@ -124,19 +126,18 @@ describe('KeychainService', () => {
       expect(key).toBeNull();
     });
 
-    it('should store credentials in correct JSON format', async () => {
+    it('should store credentials in encrypted env format', async () => {
       const { KeychainService } = await import('../../src/auth/keychain.js');
       const keychain = new KeychainService();
       keychain.enableFileBackend();
 
       await keychain.setApiKey('openai', 'sk-test-123');
 
-      const credPath = join(testDir, '.bellwether', 'credentials.json');
-      const content = JSON.parse(readFileSync(credPath, 'utf-8'));
+      const envPath = join(testDir, '.bellwether', '.env');
+      const content = readFileSync(envPath, 'utf-8');
 
-      expect(content).toHaveProperty('bellwether');
-      expect(content.bellwether).toHaveProperty('openai-api-key');
-      expect(content.bellwether['openai-api-key']).toBe('sk-test-123');
+      expect(content).toContain('OPENAI_API_KEY=enc:');
+      expect(content).not.toContain('sk-test-123');
     });
   });
 

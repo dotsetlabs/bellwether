@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import type { LLMProviderId, LLMConfig } from '../llm/client.js';
-import { getKeychainService } from './keychain.js';
+import { getKeychainService, decryptEnvValue, isEncryptedEnvValue } from './keychain.js';
 
 /**
  * Default environment variable names for each provider.
@@ -39,7 +39,11 @@ export interface CredentialResult {
  * Read a specific environment variable from a .env file.
  * Returns undefined if the file doesn't exist or the variable isn't found.
  */
-function readEnvFile(filePath: string, envVar: string): string | undefined {
+function readEnvFile(
+  filePath: string,
+  envVar: string,
+  options?: { allowEncrypted?: boolean }
+): string | undefined {
   try {
     if (!existsSync(filePath)) {
       return undefined;
@@ -73,6 +77,14 @@ function readEnvFile(filePath: string, envVar: string): string | undefined {
       if ((value.startsWith('"') && value.endsWith('"')) ||
           (value.startsWith("'") && value.endsWith("'"))) {
         value = value.slice(1, -1);
+      }
+
+      if (options?.allowEncrypted && isEncryptedEnvValue(value)) {
+        const decrypted = decryptEnvValue(value);
+        if (decrypted) {
+          return decrypted;
+        }
+        return undefined;
       }
 
       if (value) {
@@ -152,7 +164,7 @@ export async function resolveCredentials(
   // 5. Global .env file (~/.bellwether/.env)
   if (defaultEnvVar) {
     const globalEnvPath = getGlobalEnvPath();
-    const key = readEnvFile(globalEnvPath, defaultEnvVar);
+    const key = readEnvFile(globalEnvPath, defaultEnvVar, { allowEncrypted: true });
     if (key) {
       return { apiKey: key, source: 'global-env', envVar: defaultEnvVar, envFile: globalEnvPath };
     }

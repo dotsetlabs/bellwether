@@ -108,11 +108,13 @@ describe('credentials', () => {
       expect(result.source).toBe('none');
     });
 
-    it('should check keychain when env not set', async () => {
+    it('should check keychain file backend when env not set', async () => {
       const { resolveCredentials } = await import('../../src/auth/credentials.js');
       const { getKeychainService } = await import('../../src/auth/keychain.js');
 
-      // Store key in keychain
+      // Store key in keychain file backend
+      // Note: File backend stores in ~/.bellwether/.env, which resolveCredentials
+      // finds as 'global-env' (step 5) before checking keychain (step 6)
       const keychain = getKeychainService();
       keychain.enableFileBackend();
       await keychain.setApiKey('openai', 'sk-keychain-key');
@@ -122,7 +124,8 @@ describe('credentials', () => {
       });
 
       expect(result.apiKey).toBe('sk-keychain-key');
-      expect(result.source).toBe('keychain');
+      // File backend stores in global .env, so it's found as 'global-env'
+      expect(result.source).toBe('global-env');
     });
 
     it('should read from project .env file', async () => {
@@ -156,7 +159,9 @@ describe('credentials', () => {
       // Create global .env file
       const bellwetherDir = join(testDir, '.bellwether');
       mkdirSync(bellwetherDir, { recursive: true });
-      writeFileSync(join(bellwetherDir, '.env'), 'OPENAI_API_KEY=sk-global-env-key\n');
+      const { encryptEnvValue } = await import('../../src/auth/keychain.js');
+      const encrypted = encryptEnvValue('sk-global-env-key');
+      writeFileSync(join(bellwetherDir, '.env'), `OPENAI_API_KEY=${encrypted}\n`);
 
       const { resolveCredentials } = await import('../../src/auth/credentials.js');
 
@@ -199,7 +204,9 @@ describe('credentials', () => {
       // Create global .env file
       const bellwetherDir = join(testDir, '.bellwether');
       mkdirSync(bellwetherDir, { recursive: true });
-      writeFileSync(join(bellwetherDir, '.env'), 'OPENAI_API_KEY=sk-global-env-key\n');
+      const { encryptEnvValue } = await import('../../src/auth/keychain.js');
+      const encrypted = encryptEnvValue('sk-global-env-key');
+      writeFileSync(join(bellwetherDir, '.env'), `OPENAI_API_KEY=${encrypted}\n`);
 
       // Create project .env
       const tempProjectDir = join(testDir, 'project3');
@@ -225,6 +232,7 @@ describe('credentials', () => {
 
     it('should prefer .env files over keychain', async () => {
       const { getKeychainService } = await import('../../src/auth/keychain.js');
+      const { encryptEnvValue } = await import('../../src/auth/keychain.js');
 
       // Store key in keychain
       const keychain = getKeychainService();
@@ -234,7 +242,8 @@ describe('credentials', () => {
       // Create global .env file
       const bellwetherDir = join(testDir, '.bellwether');
       mkdirSync(bellwetherDir, { recursive: true });
-      writeFileSync(join(bellwetherDir, '.env'), 'OPENAI_API_KEY=sk-global-env-key\n');
+      const encrypted = encryptEnvValue('sk-global-env-key');
+      writeFileSync(join(bellwetherDir, '.env'), `OPENAI_API_KEY=${encrypted}\n`);
 
       const { resolveCredentials } = await import('../../src/auth/credentials.js');
 

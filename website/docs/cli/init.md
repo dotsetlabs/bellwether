@@ -125,6 +125,9 @@ The generated `bellwether.yaml` includes all available options with sensible def
 server:
   command: "npx @modelcontextprotocol/server-filesystem"
   args: ["/tmp"]
+  transport: stdio
+  # url: "https://example.com/mcp"
+  # sessionId: "session-id"
   timeout: 30000
   env: {}
 
@@ -165,9 +168,9 @@ check:
 
   # Statistical sampling
   sampling:
-    minSamples: 5              # Minimum samples per tool (CI optimized)
-    targetConfidence: medium   # low, medium, or high
-    failOnLowConfidence: true
+    minSamples: 10             # Minimum samples per tool
+    targetConfidence: low      # low, medium, or high
+    failOnLowConfidence: false
 
 # =============================================================================
 # BASELINE

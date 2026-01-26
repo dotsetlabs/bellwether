@@ -27,6 +27,12 @@ export const serverConfigSchema = z.object({
     .min(VALIDATION_BOUNDS.TIMEOUT.MIN_MS)
     .max(VALIDATION_BOUNDS.TIMEOUT.MAX_MS)
     .default(CONFIG_DEFAULTS.server.timeout),
+  /** Transport type */
+  transport: z.enum(['stdio', 'sse', 'streamable-http']).default(CONFIG_DEFAULTS.server.transport),
+  /** Remote MCP server URL (required for sse/streamable-http) */
+  url: z.string().optional().default(CONFIG_DEFAULTS.server.url),
+  /** Session ID for remote auth */
+  sessionId: z.string().optional().default(CONFIG_DEFAULTS.server.sessionId),
   /** Additional environment variables */
   env: z.record(z.string()).optional(),
 }).default(CONFIG_DEFAULTS.server);
@@ -477,9 +483,9 @@ export const discoveryConfigSchema = z.object({
   /** Transport type */
   transport: z.enum(['stdio', 'sse', 'streamable-http']).default(CONFIG_DEFAULTS.discovery.transport),
   /** Remote MCP server URL */
-  url: z.string().optional(),
+  url: z.string().optional().default(CONFIG_DEFAULTS.discovery.url),
   /** Session ID for remote auth */
-  sessionId: z.string().optional(),
+  sessionId: z.string().optional().default(CONFIG_DEFAULTS.discovery.sessionId),
 }).default(CONFIG_DEFAULTS.discovery);
 
 /**
@@ -658,16 +664,29 @@ export function getConfigWarnings(config: BellwetherConfig): string[] {
  * Validate that required fields are present for the check command.
  */
 export function validateConfigForCheck(config: BellwetherConfig, serverCommand?: string): void {
-  // Server command must be provided either in config or as argument
+  const transport = config.server.transport ?? 'stdio';
   const effectiveCommand = serverCommand || config.server.command;
-  if (!effectiveCommand) {
+  const remoteUrl = config.server.url?.trim();
+
+  if (transport === 'stdio') {
+    // Server command must be provided either in config or as argument
+    if (!effectiveCommand) {
+      throw new Error(
+        'No server command specified.\n\n' +
+        'Either add it to bellwether.yaml:\n' +
+        '  server:\n' +
+        '    command: "npx @your/mcp-server"\n\n' +
+        'Or pass it as an argument:\n' +
+        '  bellwether check npx @your/mcp-server'
+      );
+    }
+  } else if (!remoteUrl) {
     throw new Error(
-      'No server command specified.\n\n' +
-      'Either add it to bellwether.yaml:\n' +
+      `No server URL specified for transport "${transport}".\n\n` +
+      'Provide a URL in the config file:\n' +
       '  server:\n' +
-      '    command: "npx @your/mcp-server"\n\n' +
-      'Or pass it as an argument:\n' +
-      '  bellwether check npx @your/mcp-server'
+      `    transport: ${transport}\n` +
+      '    url: "https://your-server.example.com/mcp"'
     );
   }
   // Check command doesn't require LLM - it's free and deterministic
@@ -677,16 +696,29 @@ export function validateConfigForCheck(config: BellwetherConfig, serverCommand?:
  * Validate that required fields are present for the explore command.
  */
 export function validateConfigForExplore(config: BellwetherConfig, serverCommand?: string): void {
-  // Server command must be provided either in config or as argument
+  const transport = config.server.transport ?? 'stdio';
   const effectiveCommand = serverCommand || config.server.command;
-  if (!effectiveCommand) {
+  const remoteUrl = config.server.url?.trim();
+
+  if (transport === 'stdio') {
+    // Server command must be provided either in config or as argument
+    if (!effectiveCommand) {
+      throw new Error(
+        'No server command specified.\n\n' +
+        'Either add it to bellwether.yaml:\n' +
+        '  server:\n' +
+        '    command: "npx @your/mcp-server"\n\n' +
+        'Or pass it as an argument:\n' +
+        '  bellwether explore npx @your/mcp-server'
+      );
+    }
+  } else if (!remoteUrl) {
     throw new Error(
-      'No server command specified.\n\n' +
-      'Either add it to bellwether.yaml:\n' +
+      `No server URL specified for transport "${transport}".\n\n` +
+      'Provide a URL in the config file:\n' +
       '  server:\n' +
-      '    command: "npx @your/mcp-server"\n\n' +
-      'Or pass it as an argument:\n' +
-      '  bellwether explore npx @your/mcp-server'
+      `    transport: ${transport}\n` +
+      '    url: "https://your-server.example.com/mcp"'
     );
   }
 
@@ -723,6 +755,64 @@ export function validateConfigForExplore(config: BellwetherConfig, serverCommand
     }
   }
   // Ollama doesn't require API keys
+}
+
+/**
+ * Validate that required fields are present for the verify command.
+ */
+export function validateConfigForVerify(config: BellwetherConfig, serverCommand?: string): void {
+  const transport = config.server.transport ?? 'stdio';
+  const effectiveCommand = serverCommand || config.server.command;
+  const remoteUrl = config.server.url?.trim();
+
+  if (transport === 'stdio') {
+    if (!effectiveCommand) {
+      throw new Error(
+        'No server command specified.\n\n' +
+        'Either add it to bellwether.yaml:\n' +
+        '  server:\n' +
+        '    command: "npx @your/mcp-server"\n\n' +
+        'Or pass it as an argument:\n' +
+        '  bellwether verify npx @your/mcp-server'
+      );
+    }
+  } else if (!remoteUrl) {
+    throw new Error(
+      `No server URL specified for transport "${transport}".\n\n` +
+      'Provide a URL in the config file:\n' +
+      '  server:\n' +
+      `    transport: ${transport}\n` +
+      '    url: "https://your-server.example.com/mcp"'
+    );
+  }
+
+  const provider = config.llm.provider;
+
+  if (provider === 'openai') {
+    const envVar = config.llm.openaiApiKeyEnvVar || 'OPENAI_API_KEY';
+    if (!process.env[envVar]) {
+      throw new Error(
+        `OpenAI API key not found.\n\n` +
+        `Set the ${envVar} environment variable or run:\n` +
+        `  bellwether auth\n\n` +
+        `Or switch to local Ollama (free) by setting:\n` +
+        `  llm:\n` +
+        `    provider: ollama`
+      );
+    }
+  } else if (provider === 'anthropic') {
+    const envVar = config.llm.anthropicApiKeyEnvVar || 'ANTHROPIC_API_KEY';
+    if (!process.env[envVar]) {
+      throw new Error(
+        `Anthropic API key not found.\n\n` +
+        `Set the ${envVar} environment variable or run:\n` +
+        `  bellwether auth\n\n` +
+        `Or switch to local Ollama (free) by setting:\n` +
+        `  llm:\n` +
+        `    provider: ollama`
+      );
+    }
+  }
 }
 
 /**

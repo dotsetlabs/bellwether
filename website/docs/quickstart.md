@@ -40,7 +40,7 @@ This creates `bellwether.yaml` with your server command and settings. Every comm
 bellwether check
 ```
 
-This discovers tools, validates schemas, and generates:
+This discovers tools, validates schemas, and by default generates both docs and JSON (controlled by `output.format`):
 - `CONTRACT.md` - structural documentation (configurable via `output.files.contractDoc`)
 - `bellwether-check.json` - validation results (configurable via `output.files.checkReport`)
 
@@ -88,7 +88,7 @@ bellwether auth
 bellwether explore
 ```
 
-This generates:
+This generates docs and/or JSON based on `output.format` (default is both):
 - `AGENTS.md` - behavioral documentation (configurable via `output.files.agentsDoc`)
 - `bellwether-explore.json` - exploration results (configurable via `output.files.exploreReport`)
 
@@ -122,8 +122,8 @@ bellwether explore                       # Deep exploration with security focus
 
 ```bash
 bellwether init --preset thorough "npx your-server"
-bellwether check                         # Generate CONTRACT.md
-bellwether explore                       # Generate AGENTS.md
+bellwether check                         # Generate CONTRACT.md (if output.format includes docs)
+bellwether explore                       # Generate AGENTS.md (if output.format includes docs)
 ```
 
 ---

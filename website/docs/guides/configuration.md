@@ -43,6 +43,9 @@ The generated `bellwether.yaml` includes all available options with comments. Be
 server:
   command: "npx @mcp/your-server"
   args: []
+  transport: stdio
+  # url: "https://example.com/mcp"
+  # sessionId: "session-id"
   timeout: 30000
   # env:
   #   API_KEY: "${API_KEY}"
@@ -54,7 +57,7 @@ scenarios:
 output:
   dir: ".bellwether"
   docsDir: "."
-  format: both        # Currently informational; docs + JSON are always written
+  format: both        # agents.md, json, or both
   examples:
     full: true
     maxLength: 5000
@@ -308,7 +311,7 @@ Invalid configuration:
 2. **Use `bellwether check` for CI** - Deterministic, free, fast
 3. **Never commit API keys** - Use environment variables or `bellwether auth`
 4. **Use presets as starting points** - Customize from there
-5. **Keep JSON reports accessible** - `bellwether-check.json` and `bellwether-explore.json` are always written to `output.dir`
+5. **Keep JSON reports accessible** - Set `output.format` to include `json` if you rely on `bellwether-check.json` or `bellwether-explore.json`
 
 ## See Also
 

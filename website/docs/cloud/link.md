@@ -44,13 +44,14 @@ All CLI commands (except `init`) require a config file. Run `bellwether init` on
 bellwether link
 ```
 
-Interactive prompt:
+This creates a new project using the directory name (or `--name`) and links it to the current directory:
 ```
-? Project name: my-mcp-server
-? Visibility: public
+Creating project "my-mcp-server"...
+Project created: proj_abc123
 
-Created project: my-mcp-server (proj_abc123)
-Linked to current directory.
+Linked to project: my-mcp-server
+Project ID: proj_abc123
+Saved to .bellwether/link.json
 ```
 
 ### Link to Existing Project
@@ -89,7 +90,9 @@ Linking creates `.bellwether/link.json` in your project root:
 {
   "projectId": "proj_abc123",
   "projectName": "my-mcp-server",
-  "linkedAt": "2026-01-13T10:30:00.000Z"
+  "linkedAt": "2026-01-13T10:30:00.000Z",
+  "teamId": "team_abc123",
+  "teamName": "Personal"
 }
 ```
 

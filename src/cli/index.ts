@@ -4,6 +4,7 @@ import { config } from 'dotenv';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import { decryptEnvValue, isEncryptedEnvValue } from '../auth/keychain.js';
 
 // Load global ~/.bellwether/.env first (if exists)
 const globalEnvPath = join(homedir(), '.bellwether', '.env');
@@ -13,6 +14,22 @@ if (existsSync(globalEnvPath)) {
 
 // Then load project .env (overrides global settings)
 config();
+
+function normalizeEncryptedEnvVar(key: string): void {
+  const value = process.env[key];
+  if (!value || !isEncryptedEnvValue(value)) {
+    return;
+  }
+  const decrypted = decryptEnvValue(value);
+  if (decrypted) {
+    process.env[key] = decrypted;
+  } else {
+    delete process.env[key];
+  }
+}
+
+normalizeEncryptedEnvVar('OPENAI_API_KEY');
+normalizeEncryptedEnvVar('ANTHROPIC_API_KEY');
 
 // Load credentials from keychain if not already in env
 // This is done async but we await it before parsing commands

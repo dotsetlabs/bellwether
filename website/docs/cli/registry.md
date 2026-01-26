@@ -21,8 +21,8 @@ bellwether registry [options] [query]
 
 The `registry` command searches the [MCP Registry](https://registry.modelcontextprotocol.io/) - the official directory of MCP servers. Use it to discover servers, find installation commands, and explore the MCP ecosystem.
 
-:::note Config Required
-All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `registry`.
+:::note Config Optional
+`registry` can run without a config file. If `bellwether.yaml` is present, its registry settings are used.
 :::
 
 ## Arguments
