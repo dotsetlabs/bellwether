@@ -104,7 +104,7 @@ jobs:
 
 ```yaml
 - name: Run Bellwether
-  uses: dotsetlabs/bellwether/action@v1
+  uses: dotsetlabs/bellwether@v1
   with:
     server-command: 'npx @modelcontextprotocol/server-filesystem'
     server-args: '/tmp'
