@@ -91,13 +91,117 @@ baseline:
 
 ### Using GitHub Action
 
+For a streamlined experience, use the official GitHub Action:
+
 ```yaml
 - name: Detect Behavioral Drift
-  uses: dotsetlabs/bellwether/action@v1
+  uses: dotsetlabs/bellwether@v1
   with:
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
     fail-on-severity: 'warning'
+```
+
+The action auto-creates `bellwether.yaml` with `--preset ci` if not found.
+
+#### Action Inputs
+
+| Input | Description | Default |
+|:------|:------------|:--------|
+| `server-command` | MCP server command (required) | - |
+| `server-args` | Arguments to pass to the server | `''` |
+| `config-path` | Path to bellwether.yaml | `bellwether.yaml` |
+| `baseline-path` | Path to baseline file | `bellwether-baseline.json` |
+| `save-baseline` | Save baseline after check | `false` |
+| `output-dir` | Directory for output files | `.` |
+| `format` | Output format: `text`, `json`, `compact`, `github`, `markdown`, `junit`, `sarif` | `github` |
+| `min-severity` | Minimum severity to report: `none`, `info`, `warning`, `breaking` | `info` |
+| `fail-on-severity` | Failure threshold: `none`, `info`, `warning`, `breaking` | `breaking` |
+| `accept-drift` | Accept detected drift and update baseline | `false` |
+| `accept-reason` | Reason for accepting drift | `''` |
+| `upload-sarif` | Upload SARIF to GitHub Code Scanning | `true` |
+
+#### Action Outputs
+
+| Output | Description |
+|:-------|:------------|
+| `result` | `passed` or `failed` |
+| `exit-code` | Semantic exit code (0-5) |
+| `severity` | Highest severity: `none`, `info`, `warning`, `breaking`, `low_confidence` |
+| `drift-detected` | `true` or `false` |
+| `tool-count` | Number of tools discovered |
+| `breaking-count` | Number of breaking changes |
+| `warning-count` | Number of warning changes |
+| `info-count` | Number of info changes |
+| `doc-score` | Documentation quality score (0-100) |
+| `doc-grade` | Documentation quality grade (A-F) |
+| `security-findings` | Number of security findings |
+| `contract-md` | Path to CONTRACT.md |
+| `baseline-file` | Path to baseline file |
+| `sarif-file` | Path to SARIF file |
+| `junit-file` | Path to JUnit XML file |
+
+#### Artifacts
+
+The action automatically uploads:
+- `bellwether-docs` - The generated CONTRACT.md
+- `bellwether-baseline` - The baseline file (if saved)
+- `bellwether-report` - The JSON report
+
+#### Save Baseline with Action
+
+```yaml
+- name: Check and Save Baseline
+  uses: dotsetlabs/bellwether@v1
+  with:
+    server-command: 'npx @mcp/your-server'
+    save-baseline: 'true'
+
+- name: Commit Baseline
+  uses: stefanzweifel/git-auto-commit-action@v5
+  with:
+    commit_message: 'Update MCP baseline'
+    file_pattern: 'bellwether-baseline.json'
+```
+
+#### Action with Cloud Upload
+
+```yaml
+- name: Check MCP Server
+  uses: dotsetlabs/bellwether@v1
+  with:
+    server-command: 'npx @mcp/your-server'
+    save-baseline: 'true'
+  env:
+    BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
+
+- name: Upload to Cloud
+  if: success()
+  run: npx @dotsetlabs/bellwether upload --ci
+  env:
+    BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
+```
+
+#### Action with Server Environment Variables
+
+If your MCP server needs secrets, use interpolation in your config:
+
+```yaml
+# bellwether.yaml
+server:
+  command: "npx @mcp/your-server"
+  env:
+    API_KEY: "${API_KEY}"
+```
+
+```yaml
+# workflow
+- name: Test with Secrets
+  uses: dotsetlabs/bellwether@v1
+  with:
+    server-command: 'npx @mcp/your-server'
+  env:
+    API_KEY: ${{ secrets.API_KEY }}
 ```
 
 ### Explore Mode with LLM (Documentation Only)

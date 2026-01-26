@@ -674,14 +674,14 @@ Use with: `bellwether init --preset <name> npx @mcp/server`
 
 ```yaml
 - name: Detect Behavioral Drift
-  uses: dotsetlabs/bellwether/action@v1
+  uses: dotsetlabs/bellwether@v1
   with:
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
     fail-on-severity: 'warning'
 ```
 
-See [action/README.md](./action/README.md) for full documentation.
+See the [CI/CD Integration guide](https://bellwether.sh/guides/ci-cd) for full documentation.
 
 ## Environment Variables
 
