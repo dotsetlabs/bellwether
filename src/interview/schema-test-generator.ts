@@ -10,6 +10,7 @@ import type { MCPTool } from '../transport/types.js';
 import type { InterviewQuestion, ExpectedOutcome } from './types.js';
 import type { QuestionCategory } from '../persona/types.js';
 import { SCHEMA_TESTING, SEMANTIC_VALIDATION, OUTCOME_ASSESSMENT } from '../constants.js';
+import { SMART_VALUE_GENERATION } from '../constants/testing.js';
 import { generateSemanticTests } from '../validation/semantic-test-generator.js';
 import type { SemanticInference } from '../validation/semantic-types.js';
 // Smart value generation is implemented inline below, but the module is available
@@ -31,6 +32,8 @@ interface PropertySchema {
     maximum?: number;
     minLength?: number;
     maxLength?: number;
+    minItems?: number;
+    maxItems?: number;
     pattern?: string;
     format?: string;
     items?: PropertySchema;
@@ -53,6 +56,26 @@ interface InputSchema {
 }
 
 /**
+ * Test fixture pattern for matching parameter names.
+ */
+export interface TestFixturePattern {
+    /** Regex pattern to match parameter names */
+    match: string;
+    /** Value to use for matching parameters */
+    value: unknown;
+}
+
+/**
+ * Test fixtures configuration for customizing test values.
+ */
+export interface TestFixturesConfig {
+    /** Custom values for specific parameter names (exact match) */
+    parameterValues?: Record<string, unknown>;
+    /** Custom values for parameters matching regex patterns */
+    patterns?: TestFixturePattern[];
+}
+
+/**
  * Options for test generation.
  */
 export interface SchemaTestGeneratorOptions {
@@ -62,6 +85,8 @@ export interface SchemaTestGeneratorOptions {
     maxTestsPerTool?: number;
     /** Skip semantic validation tests (default: false) */
     skipSemanticTests?: boolean;
+    /** Custom test fixtures for overriding default values */
+    testFixtures?: TestFixturesConfig;
 }
 
 /**
@@ -88,12 +113,284 @@ function getPrimaryType(schema: PropertySchema): string | undefined {
 }
 
 /**
+ * Generate a default value for a nested schema.
+ * Used when generating array items or object properties.
+ */
+function generateDefaultValueForSchema(
+    schema: PropertySchema,
+    fixtures?: TestFixturesConfig
+): unknown {
+    const type = getPrimaryType(schema);
+
+    // Use schema example if available
+    if (schema.examples && schema.examples.length > 0) {
+        return schema.examples[0];
+    }
+
+    // Use schema default if available
+    if (schema.default !== undefined) {
+        return schema.default;
+    }
+
+    // Use first enum value if available
+    if (schema.enum && schema.enum.length > 0) {
+        return schema.enum[0];
+    }
+
+    // Use const value if available
+    if (schema.const !== undefined) {
+        return schema.const;
+    }
+
+    // Generate based on type
+    switch (type) {
+        case 'string':
+            return generateSmartStringValueForSchema(schema);
+        case 'number':
+            return generateSmartNumberValue(schema);
+        case 'integer':
+            return Math.floor(generateSmartNumberValue(schema));
+        case 'boolean':
+            return true;
+        case 'array':
+            return generateMinimalArray(schema, fixtures);
+        case 'object':
+            return generateMinimalObject(schema, fixtures);
+        case 'null':
+            return null;
+        default:
+            return 'test';
+    }
+}
+
+/**
+ * Generate a smart string value for a schema without property name context.
+ * Used for nested array items where we don't have a property name.
+ */
+function generateSmartStringValueForSchema(schema: PropertySchema): string {
+    const description = (schema.description ?? '').toLowerCase();
+
+    // Check description for explicit format hints
+    for (const { pattern, value } of DATE_FORMAT_PATTERNS) {
+        if (pattern.test(schema.description ?? '') || pattern.test(description)) {
+            return value;
+        }
+    }
+
+    for (const { pattern, value } of SEMANTIC_FORMAT_PATTERNS) {
+        if (pattern.test(schema.description ?? '') || pattern.test(description)) {
+            return value;
+        }
+    }
+
+    // Check schema format field
+    if (schema.format === 'date') return '2024-01-15';
+    if (schema.format === 'date-time') return '2024-01-15T14:30:00Z';
+    if (schema.format === 'email') return 'test@example.com';
+    if (schema.format === 'uri' || schema.format === 'url') return 'https://example.com';
+    if (schema.format === 'uuid') return '550e8400-e29b-41d4-a716-446655440000';
+    if (schema.format === 'ipv4') return '192.168.1.100';
+    if (schema.format === 'time') return '14:30:00';
+
+    // Respect minLength constraint
+    const minLength = schema.minLength ?? 0;
+    if (minLength > 4) {
+        return 'test'.padEnd(minLength, 'x');
+    }
+
+    return 'test';
+}
+
+/**
+ * Generate a minimal array that satisfies minItems constraint.
+ */
+function generateMinimalArray(
+    schema: PropertySchema,
+    fixtures?: TestFixturesConfig
+): unknown[] {
+    const minItems = schema.minItems ?? 0;
+    const itemSchema = schema.items;
+
+    if (minItems === 0) {
+        return [];
+    }
+
+    // Generate the minimum required number of items
+    const items: unknown[] = [];
+    for (let i = 0; i < minItems; i++) {
+        if (itemSchema) {
+            items.push(generateDefaultValueForSchema(itemSchema, fixtures));
+        } else {
+            // No item schema, use generic values
+            items.push('item');
+        }
+    }
+
+    return items;
+}
+
+/**
+ * Generate a minimal object that satisfies required properties constraint.
+ */
+function generateMinimalObject(
+    schema: PropertySchema,
+    fixtures?: TestFixturesConfig
+): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    const requiredProps = schema.required ?? [];
+    const properties = schema.properties ?? {};
+
+    // Only populate required properties
+    for (const propName of requiredProps) {
+        const propSchema = properties[propName];
+        if (propSchema) {
+            // Use the property name to generate a contextual value
+            result[propName] = generateDefaultValueForPropertySchema(propName, propSchema, fixtures);
+        } else {
+            // No schema for required property, use generic value
+            result[propName] = 'test';
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Generate an array with a specific number of items based on the item schema.
+ * Used for boundary testing at minItems/maxItems limits.
+ */
+function generateArrayItems(itemSchema: PropertySchema | undefined, count: number): unknown[] {
+    const items: unknown[] = [];
+    for (let i = 0; i < count; i++) {
+        if (itemSchema) {
+            items.push(generateDefaultValueForSchema(itemSchema));
+        } else {
+            items.push('item');
+        }
+    }
+    return items;
+}
+
+/**
+ * Generate a default value for a property with both name and schema context.
+ * This is the recursive version that handles nested structures.
+ */
+function generateDefaultValueForPropertySchema(
+    propName: string,
+    schema: PropertySchema,
+    fixtures?: TestFixturesConfig
+): unknown {
+    // Check fixtures first
+    const fixtureValue = getFixtureValue(propName, fixtures);
+    if (fixtureValue !== undefined) {
+        return fixtureValue;
+    }
+
+    const type = getPrimaryType(schema);
+
+    // Use schema example if available
+    if (schema.examples && schema.examples.length > 0) {
+        return schema.examples[0];
+    }
+
+    // Use schema default if available
+    if (schema.default !== undefined) {
+        return schema.default;
+    }
+
+    // Use first enum value if available
+    if (schema.enum && schema.enum.length > 0) {
+        return schema.enum[0];
+    }
+
+    // Use const value if available
+    if (schema.const !== undefined) {
+        return schema.const;
+    }
+
+    // Generate based on type
+    switch (type) {
+        case 'string':
+            return generateSmartStringValue(propName, schema);
+        case 'number':
+        case 'integer':
+            return generateSmartNumberValue(schema, propName);
+        case 'boolean':
+            return true;
+        case 'array':
+            return generateMinimalArray(schema, fixtures);
+        case 'object':
+            return generateMinimalObject(schema, fixtures);
+        case 'null':
+            return null;
+        default:
+            return 'test';
+    }
+}
+
+/**
+ * Check if a property name matches any fixture pattern.
+ * Returns the fixture value if matched, undefined otherwise.
+ */
+function getFixtureValueByPattern(
+    propName: string,
+    patterns?: TestFixturePattern[]
+): unknown | undefined {
+    if (!patterns || patterns.length === 0) {
+        return undefined;
+    }
+
+    for (const pattern of patterns) {
+        try {
+            const regex = new RegExp(pattern.match);
+            if (regex.test(propName)) {
+                return pattern.value;
+            }
+        } catch {
+            // Invalid regex pattern, skip
+            continue;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * Get a fixture value for a property name, checking exact match first,
+ * then pattern match.
+ */
+function getFixtureValue(
+    propName: string,
+    fixtures?: TestFixturesConfig
+): unknown | undefined {
+    if (!fixtures) {
+        return undefined;
+    }
+
+    // Priority 1: Exact match in parameterValues
+    if (fixtures.parameterValues && propName in fixtures.parameterValues) {
+        return fixtures.parameterValues[propName];
+    }
+
+    // Priority 2: Pattern match
+    return getFixtureValueByPattern(propName, fixtures.patterns);
+}
+
+/**
  * Generate a smart default value for a property based on its type and constraints.
+ * Checks test fixtures first if provided.
  */
 function generateDefaultValue(
     propName: string,
-    prop: PropertySchema
+    prop: PropertySchema,
+    fixtures?: TestFixturesConfig
 ): unknown {
+    // Priority 0: Check test fixtures first
+    const fixtureValue = getFixtureValue(propName, fixtures);
+    if (fixtureValue !== undefined) {
+        return fixtureValue;
+    }
+
     const type = getPrimaryType(prop);
 
     // Use schema example if available
@@ -122,13 +419,15 @@ function generateDefaultValue(
             return generateSmartStringValue(propName, prop);
         case 'number':
         case 'integer':
-            return generateSmartNumberValue(prop);
+            return generateSmartNumberValue(prop, propName);
         case 'boolean':
             return true;
         case 'array':
-            return [];
+            return generateMinimalArray(prop, fixtures);
         case 'object':
-            return {};
+            return generateMinimalObject(prop, fixtures);
+        case 'null':
+            return null;
         default:
             return 'test';
     }
@@ -280,9 +579,80 @@ function generateSmartStringValue(
 }
 
 /**
- * Generate a contextually appropriate number value based on constraints.
+ * Generate a contextually appropriate number value based on constraints and property name.
+ * Detects coordinates (latitude/longitude) and pagination parameters.
  */
-function generateSmartNumberValue(prop: PropertySchema): number {
+function generateSmartNumberValue(prop: PropertySchema, propName?: string): number {
+    const { COORDINATES, PAGINATION } = SMART_VALUE_GENERATION;
+    const lowerName = (propName ?? '').toLowerCase();
+    const description = (prop.description ?? '').toLowerCase();
+
+    // Check for latitude patterns
+    for (const pattern of COORDINATES.LATITUDE_PATTERNS) {
+        if (pattern.test(propName ?? '') || pattern.test(description)) {
+            // Ensure value is within valid latitude range
+            const value = COORDINATES.DEFAULTS.latitude;
+            if (prop.minimum !== undefined && value < prop.minimum) {
+                return prop.minimum;
+            }
+            if (prop.maximum !== undefined && value > prop.maximum) {
+                return prop.maximum;
+            }
+            return value;
+        }
+    }
+
+    // Check for longitude patterns
+    for (const pattern of COORDINATES.LONGITUDE_PATTERNS) {
+        if (pattern.test(propName ?? '') || pattern.test(description)) {
+            // Ensure value is within valid longitude range
+            const value = COORDINATES.DEFAULTS.longitude;
+            if (prop.minimum !== undefined && value < prop.minimum) {
+                return prop.minimum;
+            }
+            if (prop.maximum !== undefined && value > prop.maximum) {
+                return prop.maximum;
+            }
+            return value;
+        }
+    }
+
+    // Check for pagination patterns
+    for (const pattern of PAGINATION.LIMIT_PATTERNS) {
+        if (pattern.test(propName ?? '')) {
+            const value = PAGINATION.DEFAULTS.limit;
+            if (prop.minimum !== undefined && value < prop.minimum) {
+                return prop.minimum;
+            }
+            if (prop.maximum !== undefined && value > prop.maximum) {
+                return prop.maximum;
+            }
+            return value;
+        }
+    }
+
+    for (const pattern of PAGINATION.OFFSET_PATTERNS) {
+        if (pattern.test(propName ?? '')) {
+            // Distinguish between offset/skip (start at 0) and page (start at 1)
+            const lowerPropName = (propName ?? '').toLowerCase();
+            if (lowerPropName === 'page' || lowerPropName.includes('page')) {
+                return PAGINATION.DEFAULTS.page;
+            }
+            return PAGINATION.DEFAULTS.offset;
+        }
+    }
+
+    // Check for year detection in name/description
+    if (lowerName.includes('year') || description.includes('year')) {
+        return 2024;
+    }
+
+    // Check for percentage
+    if (lowerName.includes('percent') || description.includes('percent')) {
+        return 50;
+    }
+
+    // Standard value generation based on constraints
     const min = prop.minimum ?? 0;
     const max = prop.maximum ?? 100;
 
@@ -359,13 +729,14 @@ function addQuestion(
  */
 function buildBaseArgs(
     properties: Record<string, PropertySchema>,
-    requiredParams: string[]
+    requiredParams: string[],
+    fixtures?: TestFixturesConfig
 ): Record<string, unknown> {
     const args: Record<string, unknown> = {};
     for (const param of requiredParams) {
         const prop = properties[param];
         if (prop) {
-            args[param] = generateDefaultValue(param, prop);
+            args[param] = generateDefaultValue(param, prop, fixtures);
         }
     }
     return args;
@@ -380,7 +751,8 @@ function buildBaseArgs(
  */
 function generateHappyPathTests(
     properties: Record<string, PropertySchema>,
-    requiredParams: string[]
+    requiredParams: string[],
+    fixtures?: TestFixturesConfig
 ): InterviewQuestion[] {
     const questions: InterviewQuestion[] = [];
     const { CATEGORY_DESCRIPTIONS } = SCHEMA_TESTING;
@@ -397,7 +769,7 @@ function generateHappyPathTests(
 
     // Test 2: Minimal required args with smart defaults
     if (requiredParams.length > 0) {
-        const minimalArgs = buildBaseArgs(properties, requiredParams);
+        const minimalArgs = buildBaseArgs(properties, requiredParams, fixtures);
         addQuestion(questions, {
             description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: minimal required arguments`,
             category: 'happy_path' as QuestionCategory,
@@ -411,11 +783,11 @@ function generateHappyPathTests(
         (p) => !requiredParams.includes(p)
     );
     if (optionalParams.length > 0 && questions.length < SCHEMA_TESTING.MAX_TESTS_PER_CATEGORY) {
-        const fullArgs = buildBaseArgs(properties, requiredParams);
+        const fullArgs = buildBaseArgs(properties, requiredParams, fixtures);
         for (const param of optionalParams.slice(0, 3)) {
             const prop = properties[param];
             if (prop) {
-                fullArgs[param] = generateDefaultValue(param, prop);
+                fullArgs[param] = generateDefaultValue(param, prop, fixtures);
             }
         }
         addQuestion(questions, {
@@ -436,7 +808,8 @@ function generateHappyPathTests(
  */
 function generateBoundaryTests(
     properties: Record<string, PropertySchema>,
-    requiredParams: string[]
+    requiredParams: string[],
+    fixtures?: TestFixturesConfig
 ): InterviewQuestion[] {
     const questions: InterviewQuestion[] = [];
     const { BOUNDARY_VALUES, CATEGORY_DESCRIPTIONS } = SCHEMA_TESTING;
@@ -445,7 +818,7 @@ function generateBoundaryTests(
         if (questions.length >= SCHEMA_TESTING.MAX_TESTS_PER_CATEGORY) break;
 
         const type = getPrimaryType(prop);
-        const baseArgs = buildBaseArgs(properties, requiredParams);
+        const baseArgs = buildBaseArgs(properties, requiredParams, fixtures);
 
         switch (type) {
             case 'string': {
@@ -513,13 +886,40 @@ function generateBoundaryTests(
             }
 
             case 'array': {
-                // Test empty array
-                addQuestion(questions, {
-                    description: `${CATEGORY_DESCRIPTIONS.ARRAY_HANDLING}: empty array for "${propName}"`,
-                    category: 'edge_case' as QuestionCategory,
-                    args: { ...baseArgs, [propName]: [] },
-                    expectedOutcome: 'either',
-                });
+                const minItems = prop.minItems ?? 0;
+                const maxItems = prop.maxItems;
+
+                // Test empty array only if minItems allows it (minItems = 0 or undefined)
+                if (minItems === 0) {
+                    addQuestion(questions, {
+                        description: `${CATEGORY_DESCRIPTIONS.ARRAY_HANDLING}: empty array for "${propName}"`,
+                        category: 'edge_case' as QuestionCategory,
+                        args: { ...baseArgs, [propName]: [] },
+                        expectedOutcome: 'either',
+                    });
+                } else {
+                    // Test array with fewer items than minItems (should be rejected)
+                    const underflowCount = Math.max(0, minItems - 1);
+                    const underflowItems = generateArrayItems(prop.items, underflowCount);
+                    addQuestion(questions, {
+                        description: `${CATEGORY_DESCRIPTIONS.BOUNDARY}: array below minItems (${underflowCount}/${minItems}) for "${propName}"`,
+                        category: 'error_handling' as QuestionCategory,
+                        args: { ...baseArgs, [propName]: underflowItems },
+                        expectedOutcome: 'error',
+                    });
+                }
+
+                // Test array exceeding maxItems if defined
+                if (maxItems !== undefined && questions.length < SCHEMA_TESTING.MAX_TESTS_PER_CATEGORY) {
+                    const overflowCount = maxItems + 1;
+                    const overflowItems = generateArrayItems(prop.items, overflowCount);
+                    addQuestion(questions, {
+                        description: `${CATEGORY_DESCRIPTIONS.BOUNDARY}: array above maxItems (${overflowCount}/${maxItems}) for "${propName}"`,
+                        category: 'error_handling' as QuestionCategory,
+                        args: { ...baseArgs, [propName]: overflowItems },
+                        expectedOutcome: 'error',
+                    });
+                }
                 break;
             }
         }
@@ -534,7 +934,8 @@ function generateBoundaryTests(
  */
 function generateTypeCoercionTests(
     properties: Record<string, PropertySchema>,
-    requiredParams: string[]
+    requiredParams: string[],
+    fixtures?: TestFixturesConfig
 ): InterviewQuestion[] {
     const questions: InterviewQuestion[] = [];
     const { TYPE_COERCION, CATEGORY_DESCRIPTIONS } = SCHEMA_TESTING;
@@ -543,7 +944,7 @@ function generateTypeCoercionTests(
         if (questions.length >= SCHEMA_TESTING.MAX_TESTS_PER_CATEGORY) break;
 
         const type = getPrimaryType(prop);
-        const baseArgs = buildBaseArgs(properties, requiredParams);
+        const baseArgs = buildBaseArgs(properties, requiredParams, fixtures);
 
         switch (type) {
             case 'number':
@@ -591,7 +992,8 @@ function generateTypeCoercionTests(
  */
 function generateEnumTests(
     properties: Record<string, PropertySchema>,
-    requiredParams: string[]
+    requiredParams: string[],
+    fixtures?: TestFixturesConfig
 ): InterviewQuestion[] {
     const questions: InterviewQuestion[] = [];
     const { INVALID_ENUM_VALUES, CATEGORY_DESCRIPTIONS } = SCHEMA_TESTING;
@@ -600,7 +1002,7 @@ function generateEnumTests(
         if (questions.length >= SCHEMA_TESTING.MAX_TESTS_PER_CATEGORY) break;
 
         if (prop.enum && prop.enum.length > 0) {
-            const baseArgs = buildBaseArgs(properties, requiredParams);
+            const baseArgs = buildBaseArgs(properties, requiredParams, fixtures);
             addQuestion(questions, {
                 description: `${CATEGORY_DESCRIPTIONS.ENUM_VIOLATION}: invalid enum for "${propName}"`,
                 category: 'error_handling' as QuestionCategory,
@@ -615,12 +1017,13 @@ function generateEnumTests(
 
 /**
  * Generate array handling tests.
- * Tests arrays with different sizes.
- * Array tests use 'either' outcome - they test edge cases that may or may not be accepted.
+ * Tests arrays with different sizes, respecting minItems/maxItems constraints.
+ * Array tests use 'either' outcome for valid sizes, 'error' for constraint violations.
  */
 function generateArrayTests(
     properties: Record<string, PropertySchema>,
-    requiredParams: string[]
+    requiredParams: string[],
+    fixtures?: TestFixturesConfig
 ): InterviewQuestion[] {
     const questions: InterviewQuestion[] = [];
     const { ARRAY_TESTS, CATEGORY_DESCRIPTIONS } = SCHEMA_TESTING;
@@ -630,36 +1033,61 @@ function generateArrayTests(
 
         const type = getPrimaryType(prop);
         if (type === 'array' && prop.items) {
-            const baseArgs = buildBaseArgs(properties, requiredParams);
-            const itemType = getPrimaryType(prop.items);
+            const baseArgs = buildBaseArgs(properties, requiredParams, fixtures);
+            const minItems = prop.minItems ?? 0;
+            const maxItems = prop.maxItems;
 
-            // Generate sample items
-            let sampleItem: unknown = 'item';
-            if (itemType === 'number' || itemType === 'integer') {
-                sampleItem = 1;
-            } else if (itemType === 'boolean') {
-                sampleItem = true;
-            } else if (itemType === 'object') {
-                sampleItem = {};
-            }
+            // Generate sample item based on item schema
+            const sampleItem = generateDefaultValueForSchema(prop.items);
 
-            // Test with single item
-            addQuestion(questions, {
-                description: `${CATEGORY_DESCRIPTIONS.ARRAY_HANDLING}: single item for "${propName}"`,
-                category: 'edge_case' as QuestionCategory,
-                args: { ...baseArgs, [propName]: [sampleItem] },
-                expectedOutcome: 'either',
-            });
-
-            // Test with many items
-            if (questions.length < SCHEMA_TESTING.MAX_TESTS_PER_CATEGORY) {
-                const manyItems = Array(ARRAY_TESTS.MANY_ITEMS_COUNT).fill(sampleItem);
+            // Test with single item (only if valid for minItems/maxItems)
+            const singleItemValid = minItems <= 1 && (maxItems === undefined || maxItems >= 1);
+            if (singleItemValid) {
                 addQuestion(questions, {
-                    description: `${CATEGORY_DESCRIPTIONS.ARRAY_HANDLING}: many items for "${propName}"`,
+                    description: `${CATEGORY_DESCRIPTIONS.ARRAY_HANDLING}: single item for "${propName}"`,
                     category: 'edge_case' as QuestionCategory,
-                    args: { ...baseArgs, [propName]: manyItems },
+                    args: { ...baseArgs, [propName]: [sampleItem] },
                     expectedOutcome: 'either',
                 });
+            }
+
+            // Test with exact minItems (if minItems > 1)
+            if (minItems > 1 && questions.length < SCHEMA_TESTING.MAX_TESTS_PER_CATEGORY) {
+                const minItemsArray = generateArrayItems(prop.items, minItems);
+                addQuestion(questions, {
+                    description: `${CATEGORY_DESCRIPTIONS.ARRAY_HANDLING}: exact minItems (${minItems}) for "${propName}"`,
+                    category: 'edge_case' as QuestionCategory,
+                    args: { ...baseArgs, [propName]: minItemsArray },
+                    expectedOutcome: 'either',
+                });
+            }
+
+            // Test with exact maxItems (if defined and reasonable)
+            if (maxItems !== undefined && maxItems <= ARRAY_TESTS.MANY_ITEMS_COUNT && questions.length < SCHEMA_TESTING.MAX_TESTS_PER_CATEGORY) {
+                const maxItemsArray = generateArrayItems(prop.items, maxItems);
+                addQuestion(questions, {
+                    description: `${CATEGORY_DESCRIPTIONS.ARRAY_HANDLING}: exact maxItems (${maxItems}) for "${propName}"`,
+                    category: 'edge_case' as QuestionCategory,
+                    args: { ...baseArgs, [propName]: maxItemsArray },
+                    expectedOutcome: 'either',
+                });
+            }
+
+            // Test with many items (only if within maxItems or no maxItems)
+            if (questions.length < SCHEMA_TESTING.MAX_TESTS_PER_CATEGORY) {
+                const manyItemsCount = maxItems !== undefined
+                    ? Math.min(maxItems, ARRAY_TESTS.MANY_ITEMS_COUNT)
+                    : ARRAY_TESTS.MANY_ITEMS_COUNT;
+                // Only add if it's different from minItems and maxItems tests
+                if (manyItemsCount > minItems && manyItemsCount !== maxItems) {
+                    const manyItems = generateArrayItems(prop.items, manyItemsCount);
+                    addQuestion(questions, {
+                        description: `${CATEGORY_DESCRIPTIONS.ARRAY_HANDLING}: many items (${manyItemsCount}) for "${propName}"`,
+                        category: 'edge_case' as QuestionCategory,
+                        args: { ...baseArgs, [propName]: manyItems },
+                        expectedOutcome: 'either',
+                    });
+                }
             }
         }
     }
@@ -674,7 +1102,8 @@ function generateArrayTests(
  */
 function generateNullabilityTests(
     properties: Record<string, PropertySchema>,
-    requiredParams: string[]
+    requiredParams: string[],
+    fixtures?: TestFixturesConfig
 ): InterviewQuestion[] {
     const questions: InterviewQuestion[] = [];
     const { CATEGORY_DESCRIPTIONS } = SCHEMA_TESTING;
@@ -687,7 +1116,7 @@ function generateNullabilityTests(
     for (const propName of optionalParams.slice(0, 2)) {
         if (questions.length >= SCHEMA_TESTING.MAX_TESTS_PER_CATEGORY) break;
 
-        const baseArgs = buildBaseArgs(properties, requiredParams);
+        const baseArgs = buildBaseArgs(properties, requiredParams, fixtures);
         addQuestion(questions, {
             description: `${CATEGORY_DESCRIPTIONS.NULL_HANDLING}: null for optional "${propName}"`,
             category: 'edge_case' as QuestionCategory,
@@ -706,7 +1135,8 @@ function generateNullabilityTests(
  */
 function generateErrorHandlingTests(
     properties: Record<string, PropertySchema>,
-    requiredParams: string[]
+    requiredParams: string[],
+    fixtures?: TestFixturesConfig
 ): InterviewQuestion[] {
     const questions: InterviewQuestion[] = [];
     const { CATEGORY_DESCRIPTIONS } = SCHEMA_TESTING;
@@ -725,7 +1155,7 @@ function generateErrorHandlingTests(
     for (const param of requiredParams.slice(0, 2)) {
         if (questions.length >= SCHEMA_TESTING.MAX_TESTS_PER_CATEGORY) break;
 
-        const partialArgs = buildBaseArgs(properties, requiredParams);
+        const partialArgs = buildBaseArgs(properties, requiredParams, fixtures);
         delete partialArgs[param];
 
         addQuestion(questions, {
@@ -751,7 +1181,8 @@ function generateVariedTestsForSimpleTools(
     properties: Record<string, PropertySchema>,
     requiredParams: string[],
     count: number,
-    existingQuestions: InterviewQuestion[]
+    existingQuestions: InterviewQuestion[],
+    fixtures?: TestFixturesConfig
 ): InterviewQuestion[] {
     const questions: InterviewQuestion[] = [];
     const { CATEGORY_DESCRIPTIONS } = SCHEMA_TESTING;
@@ -768,7 +1199,7 @@ function generateVariedTestsForSimpleTools(
     variationStrategies.push(() => ({
         description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: sequential call verification`,
         category: 'happy_path' as QuestionCategory,
-        args: buildBaseArgs(properties, requiredParams),
+        args: buildBaseArgs(properties, requiredParams, fixtures),
         expectedOutcome: 'success' as ExpectedOutcome,
     }));
 
@@ -776,7 +1207,7 @@ function generateVariedTestsForSimpleTools(
     variationStrategies.push(() => ({
         description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: rapid succession call`,
         category: 'happy_path' as QuestionCategory,
-        args: buildBaseArgs(properties, requiredParams),
+        args: buildBaseArgs(properties, requiredParams, fixtures),
         expectedOutcome: 'success' as ExpectedOutcome,
     }));
 
@@ -784,7 +1215,7 @@ function generateVariedTestsForSimpleTools(
     variationStrategies.push(() => ({
         description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: idempotency verification`,
         category: 'happy_path' as QuestionCategory,
-        args: buildBaseArgs(properties, requiredParams),
+        args: buildBaseArgs(properties, requiredParams, fixtures),
         expectedOutcome: 'success' as ExpectedOutcome,
     }));
 
@@ -796,7 +1227,7 @@ function generateVariedTestsForSimpleTools(
     for (const [paramName, prop] of stringParams) {
         // Variant with different valid string (start at 1 to avoid duplicate with base)
         variationStrategies.push(() => {
-            const args = buildBaseArgs(properties, requiredParams);
+            const args = buildBaseArgs(properties, requiredParams, fixtures);
             args[paramName] = generateAlternativeStringValue(paramName, prop, 1);
             return {
                 description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: alternative value for "${paramName}"`,
@@ -806,7 +1237,7 @@ function generateVariedTestsForSimpleTools(
             };
         });
         variationStrategies.push(() => {
-            const args = buildBaseArgs(properties, requiredParams);
+            const args = buildBaseArgs(properties, requiredParams, fixtures);
             args[paramName] = generateAlternativeStringValue(paramName, prop, 2);
             return {
                 description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: second alternative for "${paramName}"`,
@@ -826,7 +1257,7 @@ function generateVariedTestsForSimpleTools(
     );
     for (const [paramName, prop] of numberParams) {
         variationStrategies.push(() => {
-            const args = buildBaseArgs(properties, requiredParams);
+            const args = buildBaseArgs(properties, requiredParams, fixtures);
             args[paramName] = generateAlternativeNumberValue(prop, 0);
             return {
                 description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: alternative value for "${paramName}"`,
@@ -836,7 +1267,7 @@ function generateVariedTestsForSimpleTools(
             };
         });
         variationStrategies.push(() => {
-            const args = buildBaseArgs(properties, requiredParams);
+            const args = buildBaseArgs(properties, requiredParams, fixtures);
             args[paramName] = generateAlternativeNumberValue(prop, 1);
             return {
                 description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: second alternative for "${paramName}"`,
@@ -853,7 +1284,7 @@ function generateVariedTestsForSimpleTools(
     );
     for (const [paramName] of booleanParams) {
         variationStrategies.push(() => {
-            const args = buildBaseArgs(properties, requiredParams);
+            const args = buildBaseArgs(properties, requiredParams, fixtures);
             args[paramName] = true;
             return {
                 description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: "${paramName}" = true`,
@@ -863,7 +1294,7 @@ function generateVariedTestsForSimpleTools(
             };
         });
         variationStrategies.push(() => {
-            const args = buildBaseArgs(properties, requiredParams);
+            const args = buildBaseArgs(properties, requiredParams, fixtures);
             args[paramName] = false;
             return {
                 description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: "${paramName}" = false`,
@@ -879,7 +1310,7 @@ function generateVariedTestsForSimpleTools(
         variationStrategies.push(() => ({
             description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: consistency check run ${i + 1}`,
             category: 'happy_path' as QuestionCategory,
-            args: buildBaseArgs(properties, requiredParams),
+            args: buildBaseArgs(properties, requiredParams, fixtures),
             expectedOutcome: 'success' as ExpectedOutcome,
         }));
     }
@@ -906,7 +1337,7 @@ function generateVariedTestsForSimpleTools(
         questions.push({
             description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: consistency check run ${consistencyRun}`,
             category: 'happy_path' as QuestionCategory,
-            args: buildBaseArgs(properties, requiredParams),
+            args: buildBaseArgs(properties, requiredParams, fixtures),
             expectedOutcome: 'success',
         });
         consistencyRun++;
@@ -1019,35 +1450,36 @@ export function generateSchemaTestsWithInferences(
     const questions: InterviewQuestion[] = [];
     const schema = tool.inputSchema as InputSchema | undefined;
     const maxTests = options.maxTestsPerTool ?? SCHEMA_TESTING.MAX_TESTS_PER_TOOL;
+    const fixtures = options.testFixtures;
 
     const properties = schema?.properties ?? {};
     const requiredParams = (schema?.required ?? []) as string[];
 
     // 1. Happy Path Tests (always included)
-    questions.push(...generateHappyPathTests(properties, requiredParams));
+    questions.push(...generateHappyPathTests(properties, requiredParams, fixtures));
 
     // 2. Boundary Value Tests
-    questions.push(...generateBoundaryTests(properties, requiredParams));
+    questions.push(...generateBoundaryTests(properties, requiredParams, fixtures));
 
     // 3. Type Coercion Tests (unless skipping error tests)
     if (!options.skipErrorTests) {
-        questions.push(...generateTypeCoercionTests(properties, requiredParams));
+        questions.push(...generateTypeCoercionTests(properties, requiredParams, fixtures));
     }
 
     // 4. Enum Validation Tests (unless skipping error tests)
     if (!options.skipErrorTests) {
-        questions.push(...generateEnumTests(properties, requiredParams));
+        questions.push(...generateEnumTests(properties, requiredParams, fixtures));
     }
 
     // 5. Array Handling Tests
-    questions.push(...generateArrayTests(properties, requiredParams));
+    questions.push(...generateArrayTests(properties, requiredParams, fixtures));
 
     // 6. Nullability Tests
-    questions.push(...generateNullabilityTests(properties, requiredParams));
+    questions.push(...generateNullabilityTests(properties, requiredParams, fixtures));
 
     // 7. Error Handling Tests (unless skipped)
     if (!options.skipErrorTests) {
-        questions.push(...generateErrorHandlingTests(properties, requiredParams));
+        questions.push(...generateErrorHandlingTests(properties, requiredParams, fixtures));
     }
 
     // 8. Semantic Validation Tests (unless skipped)
@@ -1076,7 +1508,8 @@ export function generateSchemaTestsWithInferences(
             properties,
             requiredParams,
             minTests - existingCount,
-            questions
+            questions,
+            fixtures
         );
         questions.push(...additionalTests);
     }

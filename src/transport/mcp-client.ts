@@ -19,8 +19,9 @@ import type {
   MCPPromptGetResult,
   MCPServerCapabilities,
 } from './types.js';
+import type { TransportErrorRecord, TransportErrorCategory } from '../discovery/types.js';
 import { getLogger, startTiming } from '../logging/logger.js';
-import { TIMEOUTS, MCP } from '../constants.js';
+import { TIMEOUTS, MCP, TRANSPORT_ERRORS } from '../constants.js';
 import { VERSION } from '../version.js';
 
 /**
@@ -132,6 +133,8 @@ export class MCPClient {
   private logger = getLogger('mcp-client');
   /** Flag to prevent race condition during cleanup - ignore messages when true */
   private cleaningUp = false;
+  /** Collected transport-level errors for reporting */
+  private transportErrors: TransportErrorRecord[] = [];
 
   constructor(options?: MCPClientOptions) {
     this.timeout = options?.timeout ?? DEFAULT_TIMEOUT;
@@ -140,6 +143,171 @@ export class MCPClient {
     this.transportType = options?.transport ?? 'stdio';
     this.sseConfig = options?.sseConfig;
     this.httpConfig = options?.httpConfig;
+  }
+
+  /**
+   * Classify a transport error based on its message.
+   */
+  private classifyTransportError(errorMessage: string): {
+    category: TransportErrorCategory;
+    likelyServerBug: boolean;
+  } {
+    const msg = errorMessage.toLowerCase();
+
+    // Check for invalid JSON (likely server bug)
+    for (const pattern of TRANSPORT_ERRORS.INVALID_JSON_PATTERNS) {
+      if (pattern.test(msg)) {
+        return { category: 'invalid_json', likelyServerBug: true };
+      }
+    }
+
+    // Check for buffer overflow
+    for (const pattern of TRANSPORT_ERRORS.BUFFER_OVERFLOW_PATTERNS) {
+      if (pattern.test(msg)) {
+        return { category: 'buffer_overflow', likelyServerBug: true };
+      }
+    }
+
+    // Check for connection refused (environment issue)
+    for (const pattern of TRANSPORT_ERRORS.CONNECTION_REFUSED_PATTERNS) {
+      if (pattern.test(msg)) {
+        return { category: 'connection_refused', likelyServerBug: false };
+      }
+    }
+
+    // Check for connection lost
+    for (const pattern of TRANSPORT_ERRORS.CONNECTION_LOST_PATTERNS) {
+      if (pattern.test(msg)) {
+        return { category: 'connection_lost', likelyServerBug: false };
+      }
+    }
+
+    // Check for protocol violations (likely server bug)
+    for (const pattern of TRANSPORT_ERRORS.PROTOCOL_VIOLATION_PATTERNS) {
+      if (pattern.test(msg)) {
+        return { category: 'protocol_violation', likelyServerBug: true };
+      }
+    }
+
+    // Check for timeout
+    for (const pattern of TRANSPORT_ERRORS.TIMEOUT_PATTERNS) {
+      if (pattern.test(msg)) {
+        return { category: 'timeout', likelyServerBug: false };
+      }
+    }
+
+    // Check for shutdown errors
+    for (const pattern of TRANSPORT_ERRORS.SHUTDOWN_PATTERNS) {
+      if (pattern.test(msg)) {
+        return { category: 'shutdown_error', likelyServerBug: false };
+      }
+    }
+
+    // Check if it's likely a server bug using indicator patterns
+    for (const pattern of TRANSPORT_ERRORS.SERVER_BUG_INDICATORS) {
+      if (pattern.test(msg)) {
+        return { category: 'unknown', likelyServerBug: true };
+      }
+    }
+
+    return { category: 'unknown', likelyServerBug: false };
+  }
+
+  /**
+   * Record a transport error for later reporting.
+   */
+  private recordTransportError(
+    error: Error | string,
+    operation?: string
+  ): void {
+    if (this.transportErrors.length >= TRANSPORT_ERRORS.MAX_ERRORS_TO_COLLECT) {
+      return; // Prevent unbounded growth
+    }
+
+    const errorMessage = typeof error === 'string' ? error : error.message;
+    const { category, likelyServerBug } = this.classifyTransportError(errorMessage);
+
+    const record: TransportErrorRecord = {
+      timestamp: new Date(),
+      category,
+      message: this.formatTransportErrorMessage(category, errorMessage),
+      rawError: errorMessage,
+      operation,
+      likelyServerBug,
+    };
+
+    this.transportErrors.push(record);
+    this.logger.debug({ record }, 'Transport error recorded');
+  }
+
+  /**
+   * Format a user-friendly error message based on category.
+   */
+  private formatTransportErrorMessage(
+    category: TransportErrorCategory,
+    rawError: string
+  ): string {
+    switch (category) {
+      case 'invalid_json':
+        return 'Server output invalid JSON on stdout (possible logging interference)';
+      case 'buffer_overflow':
+        return 'Server response exceeded buffer limits';
+      case 'connection_refused':
+        return 'Failed to connect to server process';
+      case 'connection_lost':
+        return 'Connection to server was lost unexpectedly';
+      case 'protocol_violation':
+        return 'Server sent invalid MCP protocol message';
+      case 'timeout':
+        return 'Request timed out waiting for server response';
+      case 'shutdown_error':
+        return 'Error occurred during server shutdown';
+      default:
+        return rawError.length > 100 ? rawError.slice(0, 97) + '...' : rawError;
+    }
+  }
+
+  /**
+   * Get all collected transport errors.
+   */
+  getTransportErrors(): TransportErrorRecord[] {
+    return [...this.transportErrors];
+  }
+
+  /**
+   * Clear collected transport errors.
+   */
+  clearTransportErrors(): void {
+    this.transportErrors = [];
+  }
+
+  /**
+   * Check if a stderr message looks like a transport error worth recording.
+   * Filters out normal debug/info output that servers commonly emit.
+   */
+  private looksLikeTransportError(msg: string): boolean {
+    const lower = msg.toLowerCase();
+
+    // Skip common informational messages
+    if (
+      lower.includes('listening') ||
+      lower.includes('starting') ||
+      lower.includes('connected') ||
+      lower.includes('debug:') ||
+      lower.includes('info:')
+    ) {
+      return false;
+    }
+
+    // Check for actual error patterns
+    return (
+      lower.includes('error') ||
+      lower.includes('exception') ||
+      lower.includes('failed') ||
+      lower.includes('invalid') ||
+      lower.includes('syntax') ||
+      lower.includes('unexpected')
+    );
   }
 
   /**
@@ -228,6 +396,7 @@ export class MCPClient {
 
     this.transport.on('error', (error: Error) => {
       this.logger.error({ error: error.message }, 'Transport error');
+      this.recordTransportError(error, 'stdio_transport');
     });
 
     this.transport.on('close', () => {
@@ -237,12 +406,17 @@ export class MCPClient {
 
     this.process.on('error', (error) => {
       this.logger.error({ error: error.message }, 'Process error');
+      this.recordTransportError(error, 'process_spawn');
       this.cleanup();
     });
 
     this.process.on('exit', (code) => {
       if (code !== 0) {
         this.logger.warn({ exitCode: code }, 'Server process exited with non-zero code');
+        this.recordTransportError(
+          `Server process exited with code ${code}`,
+          'process_exit'
+        );
       }
       this.cleanup();
     });
@@ -251,6 +425,10 @@ export class MCPClient {
       const msg = data.toString().trim();
       if (msg) {
         this.logger.debug({ stderr: msg }, 'Server stderr');
+        // Check if stderr contains error indicators that suggest transport issues
+        if (this.looksLikeTransportError(msg)) {
+          this.recordTransportError(msg, 'stderr');
+        }
       }
     });
 
@@ -327,6 +505,7 @@ export class MCPClient {
 
     this.transport.on('error', (error: Error) => {
       this.logger.error({ error: error.message }, 'Transport error');
+      this.recordTransportError(error, 'remote_transport');
     });
 
     this.transport.on('close', () => {

@@ -10,6 +10,8 @@
  * real-world tools, rather than random strings that get rejected.
  */
 
+import { SMART_VALUE_GENERATION } from '../constants/testing.js';
+
 // ==================== Configuration Constants ====================
 
 /**
@@ -463,17 +465,55 @@ function detectSemanticType(
     };
   }
 
-  if (lowerName.includes('path') || lowerName.includes('directory')) {
+  // Check for file/path fields
+  const { RESOURCE_NAMES } = SMART_VALUE_GENERATION;
+  if (matchesAny(lowerName, RESOURCE_NAMES.FILE_PATTERNS)) {
     return {
-      value: '/tmp/test',
+      value: RESOURCE_NAMES.DEFAULTS.filename,
+      semanticType: 'filename',
+      confidence: 'medium',
+    };
+  }
+  if (matchesAny(lowerName, RESOURCE_NAMES.PATH_PATTERNS) ||
+      lowerName.includes('path') || lowerName.includes('directory')) {
+    return {
+      value: RESOURCE_NAMES.DEFAULTS.directory,
       semanticType: 'path',
       confidence: 'low',
     };
   }
 
-  if (lowerName.includes('query') || lowerName.includes('search')) {
+  // Check for search/query fields with context-aware values
+  if (matchesAny(lowerName, SMART_VALUE_GENERATION.SEARCH_QUERY.PATTERNS) ||
+      lowerName.includes('query') || lowerName.includes('search')) {
+    const { SEARCH_QUERY } = SMART_VALUE_GENERATION;
+    const { CONTEXT_PATTERNS, VALUES } = SEARCH_QUERY;
+
+    // Determine context from description
+    if (CONTEXT_PATTERNS.location.test(description)) {
+      return {
+        value: VALUES.location,
+        semanticType: 'search_query',
+        confidence: 'medium',
+      };
+    }
+    if (CONTEXT_PATTERNS.weather.test(description)) {
+      return {
+        value: VALUES.weather,
+        semanticType: 'search_query',
+        confidence: 'medium',
+      };
+    }
+    if (CONTEXT_PATTERNS.product.test(description)) {
+      return {
+        value: VALUES.product,
+        semanticType: 'search_query',
+        confidence: 'medium',
+      };
+    }
+
     return {
-      value: 'test query',
+      value: VALUES.general,
       semanticType: 'search_query',
       confidence: 'low',
     };
@@ -487,11 +527,14 @@ function detectSemanticType(
     };
   }
 
-  if (lowerName.includes('account')) {
+  // Check for account/user fields
+  const { ACCOUNT } = SMART_VALUE_GENERATION;
+  if (matchesAny(lowerName, ACCOUNT.PATTERNS) || lowerName.includes('account')) {
+    const isUser = /user/i.test(lowerName);
     return {
-      value: 'test-account-123',
-      semanticType: 'account',
-      confidence: 'low',
+      value: isUser ? ACCOUNT.DEFAULTS.userId : ACCOUNT.DEFAULTS.accountId,
+      semanticType: isUser ? 'user_id' : 'account_id',
+      confidence: 'medium',
     };
   }
 
@@ -507,11 +550,19 @@ function detectSemanticType(
 }
 
 /**
- * Generate a smart number value based on schema constraints.
+ * Generate a smart number value based on schema constraints and field name.
+ *
+ * @param prop - Schema property definition
+ * @param propName - Optional property name for semantic detection (e.g., "latitude")
  */
-export function generateSmartNumberValue(prop: PropertySchema): SmartValueResult {
+export function generateSmartNumberValue(
+  prop: PropertySchema,
+  propName?: string
+): SmartValueResult {
   const type = getPrimaryType(prop);
   const isInteger = type === 'integer';
+  const lowerName = propName?.toLowerCase() ?? '';
+  const description = prop.description ?? '';
 
   // Use example if available
   if (prop.examples && prop.examples.length > 0) {
@@ -528,6 +579,65 @@ export function generateSmartNumberValue(prop: PropertySchema): SmartValueResult
       value: prop.default,
       semanticType: 'default',
       confidence: 'high',
+    };
+  }
+
+  // Check for coordinate patterns (latitude/longitude)
+  const { COORDINATES, PAGINATION } = SMART_VALUE_GENERATION;
+
+  // Check for latitude
+  if (matchesAny(lowerName, COORDINATES.LATITUDE_PATTERNS) ||
+      /latitude/i.test(description)) {
+    return {
+      value: COORDINATES.DEFAULTS.latitude,
+      semanticType: 'latitude',
+      confidence: 'medium',
+    };
+  }
+
+  // Check for longitude
+  if (matchesAny(lowerName, COORDINATES.LONGITUDE_PATTERNS) ||
+      /longitude/i.test(description)) {
+    return {
+      value: COORDINATES.DEFAULTS.longitude,
+      semanticType: 'longitude',
+      confidence: 'medium',
+    };
+  }
+
+  // Check for pagination fields
+  if (matchesAny(lowerName, PAGINATION.LIMIT_PATTERNS)) {
+    return {
+      value: PAGINATION.DEFAULTS.limit,
+      semanticType: 'limit',
+      confidence: 'medium',
+    };
+  }
+
+  if (matchesAny(lowerName, PAGINATION.OFFSET_PATTERNS)) {
+    const isPage = /page/i.test(lowerName);
+    return {
+      value: isPage ? PAGINATION.DEFAULTS.page : PAGINATION.DEFAULTS.offset,
+      semanticType: isPage ? 'page' : 'offset',
+      confidence: 'medium',
+    };
+  }
+
+  // Check for year fields (numeric)
+  if (lowerName.includes('year') || description.toLowerCase().includes('year')) {
+    return {
+      value: 2024,
+      semanticType: 'year',
+      confidence: 'medium',
+    };
+  }
+
+  // Check for percentage fields
+  if (lowerName.includes('percent') || description.toLowerCase().includes('percent')) {
+    return {
+      value: 50,
+      semanticType: 'percentage',
+      confidence: 'medium',
     };
   }
 
@@ -597,7 +707,7 @@ export function generateSmartValue(
       return generateSmartStringValue(propName, prop);
     case 'number':
     case 'integer':
-      return generateSmartNumberValue(prop);
+      return generateSmartNumberValue(prop, propName);
     case 'boolean':
       return { value: true, semanticType: 'boolean', confidence: 'high' };
     case 'array':

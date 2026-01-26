@@ -21,10 +21,17 @@ function createMockClient(config?: {
   capabilities?: typeof mockCapabilities;
   throwOnListTools?: boolean;
   throwOnListPrompts?: boolean;
+  transportErrors?: Array<{
+    timestamp: Date;
+    category: string;
+    message: string;
+    likelyServerBug: boolean;
+  }>;
 }): MCPClient {
   const tools = config?.tools ?? [weatherTool, calculatorTool];
   const prompts = config?.prompts ?? samplePrompts;
   const capabilities = config?.capabilities ?? { tools: {}, prompts: {} };
+  const transportErrors = config?.transportErrors ?? [];
 
   return {
     initialize: vi.fn().mockResolvedValue({
@@ -38,6 +45,7 @@ function createMockClient(config?: {
     listPrompts: config?.throwOnListPrompts
       ? vi.fn().mockRejectedValue(new Error('List prompts failed'))
       : vi.fn().mockResolvedValue(prompts),
+    getTransportErrors: vi.fn().mockReturnValue(transportErrors),
   } as unknown as MCPClient;
 }
 
@@ -183,6 +191,7 @@ describe('discovery', () => {
         capabilities: { tools: {}, prompts: {} },
         tools: [weatherTool, calculatorTool],
         prompts: samplePrompts,
+        resources: [],
         timestamp: new Date(),
         serverCommand: 'test-server',
         serverArgs: [],

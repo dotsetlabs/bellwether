@@ -70,6 +70,7 @@ describe('cli/discover', () => {
       listResources: vi.fn().mockResolvedValue([]),
       callTool: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'result' }] }),
       getPrompt: vi.fn().mockResolvedValue({ messages: [] }),
+      getTransportErrors: vi.fn().mockReturnValue([]),
     } as unknown as MCPClient;
   }
 

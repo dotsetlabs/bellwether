@@ -231,6 +231,27 @@ export const checkCommand = new Command('check')
       }
       output.info(`Found ${discoveryParts.join(', ')}\n`);
 
+      // Output discovery warnings (Issue D: anomaly detection)
+      if (discovery.warnings && discovery.warnings.length > 0) {
+        for (const warning of discovery.warnings) {
+          output.warn(`⚠ ${warning.message}`);
+        }
+        output.newline();
+      }
+
+      // Output transport errors from discovery
+      if (discovery.transportErrors && discovery.transportErrors.length > 0) {
+        output.warn('Transport errors during discovery:');
+        for (const err of discovery.transportErrors.slice(0, 3)) {
+          const typeLabel = err.category.replace(/_/g, ' ');
+          output.warn(`  ✗ ${typeLabel}: ${err.message.substring(0, 100)}`);
+        }
+        if (discovery.transportErrors.length > 3) {
+          output.warn(`  ... and ${discovery.transportErrors.length - 3} more`);
+        }
+        output.newline();
+      }
+
       // Update metrics
       metricsCollector.updateInterviewCounters({
         toolsDiscovered: discovery.tools.length,

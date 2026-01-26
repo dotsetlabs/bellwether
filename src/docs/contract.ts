@@ -6,6 +6,7 @@ import type { ResponseSchemaEvolution } from '../baseline/response-schema-tracke
 import type { ErrorAnalysisSummary } from '../baseline/error-analyzer.js';
 import type { DocumentationScore } from '../baseline/documentation-scorer.js';
 import type { WorkflowResult } from '../workflow/types.js';
+import type { TransportErrorRecord, DiscoveryWarning } from '../discovery/types.js';
 import {
   analyzeDependencies,
   calculateDependencyStats,
@@ -39,6 +40,7 @@ import {
   RELIABILITY_DISPLAY,
   CONFIDENCE_INDICATORS,
   DISPLAY_LIMITS,
+  ISSUE_CLASSIFICATION,
 } from '../constants.js';
 import type { PerformanceConfidence, ConfidenceLevel } from '../baseline/types.js';
 
@@ -72,6 +74,170 @@ export interface ContractMdOptions {
   countValidationAsSuccess?: boolean;
   /** Separate validation metrics from happy-path reliability */
   separateValidationMetrics?: boolean;
+}
+
+// ==================== Issue Classification Types ====================
+
+/**
+ * Represents a single classified issue from a tool interaction.
+ */
+interface ClassifiedIssue {
+  /** Name of the tool that produced this issue */
+  tool: string;
+  /** Human-readable description of the issue */
+  description: string;
+  /** External service name (if classified as external dependency) */
+  service?: string;
+  /** The error message (if available) */
+  error?: string;
+  /** Whether this was a critical issue (accepts invalid input) */
+  critical?: boolean;
+}
+
+/**
+ * Issues grouped by their source classification.
+ */
+interface ClassifiedIssues {
+  /** Total number of issues across all categories */
+  total: number;
+  /** Issues that appear to be server code bugs */
+  serverBug: ClassifiedIssue[];
+  /** Issues from external service dependencies (Plaid, Stripe, etc.) */
+  externalDependency: ClassifiedIssue[];
+  /** Issues from missing environment configuration */
+  environment: ClassifiedIssue[];
+  /** Expected validation rejections (not real bugs) */
+  validation: ClassifiedIssue[];
+}
+
+/**
+ * Classify issues by their source to help users understand which issues
+ * are actual bugs vs expected behavior or environment issues.
+ *
+ * @param profiles - Tool profiles containing interactions and error classifications
+ * @returns Classified issues grouped by source
+ */
+function classifyIssuesBySource(profiles: ToolProfile[]): ClassifiedIssues {
+  const result: ClassifiedIssues = {
+    total: 0,
+    serverBug: [],
+    externalDependency: [],
+    environment: [],
+    validation: [],
+  };
+
+  for (const profile of profiles) {
+    const errorClassification = profile.errorClassification;
+    const detectedServices = errorClassification?.detectedServices ?? [];
+
+    for (const interaction of profile.interactions) {
+      // Skip mocked responses
+      if (interaction.mocked) {
+        continue;
+      }
+
+      // Skip correct outcomes (tool behaved as expected)
+      if (interaction.outcomeAssessment?.correct) {
+        continue;
+      }
+
+      // Skip if no outcome assessment exists
+      if (!interaction.outcomeAssessment) {
+        continue;
+      }
+
+      const expected = interaction.outcomeAssessment.expected;
+      const actual = interaction.outcomeAssessment.actual;
+      const description = interaction.question.description;
+      const errorMsg = interaction.error ?? '';
+
+      // Determine issue classification
+      const issue: ClassifiedIssue = {
+        tool: profile.name,
+        description,
+        error: errorMsg,
+      };
+
+      result.total++;
+
+      // Check if this is a validation test that passed (expected error, got error)
+      // but tool didn't actually reject - this shouldn't happen with outcomeAssessment.correct check above
+      // so we classify based on expected outcome and error classification
+
+      // 1. Check for external dependency errors (highest priority for classification)
+      if (errorClassification && errorClassification.externalServiceErrors > 0 && detectedServices.length > 0) {
+        // Check if the error message matches known external service patterns
+        const isExternalError = detectedServices.some(service => {
+          const serviceConfig = EXTERNAL_DEPENDENCIES.SERVICES[service as keyof typeof EXTERNAL_DEPENDENCIES.SERVICES];
+          if (!serviceConfig) return false;
+          return serviceConfig.errorPatterns.some(pattern => pattern.test(errorMsg));
+        });
+
+        if (isExternalError) {
+          issue.service = detectedServices[0];
+          result.externalDependency.push(issue);
+          continue;
+        }
+      }
+
+      // 2. Check for environment configuration errors
+      if (errorClassification && errorClassification.environmentErrors > 0) {
+        const isEnvironmentError = EXTERNAL_DEPENDENCIES.ENVIRONMENT_PATTERNS.some(
+          pattern => pattern.test(errorMsg)
+        );
+
+        if (isEnvironmentError) {
+          result.environment.push(issue);
+          continue;
+        }
+      }
+
+      // 3. Check if this was a validation test (expected error)
+      if (expected === 'error') {
+        // Tool failed to reject invalid input - this is a validation issue
+        // Since outcomeAssessment.correct is false and expected was 'error',
+        // the tool actually succeeded when it should have failed
+        if (actual === 'success') {
+          issue.critical = true;
+          result.serverBug.push(issue);
+        } else {
+          // Tool errored as expected but outcome wasn't marked correct
+          // This is unusual - treat as validation
+          result.validation.push(issue);
+        }
+        continue;
+      }
+
+      // 4. Check if this is a happy path failure
+      if (expected === 'success' && actual === 'error') {
+        // Determine if error is from external service
+        if (detectedServices.length > 0) {
+          issue.service = detectedServices[0];
+          result.externalDependency.push(issue);
+          continue;
+        }
+
+        // Check if error message indicates environment issue
+        const isEnvironmentError = EXTERNAL_DEPENDENCIES.ENVIRONMENT_PATTERNS.some(
+          pattern => pattern.test(errorMsg)
+        );
+
+        if (isEnvironmentError) {
+          result.environment.push(issue);
+          continue;
+        }
+
+        // Default to server bug
+        result.serverBug.push(issue);
+        continue;
+      }
+
+      // 5. Default classification - unexpected outcome
+      result.serverBug.push(issue);
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -170,6 +336,15 @@ export function generateContractMd(result: InterviewResult, options?: ContractMd
   const issuesSection = generateIssuesDetectedSection(toolProfiles);
   if (issuesSection.length > 0) {
     lines.push(...issuesSection);
+  }
+
+  // Transport Issues section (if transport errors were captured)
+  const transportIssuesSection = generateTransportIssuesSection(
+    discovery.transportErrors,
+    discovery.warnings
+  );
+  if (transportIssuesSection.length > 0) {
+    lines.push(...transportIssuesSection);
   }
 
   // Performance Baseline section
@@ -505,6 +680,136 @@ function formatConfidenceIndicator(level?: ConfidenceLevel): string {
   return `${indicator} ${level}`;
 }
 
+/**
+ * Generate Transport Issues section for CONTRACT.md.
+ * Documents transport-level errors and warnings from server communication.
+ */
+function generateTransportIssuesSection(
+  transportErrors?: TransportErrorRecord[],
+  warnings?: DiscoveryWarning[]
+): string[] {
+  const lines: string[] = [];
+
+  // Skip if no transport issues to report
+  if (
+    (!transportErrors || transportErrors.length === 0) &&
+    (!warnings || warnings.length === 0)
+  ) {
+    return lines;
+  }
+
+  lines.push('## Transport Issues');
+  lines.push('');
+
+  // Discovery warnings first
+  if (warnings && warnings.length > 0) {
+    lines.push('### Discovery Warnings');
+    lines.push('');
+    for (const warning of warnings) {
+      const icon = warning.level === 'error' ? '🔴' : warning.level === 'warning' ? '🟡' : 'ℹ️';
+      lines.push(`${icon} **${warning.level.toUpperCase()}**: ${warning.message}`);
+      if (warning.recommendation) {
+        lines.push(`  - ${warning.recommendation}`);
+      }
+    }
+    lines.push('');
+  }
+
+  // Transport errors
+  if (transportErrors && transportErrors.length > 0) {
+    lines.push('### Transport Errors');
+    lines.push('');
+    lines.push('The following transport-level errors were detected during server communication:');
+    lines.push('');
+
+    // Categorize errors
+    const serverBugErrors = transportErrors.filter(e => e.likelyServerBug);
+    const envErrors = transportErrors.filter(e => !e.likelyServerBug);
+
+    // Server bugs (critical)
+    if (serverBugErrors.length > 0) {
+      lines.push('#### Likely Server Bugs');
+      lines.push('');
+      lines.push('These errors indicate potential issues in the MCP server implementation:');
+      lines.push('');
+      lines.push('| Category | Operation | Message |');
+      lines.push('|----------|-----------|---------|');
+      for (const error of serverBugErrors.slice(0, 10)) {
+        const category = formatTransportErrorCategory(error.category);
+        const operation = error.operation ?? 'unknown';
+        const message = escapeTableCell(error.message);
+        lines.push(`| 🔴 ${category} | ${operation} | ${message} |`);
+      }
+      if (serverBugErrors.length > 10) {
+        lines.push(`| ... | ... | ... and ${serverBugErrors.length - 10} more |`);
+      }
+      lines.push('');
+    }
+
+    // Environment/config issues
+    if (envErrors.length > 0) {
+      lines.push('#### Environment/Configuration Issues');
+      lines.push('');
+      lines.push('These errors may be caused by environment setup or configuration:');
+      lines.push('');
+      lines.push('| Category | Operation | Message |');
+      lines.push('|----------|-----------|---------|');
+      for (const error of envErrors.slice(0, 10)) {
+        const category = formatTransportErrorCategory(error.category);
+        const operation = error.operation ?? 'unknown';
+        const message = escapeTableCell(error.message);
+        lines.push(`| 🟡 ${category} | ${operation} | ${message} |`);
+      }
+      if (envErrors.length > 10) {
+        lines.push(`| ... | ... | ... and ${envErrors.length - 10} more |`);
+      }
+      lines.push('');
+    }
+
+    // Recommendations
+    const hasInvalidJson = transportErrors.some(e => e.category === 'invalid_json');
+    const hasProtocolError = transportErrors.some(e => e.category === 'protocol_violation');
+
+    if (hasInvalidJson || hasProtocolError) {
+      lines.push('### Recommendations');
+      lines.push('');
+      if (hasInvalidJson) {
+        lines.push('- **Invalid JSON**: The server may be writing debug output to stdout. Ensure all non-JSON-RPC output goes to stderr.');
+      }
+      if (hasProtocolError) {
+        lines.push('- **Protocol Violation**: Review the MCP specification and ensure all messages conform to the JSON-RPC 2.0 format.');
+      }
+      lines.push('');
+    }
+  }
+
+  return lines;
+}
+
+/**
+ * Format transport error category for display.
+ */
+function formatTransportErrorCategory(category: string): string {
+  switch (category) {
+    case 'invalid_json':
+      return 'Invalid JSON';
+    case 'buffer_overflow':
+      return 'Buffer Overflow';
+    case 'connection_refused':
+      return 'Connection Refused';
+    case 'connection_lost':
+      return 'Connection Lost';
+    case 'protocol_violation':
+      return 'Protocol Violation';
+    case 'timeout':
+      return 'Timeout';
+    case 'shutdown_error':
+      return 'Shutdown Error';
+    default:
+      return 'Unknown';
+  }
+}
+
 function generateMetricsLegendSection(): string[] {
   const lines: string[] = [];
   lines.push('## Metrics Legend');
@@ -562,58 +867,139 @@ function generateValidationTestingSection(profiles: ToolProfile[]): string[] {
 
 function generateIssuesDetectedSection(profiles: ToolProfile[]): string[] {
   const lines: string[] = [];
-  const criticalIssues: string[] = [];
-  const warnings: string[] = [];
-
-  for (const profile of profiles) {
-    for (const interaction of profile.interactions) {
-      if (interaction.mocked || !interaction.outcomeAssessment || interaction.outcomeAssessment.correct) {
-        continue;
-      }
-
-      const expected = interaction.outcomeAssessment.expected;
-      const actual = interaction.outcomeAssessment.actual;
-      const description = interaction.question.description;
-      const toolLabel = `\`${escapeTableCell(profile.name)}\``;
-
-      if (expected === 'error' && actual === 'success') {
-        criticalIssues.push(`${toolLabel} accepts invalid input: ${description}`);
-      } else if (expected === 'success' && actual === 'error') {
-        warnings.push(`${toolLabel} failed on valid input: ${description}`);
-      } else {
-        warnings.push(`${toolLabel} returned unexpected outcome: ${description}`);
-      }
-    }
-  }
+  const classified = classifyIssuesBySource(profiles);
 
   lines.push('## Issues Detected');
   lines.push('');
 
-  if (criticalIssues.length === 0 && warnings.length === 0) {
+  if (classified.total === 0) {
     lines.push(`${RELIABILITY_DISPLAY.SYMBOLS.PASS} No issues detected in validation or happy-path behavior.`);
     lines.push('');
     return lines;
   }
 
-  if (criticalIssues.length > 0) {
-    lines.push('### Critical');
-    for (const issue of criticalIssues.slice(0, DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT)) {
-      lines.push(`- ${issue}`);
+  // Summary table by category
+  const hasServerBugs = classified.serverBug.length > 0;
+  const hasExternalDeps = classified.externalDependency.length > 0;
+  const hasEnvironment = classified.environment.length > 0;
+  const hasValidation = classified.validation.length > 0;
+
+  lines.push('| Category | Count | Description |');
+  lines.push('|----------|-------|-------------|');
+
+  if (hasServerBugs) {
+    lines.push(`| ${ISSUE_CLASSIFICATION.ICONS.serverBug} ${ISSUE_CLASSIFICATION.CATEGORIES.serverBug} | ${classified.serverBug.length} | ${ISSUE_CLASSIFICATION.DESCRIPTIONS.serverBug} |`);
+  }
+  if (hasExternalDeps) {
+    lines.push(`| ${ISSUE_CLASSIFICATION.ICONS.externalDependency} ${ISSUE_CLASSIFICATION.CATEGORIES.externalDependency} | ${classified.externalDependency.length} | ${ISSUE_CLASSIFICATION.DESCRIPTIONS.externalDependency} |`);
+  }
+  if (hasEnvironment) {
+    lines.push(`| ${ISSUE_CLASSIFICATION.ICONS.environment} ${ISSUE_CLASSIFICATION.CATEGORIES.environment} | ${classified.environment.length} | ${ISSUE_CLASSIFICATION.DESCRIPTIONS.environment} |`);
+  }
+  if (hasValidation) {
+    lines.push(`| ${ISSUE_CLASSIFICATION.ICONS.validation} ${ISSUE_CLASSIFICATION.CATEGORIES.validation} | ${classified.validation.length} | ${ISSUE_CLASSIFICATION.DESCRIPTIONS.validation} |`);
+  }
+
+  lines.push('');
+
+  // Server bugs section (highest priority - requires fixing)
+  if (hasServerBugs) {
+    lines.push(`### ${ISSUE_CLASSIFICATION.ICONS.serverBug} ${ISSUE_CLASSIFICATION.HEADERS.serverBug}`);
+    lines.push('');
+
+    // Separate critical (accepts invalid input) from other bugs
+    const criticalBugs = classified.serverBug.filter(i => i.critical);
+    const otherBugs = classified.serverBug.filter(i => !i.critical);
+
+    if (criticalBugs.length > 0) {
+      lines.push('**Critical - Accepts Invalid Input:**');
+      for (const issue of criticalBugs.slice(0, DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT)) {
+        lines.push(`- \`${escapeTableCell(issue.tool)}\`: ${issue.description}`);
+      }
+      if (criticalBugs.length > DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT) {
+        lines.push(`- ... ${criticalBugs.length - DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT} more`);
+      }
+      lines.push('');
     }
-    if (criticalIssues.length > DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT) {
-      lines.push(`- ... ${criticalIssues.length - DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT} more`);
+
+    if (otherBugs.length > 0) {
+      if (criticalBugs.length > 0) {
+        lines.push('**Other Failures:**');
+      }
+      for (const issue of otherBugs.slice(0, DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT)) {
+        lines.push(`- \`${escapeTableCell(issue.tool)}\`: ${issue.description}`);
+      }
+      if (otherBugs.length > DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT) {
+        lines.push(`- ... ${otherBugs.length - DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT} more`);
+      }
+      lines.push('');
+    }
+  }
+
+  // External dependencies section (informational - expected without credentials)
+  if (hasExternalDeps) {
+    lines.push(`### ${ISSUE_CLASSIFICATION.ICONS.externalDependency} ${ISSUE_CLASSIFICATION.HEADERS.externalDependency}`);
+    lines.push('');
+    lines.push('These failures are expected when external services are not configured:');
+    lines.push('');
+
+    // Group by service for cleaner display
+    const byService = new Map<string, ClassifiedIssue[]>();
+    for (const issue of classified.externalDependency) {
+      const service = issue.service ?? 'Unknown';
+      if (!byService.has(service)) {
+        byService.set(service, []);
+      }
+      byService.get(service)!.push(issue);
+    }
+
+    for (const [service, issues] of byService) {
+      const serviceConfig = EXTERNAL_DEPENDENCIES.SERVICES[service as keyof typeof EXTERNAL_DEPENDENCIES.SERVICES];
+      const displayName = serviceConfig?.name ?? service;
+      const remediation = serviceConfig?.remediation ?? 'Configure service credentials';
+
+      lines.push(`**${displayName}** (${issues.length} issue${issues.length > 1 ? 's' : ''}):`);
+      for (const issue of issues.slice(0, 5)) {
+        lines.push(`- \`${escapeTableCell(issue.tool)}\`: ${issue.description}`);
+      }
+      if (issues.length > 5) {
+        lines.push(`- ... ${issues.length - 5} more`);
+      }
+      lines.push(`- *Remediation: ${remediation}*`);
+      lines.push('');
+    }
+  }
+
+  // Environment configuration section
+  if (hasEnvironment) {
+    lines.push(`### ${ISSUE_CLASSIFICATION.ICONS.environment} ${ISSUE_CLASSIFICATION.HEADERS.environment}`);
+    lines.push('');
+    lines.push('Configure these settings to enable full testing:');
+    lines.push('');
+    for (const issue of classified.environment.slice(0, DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT)) {
+      lines.push(`- \`${escapeTableCell(issue.tool)}\`: ${issue.description}`);
+    }
+    if (classified.environment.length > DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT) {
+      lines.push(`- ... ${classified.environment.length - DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT} more`);
     }
     lines.push('');
   }
 
-  if (warnings.length > 0) {
-    lines.push('### Warnings');
-    for (const issue of warnings.slice(0, DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT)) {
-      lines.push(`- ${issue}`);
+  // Validation rejections (expected behavior - collapsed by default)
+  if (hasValidation) {
+    lines.push('<details>');
+    lines.push(`<summary>${ISSUE_CLASSIFICATION.ICONS.validation} ${ISSUE_CLASSIFICATION.HEADERS.validation} (${classified.validation.length})</summary>`);
+    lines.push('');
+    lines.push('These are expected validation errors from invalid input tests:');
+    lines.push('');
+    for (const issue of classified.validation.slice(0, ISSUE_CLASSIFICATION.MAX_VALIDATION_DISPLAY)) {
+      lines.push(`- \`${escapeTableCell(issue.tool)}\`: ${issue.description}`);
     }
-    if (warnings.length > DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT) {
-      lines.push(`- ... ${warnings.length - DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT} more`);
+    if (classified.validation.length > ISSUE_CLASSIFICATION.MAX_VALIDATION_DISPLAY) {
+      lines.push(`- ... ${classified.validation.length - ISSUE_CLASSIFICATION.MAX_VALIDATION_DISPLAY} more`);
     }
+    lines.push('');
+    lines.push('</details>');
     lines.push('');
   }
 

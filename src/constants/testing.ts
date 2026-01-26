@@ -1650,6 +1650,177 @@ export const REGRESSION_RISK = {
   MAX_RECOMMENDATIONS: 5,
 } as const;
 
+// ==================== Smart Value Generation ====================
+
+/**
+ * Smart value generation configuration for check mode.
+ * Used by smart-value-generator.ts for intelligent test value creation.
+ *
+ * Provides realistic default values for common semantic types like
+ * coordinates, search queries, and identifiers instead of generic "test" values.
+ */
+
+export const SMART_VALUE_GENERATION = {
+  /** Geographic coordinate patterns and defaults */
+  COORDINATES: {
+    /** Patterns that indicate latitude fields */
+    LATITUDE_PATTERNS: [
+      /^lat(itude)?$/i,
+      /_lat$/i,
+      /lat_/i,
+    ] as readonly RegExp[],
+
+    /** Patterns that indicate longitude fields */
+    LONGITUDE_PATTERNS: [
+      /^lon(g|gitude)?$/i,
+      /^lng$/i,
+      /_lon$/i,
+      /_lng$/i,
+      /lon_/i,
+      /lng_/i,
+    ] as readonly RegExp[],
+
+    /** Default coordinate values (San Francisco - commonly used in examples) */
+    DEFAULTS: {
+      latitude: 37.7749,
+      longitude: -122.4194,
+    } as const,
+
+    /** Valid ranges for coordinates */
+    RANGES: {
+      latitude: { min: -90, max: 90 },
+      longitude: { min: -180, max: 180 },
+    } as const,
+  } as const,
+
+  /** Search/query field patterns and defaults */
+  SEARCH_QUERY: {
+    /** Patterns that indicate search/query fields */
+    PATTERNS: [
+      /^query$/i,
+      /^search$/i,
+      /^q$/i,
+      /^term$/i,
+      /^keyword/i,
+      /search_query/i,
+      /search_term/i,
+    ] as readonly RegExp[],
+
+    /** Context-aware search values */
+    VALUES: {
+      /** For location-related queries */
+      location: 'San Francisco, CA',
+      /** For weather-related queries */
+      weather: 'New York',
+      /** For product-related queries */
+      product: 'laptop',
+      /** For general searches */
+      general: 'example search query',
+    } as const,
+
+    /** Description patterns to detect context */
+    CONTEXT_PATTERNS: {
+      location: /location|city|address|place|geo/i,
+      weather: /weather|temperature|forecast|climate/i,
+      product: /product|item|sku|merchandise/i,
+    } as const,
+  } as const,
+
+  /** Enhanced ID field patterns and defaults */
+  IDENTIFIERS: {
+    /** Patterns that indicate UUID format */
+    UUID_PATTERNS: [
+      /uuid$/i,
+      /guid$/i,
+      /format.*uuid/i,
+    ] as readonly RegExp[],
+
+    /** Patterns that indicate numeric IDs */
+    NUMERIC_ID_PATTERNS: [
+      /^\d+$/,
+      /numeric.*id/i,
+      /integer.*id/i,
+    ] as readonly RegExp[],
+
+    /** Default ID values for different formats */
+    DEFAULTS: {
+      uuid: '550e8400-e29b-41d4-a716-446655440000',
+      numeric: '12345',
+      prefixed: 'id_example123',
+      generic: 'test-id-123',
+    } as const,
+  } as const,
+
+  /** Resource name patterns */
+  RESOURCE_NAMES: {
+    /** Patterns that indicate file names */
+    FILE_PATTERNS: [
+      /^file(name)?$/i,
+      /_file$/i,
+      /^filename$/i,
+    ] as readonly RegExp[],
+
+    /** Patterns that indicate directory/path */
+    PATH_PATTERNS: [
+      /^path$/i,
+      /^dir(ectory)?$/i,
+      /_path$/i,
+      /_dir$/i,
+    ] as readonly RegExp[],
+
+    /** Default values */
+    DEFAULTS: {
+      filename: 'example.txt',
+      directory: '/tmp/test',
+      path: '/tmp/test/example.txt',
+    } as const,
+  } as const,
+
+  /** Account/user patterns */
+  ACCOUNT: {
+    /** Patterns for account identifiers */
+    PATTERNS: [
+      /^account/i,
+      /^user/i,
+      /_account$/i,
+      /_user$/i,
+    ] as readonly RegExp[],
+
+    /** Default values */
+    DEFAULTS: {
+      accountId: 'acct_123456789',
+      userId: 'user_123456789',
+    } as const,
+  } as const,
+
+  /** Limit/count patterns for pagination */
+  PAGINATION: {
+    /** Patterns for limit fields */
+    LIMIT_PATTERNS: [
+      /^limit$/i,
+      /^count$/i,
+      /^size$/i,
+      /^page_size$/i,
+      /^per_page$/i,
+    ] as readonly RegExp[],
+
+    /** Patterns for offset/page fields */
+    OFFSET_PATTERNS: [
+      /^offset$/i,
+      /^skip$/i,
+      /^page$/i,
+      /^start$/i,
+    ] as readonly RegExp[],
+
+    /** Default values */
+    DEFAULTS: {
+      limit: 10,
+      offset: 0,
+      page: 1,
+    } as const,
+  } as const,
+} as const;
+
 // ==================== Intelligent Test Pruning ====================
 
 /**
