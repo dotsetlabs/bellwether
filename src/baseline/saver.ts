@@ -299,7 +299,7 @@ export function loadBaseline(
     );
   }
 
-  let parsed: unknown;
+  let parsed: Record<string, unknown>;
 
   try {
     parsed = JSON.parse(content);
@@ -309,51 +309,61 @@ export function loadBaseline(
     );
   }
 
-  // Validate against schema to prevent malicious JSON
-  const result = baselineSchema.safeParse(parsed);
-  if (!result.success) {
-    const issues = result.error.issues.map((issue) => {
+  // Ensure parsed content is an object (not array, string, etc.)
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`Invalid baseline format in ${path}: Baseline must be a JSON object`);
+  }
+
+  // Validate against schema to prevent malicious JSON.
+  const validationResult = baselineSchema.safeParse(parsed);
+  if (!validationResult.success) {
+    const issues = validationResult.error.issues.map((issue) => {
       const fieldPath = issue.path.join('.');
       return `  - ${fieldPath}: ${issue.message}`;
     });
     throw new Error(`Invalid baseline format in ${path}:\n${issues.join('\n')}`);
   }
 
-  let baseline = result.data as unknown as Record<string, unknown>;
+  // Track whether migration was performed (affects integrity check)
+  let wasMigrated = false;
 
-  // Check if migration is needed
-  if (needsMigration(baseline)) {
-    const currentVersion = parseVersion(baseline.version as string | number);
+  // Check if migration is needed (work with Record<string, unknown> for migration functions)
+  if (needsMigration(parsed)) {
+    const baselineVersion = parseVersion(parsed.version as string | number);
 
     if (migrate) {
       // Automatically migrate to current version
-      baseline = migrateBaseline(baseline) as unknown as Record<string, unknown>;
+      // migrateBaseline returns BehavioralBaseline, convert back for consistency
+      const migrated = migrateBaseline(parsed);
+      parsed = migrated as unknown as Record<string, unknown>;
+      wasMigrated = true;
     } else {
       // Log warning but continue with the old format
       getLogger('baseline').warn(
-        `Baseline uses older CLI version ${formatVersion(currentVersion.raw)}. ` +
+        `Baseline uses older CLI version ${formatVersion(baselineVersion.raw)}. ` +
         `Current CLI version is ${formatVersion(getBaselineVersion())}. ` +
         `Run \`bellwether baseline migrate\` to upgrade.`
       );
     }
   }
 
-  const typedBaseline = baseline as unknown as BehavioralBaseline;
+  // Now cast to the final type
+  const baseline = parsed as unknown as BehavioralBaseline;
 
-  // Restore Date objects
-  typedBaseline.createdAt = new Date(typedBaseline.createdAt);
-  if (typedBaseline.acceptance?.acceptedAt) {
-    typedBaseline.acceptance.acceptedAt = new Date(typedBaseline.acceptance.acceptedAt);
+  // Restore Date objects (JSON serializes dates as strings)
+  baseline.createdAt = new Date(baseline.createdAt);
+  if (baseline.acceptance?.acceptedAt) {
+    baseline.acceptance.acceptedAt = new Date(baseline.acceptance.acceptedAt);
   }
 
-  // Verify integrity (unless skipped or just migrated)
-  if (!skipIntegrityCheck && !needsMigration(result.data as unknown as Record<string, unknown>)) {
-    if (!verifyIntegrity(typedBaseline)) {
+  // Verify integrity (unless skipped or just migrated - migration changes the hash)
+  if (!skipIntegrityCheck && !wasMigrated) {
+    if (!verifyIntegrity(baseline)) {
       throw new Error('Baseline integrity check failed - file may have been modified');
     }
   }
 
-  return typedBaseline;
+  return baseline;
 }
 
 /**
