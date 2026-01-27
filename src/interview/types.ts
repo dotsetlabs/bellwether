@@ -159,6 +159,29 @@ export interface InterviewQuestion {
       /** Keys captured from this response */
       providedKeys?: string[];
     };
+    /**
+     * Whether this tool uses operation-based dispatch pattern.
+     * Tools with this pattern have different required args per operation.
+     */
+    operationBased?: boolean;
+    /** The parameter name that selects the operation (e.g., "operation", "action") */
+    operationParam?: string;
+    /** The parameter name that holds operation-specific args (e.g., "args", "params") */
+    argsParam?: string;
+    /**
+     * Whether this tool requires prior state (session, chain, etc.).
+     * These tools need an active session before they can work.
+     */
+    selfStateful?: boolean;
+    /** Reason for self-stateful detection */
+    selfStatefulReason?: string;
+    /**
+     * Whether this tool has complex array schemas requiring structured data.
+     * Simple test data generation often fails for these tools.
+     */
+    hasComplexArrays?: boolean;
+    /** Array parameters with complex item schemas */
+    complexArrayParams?: string[];
   };
 }
 

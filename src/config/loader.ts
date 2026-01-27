@@ -74,6 +74,74 @@ function interpolateConfig<T>(obj: T): T {
 export type { BellwetherConfig };
 
 /**
+ * Parse a command string into command and arguments.
+ * Handles quoted strings properly for cases like:
+ *   "npx @gitkraken/gk@latest" -> { command: "npx", args: ["@gitkraken/gk@latest"] }
+ *   "node ./server.js --port 3000" -> { command: "node", args: ["./server.js", "--port", "3000"] }
+ *   'my-cmd "path with spaces"' -> { command: "my-cmd", args: ["path with spaces"] }
+ *
+ * @param commandString - Full command string that may include arguments
+ * @returns Parsed command and arguments
+ */
+export function parseCommandString(commandString: string): { command: string; args: string[] } {
+  const tokens: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  let quoteChar = '';
+
+  for (let i = 0; i < commandString.length; i++) {
+    const char = commandString[i];
+    const prevChar = i > 0 ? commandString[i - 1] : '';
+
+    // Handle escape sequences (\" or \')
+    if (char === '\\' && i + 1 < commandString.length) {
+      const nextChar = commandString[i + 1];
+      if (nextChar === '"' || nextChar === "'" || nextChar === '\\') {
+        current += nextChar;
+        i++; // Skip next char
+        continue;
+      }
+    }
+
+    // Handle quote start
+    if ((char === '"' || char === "'") && !inQuotes) {
+      inQuotes = true;
+      quoteChar = char;
+      continue;
+    }
+
+    // Handle quote end
+    if (char === quoteChar && inQuotes && prevChar !== '\\') {
+      inQuotes = false;
+      quoteChar = '';
+      continue;
+    }
+
+    // Handle space outside quotes
+    if (char === ' ' && !inQuotes) {
+      if (current.length > 0) {
+        tokens.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    // Regular character
+    current += char;
+  }
+
+  // Push final token
+  if (current.length > 0) {
+    tokens.push(current);
+  }
+
+  return {
+    command: tokens[0] ?? '',
+    args: tokens.slice(1),
+  };
+}
+
+/**
  * Error thrown when no config file is found.
  */
 export class ConfigNotFoundError extends Error {

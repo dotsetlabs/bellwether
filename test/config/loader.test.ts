@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 import {
   loadConfig,
   ConfigNotFoundError,
+  parseCommandString,
 } from '../../src/config/loader.js';
 
 describe('config/loader', () => {
@@ -297,6 +298,74 @@ llm:
       const error = new ConfigNotFoundError(paths);
       expect(error.message).toContain('/path/one');
       expect(error.message).toContain('/path/two');
+    });
+  });
+
+  describe('parseCommandString', () => {
+    it('should parse simple command with no args', () => {
+      const result = parseCommandString('npx');
+      expect(result.command).toBe('npx');
+      expect(result.args).toEqual([]);
+    });
+
+    it('should parse command with single argument', () => {
+      const result = parseCommandString('npx @gitkraken/gk@latest');
+      expect(result.command).toBe('npx');
+      expect(result.args).toEqual(['@gitkraken/gk@latest']);
+    });
+
+    it('should parse command with multiple arguments', () => {
+      const result = parseCommandString('node ./server.js --port 3000');
+      expect(result.command).toBe('node');
+      expect(result.args).toEqual(['./server.js', '--port', '3000']);
+    });
+
+    it('should handle double-quoted arguments with spaces', () => {
+      const result = parseCommandString('my-cmd "path with spaces"');
+      expect(result.command).toBe('my-cmd');
+      expect(result.args).toEqual(['path with spaces']);
+    });
+
+    it('should handle single-quoted arguments with spaces', () => {
+      const result = parseCommandString("my-cmd 'path with spaces'");
+      expect(result.command).toBe('my-cmd');
+      expect(result.args).toEqual(['path with spaces']);
+    });
+
+    it('should handle mixed quoted and unquoted arguments', () => {
+      const result = parseCommandString('cmd arg1 "arg 2" arg3');
+      expect(result.command).toBe('cmd');
+      expect(result.args).toEqual(['arg1', 'arg 2', 'arg3']);
+    });
+
+    it('should handle escaped quotes inside quotes', () => {
+      const result = parseCommandString('cmd "say \\"hello\\""');
+      expect(result.command).toBe('cmd');
+      expect(result.args).toEqual(['say "hello"']);
+    });
+
+    it('should handle empty string', () => {
+      const result = parseCommandString('');
+      expect(result.command).toBe('');
+      expect(result.args).toEqual([]);
+    });
+
+    it('should handle multiple spaces between arguments', () => {
+      const result = parseCommandString('cmd   arg1    arg2');
+      expect(result.command).toBe('cmd');
+      expect(result.args).toEqual(['arg1', 'arg2']);
+    });
+
+    it('should handle command with flags (npx -y pattern)', () => {
+      const result = parseCommandString('npx -y @package/name');
+      expect(result.command).toBe('npx');
+      expect(result.args).toEqual(['-y', '@package/name']);
+    });
+
+    it('should handle complex npx command', () => {
+      const result = parseCommandString('npx -y @modelcontextprotocol/server-filesystem /tmp');
+      expect(result.command).toBe('npx');
+      expect(result.args).toEqual(['-y', '@modelcontextprotocol/server-filesystem', '/tmp']);
     });
   });
 });

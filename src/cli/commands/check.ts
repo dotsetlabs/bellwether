@@ -15,7 +15,7 @@ import { discover } from '../../discovery/discovery.js';
 import { Interviewer } from '../../interview/interviewer.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
 import { generateContractMd, generateJsonReport } from '../../docs/generator.js';
-import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
+import { loadConfig, ConfigNotFoundError, parseCommandString, type BellwetherConfig } from '../../config/loader.js';
 import { validateConfigForCheck, getConfigWarnings } from '../../config/validator.js';
 import {
   createBaseline,
@@ -83,6 +83,7 @@ import {
 
 export const checkCommand = new Command('check')
   .description('Check MCP server schema and detect drift (free, fast, deterministic)')
+  .allowUnknownOption() // Allow server flags like -y for npx to pass through
   .argument('[server-command]', 'Server command (overrides config)')
   .argument('[args...]', 'Server arguments')
   .option('-c, --config <path>', 'Path to config file', PATHS.DEFAULT_CONFIG_FILENAME)
@@ -106,8 +107,17 @@ export const checkCommand = new Command('check')
     }
 
     // Determine server command (CLI arg overrides config)
-    const serverCommand = serverCommandArg || config.server.command;
-    const args = serverArgs.length > 0 ? serverArgs : config.server.args;
+    // If command string contains spaces and no separate args, parse it
+    let serverCommand = serverCommandArg || config.server.command;
+    let args = serverArgs.length > 0 ? serverArgs : config.server.args;
+
+    // Handle command strings like "npx @package" in config when args is empty
+    if (!serverCommandArg && args.length === 0 && serverCommand.includes(' ')) {
+      const parsed = parseCommandString(serverCommand);
+      serverCommand = parsed.command;
+      args = parsed.args;
+    }
+
     const transport = config.server.transport ?? 'stdio';
     const remoteUrl = config.server.url?.trim();
     const remoteSessionId = config.server.sessionId?.trim();

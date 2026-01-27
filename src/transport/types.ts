@@ -75,11 +75,20 @@ export interface MCPToolCallResult {
   isError?: boolean;
 }
 
+/**
+ * MCP content block types per MCP specification (2025-11-25).
+ * Supports: text, image, audio, resource (embedded), resource_link (reference)
+ */
 export interface MCPContentBlock {
-  type: 'text' | 'image' | 'resource';
+  type: 'text' | 'image' | 'audio' | 'resource' | 'resource_link';
+  /** Text content (for type: 'text') */
   text?: string;
+  /** Base64-encoded binary data (for type: 'image', 'audio') */
   data?: string;
+  /** MIME type of the content */
   mimeType?: string;
+  /** URI reference (for type: 'resource_link') */
+  uri?: string;
 }
 
 export interface MCPToolsListResult {
@@ -129,11 +138,20 @@ export interface MCPPromptMessage {
   content: MCPPromptContent;
 }
 
+/**
+ * MCP prompt content types per MCP specification (2025-11-25).
+ * Same content types as MCPContentBlock.
+ */
 export interface MCPPromptContent {
-  type: 'text' | 'image' | 'resource';
+  type: 'text' | 'image' | 'audio' | 'resource' | 'resource_link';
+  /** Text content (for type: 'text') */
   text?: string;
+  /** Base64-encoded binary data (for type: 'image', 'audio') */
   data?: string;
+  /** MIME type of the content */
   mimeType?: string;
+  /** URI reference (for type: 'resource_link') */
+  uri?: string;
 }
 
 export interface MCPPromptGetResult {

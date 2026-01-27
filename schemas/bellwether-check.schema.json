@@ -206,10 +206,11 @@
       "type": "object",
       "required": ["type"],
       "properties": {
-        "type": { "type": "string", "enum": ["text", "image", "resource"] },
+        "type": { "type": "string", "enum": ["text", "image", "audio", "resource", "resource_link"] },
         "text": { "type": "string" },
         "data": { "type": "string" },
-        "mimeType": { "type": "string" }
+        "mimeType": { "type": "string" },
+        "uri": { "type": "string" }
       },
       "additionalProperties": true
     },

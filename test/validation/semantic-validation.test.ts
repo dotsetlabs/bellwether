@@ -412,7 +412,7 @@ describe('Semantic Test Generation', () => {
       expect(result.inferences.length).toBe(0);
     });
 
-    it('should set correct metadata on generated tests', () => {
+    it('should set correct metadata on generated tests (flexible mode default)', () => {
       const tool = createMockTool({
         type: 'object',
         properties: {
@@ -421,12 +421,35 @@ describe('Semantic Test Generation', () => {
         required: ['email'],
       });
 
+      // Default flexible mode allows tools to accept varied formats
       const result = generateSemanticTests(tool);
       const test = result.tests[0];
       expect(test.metadata).toBeDefined();
       expect(test.metadata?.semanticType).toBe('email');
-      expect(test.metadata?.expectedBehavior).toBe('reject');
+      expect(test.metadata?.expectedBehavior).toBe('accept'); // Flexible mode
       expect(test.metadata?.confidence).toBeGreaterThan(0);
+      expect(test.expectedOutcome).toBe('either');
+      expect(test.category).toBe('edge_case');
+    });
+
+    it('should set strict metadata when flexibleSemanticTests is false', () => {
+      const tool = createMockTool({
+        type: 'object',
+        properties: {
+          email: { type: 'string', description: 'Email address' },
+        },
+        required: ['email'],
+      });
+
+      // Strict mode expects tools to reject invalid formats
+      const result = generateSemanticTests(tool, { flexibleSemanticTests: false });
+      const test = result.tests[0];
+      expect(test.metadata).toBeDefined();
+      expect(test.metadata?.semanticType).toBe('email');
+      expect(test.metadata?.expectedBehavior).toBe('reject'); // Strict mode
+      expect(test.metadata?.confidence).toBeGreaterThan(0);
+      expect(test.expectedOutcome).toBe('error');
+      expect(test.category).toBe('error_handling');
     });
 
     it('should only generate tests for string parameters', () => {

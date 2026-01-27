@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2026-01-26
+
+### Features
+
+- **Streamable HTTP transport improvements**: Full compliance with [MCP Streamable HTTP specification](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
+  - Fixed Accept header to include both `application/json` and `text/event-stream` as required by spec
+  - Added automatic session ID capture from `Mcp-Session-Id` response header
+  - Session ID is automatically included in all subsequent requests after initialization
+  - Changed header name from `X-Session-Id` to `Mcp-Session-Id` per MCP specification
+- **False positive reduction**: Intelligent pattern detection to reduce false positives in automated testing
+  - **Operation-based tool detection**: Tools with `operation` enum + `args` object patterns now use flexible `either` outcome
+  - **Self-stateful tool detection**: Tools requiring prior state (session/chain/context) are handled appropriately
+  - **Complex array schema detection**: Arrays with nested objects containing required properties use flexible validation
+  - **Flexible semantic validation**: Semantic type tests now use `either` outcome by default, allowing tools to accept varied formats (e.g., dayjs, date-fns)
+- **Pattern detection metadata**: Test metadata now includes detection flags for transparency
+  - `operationBased`, `operationParam`, `argsParam` for operation-based tools
+  - `selfStateful`, `selfStatefulReason` for stateful tools
+  - `hasComplexArrays`, `complexArrayParams` for complex schema tools
+
+### Configuration
+
+- **New semantic validation option**: `check.flexibleSemanticTests` (default: `true`)
+  - When `true`, semantic validation tests use `either` outcome
+  - Set to `false` for strict format enforcement
+
+### Documentation
+
+- Updated remote-servers guide with correct streamable-http protocol details
+- Added MCP specification link for transport documentation
+- Clarified session ID behavior and Accept header requirements
+
+### Fixes
+
+- **Streamable HTTP session management**: Fixed session ID header to use MCP-compliant `Mcp-Session-Id`
+- **False positive tests**: Tests for operation-based, self-stateful, and complex array patterns no longer fail incorrectly
+
+### Tests
+
+- Added 17 HTTP transport tests including session ID capture verification
+- Added 11 new pattern detection tests for false positive reduction
+
 ## [0.11.0] - 2026-01-26
 
 ### Breaking Changes
