@@ -44,8 +44,8 @@ describe('cli/badge', () => {
       const badge = await client.getBadgeInfo(project.id);
 
       expect(badge).not.toBeNull();
-      expect(badge!.status).toBe('verified');
-      expect(badge!.statusText).toBe('Verified');
+      expect(badge!.status).toBe('passed');
+      expect(badge!.statusText).toBe('Passed');
       expect(badge!.latestVersion).toBe(1);
     });
 
@@ -60,7 +60,7 @@ describe('cli/badge', () => {
       const badge = await client.getBadgeInfo(project.id);
 
       expect(badge).not.toBeNull();
-      expect(badge!.status).toBe('verified');
+      expect(badge!.status).toBe('passed');
       expect(badge!.statusText).toBe('Stable');
       expect(badge!.latestVersion).toBe(2);
     });
@@ -127,15 +127,15 @@ describe('cli/badge', () => {
       expect(badge!.markdown).toContain(project.id);
     });
 
-    it('should include lastVerified timestamp', async () => {
+    it('should include lastTested timestamp', async () => {
       const project = await client.createProject('test-project', 'npx test-server');
       const baseline = createMockBaseline();
       await client.uploadBaseline(project.id, baseline);
 
       const badge = await client.getBadgeInfo(project.id);
 
-      expect(badge!.lastVerified).toBeDefined();
-      expect(new Date(badge!.lastVerified!)).toBeInstanceOf(Date);
+      expect(badge!.lastTested).toBeDefined();
+      expect(new Date(badge!.lastTested!)).toBeInstanceOf(Date);
     });
   });
 });

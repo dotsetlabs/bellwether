@@ -1,51 +1,51 @@
 /**
- * Types for the Verified by Bellwether program.
+ * Types for the Tested with Bellwether program.
  */
 
 /**
- * Verification status for a server.
+ * Benchmark status for a server.
  */
-export type VerificationStatus =
-  | 'verified'
+export type BenchmarkStatus =
+  | 'passed'
   | 'pending'
   | 'failed'
   | 'expired'
-  | 'not_verified';
+  | 'not_tested';
 
 /**
- * Verification tier based on test coverage.
+ * Benchmark tier based on test coverage.
  */
-export type VerificationTier =
-  | 'bronze'   // Basic verification (happy path only)
-  | 'silver'   // Standard verification (includes error handling)
-  | 'gold'     // Comprehensive verification (all personas)
-  | 'platinum' // Full verification with security testing
+export type BenchmarkTier =
+  | 'bronze'   // Basic benchmark (happy path only)
+  | 'silver'   // Standard benchmark (includes error handling)
+  | 'gold'     // Comprehensive benchmark (all personas)
+  | 'platinum' // Full benchmark with security testing
 
 /**
- * Verification result from a verification run.
+ * Benchmark result from a benchmark run.
  */
-export interface VerificationResult {
+export interface BenchmarkResult {
   /** Server identifier (namespace/name) */
   serverId: string;
   /** Server version */
   version: string;
-  /** Verification status */
-  status: VerificationStatus;
-  /** Verification tier achieved */
-  tier?: VerificationTier;
-  /** ISO timestamp when verified */
-  verifiedAt: string;
-  /** ISO timestamp when verification expires */
+  /** Benchmark status */
+  status: BenchmarkStatus;
+  /** Benchmark tier achieved */
+  tier?: BenchmarkTier;
+  /** ISO timestamp when tested */
+  testedAt: string;
+  /** ISO timestamp when benchmark expires */
   expiresAt: string;
-  /** Number of tools verified */
-  toolsVerified: number;
+  /** Number of tools tested */
+  toolsTested: number;
   /** Number of tests passed */
   testsPassed: number;
   /** Total number of tests run */
   testsTotal: number;
   /** Pass rate (0-100) */
   passRate: number;
-  /** Checksum of the verification report */
+  /** Checksum of the benchmark report */
   reportHash: string;
   /** Bellwether version used */
   bellwetherVersion: string;
@@ -54,33 +54,33 @@ export interface VerificationResult {
 }
 
 /**
- * Verification badge data for embedding.
+ * Benchmark badge data for embedding.
  */
-export interface VerificationBadge {
+export interface BenchmarkBadge {
   /** Badge label */
   label: string;
   /** Badge message */
   message: string;
   /** Badge color */
   color: string;
-  /** Verification tier icon */
+  /** Benchmark tier icon */
   icon?: string;
-  /** Link to verification report */
+  /** Link to benchmark report */
   reportUrl?: string;
-  /** ISO timestamp of verification */
-  verifiedAt?: string;
+  /** ISO timestamp of benchmark */
+  testedAt?: string;
 }
 
 /**
- * Configuration for verification.
+ * Configuration for benchmark.
  */
-export interface VerificationConfig {
+export interface BenchmarkConfig {
   /** Server identifier */
   serverId: string;
   /** Server version */
   version?: string;
   /** Tier to target */
-  targetTier?: VerificationTier;
+  targetTier?: BenchmarkTier;
   /** Include security testing */
   includeSecurity?: boolean;
   /** Custom scenarios to include */
@@ -90,11 +90,11 @@ export interface VerificationConfig {
 }
 
 /**
- * Verification report (full detailed report).
+ * Benchmark report (full detailed report).
  */
-export interface VerificationReport {
-  /** Verification result summary */
-  result: VerificationResult;
+export interface BenchmarkReport {
+  /** Benchmark result summary */
+  result: BenchmarkResult;
   /** Server information */
   serverInfo: {
     name: string;
@@ -102,21 +102,21 @@ export interface VerificationReport {
     description?: string;
     repository?: string;
   };
-  /** Tool verification details */
+  /** Tool benchmark details */
   tools: Array<{
     name: string;
     testsRun: number;
     testsPassed: number;
     errors: string[];
   }>;
-  /** Prompt verification details */
+  /** Prompt benchmark details */
   prompts?: Array<{
     name: string;
     testsRun: number;
     testsPassed: number;
     errors: string[];
   }>;
-  /** Resource verification details */
+  /** Resource benchmark details */
   resources?: Array<{
     uri: string;
     name: string;
@@ -133,12 +133,12 @@ export interface VerificationReport {
 }
 
 /**
- * Verification submission for the registry.
+ * Benchmark submission for the registry.
  */
-export interface VerificationSubmission {
-  /** Verification result */
-  result: VerificationResult;
-  /** Signed verification token */
+export interface BenchmarkSubmission {
+  /** Benchmark result */
+  result: BenchmarkResult;
+  /** Signed benchmark token */
   signature?: string;
   /** Submitter information */
   submitter?: {

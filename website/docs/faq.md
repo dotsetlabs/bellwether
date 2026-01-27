@@ -232,7 +232,7 @@ Use `bellwether check` which is completely free. Only use `bellwether explore` p
 No. Bellwether works fully offline. Cloud adds:
 - Baseline history
 - Team collaboration
-- Verification badges
+- Benchmark badges
 - GitHub/GitLab integration
 
 ### How do I connect to cloud?
@@ -273,9 +273,9 @@ In check mode:
 
 Bellwether only calls tools that exist on your server. It generates test scenarios but doesn't execute arbitrary code. Use appropriate test environments.
 
-### Are "Verified by Bellwether" badges security certifications?
+### Are "Tested with Bellwether" badges security certifications?
 
-No. Verification badges indicate testing coverage levels, not security certifications.
+No. Benchmark badges indicate testing coverage levels, not security certifications.
 
 - **Bronze-Gold**: Testing coverage tiers
 - **Platinum**: Comprehensive testing with all personas

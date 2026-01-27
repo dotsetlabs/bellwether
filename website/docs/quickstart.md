@@ -133,5 +133,5 @@ bellwether explore                       # Generate AGENTS.md (if output.format 
 - [CLI Reference](/cli/check) - Check and explore commands
 - [Local Development](/guides/local-development) - Watch mode and continuous testing
 - [CI/CD Integration](/guides/ci-cd) - GitHub Actions, GitLab CI
-- [Cloud](/cloud) - Baseline history and verification badges
+- [Cloud](/cloud) - Baseline history and benchmark badges
 - [Configuration](/guides/configuration) - Customize bellwether.yaml

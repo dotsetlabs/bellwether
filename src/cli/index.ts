@@ -71,7 +71,7 @@ import { authCommand } from './commands/auth.js';
 import { baselineCommand } from './commands/baseline.js';
 import { goldenCommand } from './commands/golden.js';
 import { registryCommand } from './commands/registry.js';
-import { verifyCommand } from './commands/verify.js';
+import { benchmarkCommand } from './commands/benchmark.js';
 import { contractCommand } from './commands/contract.js';
 import { validateConfigCommand } from './commands/validate-config.js';
 import { badgeCommand } from './commands/cloud/badge.js';
@@ -221,8 +221,8 @@ program.addCommand(
   )
 );
 program.addCommand(
-  verifyCommand.description(
-    'Generate verification report for Verified by Bellwether program'
+  benchmarkCommand.description(
+    'Generate benchmark report for Tested with Bellwether program'
   )
 );
 program.addCommand(
@@ -274,7 +274,7 @@ program.addCommand(
 );
 program.addCommand(
   badgeCommand.description(
-    'Get embeddable verification badge for your project'
+    'Get embeddable benchmark badge for your project'
   )
 );
 

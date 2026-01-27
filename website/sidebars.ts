@@ -30,7 +30,7 @@ const sidebars: SidebarsConfig = {
         'cli/contract',
         'cli/watch',
         'cli/discover',
-        'cli/verify',
+        'cli/benchmark',
         'cli/auth',
         'cli/registry',
       ],

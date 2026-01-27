@@ -6,7 +6,7 @@ slug: /cloud
 
 # Bellwether Cloud
 
-Bellwether Cloud provides baseline version history, drift alerts, and embeddable verification badges for your MCP servers.
+Bellwether Cloud provides baseline version history, drift alerts, and embeddable benchmark badges for your MCP servers.
 
 :::info Private Beta
 Bellwether Cloud is currently in **private beta**. All features are free during the beta period.
@@ -20,7 +20,7 @@ To request access, [join the waitlist at bellwether.sh](https://bellwether.sh). 
 |:--------|:------------|
 | **Baseline History** | Track every baseline upload with version numbers and timestamps |
 | **Drift Comparison** | Compare any two versions to see what changed |
-| **Verification Badges** | Embeddable badges showing test status for your README |
+| **Benchmark Badges** | Embeddable badges showing test status for your README |
 | **Team Collaboration** | Share projects across your team |
 
 ## Quick Start
@@ -162,7 +162,7 @@ bellwether diff 1 2
 
 ## Badges
 
-Add a verification badge to your README:
+Add a benchmark badge to your README:
 
 ```bash
 # Get markdown for README

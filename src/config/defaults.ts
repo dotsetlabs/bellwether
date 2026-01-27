@@ -56,7 +56,7 @@ export const CONFIG_DEFAULTS = {
       exploreReport: PATHS.DEFAULT_EXPLORE_REPORT_FILE,
       contractDoc: PATHS.DEFAULT_CONTRACT_FILE,
       agentsDoc: PATHS.DEFAULT_AGENTS_FILE,
-      verificationReport: PATHS.DEFAULT_VERIFICATION_REPORT_FILE,
+      benchmarkReport: PATHS.DEFAULT_BENCHMARK_REPORT_FILE,
     },
   },
   check: {
@@ -160,7 +160,7 @@ export const CONFIG_DEFAULTS = {
     normalizeTimestamps: true,
     normalizeUuids: true,
   },
-  verify: {
+  benchmark: {
     tier: 'silver' as const,
     security: false,
     json: false,

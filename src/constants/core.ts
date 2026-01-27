@@ -368,8 +368,8 @@ export const TIME_CONSTANTS = {
   SSE_MAX_BACKOFF: 30000,
   /** Default cache TTL (1 hour) */
   DEFAULT_CACHE_TTL: 3600000,
-  /** Verification validity period in days */
-  VERIFICATION_VALIDITY_DAYS: 90,
+  /** Benchmark validity period in days */
+  BENCHMARK_VALIDITY_DAYS: 90,
   /** Embedding timeout (5 seconds) */
   EMBEDDING_TIMEOUT: 5000,
 } as const;
@@ -628,8 +628,8 @@ export const PATHS = {
   DEFAULT_CHECK_REPORT_FILE: 'bellwether-check.json',
   /** Default explore report file */
   DEFAULT_EXPLORE_REPORT_FILE: 'bellwether-explore.json',
-  /** Default verification report file */
-  DEFAULT_VERIFICATION_REPORT_FILE: 'bellwether-verification.json',
+  /** Default benchmark report file */
+  DEFAULT_BENCHMARK_REPORT_FILE: 'bellwether-benchmark.json',
   /** Default test scenarios file */
   DEFAULT_SCENARIOS_FILE: 'bellwether-tests.yaml',
   /** Default workflows file */

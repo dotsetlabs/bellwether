@@ -158,8 +158,8 @@ export const outputFilesConfigSchema = z.object({
   contractDoc: z.string().default(CONFIG_DEFAULTS.output.files.contractDoc),
   /** Agents documentation file name */
   agentsDoc: z.string().default(CONFIG_DEFAULTS.output.files.agentsDoc),
-  /** Verification report JSON file name */
-  verificationReport: z.string().default(CONFIG_DEFAULTS.output.files.verificationReport),
+  /** Benchmark report JSON file name */
+  benchmarkReport: z.string().default(CONFIG_DEFAULTS.output.files.benchmarkReport),
 }).default(CONFIG_DEFAULTS.output.files);
 
 /**
@@ -535,18 +535,18 @@ export const goldenConfigSchema = z.object({
 }).default(CONFIG_DEFAULTS.golden);
 
 /**
- * Verify command configuration schema.
+ * Benchmark command configuration schema.
  */
-export const verifyConfigSchema = z.object({
-  /** Default verification tier */
-  tier: z.enum(['bronze', 'silver', 'gold', 'platinum']).default(CONFIG_DEFAULTS.verify.tier),
+export const benchmarkConfigSchema = z.object({
+  /** Default benchmark tier */
+  tier: z.enum(['bronze', 'silver', 'gold', 'platinum']).default(CONFIG_DEFAULTS.benchmark.tier),
   /** Include security testing by default */
-  security: z.boolean().default(CONFIG_DEFAULTS.verify.security),
+  security: z.boolean().default(CONFIG_DEFAULTS.benchmark.security),
   /** Output as JSON */
-  json: z.boolean().default(CONFIG_DEFAULTS.verify.json),
+  json: z.boolean().default(CONFIG_DEFAULTS.benchmark.json),
   /** Output badge URL only */
-  badgeOnly: z.boolean().default(CONFIG_DEFAULTS.verify.badgeOnly),
-}).default(CONFIG_DEFAULTS.verify);
+  badgeOnly: z.boolean().default(CONFIG_DEFAULTS.benchmark.badgeOnly),
+}).default(CONFIG_DEFAULTS.benchmark);
 
 /**
  * Contract command configuration schema.
@@ -603,8 +603,8 @@ export const bellwetherConfigSchema = z.object({
   link: linkConfigSchema,
   /** Golden command defaults */
   golden: goldenConfigSchema,
-  /** Verify command defaults */
-  verify: verifyConfigSchema,
+  /** Benchmark command defaults */
+  benchmark: benchmarkConfigSchema,
   /** Contract command defaults */
   contract: contractConfigSchema,
 });
@@ -758,9 +758,9 @@ export function validateConfigForExplore(config: BellwetherConfig, serverCommand
 }
 
 /**
- * Validate that required fields are present for the verify command.
+ * Validate that required fields are present for the benchmark command.
  */
-export function validateConfigForVerify(config: BellwetherConfig, serverCommand?: string): void {
+export function validateConfigForBenchmark(config: BellwetherConfig, serverCommand?: string): void {
   const transport = config.server.transport ?? 'stdio';
   const effectiveCommand = serverCommand || config.server.command;
   const remoteUrl = config.server.url?.trim();
@@ -773,7 +773,7 @@ export function validateConfigForVerify(config: BellwetherConfig, serverCommand?
         '  server:\n' +
         '    command: "npx @your/mcp-server"\n\n' +
         'Or pass it as an argument:\n' +
-        '  bellwether verify npx @your/mcp-server'
+        '  bellwether benchmark npx @your/mcp-server'
       );
     }
   } else if (!remoteUrl) {

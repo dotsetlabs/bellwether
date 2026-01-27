@@ -49,9 +49,9 @@ They're complementary. Use both.
 | Security compliance audits | ⚠️ Partial | Good first step, not sufficient alone |
 | Enterprise-wide rollout | ❌ Not ideal | No SSO, limited team features |
 
-## Understanding Verification Badges
+## Understanding Benchmark Badges
 
-"Verified by Bellwether" means **systematically tested with Bellwether**, not independently certified. Badges indicate:
+"Tested with Bellwether" means **systematically tested with Bellwether**, not independently certified. Badges indicate:
 
 - The server was tested with Bellwether
 - It achieved the specified test coverage tier
@@ -66,9 +66,9 @@ They're complementary. Use both.
 | 🥇 Gold | + All personas, good coverage | "This server is thoroughly tested" |
 | 💎 Platinum | + Comprehensive testing, all personas | "This server has thorough test coverage" |
 
-**Important**: Platinum verification indicates comprehensive coverage across all testing personas. Security hygiene checks are included but this is a first line of defense—not a replacement for professional security audits.
+**Important**: Platinum benchmark indicates comprehensive coverage across all testing personas. Security hygiene checks are included but this is a first line of defense—not a replacement for professional security audits.
 
-Verification is valid for 90 days and should be re-run after significant changes.
+Benchmark badges are valid for 90 days and should be re-run after significant changes.
 
 ## Complementary Tools
 

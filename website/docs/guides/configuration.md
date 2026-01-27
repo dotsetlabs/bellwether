@@ -67,7 +67,7 @@ output:
     exploreReport: "bellwether-explore.json"
     contractDoc: "CONTRACT.md"
     agentsDoc: "AGENTS.md"
-    verificationReport: "bellwether-verification.json"
+    benchmarkReport: "bellwether-benchmark.json"
 
 baseline:
   path: "bellwether-baseline.json"
@@ -194,7 +194,7 @@ golden:
   normalizeTimestamps: true
   normalizeUuids: true
 
-verify:
+benchmark:
   tier: silver
   security: false
   json: false

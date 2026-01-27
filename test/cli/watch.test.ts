@@ -117,7 +117,7 @@ describe('watch command', () => {
             exploreReport: 'bellwether-explore.json',
             contractDoc: 'CONTRACT.md',
             agentsDoc: 'AGENTS.md',
-            verificationReport: 'bellwether-verification.json',
+            benchmarkReport: 'bellwether-benchmark.json',
           },
         },
         check: {

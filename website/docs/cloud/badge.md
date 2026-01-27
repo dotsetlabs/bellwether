@@ -5,7 +5,7 @@ sidebar_position: 7
 
 # bellwether badge
 
-Get an embeddable verification badge for your project.
+Get an embeddable benchmark badge for your project.
 
 ## Synopsis
 
@@ -15,14 +15,14 @@ bellwether badge [options]
 
 ## Description
 
-The `badge` command retrieves a verification badge for your project from Bellwether Cloud. Badges display your MCP server's verification status and can be embedded in READMEs, documentation, or websites to show users that your server has been verified with Bellwether.
+The `badge` command retrieves a benchmark badge for your project from Bellwether Cloud. Badges display your MCP server's benchmark status and can be embedded in READMEs, documentation, or websites to show users that your server has been tested with Bellwether.
 
 :::note Config Required
 All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `badge`.
 :::
 
 Badge status reflects:
-- **Verified**: Server has been verified with at least one baseline
+- **Tested**: Server has passed benchmarking with at least one baseline
 - **Stable**: Multiple baselines with no behavioral drift
 - **Drift detected**: Behavioral changes detected between baselines
 - **Breaking changes**: Significant breaking changes detected (tools removed, etc.)
@@ -50,18 +50,18 @@ bellwether badge --project proj_abc123
 
 Output:
 ```
-Badge Status: Verified
+Badge Status: Tested
 
 Project: my-mcp-server
 Status: passing
 Version: 3
-Last Verified: 2024-01-15T10:30:00Z
+Last Tested: 2024-01-15T10:30:00Z
 
 Badge URL:
-https://img.shields.io/badge/bellwether-verified-brightgreen
+https://img.shields.io/badge/bellwether-tested-brightgreen
 
 Markdown:
-[![Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.sh/projects/proj_abc123)
+[![Bellwether](https://img.shields.io/badge/bellwether-tested-brightgreen)](https://bellwether.sh/projects/proj_abc123)
 ```
 
 ### Get Markdown Only
@@ -93,11 +93,11 @@ Output:
   "projectId": "proj_abc123",
   "projectName": "my-mcp-server",
   "status": "passing",
-  "statusText": "Verified",
+  "statusText": "Tested",
   "latestVersion": 3,
-  "lastVerified": "2024-01-15T10:30:00Z",
-  "badgeUrl": "https://img.shields.io/badge/bellwether-verified-brightgreen",
-  "markdown": "[![Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.sh/projects/proj_abc123)"
+  "lastTested": "2024-01-15T10:30:00Z",
+  "badgeUrl": "https://img.shields.io/badge/bellwether-tested-brightgreen",
+  "markdown": "[![Bellwether](https://img.shields.io/badge/bellwether-tested-brightgreen)](https://bellwether.sh/projects/proj_abc123)"
 }
 ```
 
@@ -105,7 +105,7 @@ Output:
 
 | Status | Color | Meaning |
 |:-------|:------|:--------|
-| `passing` | Green | Server verified, no issues |
+| `passing` | Green | Server tested, no issues |
 | `drift` | Yellow | Behavioral drift detected |
 | `failing` | Red | Breaking changes detected |
 | `unknown` | Gray | No baseline uploaded yet |
@@ -114,7 +114,7 @@ Output:
 
 ### Add Badge to README
 
-Include verification status in your project's README:
+Include benchmark status in your project's README:
 
 ```bash
 # Get the markdown and add to README
@@ -125,9 +125,9 @@ Then add to your README.md:
 ```markdown
 # My MCP Server
 
-[![Verified by Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.sh/projects/proj_abc123)
+[![Tested with Bellwether](https://img.shields.io/badge/bellwether-tested-brightgreen)](https://bellwether.sh/projects/proj_abc123)
 
-A verified MCP server for...
+A tested MCP server for...
 ```
 
 ### CI Badge Updates
@@ -150,7 +150,7 @@ Check badge status for multiple projects:
 ```bash
 for proj in proj_abc123 proj_def456; do
   echo "Project: $proj"
-  bellwether badge --project $proj --json | jq '{status, lastVerified}'
+  bellwether badge --project $proj --json | jq '{status, lastTested}'
 done
 ```
 

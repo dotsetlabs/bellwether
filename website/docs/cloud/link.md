@@ -15,7 +15,7 @@ bellwether link [project-id]
 
 ## Description
 
-The `link` command connects your local directory to a Bellwether Cloud project. This enables automatic baseline uploads, history tracking, and verification badges.
+The `link` command connects your local directory to a Bellwether Cloud project. This enables automatic baseline uploads, history tracking, and benchmark badges.
 
 :::note Config Required
 All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `link`.
@@ -104,10 +104,10 @@ After linking, you can:
 
 - **Upload baselines** with `bellwether upload`
 - **View history** with `bellwether history`
-- **Get verification badges** for your README
+- **Get benchmark badges** for your README
 - **Track drift** over time
 
-## Verification Badge
+## Benchmark Badge
 
 After linking, add a badge to your README:
 

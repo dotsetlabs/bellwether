@@ -258,7 +258,7 @@ This creates an audit trail of intentional changes.
 Upload baselines to Bellwether Cloud for:
 - Historical tracking
 - Version comparison
-- Verification badges
+- Benchmark badges
 
 ```bash
 bellwether login

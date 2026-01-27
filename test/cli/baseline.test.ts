@@ -168,7 +168,7 @@ describe('baseline command', () => {
             exploreReport: 'bellwether-explore.json',
             contractDoc: 'CONTRACT.md',
             agentsDoc: 'AGENTS.md',
-            verificationReport: 'bellwether-verification.json',
+            benchmarkReport: 'bellwether-benchmark.json',
           },
         },
         baseline: { failOnDrift: false, path: 'bellwether-baseline.json', outputFormat: 'text' },

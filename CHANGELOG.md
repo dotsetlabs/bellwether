@@ -2,6 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0] - 2026-01-27
+
+### Breaking Changes
+
+- **Renamed `bellwether verify` to `bellwether benchmark`**: The verification command has been renamed to better reflect its purpose
+  - Old: `bellwether verify <server-command>`
+  - New: `bellwether benchmark <server-command>`
+- **Renamed "Verified by Bellwether" to "Tested with Bellwether"**: Updated branding throughout the CLI and documentation
+  - Badge text now shows "Tested with Bellwether"
+  - Status values changed: `verified` → `passed`, `not_verified` → `not_tested`
+- **Config section renamed**: The `verify:` section in `bellwether.yaml` is now `benchmark:`
+  - Old: `verify: { timeout: 30000 }`
+  - New: `benchmark: { timeout: 30000 }`
+- **Output file renamed**: Default benchmark report file changed from `bellwether-verification.json` to `bellwether-benchmark.json`
+- **Cloud API changes**: Benchmark-related API endpoints have been renamed
+  - `/verifications` → `/benchmarks`
+  - Activity events: `verification.completed` → `benchmark.completed`, `verification.failed` → `benchmark.failed`
+
+### Changed
+
+- All CLI output messages updated to use "benchmark" terminology
+- Documentation updated throughout to reflect new naming
+- Badge command description updated to reference "benchmark badge"
+- Constants renamed: `VERIFICATION_TIERS` → `BENCHMARK_TIERS`, `DEFAULT_VERIFICATION_REPORT_FILE` → `DEFAULT_BENCHMARK_REPORT_FILE`
+
+### Migration Guide
+
+1. Update your `bellwether.yaml` config file:
+   ```yaml
+   # Old
+   verify:
+     timeout: 30000
+
+   # New
+   benchmark:
+     timeout: 30000
+   ```
+
+2. Update any CI/CD scripts:
+   ```bash
+   # Old
+   bellwether verify npx @mcp/server
+
+   # New
+   bellwether benchmark npx @mcp/server
+   ```
+
+3. Update any references to the output file:
+   - `bellwether-verification.json` → `bellwether-benchmark.json`
+
 ## [0.12.0] - 2026-01-26
 
 ### Features

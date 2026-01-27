@@ -29,8 +29,8 @@ import type {
   BellwetherBaseline,
   StoredSession,
   BadgeInfo,
-  CloudVerificationResult,
-  VerificationSubmissionResult,
+  CloudBenchmarkResult,
+  BenchmarkSubmissionResult,
 } from './types.js';
 import { isMockSession, MOCK_SESSION_PREFIX } from './auth.js';
 import * as output from '../cli/output.js';
@@ -439,20 +439,20 @@ export class MockCloudClient implements BellwetherCloudClient {
 
     // Determine status based on latest diff
     let status: BadgeInfo['status'] = 'unknown';
-    let statusText = 'Not verified';
+    let statusText = 'Not tested';
 
     if (baselines.length === 0) {
       status = 'unknown';
       statusText = 'No baseline';
     } else if (baselines.length === 1) {
-      status = 'verified';
-      statusText = 'Verified';
+      status = 'passed';
+      statusText = 'Passed';
     } else {
       // Check drift between last two versions
       const diff = await this.getLatestDiff(projectId);
       if (diff) {
         if (diff.severity === 'none' || diff.severity === 'info') {
-          status = 'verified';
+          status = 'passed';
           statusText = 'Stable';
         } else if (diff.severity === 'warning') {
           status = 'drift';
@@ -462,13 +462,13 @@ export class MockCloudClient implements BellwetherCloudClient {
           statusText = 'Breaking changes';
         }
       } else {
-        status = 'verified';
-        statusText = 'Verified';
+        status = 'passed';
+        statusText = 'Passed';
       }
     }
 
     // Badge URL - using shields.io format for mock
-    const color = status === 'verified' ? 'brightgreen' : status === 'drift' ? 'yellow' : status === 'failing' ? 'red' : 'lightgrey';
+    const color = status === 'passed' ? 'brightgreen' : status === 'drift' ? 'yellow' : status === 'failing' ? 'red' : 'lightgrey';
     const badgeUrl = `https://img.shields.io/badge/bellwether-${encodeURIComponent(statusText)}-${color}`;
 
     // Generate markdown
@@ -482,16 +482,16 @@ export class MockCloudClient implements BellwetherCloudClient {
       statusText,
       badgeUrl,
       markdown,
-      lastVerified: latestBaseline?.uploadedAt,
+      lastTested: latestBaseline?.uploadedAt,
       latestVersion: latestBaseline?.version,
     };
   }
 
-  async submitVerification(
+  async submitBenchmark(
     projectId: string,
-    result: CloudVerificationResult,
+    result: CloudBenchmarkResult,
     report?: Record<string, unknown>
-  ): Promise<VerificationSubmissionResult> {
+  ): Promise<BenchmarkSubmissionResult> {
     if (!this.isAuthenticated()) {
       throw new Error('Not authenticated');
     }
@@ -502,38 +502,38 @@ export class MockCloudClient implements BellwetherCloudClient {
       throw new Error(`Project not found: ${projectId}`);
     }
 
-    // Generate verification ID
-    const verificationId = generateId('ver');
+    // Generate benchmark ID
+    const benchmarkId = generateId('bench');
 
-    // Save verification data to mock storage
-    const verificationData = {
-      id: verificationId,
+    // Save benchmark data to mock storage
+    const benchmarkData = {
+      id: benchmarkId,
       projectId,
       ...result,
       report: report ?? null,
       createdAt: new Date().toISOString(),
     };
 
-    const verificationFile = join(this.dataDir, `${verificationId}.json`);
-    writeFileSync(verificationFile, JSON.stringify(verificationData, null, 2));
+    const benchmarkFile = join(this.dataDir, `${benchmarkId}.json`);
+    writeFileSync(benchmarkFile, JSON.stringify(benchmarkData, null, 2));
 
-    // Also save to a verifications list file for the project
-    const verificationsFile = join(this.dataDir, `${projectId}-verifications.json`);
-    let verifications: Array<{ id: string; createdAt: string }> = [];
-    if (existsSync(verificationsFile)) {
+    // Also save to a benchmarks list file for the project
+    const benchmarksFile = join(this.dataDir, `${projectId}-benchmarks.json`);
+    let benchmarks: Array<{ id: string; createdAt: string }> = [];
+    if (existsSync(benchmarksFile)) {
       try {
-        verifications = JSON.parse(readFileSync(verificationsFile, 'utf-8'));
+        benchmarks = JSON.parse(readFileSync(benchmarksFile, 'utf-8'));
       } catch {
-        verifications = [];
+        benchmarks = [];
       }
     }
-    verifications.push({ id: verificationId, createdAt: verificationData.createdAt });
-    writeFileSync(verificationsFile, JSON.stringify(verifications, null, 2));
+    benchmarks.push({ id: benchmarkId, createdAt: benchmarkData.createdAt });
+    writeFileSync(benchmarksFile, JSON.stringify(benchmarks, null, 2));
 
     return {
-      verificationId,
+      benchmarkId,
       projectId,
-      viewUrl: `file://${verificationFile}`,
+      viewUrl: `file://${benchmarkFile}`,
     };
   }
 
