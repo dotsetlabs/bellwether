@@ -55,6 +55,13 @@ export interface SemanticTestOptions {
   maxInvalidValuesPerParam?: number;
   /** Skip semantic tests entirely */
   skipSemanticTests?: boolean;
+  /**
+   * Enable flexible semantic validation (default: true).
+   * When true, semantic tests use 'either' outcome, allowing tools to
+   * accept flexible formats (e.g., dayjs accepting various date strings).
+   * When false, tests expect strict rejection of invalid formats.
+   */
+  flexibleSemanticTests?: boolean;
 }
 
 /**
@@ -75,6 +82,7 @@ export function generateSemanticTests(
     minConfidence = SEMANTIC_VALIDATION.MIN_CONFIDENCE_THRESHOLD,
     maxInvalidValuesPerParam = SEMANTIC_VALIDATION.MAX_INVALID_VALUES_PER_PARAM,
     skipSemanticTests = false,
+    flexibleSemanticTests = true, // Default to flexible - many tools accept varied formats
   } = options;
 
   const tests: InterviewQuestion[] = [];
@@ -133,18 +141,26 @@ export function generateSemanticTests(
     }
 
     // Generate tests with invalid semantic values
+    // When flexibleSemanticTests is true, we use 'either' outcome since many tools
+    // (e.g., using dayjs, date-fns) intentionally accept flexible formats.
+    // This prevents false positives for tools with lenient parsing.
     const valuesToTest = invalidValues.slice(0, maxInvalidValuesPerParam);
     for (const invalidValue of valuesToTest) {
       tests.push({
-        description: `Semantic validation: invalid ${formatSemanticType(inference.inferredType)} for "${paramName}"`,
-        category: 'error_handling' as QuestionCategory,
+        description: flexibleSemanticTests
+          ? `Semantic validation: format flexibility for "${paramName}" (${formatSemanticType(inference.inferredType)})`
+          : `Semantic validation: invalid ${formatSemanticType(inference.inferredType)} for "${paramName}"`,
+        category: flexibleSemanticTests
+          ? ('edge_case' as QuestionCategory)
+          : ('error_handling' as QuestionCategory),
         args: {
           ...baseArgs,
           [paramName]: invalidValue,
         },
+        expectedOutcome: flexibleSemanticTests ? 'either' : 'error',
         metadata: {
           semanticType: inference.inferredType,
-          expectedBehavior: 'reject',
+          expectedBehavior: flexibleSemanticTests ? 'accept' : 'reject',
           confidence: inference.confidence,
         },
       });

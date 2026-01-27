@@ -585,6 +585,117 @@ export const STATEFUL_TESTING = {
   MAX_STORED_VALUES: 50,
 } as const;
 
+// ==================== False Positive Reduction ====================
+
+/**
+ * Configuration for detecting tool patterns that commonly cause false positives.
+ * Used by schema-test-generator.ts to adjust test expectations.
+ *
+ * These patterns help Bellwether distinguish between:
+ * - Actual tool bugs (should be flagged)
+ * - Expected behavior for specialized tool patterns (should not be flagged)
+ */
+
+/**
+ * Operation-based tool detection patterns.
+ * Tools with operation enum + args object pattern dispatch to different handlers
+ * where each operation has different required arguments.
+ */
+export const OPERATION_BASED_DETECTION = {
+  /** Parameter names that indicate an operation/action discriminator */
+  OPERATION_PARAM_NAMES: [
+    'operation',
+    'action',
+    'method',
+    'command',
+    'type',
+    'mode',
+  ] as readonly string[],
+
+  /** Parameter names that indicate a dynamic arguments object */
+  ARGS_PARAM_NAMES: [
+    'args',
+    'params',
+    'options',
+    'arguments',
+    'data',
+    'payload',
+    'input',
+  ] as readonly string[],
+
+  /** Minimum enum values to consider a dispatch pattern (single value is not dispatch) */
+  MIN_ENUM_VALUES: 2,
+} as const;
+
+/**
+ * Self-stateful tool detection patterns.
+ * Tools that require prior invocation to establish state (sessions, chains, contexts).
+ * These tools need an active session/chain before they can be used.
+ */
+export const SELF_STATEFUL_DETECTION = {
+  /** Description patterns indicating the tool requires prior state */
+  DESCRIPTION_PATTERNS: [
+    /requires?\s+(an?\s+)?active\s+session/i,
+    /requires?\s+(an?\s+)?prior/i,
+    /requires?\s+(an?\s+)?existing/i,
+    /uses?\s+current\s+session/i,
+    /from\s+previous/i,
+    /must\s+(first|have)/i,
+    /after\s+(starting|creating|initializing)/i,
+    /session\s+(must|should)\s+be/i,
+    /no\s+active\s+session/i,
+  ] as readonly RegExp[],
+
+  /** Parameter names that suggest session/state dependency */
+  STATE_PARAM_PATTERNS: [
+    /session/i,
+    /chain/i,
+    /context/i,
+    /state/i,
+    /conversation/i,
+    /thread/i,
+  ] as readonly RegExp[],
+
+  /** Tool name patterns that suggest stateful behavior */
+  STATEFUL_TOOL_NAME_PATTERNS: [
+    /export/i,
+    /resume/i,
+    /continue/i,
+    /end/i,
+    /close/i,
+    /finish/i,
+  ] as readonly RegExp[],
+} as const;
+
+/**
+ * Complex array schema detection patterns.
+ * Tools with arrays whose items have complex nested structures with required properties.
+ * These require properly structured input data that simple test generation can't provide.
+ */
+export const COMPLEX_SCHEMA_DETECTION = {
+  /** Maximum nesting depth before considering schema "complex" */
+  MAX_SIMPLE_DEPTH: 2,
+
+  /** Minimum required properties in array items to consider "complex" */
+  MIN_REQUIRED_PROPERTIES: 1,
+
+  /** Property names that typically require structured data (chart/data visualization) */
+  STRUCTURED_DATA_PATTERNS: [
+    /data$/i,
+    /series/i,
+    /dataset/i,
+    /points/i,
+    /values/i,
+    /items/i,
+    /records/i,
+    /rows/i,
+    /entries/i,
+  ] as readonly RegExp[],
+
+  /** Minimum array items in schema examples/defaults to use instead of generating */
+  MIN_EXAMPLE_ITEMS: 2,
+} as const;
+
 // ==================== Security Testing (Check Mode) ====================
 
 /**
@@ -745,6 +856,15 @@ export const SEMANTIC_VALIDATION = {
 
   /** Maximum semantic tests per tool */
   MAX_SEMANTIC_TESTS_PER_TOOL: 6,
+
+  /**
+   * Enable flexible semantic validation by default.
+   * When true, semantic tests use 'either' outcome, allowing tools to
+   * accept flexible formats (e.g., dayjs accepting various date strings).
+   * This reduces false positives for tools with lenient parsing libraries.
+   * Set to false for strict semantic validation enforcement.
+   */
+  FLEXIBLE_BY_DEFAULT: true,
 
   /** Confidence scores for different inference sources */
   CONFIDENCE: {
@@ -957,13 +1077,17 @@ export const EXTERNAL_DEPENDENCIES = {
     },
     stripe: {
       name: 'Stripe',
+      /** Patterns in tool names/descriptions that indicate Stripe usage (high confidence = has 'stripe' in name) */
       toolPatterns: [
-        /stripe/i,
-        /payment/i,
-        /charge/i,
-        /customer.*create/i,
-        /subscription/i,
+        /stripe/i,                    // High confidence: explicit Stripe reference
+        /payment_intent/i,            // High confidence: Stripe-specific terminology
+        /setup_intent/i,              // High confidence: Stripe-specific terminology
+        /checkout_session/i,          // High confidence: Stripe-specific terminology
+        /stripe_customer/i,           // High confidence: prefixed with stripe
+        /stripe_charge/i,             // High confidence: prefixed with stripe
+        /stripe_subscription/i,       // High confidence: prefixed with stripe
       ] as readonly RegExp[],
+      /** Low confidence patterns - may match non-Stripe tools (removed: payment, charge, subscription) */
       errorPatterns: [
         /sk_test_/i,
         /pk_test_/i,
@@ -1015,12 +1139,15 @@ export const EXTERNAL_DEPENDENCIES = {
     },
     openai: {
       name: 'OpenAI',
+      /** Patterns in tool names that indicate OpenAI usage (removed generic: completion, embedding) */
       toolPatterns: [
-        /openai/i,
-        /gpt/i,
-        /chatgpt/i,
-        /completion/i,
-        /embedding/i,
+        /openai/i,                   // High confidence: explicit OpenAI reference
+        /gpt[-_]?[34]/i,             // High confidence: GPT model reference
+        /chatgpt/i,                  // High confidence: ChatGPT reference
+        /openai_completion/i,        // High confidence: prefixed with openai
+        /openai_embedding/i,         // High confidence: prefixed with openai
+        /dall[-_]?e/i,               // High confidence: OpenAI image model
+        /whisper/i,                  // High confidence: OpenAI audio model
       ] as readonly RegExp[],
       errorPatterns: [
         /openai\.com/i,
@@ -1087,10 +1214,12 @@ export const EXTERNAL_DEPENDENCIES = {
     },
     twilio: {
       name: 'Twilio',
+      /** Patterns in tool names that indicate Twilio usage (removed generic: sms) */
       toolPatterns: [
-        /twilio/i,
-        /sms/i,
-        /phone.*send/i,
+        /twilio/i,                   // High confidence: explicit Twilio reference
+        /twilio_sms/i,               // High confidence: prefixed with twilio
+        /twilio_call/i,              // High confidence: prefixed with twilio
+        /twilio_message/i,           // High confidence: prefixed with twilio
       ] as readonly RegExp[],
       errorPatterns: [
         /twilio\.com/i,
@@ -1109,9 +1238,11 @@ export const EXTERNAL_DEPENDENCIES = {
     },
     sendgrid: {
       name: 'SendGrid',
+      /** Patterns in tool names that indicate SendGrid usage (removed generic: email.*send) */
       toolPatterns: [
-        /sendgrid/i,
-        /email.*send/i,
+        /sendgrid/i,                 // High confidence: explicit SendGrid reference
+        /sendgrid_email/i,           // High confidence: prefixed with sendgrid
+        /sendgrid_send/i,            // High confidence: prefixed with sendgrid
       ] as readonly RegExp[],
       errorPatterns: [
         /sendgrid\.com/i,
@@ -1130,11 +1261,14 @@ export const EXTERNAL_DEPENDENCIES = {
     },
     github: {
       name: 'GitHub',
+      /** Patterns in tool names that indicate GitHub usage (removed generic: repository, pull.*request) */
       toolPatterns: [
-        /github/i,
-        /gh_/i,
-        /repository/i,
-        /pull.*request/i,
+        /github/i,                   // High confidence: explicit GitHub reference
+        /gh_/i,                      // High confidence: GitHub CLI prefix
+        /github_repo/i,              // High confidence: prefixed with github
+        /github_pr/i,                // High confidence: prefixed with github
+        /github_issue/i,             // High confidence: prefixed with github
+        /create_pull_request/i,      // High confidence: GitHub-specific action
       ] as readonly RegExp[],
       errorPatterns: [
         /api\.github\.com/i,
@@ -1154,13 +1288,16 @@ export const EXTERNAL_DEPENDENCIES = {
     },
     database: {
       name: 'Database',
+      /** Patterns in tool names that indicate database usage (removed generic: sql) */
       toolPatterns: [
-        /database/i,
-        /postgres/i,
-        /mysql/i,
-        /mongodb/i,
-        /redis/i,
-        /sql/i,
+        /postgres/i,                 // High confidence: specific database
+        /postgresql/i,               // High confidence: specific database
+        /mysql/i,                    // High confidence: specific database
+        /mongodb/i,                  // High confidence: specific database
+        /redis/i,                    // High confidence: specific cache/database
+        /database_query/i,           // High confidence: explicit database action
+        /db_connect/i,               // High confidence: database connection
+        /execute_sql/i,              // High confidence: explicit SQL execution
       ] as readonly RegExp[],
       errorPatterns: [
         /ECONNREFUSED/i,

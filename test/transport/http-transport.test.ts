@@ -140,7 +140,7 @@ describe('HTTPTransport', () => {
           headers: expect.objectContaining({
             'Content-Type': 'application/json',
             Authorization: 'Bearer token',
-            'X-Session-Id': 'session-123',
+            'Mcp-Session-Id': 'session-123',
           }),
         })
       );
@@ -174,6 +174,44 @@ describe('HTTPTransport', () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(messageHandler).toHaveBeenCalledWith(responseData);
+    });
+
+    it('should capture session ID from response and include in subsequent requests', async () => {
+      const responseData = { jsonrpc: '2.0', id: 1, result: 'success' };
+      let callCount = 0;
+      const mockFetch = vi.fn().mockImplementation(() => {
+        callCount++;
+        return Promise.resolve({
+          ok: true,
+          headers: new Headers({
+            'content-type': 'application/json',
+            // First response includes session ID
+            'Mcp-Session-Id': callCount === 1 ? 'server-session-abc' : '',
+          }),
+          json: () => Promise.resolve(responseData),
+        });
+      });
+      globalThis.fetch = mockFetch;
+
+      const transport = new HTTPTransport({
+        baseUrl: 'https://example.com/mcp',
+      });
+
+      await transport.connect();
+
+      // First request - server returns session ID
+      transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize' });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Second request - should include captured session ID
+      transport.send({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      // Second call should include the session ID from first response
+      const secondCallArgs = mockFetch.mock.calls[1];
+      expect(secondCallArgs[1].headers['Mcp-Session-Id']).toBe('server-session-abc');
     });
 
     it('should emit error on HTTP error', async () => {

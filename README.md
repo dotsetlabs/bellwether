@@ -245,6 +245,26 @@ bellwether golden save --tool my_tool --args '{"id":"123"}'
 bellwether golden compare
 ```
 
+### Server Command Options
+
+Server commands can be specified in several ways:
+
+```bash
+# As separate command and args
+bellwether check npx @mcp/server
+
+# With flags for the server command (flags pass through automatically)
+bellwether check npx -y @mcp/server
+
+# In config as a command string (auto-parsed)
+# bellwether.yaml:
+#   server:
+#     command: "npx -y @mcp/server"
+```
+
+For complex commands with flags, the CLI automatically parses command strings with spaces
+and handles server flags like `-y` correctly without requiring `--` separators.
+
 ### Baseline Commands
 
 ```bash

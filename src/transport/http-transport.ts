@@ -33,21 +33,35 @@ export class HTTPTransport extends BaseTransport {
   private connected = false;
   private abortController: AbortController | null = null;
   private readonly baseUrl: string;
-  private readonly sessionId?: string;
-  private readonly headers: Record<string, string>;
+  private sessionId?: string;
+  private readonly customHeaders: Record<string, string>;
   private readonly timeout: number;
 
   constructor(config: HTTPTransportConfig) {
     super(config);
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.sessionId = config.sessionId;
-    this.headers = config.headers ?? {};
+    this.customHeaders = config.headers ?? {};
     this.timeout = config.timeout ?? TIMEOUTS.DEFAULT;
+  }
 
-    // Add session ID to headers if provided
+  /**
+   * Build request headers, including session ID if available.
+   */
+  private buildHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      // MCP streamable-http spec requires accepting both JSON and SSE
+      Accept: 'application/json, text/event-stream',
+      ...this.customHeaders,
+    };
+
+    // Add session ID if we have one (per MCP streamable-http spec)
     if (this.sessionId) {
-      this.headers['X-Session-Id'] = this.sessionId;
+      headers['Mcp-Session-Id'] = this.sessionId;
     }
+
+    return headers;
   }
 
   /**
@@ -94,11 +108,7 @@ export class HTTPTransport extends BaseTransport {
     try {
       const response = await fetch(this.baseUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          ...this.headers,
-        },
+        headers: this.buildHeaders(),
         body: JSON.stringify(message),
         signal: this.abortController.signal,
       });
@@ -108,6 +118,13 @@ export class HTTPTransport extends BaseTransport {
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
         throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      // Capture session ID from response (per MCP streamable-http spec)
+      const responseSessionId = response.headers.get('Mcp-Session-Id');
+      if (responseSessionId && !this.sessionId) {
+        this.log('Captured session ID from server', { sessionId: responseSessionId });
+        this.sessionId = responseSessionId;
       }
 
       const contentType = response.headers.get('content-type');

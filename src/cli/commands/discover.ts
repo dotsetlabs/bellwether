@@ -115,6 +115,7 @@ async function discoverAction(command: string | undefined, args: string[], optio
 
 export const discoverCommand = new Command('discover')
   .description('Discover MCP server capabilities (tools, prompts, resources)')
+  .allowUnknownOption() // Allow server flags like -y for npx to pass through
   .argument('[command]', 'Command to start the MCP server (not required for remote)')
   .argument('[args...]', 'Arguments to pass to the server')
   .option('-c, --config <path>', 'Path to config file')

@@ -80,19 +80,25 @@ bellwether discover \
 
 ### HTTP Protocol Details
 
-Messages are sent as JSON-RPC 2.0 over HTTP POST:
+Messages are sent as JSON-RPC 2.0 over HTTP POST following the [MCP Streamable HTTP specification](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports):
 
 ```http
 POST /mcp HTTP/1.1
 Content-Type: application/json
-X-Session-Id: your-session-id
+Accept: application/json, text/event-stream
+Mcp-Session-Id: server-assigned-session-id
 
 {"jsonrpc":"2.0","id":1,"method":"tools/list"}
 ```
 
-Responses can be:
-- JSON response body
-- Streaming response with multiple JSON chunks
+Key protocol details:
+- **Accept header**: Clients must accept both `application/json` and `text/event-stream`
+- **Session ID**: Servers may return an `Mcp-Session-Id` header during initialization. Bellwether automatically captures this and includes it in all subsequent requests.
+- **Responses** can be either JSON or Server-Sent Events (SSE) format
+
+Response content types:
+- `application/json` - Standard JSON response body
+- `text/event-stream` - SSE streaming response with `data:` prefixed JSON messages
 
 ## Discovery with Remote Servers
 

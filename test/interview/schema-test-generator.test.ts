@@ -1056,5 +1056,495 @@ describe('SchemaTestGenerator', () => {
                 expect(happyPath?.args.page_size).toBe(10);
             });
         });
+
+        describe('operation-based tool detection', () => {
+            it('should detect operation + args pattern and use either outcome', () => {
+                // This pattern is common in tools like mental_models, notebook
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        operation: {
+                            type: 'string',
+                            enum: ['create', 'read', 'update', 'delete'],
+                        },
+                        args: {
+                            type: 'object',
+                            properties: {
+                                id: { type: 'string' },
+                                data: { type: 'object' },
+                            },
+                        },
+                    },
+                    required: ['operation'],
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                // Tests with operation-based metadata should use 'either' outcome
+                const operationBasedTests = tests.filter((t) => t.metadata?.operationBased);
+                expect(operationBasedTests.length).toBeGreaterThan(0);
+                operationBasedTests.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('either');
+                    expect(t.metadata?.operationParam).toBe('operation');
+                    expect(t.metadata?.argsParam).toBe('args');
+                });
+            });
+
+            it('should detect action + params pattern', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        action: {
+                            type: 'string',
+                            enum: ['start', 'stop', 'restart'],
+                        },
+                        params: {
+                            type: 'object',
+                            properties: {
+                                force: { type: 'boolean' },
+                            },
+                        },
+                    },
+                    required: ['action'],
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                // Tests with operation-based metadata should use 'either' outcome
+                const operationBasedTests = tests.filter((t) => t.metadata?.operationBased);
+                expect(operationBasedTests.length).toBeGreaterThan(0);
+                operationBasedTests.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('either');
+                    expect(t.metadata?.operationParam).toBe('action');
+                    expect(t.metadata?.argsParam).toBe('params');
+                });
+            });
+
+            it('should not detect pattern when enum has only one value', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        operation: {
+                            type: 'string',
+                            enum: ['single_operation'],
+                        },
+                        args: {
+                            type: 'object',
+                        },
+                    },
+                    required: ['operation'],
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                // With single enum value, it's not a dispatch pattern
+                const happyPathTests = tests.filter((t) => t.category === 'happy_path');
+                expect(happyPathTests.length).toBeGreaterThan(0);
+                happyPathTests.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('success');
+                    expect(t.metadata?.operationBased).toBeUndefined();
+                });
+            });
+
+            it('should not detect pattern without args object', () => {
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        operation: {
+                            type: 'string',
+                            enum: ['create', 'read', 'update'],
+                        },
+                        name: { type: 'string' },
+                    },
+                    required: ['operation', 'name'],
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                // Without args object parameter, it's a regular enum tool
+                const happyPathTests = tests.filter((t) => t.category === 'happy_path');
+                expect(happyPathTests.length).toBeGreaterThan(0);
+                happyPathTests.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('success');
+                    expect(t.metadata?.operationBased).toBeUndefined();
+                });
+            });
+
+            it('should use either outcome for all happy path tests in operation-based tools', () => {
+                // Operation-based tools should use 'either' for all happy path tests
+                // because we can't know what args each operation requires
+                const tool = createMockTool({
+                    type: 'object',
+                    properties: {
+                        operation: {
+                            type: 'string',
+                            enum: ['list', 'count', 'get'],
+                        },
+                        args: {
+                            type: 'object',
+                            properties: {
+                                id: { type: 'string' },
+                            },
+                        },
+                    },
+                    required: ['operation'],
+                });
+
+                const tests = generateSchemaTests(tool);
+
+                // Find happy path tests that have operation-based metadata
+                const operationBasedHappyPath = tests.filter(
+                    (t) => t.category === 'happy_path' && t.metadata?.operationBased
+                );
+                expect(operationBasedHappyPath.length).toBeGreaterThan(0);
+
+                // All operation-based happy path tests should use 'either' outcome
+                operationBasedHappyPath.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('either');
+                });
+            });
+        });
+
+        describe('self-stateful tool detection', () => {
+            it('should detect tools with state-requiring descriptions', () => {
+                // Tools that describe state dependency should use 'either' outcome
+                const tool: MCPTool = {
+                    name: 'export_reasoning_chain',
+                    description: 'Exports the current reasoning chain. Requires an active session.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            format: { type: 'string' },
+                        },
+                    },
+                };
+
+                const tests = generateSchemaTests(tool);
+
+                // Tests should detect self-stateful pattern
+                const happyPathTests = tests.filter((t) => t.category === 'happy_path');
+                expect(happyPathTests.length).toBeGreaterThan(0);
+                happyPathTests.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('either');
+                    expect(t.metadata?.selfStateful).toBe(true);
+                });
+            });
+
+            it('should detect tools with session parameters and no required params', () => {
+                // Tools with sessionId and no required params suggest state dependency
+                const tool: MCPTool = {
+                    name: 'get_session_data',
+                    description: 'Gets data from the session',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            sessionId: { type: 'string' },
+                            format: { type: 'string' },
+                        },
+                        // No required params - suggests session is contextual
+                    },
+                };
+
+                const tests = generateSchemaTests(tool);
+
+                const happyPathTests = tests.filter((t) => t.category === 'happy_path');
+                expect(happyPathTests.length).toBeGreaterThan(0);
+                happyPathTests.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('either');
+                    expect(t.metadata?.selfStateful).toBe(true);
+                });
+            });
+
+            it('should detect tools with stateful name patterns', () => {
+                // Tool names like 'export', 'resume', 'close' suggest stateful operations
+                const tool: MCPTool = {
+                    name: 'resume_conversation',
+                    description: 'Resumes a conversation',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            conversationId: { type: 'string' },
+                        },
+                    },
+                };
+
+                const tests = generateSchemaTests(tool);
+
+                const happyPathTests = tests.filter((t) => t.category === 'happy_path');
+                expect(happyPathTests.length).toBeGreaterThan(0);
+                happyPathTests.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('either');
+                    expect(t.metadata?.selfStateful).toBe(true);
+                });
+            });
+
+            it('should not detect self-stateful for regular tools', () => {
+                // Regular tools without state patterns should use 'success' outcome
+                const tool: MCPTool = {
+                    name: 'search_documents',
+                    description: 'Searches documents by query',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            query: { type: 'string' },
+                        },
+                        required: ['query'],
+                    },
+                };
+
+                const tests = generateSchemaTests(tool);
+
+                const happyPathTests = tests.filter((t) => t.category === 'happy_path');
+                expect(happyPathTests.length).toBeGreaterThan(0);
+                happyPathTests.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('success');
+                    expect(t.metadata?.selfStateful).toBeUndefined();
+                });
+            });
+
+            it('should skip empty args test for self-stateful tools', () => {
+                // Self-stateful tools without required params shouldn't test empty args
+                const tool: MCPTool = {
+                    name: 'close_session',
+                    description: 'Closes the current session',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            sessionId: { type: 'string' },
+                        },
+                        // No required params
+                    },
+                };
+
+                const tests = generateSchemaTests(tool);
+
+                // Should not have an empty args test
+                const emptyArgsTest = tests.find(
+                    (t) => t.category === 'happy_path' &&
+                           t.description.includes('empty arguments') &&
+                           Object.keys(t.args).length === 0
+                );
+                expect(emptyArgsTest).toBeUndefined();
+            });
+        });
+
+        describe('complex array schema detection', () => {
+            it('should detect arrays with required properties in items', () => {
+                // Arrays with complex item schemas should use 'either' outcome
+                const tool: MCPTool = {
+                    name: 'create_chart',
+                    description: 'Creates a chart from data',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            data: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    required: ['category', 'value'],
+                                    properties: {
+                                        category: { type: 'string' },
+                                        value: { type: 'number' },
+                                    },
+                                },
+                            },
+                        },
+                        required: ['data'],
+                    },
+                };
+
+                const tests = generateSchemaTests(tool);
+
+                const happyPathTests = tests.filter((t) => t.category === 'happy_path');
+                expect(happyPathTests.length).toBeGreaterThan(0);
+                happyPathTests.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('either');
+                    expect(t.metadata?.hasComplexArrays).toBe(true);
+                    expect(t.metadata?.complexArrayParams).toContain('data');
+                });
+            });
+
+            it('should detect deeply nested array schemas', () => {
+                // Deeply nested schemas are hard to generate valid data for
+                const tool: MCPTool = {
+                    name: 'process_nested_data',
+                    description: 'Processes nested data structures',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            nested: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    properties: {
+                                        children: {
+                                            type: 'array',
+                                            items: {
+                                                type: 'object',
+                                                properties: {
+                                                    value: { type: 'string' },
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                        required: ['nested'],
+                    },
+                };
+
+                const tests = generateSchemaTests(tool);
+
+                const happyPathTests = tests.filter((t) => t.category === 'happy_path');
+                expect(happyPathTests.length).toBeGreaterThan(0);
+                happyPathTests.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('either');
+                    expect(t.metadata?.hasComplexArrays).toBe(true);
+                });
+            });
+
+            it('should detect structured data arrays by name pattern', () => {
+                // Arrays with names like 'data', 'series', 'dataset' suggest structured data
+                const tool: MCPTool = {
+                    name: 'plot_series',
+                    description: 'Plots a data series',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            series: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    properties: {
+                                        x: { type: 'number' },
+                                        y: { type: 'number' },
+                                    },
+                                },
+                            },
+                        },
+                        required: ['series'],
+                    },
+                };
+
+                const tests = generateSchemaTests(tool);
+
+                const happyPathTests = tests.filter((t) => t.category === 'happy_path');
+                expect(happyPathTests.length).toBeGreaterThan(0);
+                happyPathTests.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('either');
+                    expect(t.metadata?.hasComplexArrays).toBe(true);
+                });
+            });
+
+            it('should not detect complex arrays for simple string arrays', () => {
+                // Simple arrays shouldn't be flagged as complex
+                const tool: MCPTool = {
+                    name: 'process_tags',
+                    description: 'Processes a list of tags',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            tags: {
+                                type: 'array',
+                                items: { type: 'string' },
+                            },
+                        },
+                        required: ['tags'],
+                    },
+                };
+
+                const tests = generateSchemaTests(tool);
+
+                const happyPathTests = tests.filter((t) => t.category === 'happy_path');
+                expect(happyPathTests.length).toBeGreaterThan(0);
+                happyPathTests.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('success');
+                    expect(t.metadata?.hasComplexArrays).toBeUndefined();
+                });
+            });
+        });
+
+        describe('combined pattern detection', () => {
+            it('should detect multiple patterns and include all metadata', () => {
+                // A tool can have multiple patterns - test combined detection
+                const tool: MCPTool = {
+                    name: 'export_chart_session',
+                    description: 'Exports chart from the current session. Requires an active session.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            operation: {
+                                type: 'string',
+                                enum: ['export', 'preview', 'save'],
+                            },
+                            args: {
+                                type: 'object',
+                                properties: {
+                                    format: { type: 'string' },
+                                },
+                            },
+                            data: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    required: ['x', 'y'],
+                                    properties: {
+                                        x: { type: 'number' },
+                                        y: { type: 'number' },
+                                    },
+                                },
+                            },
+                        },
+                        required: ['operation'],
+                    },
+                };
+
+                const tests = generateSchemaTests(tool);
+
+                // Should have tests with combined metadata
+                const happyPathTests = tests.filter((t) => t.category === 'happy_path');
+                expect(happyPathTests.length).toBeGreaterThan(0);
+
+                // All happy path tests should use 'either' outcome
+                happyPathTests.forEach((t) => {
+                    expect(t.expectedOutcome).toBe('either');
+                });
+
+                // At least one test should have all three patterns
+                const combinedMetadata = happyPathTests.find(
+                    (t) => t.metadata?.operationBased &&
+                           t.metadata?.selfStateful &&
+                           t.metadata?.hasComplexArrays
+                );
+                expect(combinedMetadata).toBeDefined();
+            });
+
+            it('should include suffix in description for detected patterns', () => {
+                const tool: MCPTool = {
+                    name: 'multi_operation',
+                    description: 'Tool with multiple patterns',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            operation: {
+                                type: 'string',
+                                enum: ['a', 'b', 'c'],
+                            },
+                            args: { type: 'object' },
+                        },
+                        required: ['operation'],
+                    },
+                };
+
+                const tests = generateSchemaTests(tool);
+
+                const happyPathTest = tests.find(
+                    (t) => t.category === 'happy_path' && t.metadata?.operationBased
+                );
+                expect(happyPathTest).toBeDefined();
+                expect(happyPathTest?.description).toContain('operation-based');
+            });
+        });
     });
 });

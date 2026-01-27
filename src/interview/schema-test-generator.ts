@@ -10,7 +10,12 @@ import type { MCPTool } from '../transport/types.js';
 import type { InterviewQuestion, ExpectedOutcome } from './types.js';
 import type { QuestionCategory } from '../persona/types.js';
 import { SCHEMA_TESTING, SEMANTIC_VALIDATION, OUTCOME_ASSESSMENT } from '../constants.js';
-import { SMART_VALUE_GENERATION } from '../constants/testing.js';
+import {
+    SMART_VALUE_GENERATION,
+    OPERATION_BASED_DETECTION,
+    SELF_STATEFUL_DETECTION,
+    COMPLEX_SCHEMA_DETECTION,
+} from '../constants/testing.js';
 import { generateSemanticTests } from '../validation/semantic-test-generator.js';
 import type { SemanticInference } from '../validation/semantic-types.js';
 // Smart value generation is implemented inline below, but the module is available
@@ -742,14 +747,310 @@ function buildBaseArgs(
     return args;
 }
 
+// ==================== False Positive Reduction Detection ====================
+
+/**
+ * Result of detecting patterns that commonly cause false positives.
+ * Used to adjust test expectations for specialized tool patterns.
+ */
+interface PatternDetectionResult {
+    /** Whether tool uses operation-based dispatch pattern */
+    isOperationBased: boolean;
+    /** The operation enum parameter name (e.g., "operation", "action") */
+    operationParam?: string;
+    /** The args object parameter name (e.g., "args", "params") */
+    argsParam?: string;
+
+    /** Whether tool requires prior state (session, chain, etc.) */
+    isSelfStateful: boolean;
+    /** Reason for self-stateful detection */
+    selfStatefulReason?: string;
+
+    /** Whether tool has complex array schemas requiring structured data */
+    hasComplexArrays: boolean;
+    /** Array parameters with complex item schemas */
+    complexArrayParams?: string[];
+}
+
+/**
+ * Detect if a tool uses the "operation + args" dispatch pattern.
+ *
+ * This pattern is common in tools that bundle multiple operations:
+ * - An enum parameter (e.g., "operation") selects the action
+ * - An object parameter (e.g., "args") holds operation-specific arguments
+ *
+ * For these tools, standard happy path tests often fail because each operation
+ * has different required arguments.
+ *
+ * @param properties - The tool's input schema properties
+ * @returns Detection result with operation and args parameter names if found
+ */
+function detectOperationBasedPattern(
+    properties: Record<string, PropertySchema>
+): Pick<PatternDetectionResult, 'isOperationBased' | 'operationParam' | 'argsParam'> {
+    const { OPERATION_PARAM_NAMES, ARGS_PARAM_NAMES, MIN_ENUM_VALUES } = OPERATION_BASED_DETECTION;
+
+    // Look for an operation-like enum parameter
+    let operationParam: string | undefined;
+    for (const name of OPERATION_PARAM_NAMES) {
+        const prop = properties[name];
+        if (prop?.enum && Array.isArray(prop.enum) && prop.enum.length >= MIN_ENUM_VALUES) {
+            operationParam = name;
+            break;
+        }
+    }
+
+    if (!operationParam) {
+        return { isOperationBased: false };
+    }
+
+    // Look for an args-like object parameter
+    let argsParam: string | undefined;
+    for (const name of ARGS_PARAM_NAMES) {
+        const prop = properties[name];
+        if (prop?.type === 'object') {
+            argsParam = name;
+            break;
+        }
+    }
+
+    // Pattern detected if we have both an operation enum and an args object
+    return {
+        isOperationBased: argsParam !== undefined,
+        operationParam,
+        argsParam,
+    };
+}
+
+/**
+ * Detect if a tool requires prior state (self-stateful).
+ *
+ * Self-stateful tools need an active session/chain before they can work:
+ * - export_reasoning_chain requires an active reasoning session
+ * - resume_conversation requires a prior conversation
+ * - close_session requires an open session
+ *
+ * Detection is based on:
+ * 1. Description patterns indicating state dependency
+ * 2. Parameter names suggesting session/state with no required params
+ * 3. Tool name patterns suggesting stateful operations
+ *
+ * @param toolName - The tool's name
+ * @param toolDescription - The tool's description
+ * @param properties - The tool's input schema properties
+ * @param requiredParams - List of required parameters
+ * @returns Detection result with reason if self-stateful
+ */
+function detectSelfStatefulPattern(
+    toolName: string,
+    toolDescription: string | undefined,
+    properties: Record<string, PropertySchema>,
+    requiredParams: string[]
+): Pick<PatternDetectionResult, 'isSelfStateful' | 'selfStatefulReason'> {
+    const {
+        DESCRIPTION_PATTERNS,
+        STATE_PARAM_PATTERNS,
+        STATEFUL_TOOL_NAME_PATTERNS,
+    } = SELF_STATEFUL_DETECTION;
+
+    // Check description for state dependency patterns
+    if (toolDescription) {
+        for (const pattern of DESCRIPTION_PATTERNS) {
+            if (pattern.test(toolDescription)) {
+                return {
+                    isSelfStateful: true,
+                    selfStatefulReason: 'description indicates state dependency',
+                };
+            }
+        }
+    }
+
+    // Check for session-like parameters with no required params
+    // This suggests the tool can be called without args only if state exists
+    const hasStateParam = Object.keys(properties).some((paramName) =>
+        STATE_PARAM_PATTERNS.some((pattern) => pattern.test(paramName))
+    );
+
+    if (hasStateParam && requiredParams.length === 0) {
+        return {
+            isSelfStateful: true,
+            selfStatefulReason: 'has session parameter with no required params',
+        };
+    }
+
+    // Check tool name for stateful operation patterns
+    const lowerName = toolName.toLowerCase();
+    for (const pattern of STATEFUL_TOOL_NAME_PATTERNS) {
+        if (pattern.test(lowerName)) {
+            // Only flag if there are session-like parameters
+            if (hasStateParam) {
+                return {
+                    isSelfStateful: true,
+                    selfStatefulReason: `tool name "${toolName}" suggests stateful operation`,
+                };
+            }
+        }
+    }
+
+    return { isSelfStateful: false };
+}
+
+/**
+ * Calculate the nesting depth of a schema.
+ * Used to detect complex nested structures.
+ */
+function getSchemaDepth(schema: PropertySchema, currentDepth: number = 0): number {
+    if (currentDepth > 10) return currentDepth; // Prevent infinite recursion
+
+    let maxDepth = currentDepth;
+
+    // Check array items
+    if (schema.items) {
+        const itemDepth = getSchemaDepth(schema.items, currentDepth + 1);
+        maxDepth = Math.max(maxDepth, itemDepth);
+    }
+
+    // Check object properties
+    if (schema.properties) {
+        for (const prop of Object.values(schema.properties)) {
+            const propDepth = getSchemaDepth(prop, currentDepth + 1);
+            maxDepth = Math.max(maxDepth, propDepth);
+        }
+    }
+
+    // Check oneOf/anyOf
+    for (const variants of [schema.oneOf, schema.anyOf]) {
+        if (variants) {
+            for (const variant of variants) {
+                const variantDepth = getSchemaDepth(variant, currentDepth + 1);
+                maxDepth = Math.max(maxDepth, variantDepth);
+            }
+        }
+    }
+
+    return maxDepth;
+}
+
+/**
+ * Detect if a tool has complex array schemas that require structured data.
+ *
+ * Complex arrays have items with:
+ * - Required properties in nested objects
+ * - Deeply nested structures (depth > 2)
+ * - Specific data format requirements (like chart data)
+ *
+ * For these tools, simple test data generation often fails validation.
+ *
+ * @param properties - The tool's input schema properties
+ * @returns Detection result with complex array parameter names
+ */
+function detectComplexArraySchema(
+    properties: Record<string, PropertySchema>
+): Pick<PatternDetectionResult, 'hasComplexArrays' | 'complexArrayParams'> {
+    const {
+        MAX_SIMPLE_DEPTH,
+        MIN_REQUIRED_PROPERTIES,
+        STRUCTURED_DATA_PATTERNS,
+    } = COMPLEX_SCHEMA_DETECTION;
+
+    const complexParams: string[] = [];
+
+    for (const [paramName, prop] of Object.entries(properties)) {
+        if (prop.type !== 'array' || !prop.items) continue;
+
+        const itemSchema = prop.items;
+        let isComplex = false;
+
+        // Check 1: Array items have required properties in nested objects
+        if (itemSchema.type === 'object') {
+            const requiredCount = (itemSchema.required ?? []).length;
+            if (requiredCount >= MIN_REQUIRED_PROPERTIES) {
+                isComplex = true;
+            }
+
+            // Check for nested required properties in sub-objects
+            if (itemSchema.properties) {
+                for (const subProp of Object.values(itemSchema.properties)) {
+                    if (subProp.type === 'object' && (subProp.required ?? []).length > 0) {
+                        isComplex = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Check 2: Schema depth exceeds simple threshold
+        const depth = getSchemaDepth(prop);
+        if (depth > MAX_SIMPLE_DEPTH) {
+            isComplex = true;
+        }
+
+        // Check 3: Parameter name suggests structured data
+        if (STRUCTURED_DATA_PATTERNS.some((pattern) => pattern.test(paramName))) {
+            // Only flag if items have object structure
+            if (itemSchema.type === 'object') {
+                isComplex = true;
+            }
+        }
+
+        if (isComplex) {
+            complexParams.push(paramName);
+        }
+    }
+
+    return {
+        hasComplexArrays: complexParams.length > 0,
+        complexArrayParams: complexParams.length > 0 ? complexParams : undefined,
+    };
+}
+
+/**
+ * Detect all patterns that commonly cause false positives.
+ *
+ * Combines operation-based, self-stateful, and complex array detection
+ * into a unified result that can be used to adjust test expectations.
+ *
+ * @param toolName - The tool's name
+ * @param toolDescription - The tool's description
+ * @param properties - The tool's input schema properties
+ * @param requiredParams - List of required parameters
+ * @returns Combined detection result for all patterns
+ */
+function detectFalsePositivePatterns(
+    toolName: string,
+    toolDescription: string | undefined,
+    properties: Record<string, PropertySchema>,
+    requiredParams: string[]
+): PatternDetectionResult {
+    const operationPattern = detectOperationBasedPattern(properties);
+    const statefulPattern = detectSelfStatefulPattern(
+        toolName,
+        toolDescription,
+        properties,
+        requiredParams
+    );
+    const complexArrayPattern = detectComplexArraySchema(properties);
+
+    return {
+        ...operationPattern,
+        ...statefulPattern,
+        ...complexArrayPattern,
+    };
+}
+
 // ==================== Test Generators ====================
 
 /**
  * Generate happy path tests.
  * Tests the tool with valid, expected inputs.
- * All happy path tests expect success - errors indicate tool problems.
+ *
+ * For standard tools: All happy path tests expect success - errors indicate tool problems.
+ * For operation-based, self-stateful, or complex array tools: Tests use 'either' outcome
+ * since we cannot reliably predict success for these patterns.
  */
 function generateHappyPathTests(
+    toolName: string,
+    toolDescription: string | undefined,
     properties: Record<string, PropertySchema>,
     requiredParams: string[],
     fixtures?: TestFixturesConfig
@@ -757,13 +1058,62 @@ function generateHappyPathTests(
     const questions: InterviewQuestion[] = [];
     const { CATEGORY_DESCRIPTIONS } = SCHEMA_TESTING;
 
+    // Detect all patterns that commonly cause false positives
+    const detection = detectFalsePositivePatterns(
+        toolName,
+        toolDescription,
+        properties,
+        requiredParams
+    );
+
+    // Determine if we need to use 'either' outcome due to detected patterns
+    const needsFlexibleOutcome =
+        detection.isOperationBased ||
+        detection.isSelfStateful ||
+        detection.hasComplexArrays;
+
+    const happyPathOutcome: ExpectedOutcome = needsFlexibleOutcome
+        ? 'either'
+        : 'success';
+
+    // Build suffix string for test descriptions
+    const suffixes: string[] = [];
+    if (detection.isOperationBased) suffixes.push('operation-based');
+    if (detection.isSelfStateful) suffixes.push('self-stateful');
+    if (detection.hasComplexArrays) suffixes.push('complex arrays');
+    const happyPathSuffix = suffixes.length > 0 ? ` (${suffixes.join(', ')})` : '';
+
+    // Build metadata for tests
+    const buildMetadata = (): InterviewQuestion['metadata'] | undefined => {
+        if (!needsFlexibleOutcome) return undefined;
+        return {
+            ...(detection.isOperationBased && {
+                operationBased: true,
+                operationParam: detection.operationParam,
+                argsParam: detection.argsParam,
+            }),
+            ...(detection.isSelfStateful && {
+                selfStateful: true,
+                selfStatefulReason: detection.selfStatefulReason,
+            }),
+            ...(detection.hasComplexArrays && {
+                hasComplexArrays: true,
+                complexArrayParams: detection.complexArrayParams,
+            }),
+        };
+    };
+
     // Test 1: Empty args (if no required params)
-    if (requiredParams.length === 0) {
+    // Skip for operation-based tools - they almost always need the operation param
+    // Skip for self-stateful tools - they need prior state to be established
+    const skipEmptyArgs = detection.isOperationBased || detection.isSelfStateful;
+    if (requiredParams.length === 0 && !skipEmptyArgs) {
         addQuestion(questions, {
             description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: empty arguments`,
             category: 'happy_path' as QuestionCategory,
             args: {},
-            expectedOutcome: 'success',
+            expectedOutcome: happyPathOutcome,
+            metadata: buildMetadata(),
         });
     }
 
@@ -771,10 +1121,11 @@ function generateHappyPathTests(
     if (requiredParams.length > 0) {
         const minimalArgs = buildBaseArgs(properties, requiredParams, fixtures);
         addQuestion(questions, {
-            description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: minimal required arguments`,
+            description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: minimal required arguments${happyPathSuffix}`,
             category: 'happy_path' as QuestionCategory,
             args: minimalArgs,
-            expectedOutcome: 'success',
+            expectedOutcome: happyPathOutcome,
+            metadata: buildMetadata(),
         });
     }
 
@@ -791,10 +1142,11 @@ function generateHappyPathTests(
             }
         }
         addQuestion(questions, {
-            description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: with optional parameters`,
+            description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: with optional parameters${happyPathSuffix}`,
             category: 'happy_path' as QuestionCategory,
             args: fullArgs,
-            expectedOutcome: 'success',
+            expectedOutcome: happyPathOutcome,
+            metadata: buildMetadata(),
         });
     }
 
@@ -1175,9 +1527,13 @@ function generateErrorHandlingTests(
  * Generate varied tests for tools with few/no parameters.
  * Instead of repeating the same test, this generates meaningful variations
  * to improve statistical confidence without redundant test data.
- * All varied tests are happy_path with expectedOutcome: 'success'.
+ *
+ * Varied tests use the same outcome expectation as the main happy path tests,
+ * respecting detected patterns (operation-based, self-stateful, complex arrays).
  */
 function generateVariedTestsForSimpleTools(
+    toolName: string,
+    toolDescription: string | undefined,
     properties: Record<string, PropertySchema>,
     requiredParams: string[],
     count: number,
@@ -1186,6 +1542,42 @@ function generateVariedTestsForSimpleTools(
 ): InterviewQuestion[] {
     const questions: InterviewQuestion[] = [];
     const { CATEGORY_DESCRIPTIONS } = SCHEMA_TESTING;
+
+    // Detect patterns that affect expected outcome
+    const detection = detectFalsePositivePatterns(
+        toolName,
+        toolDescription,
+        properties,
+        requiredParams
+    );
+
+    const needsFlexibleOutcome =
+        detection.isOperationBased ||
+        detection.isSelfStateful ||
+        detection.hasComplexArrays;
+
+    const variedTestOutcome: ExpectedOutcome = needsFlexibleOutcome
+        ? 'either'
+        : 'success';
+
+    // Build metadata for varied tests if patterns detected
+    const variedMetadata: InterviewQuestion['metadata'] | undefined = needsFlexibleOutcome
+        ? {
+              ...(detection.isOperationBased && {
+                  operationBased: true,
+                  operationParam: detection.operationParam,
+                  argsParam: detection.argsParam,
+              }),
+              ...(detection.isSelfStateful && {
+                  selfStateful: true,
+                  selfStatefulReason: detection.selfStatefulReason,
+              }),
+              ...(detection.hasComplexArrays && {
+                  hasComplexArrays: true,
+                  complexArrayParams: detection.complexArrayParams,
+              }),
+          }
+        : undefined;
 
     // Get existing arg signatures to avoid duplicates
     const existingArgSignatures = new Set(
@@ -1200,7 +1592,8 @@ function generateVariedTestsForSimpleTools(
         description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: sequential call verification`,
         category: 'happy_path' as QuestionCategory,
         args: buildBaseArgs(properties, requiredParams, fixtures),
-        expectedOutcome: 'success' as ExpectedOutcome,
+        expectedOutcome: variedTestOutcome,
+        metadata: variedMetadata,
     }));
 
     // Strategy 2: Rapid succession test (for rate limiting / caching behavior)
@@ -1208,7 +1601,8 @@ function generateVariedTestsForSimpleTools(
         description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: rapid succession call`,
         category: 'happy_path' as QuestionCategory,
         args: buildBaseArgs(properties, requiredParams, fixtures),
-        expectedOutcome: 'success' as ExpectedOutcome,
+        expectedOutcome: variedTestOutcome,
+        metadata: variedMetadata,
     }));
 
     // Strategy 3: Idempotency verification
@@ -1216,7 +1610,8 @@ function generateVariedTestsForSimpleTools(
         description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: idempotency verification`,
         category: 'happy_path' as QuestionCategory,
         args: buildBaseArgs(properties, requiredParams, fixtures),
-        expectedOutcome: 'success' as ExpectedOutcome,
+        expectedOutcome: variedTestOutcome,
+        metadata: variedMetadata,
     }));
 
     // Strategy 4: If there are any string params, try different valid values
@@ -1233,7 +1628,8 @@ function generateVariedTestsForSimpleTools(
                 description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: alternative value for "${paramName}"`,
                 category: 'happy_path' as QuestionCategory,
                 args,
-                expectedOutcome: 'success' as ExpectedOutcome,
+                expectedOutcome: variedTestOutcome,
+                metadata: variedMetadata,
             };
         });
         variationStrategies.push(() => {
@@ -1243,7 +1639,8 @@ function generateVariedTestsForSimpleTools(
                 description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: second alternative for "${paramName}"`,
                 category: 'happy_path' as QuestionCategory,
                 args,
-                expectedOutcome: 'success' as ExpectedOutcome,
+                expectedOutcome: variedTestOutcome,
+                metadata: variedMetadata,
             };
         });
     }
@@ -1263,7 +1660,8 @@ function generateVariedTestsForSimpleTools(
                 description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: alternative value for "${paramName}"`,
                 category: 'happy_path' as QuestionCategory,
                 args,
-                expectedOutcome: 'success' as ExpectedOutcome,
+                expectedOutcome: variedTestOutcome,
+                metadata: variedMetadata,
             };
         });
         variationStrategies.push(() => {
@@ -1273,7 +1671,8 @@ function generateVariedTestsForSimpleTools(
                 description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: second alternative for "${paramName}"`,
                 category: 'happy_path' as QuestionCategory,
                 args,
-                expectedOutcome: 'success' as ExpectedOutcome,
+                expectedOutcome: variedTestOutcome,
+                metadata: variedMetadata,
             };
         });
     }
@@ -1290,7 +1689,8 @@ function generateVariedTestsForSimpleTools(
                 description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: "${paramName}" = true`,
                 category: 'happy_path' as QuestionCategory,
                 args,
-                expectedOutcome: 'success' as ExpectedOutcome,
+                expectedOutcome: variedTestOutcome,
+                metadata: variedMetadata,
             };
         });
         variationStrategies.push(() => {
@@ -1300,7 +1700,8 @@ function generateVariedTestsForSimpleTools(
                 description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: "${paramName}" = false`,
                 category: 'happy_path' as QuestionCategory,
                 args,
-                expectedOutcome: 'success' as ExpectedOutcome,
+                expectedOutcome: variedTestOutcome,
+                metadata: variedMetadata,
             };
         });
     }
@@ -1311,7 +1712,8 @@ function generateVariedTestsForSimpleTools(
             description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: consistency check run ${i + 1}`,
             category: 'happy_path' as QuestionCategory,
             args: buildBaseArgs(properties, requiredParams, fixtures),
-            expectedOutcome: 'success' as ExpectedOutcome,
+            expectedOutcome: variedTestOutcome,
+            metadata: variedMetadata,
         }));
     }
 
@@ -1338,7 +1740,8 @@ function generateVariedTestsForSimpleTools(
             description: `${CATEGORY_DESCRIPTIONS.HAPPY_PATH}: consistency check run ${consistencyRun}`,
             category: 'happy_path' as QuestionCategory,
             args: buildBaseArgs(properties, requiredParams, fixtures),
-            expectedOutcome: 'success',
+            expectedOutcome: variedTestOutcome,
+            metadata: variedMetadata,
         });
         consistencyRun++;
     }
@@ -1456,7 +1859,13 @@ export function generateSchemaTestsWithInferences(
     const requiredParams = (schema?.required ?? []) as string[];
 
     // 1. Happy Path Tests (always included)
-    questions.push(...generateHappyPathTests(properties, requiredParams, fixtures));
+    questions.push(...generateHappyPathTests(
+        tool.name,
+        tool.description,
+        properties,
+        requiredParams,
+        fixtures
+    ));
 
     // 2. Boundary Value Tests
     questions.push(...generateBoundaryTests(properties, requiredParams, fixtures));
@@ -1505,6 +1914,8 @@ export function generateSchemaTestsWithInferences(
     if (questions.length < minTests && questions.length > 0) {
         const existingCount = questions.length;
         const additionalTests = generateVariedTestsForSimpleTools(
+            tool.name,
+            tool.description,
             properties,
             requiredParams,
             minTests - existingCount,

@@ -104,6 +104,29 @@ interface PendingRequest {
   timer: NodeJS.Timeout;
 }
 
+/**
+ * Connection state for diagnostic error messages.
+ * Tracks details about connection attempts and failures.
+ */
+interface ConnectionState {
+  /** Whether a connection was attempted */
+  attempted: boolean;
+  /** Command used to start the server (stdio transport) */
+  command?: string;
+  /** Arguments passed to the server */
+  args?: string[];
+  /** URL for remote connections */
+  url?: string;
+  /** Error from spawn/connection attempt */
+  spawnError?: Error;
+  /** Exit code from server process */
+  exitCode?: number;
+  /** Captured stderr output (first 500 chars) */
+  stderrOutput?: string;
+  /** Whether server timed out during startup */
+  startupTimeout?: boolean;
+}
+
 const DEFAULT_TIMEOUT = TIMEOUTS.DEFAULT;
 const DEFAULT_STARTUP_DELAY = TIMEOUTS.SERVER_STARTUP;
 
@@ -135,6 +158,8 @@ export class MCPClient {
   private cleaningUp = false;
   /** Collected transport-level errors for reporting */
   private transportErrors: TransportErrorRecord[] = [];
+  /** Connection state for diagnostic error messages */
+  private connectionState: ConnectionState = { attempted: false };
 
   constructor(options?: MCPClientOptions) {
     this.timeout = options?.timeout ?? DEFAULT_TIMEOUT;
@@ -371,6 +396,13 @@ export class MCPClient {
     // Reset cleanup flag for new connection
     this.cleaningUp = false;
 
+    // Track connection state for diagnostic error messages
+    this.connectionState = {
+      attempted: true,
+      command,
+      args,
+    };
+
     // Filter out sensitive environment variables before spawning subprocess
     const filteredEnv = this.filterEnv(process.env, env);
 
@@ -406,11 +438,13 @@ export class MCPClient {
 
     this.process.on('error', (error) => {
       this.logger.error({ error: error.message }, 'Process error');
+      this.connectionState.spawnError = error;
       this.recordTransportError(error, 'process_spawn');
       this.cleanup();
     });
 
     this.process.on('exit', (code) => {
+      this.connectionState.exitCode = code ?? undefined;
       if (code !== 0) {
         this.logger.warn({ exitCode: code }, 'Server process exited with non-zero code');
         this.recordTransportError(
@@ -425,6 +459,11 @@ export class MCPClient {
       const msg = data.toString().trim();
       if (msg) {
         this.logger.debug({ stderr: msg }, 'Server stderr');
+        // Capture stderr for diagnostic messages (limit to 500 chars)
+        const currentStderr = this.connectionState.stderrOutput ?? '';
+        if (currentStderr.length < 500) {
+          this.connectionState.stderrOutput = (currentStderr + '\n' + msg).trim().slice(0, 500);
+        }
         // Check if stderr contains error indicators that suggest transport issues
         if (this.looksLikeTransportError(msg)) {
           this.recordTransportError(msg, 'stderr');
@@ -711,7 +750,7 @@ export class MCPClient {
   private sendRequest<T>(method: string, params: unknown): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.transport) {
-        reject(new Error('Not connected to server'));
+        reject(new Error(this.buildConnectionErrorMessage()));
         return;
       }
 
@@ -775,6 +814,101 @@ export class MCPClient {
       }
     }
     // Notifications from server are logged but not processed
+  }
+
+  /**
+   * Build a detailed error message for connection failures.
+   * Includes command, exit code, stderr output, and suggestions.
+   */
+  private buildConnectionErrorMessage(): string {
+    const state = this.connectionState;
+    const parts: string[] = ['Not connected to server'];
+
+    if (!state.attempted) {
+      parts.push('Connection was never attempted');
+      return parts.join('\n  ');
+    }
+
+    // Include command info
+    if (state.command) {
+      const argsStr = state.args?.length ? ` ${state.args.join(' ')}` : '';
+      parts.push(`Command: ${state.command}${argsStr}`);
+    } else if (state.url) {
+      parts.push(`URL: ${state.url}`);
+    }
+
+    // Check for spawn errors
+    if (state.spawnError) {
+      const errMsg = state.spawnError.message;
+      if (errMsg.includes('ENOENT')) {
+        parts.push(`Command not found: "${state.command}"`);
+        parts.push('Tip: Ensure the command is installed and in your PATH');
+      } else if (errMsg.includes('EACCES')) {
+        parts.push('Permission denied');
+        parts.push('Tip: Check file permissions or run with appropriate access');
+      } else {
+        parts.push(`Spawn error: ${errMsg}`);
+      }
+    }
+
+    // Include exit code
+    if (state.exitCode !== undefined && state.exitCode !== 0) {
+      parts.push(`Server exited with code ${state.exitCode}`);
+    }
+
+    // Include stderr output
+    if (state.stderrOutput) {
+      const truncated = state.stderrOutput.length >= 500 ? '...' : '';
+      parts.push(`Server stderr: ${state.stderrOutput}${truncated}`);
+
+      // Detect common issues and suggest fixes
+      const suggestion = this.suggestFix(state.stderrOutput);
+      if (suggestion) {
+        parts.push(`Tip: ${suggestion}`);
+      }
+    }
+
+    // Check for startup timeout
+    if (state.startupTimeout) {
+      parts.push('Server did not respond within timeout period');
+      parts.push('Tip: Increase server.timeout in bellwether.yaml');
+    }
+
+    return parts.join('\n  ');
+  }
+
+  /**
+   * Suggest a fix based on stderr output patterns.
+   */
+  private suggestFix(stderrOutput: string): string | null {
+    const lower = stderrOutput.toLowerCase();
+
+    // Missing shebang (Node.js script run directly)
+    if (lower.includes('syntax error') || lower.includes('unexpected token')) {
+      return 'The server script may be missing a shebang (#!/usr/bin/env node)';
+    }
+
+    // NPX package not found
+    if (lower.includes('not found') && lower.includes('npm')) {
+      return 'The npm package may not exist or requires authentication';
+    }
+
+    // Module not found
+    if (lower.includes('cannot find module') || lower.includes('module not found')) {
+      return 'Missing dependency - try running npm install in the server directory';
+    }
+
+    // TypeScript errors
+    if (lower.includes('ts-node') || lower.includes('typescript')) {
+      return 'TypeScript compilation error - ensure ts-node is installed or compile first';
+    }
+
+    // Python errors
+    if (lower.includes('modulenotfounderror') || lower.includes('no module named')) {
+      return 'Missing Python module - try pip install or check virtual environment';
+    }
+
+    return null;
   }
 
   private cleanup(): void {
