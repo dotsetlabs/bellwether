@@ -1,5 +1,5 @@
 /**
- * Verify command - generate verification reports for the Verified by Bellwether program.
+ * Benchmark command - generate benchmark reports for the Tested with Bellwether program.
  */
 
 import { Command } from 'commander';
@@ -7,17 +7,17 @@ import chalk from 'chalk';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
 import {
-  generateVerificationReport,
+  generateBenchmarkReport,
   generateBadgeUrl,
   generateBadgeMarkdown,
-} from '../../verification/index.js';
-import type { VerificationTier, VerificationConfig } from '../../verification/index.js';
+} from '../../benchmark/index.js';
+import type { BenchmarkTier, BenchmarkConfig } from '../../benchmark/index.js';
 import { Interviewer, DEFAULT_CONFIG } from '../../interview/interviewer.js';
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
 import { createLLMClient, DEFAULT_MODELS } from '../../llm/index.js';
 import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
-import { validateConfigForVerify } from '../../config/validator.js';
+import { validateConfigForBenchmark } from '../../config/validator.js';
 import { CostTracker } from '../../cost/index.js';
 import { BUILTIN_PERSONAS } from '../../persona/builtins.js';
 import type { Persona } from '../../persona/types.js';
@@ -27,37 +27,37 @@ import { InterviewProgressBar } from '../utils/progress.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
 import { createCloudClient } from '../../cloud/client.js';
 import { getLinkedProject, getSessionToken } from '../../cloud/auth.js';
-import type { CloudVerificationResult } from '../../cloud/types.js';
+import type { CloudBenchmarkResult } from '../../cloud/types.js';
 
 // Convert BUILTIN_PERSONAS record to array
 const ALL_PERSONAS: Persona[] = Object.values(BUILTIN_PERSONAS);
 
 /**
- * Create a new verify command instance.
+ * Create a new benchmark command instance.
  * Useful for testing where fresh command instances are needed.
  */
-export function createVerifyCommand(): Command {
-  return new Command('verify')
-    .description('Generate a verification report for the Verified by Bellwether program')
+export function createBenchmarkCommand(): Command {
+  return new Command('benchmark')
+    .description('Generate a benchmark report for the Tested with Bellwether program')
     .argument('[server-command]', 'Server command (overrides config)')
     .argument('[args...]', 'Server arguments')
     .option('-c, --config <path>', 'Path to config file', PATHS.DEFAULT_CONFIG_FILENAME)
     .option('-o, --output <dir>', 'Output directory')
     .option('--server-id <id>', 'Server identifier (namespace/name)')
-    .option('--version <version>', 'Server version to verify')
-    .option('--tier <tier>', 'Target verification tier (bronze, silver, gold, platinum)')
+    .option('--version <version>', 'Server version to test')
+    .option('--tier <tier>', 'Target benchmark tier (bronze, silver, gold, platinum)')
     .option('--security', 'Include security testing (optional for any tier)')
-    .option('--json', 'Output verification result as JSON')
+    .option('--json', 'Output benchmark result as JSON')
     .option('--badge-only', 'Only output badge URL')
-    .option('-p, --project <id>', 'Project ID to submit verification to (requires login)')
+    .option('-p, --project <id>', 'Project ID to submit benchmark to (requires login)')
     .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
-      await handleVerify(serverCommandArg, serverArgs, options);
+      await handleBenchmark(serverCommandArg, serverArgs, options);
     });
 }
 
-export const verifyCommand = createVerifyCommand();
+export const benchmarkCommand = createBenchmarkCommand();
 
-async function handleVerify(
+async function handleBenchmark(
   serverCommandArg: string | undefined,
   serverArgs: string[],
   options: {
@@ -72,7 +72,7 @@ async function handleVerify(
     project?: string;
   }
 ): Promise<void> {
-  output.info(chalk.bold('\n🔒 Bellwether Verification\n'));
+  output.info(chalk.bold('\n📊 Bellwether Benchmark\n'));
 
   // Load configuration
   let bellwetherConfig: BellwetherConfig;
@@ -94,7 +94,7 @@ async function handleVerify(
   const remoteSessionId = bellwetherConfig.server.sessionId?.trim();
 
   try {
-    validateConfigForVerify(bellwetherConfig, serverCommand);
+    validateConfigForBenchmark(bellwetherConfig, serverCommand);
   } catch (error) {
     output.error(error instanceof Error ? error.message : String(error));
     process.exit(EXIT_CODES.ERROR);
@@ -106,10 +106,10 @@ async function handleVerify(
   const outputDir = options.output ?? bellwetherConfig.output.dir;
   const serverTimeout = bellwetherConfig.server.timeout;
   const serverEnv = bellwetherConfig.server.env;
-  const targetTier = (options.tier ?? bellwetherConfig.verify.tier) as VerificationTier;
-  const includeSecurity = options.security ? true : bellwetherConfig.verify.security;
-  const outputJson = options.json ? true : bellwetherConfig.verify.json;
-  const badgeOnly = options.badgeOnly ? true : bellwetherConfig.verify.badgeOnly;
+  const targetTier = (options.tier ?? bellwetherConfig.benchmark.tier) as BenchmarkTier;
+  const includeSecurity = options.security ? true : bellwetherConfig.benchmark.security;
+  const outputJson = options.json ? true : bellwetherConfig.benchmark.json;
+  const badgeOnly = options.badgeOnly ? true : bellwetherConfig.benchmark.badgeOnly;
 
   // Initialize cost tracker
   const effectiveModel = model || DEFAULT_MODELS[provider as 'openai' | 'anthropic' | 'ollama'];
@@ -168,7 +168,7 @@ async function handleVerify(
     output.newline();
 
     // Run interview
-    output.info(chalk.bold('Running verification test...\n'));
+    output.info(chalk.bold('Running benchmark tests...\n'));
     const interviewer = new Interviewer(llm, {
       ...DEFAULT_CONFIG,
       personas,
@@ -197,7 +197,7 @@ async function handleVerify(
 
     progressBar.stop();
     output.newline();
-    output.info(chalk.green('✓ Test complete'));
+    output.info(chalk.green('✓ Tests complete'));
 
     // Display cost summary
     const costEstimate = costTracker.getCost();
@@ -211,9 +211,9 @@ async function handleVerify(
     }
     output.newline();
 
-    // Generate verification
+    // Generate benchmark
     const serverId = options.serverId ?? `${discovery.serverInfo.name}`;
-    const verificationConfig: VerificationConfig = {
+    const benchmarkConfig: BenchmarkConfig = {
       serverId,
       version: options.version ?? discovery.serverInfo.version,
       targetTier,
@@ -221,7 +221,7 @@ async function handleVerify(
       outputDir,
     };
 
-    const report = generateVerificationReport(interview, verificationConfig);
+    const report = generateBenchmarkReport(interview, benchmarkConfig);
     const result = report.result;
 
     // Output results
@@ -235,11 +235,11 @@ async function handleVerify(
       return;
     }
 
-    // Display verification result
-    displayVerificationResult(result);
+    // Display benchmark result
+    displayBenchmarkResult(result);
 
     // Save report
-    const reportPath = join(outputDir, bellwetherConfig.output.files.verificationReport);
+    const reportPath = join(outputDir, bellwetherConfig.output.files.benchmarkReport);
     await writeFile(reportPath, JSON.stringify(report, null, 2));
     output.info(chalk.gray(`\nReport saved to: ${reportPath}`));
 
@@ -257,22 +257,22 @@ async function handleVerify(
 
       // Check if logged in
       if (!getSessionToken()) {
-        output.warn(chalk.yellow('⚠ Not logged in. Run `bellwether login` to submit verification to the platform.'));
+        output.warn(chalk.yellow('⚠ Not logged in. Run `bellwether login` to submit benchmark to the platform.'));
       } else {
-        output.info(chalk.gray('Submitting verification to platform...'));
+        output.info(chalk.gray('Submitting benchmark to platform...'));
 
         try {
           const cloudClient = createCloudClient();
 
           // Convert local result to cloud format
-          const cloudResult: CloudVerificationResult = {
+          const cloudResult: CloudBenchmarkResult = {
             serverId: result.serverId,
             version: result.version,
             status: result.status,
             tier: result.tier,
-            verifiedAt: result.verifiedAt,
+            testedAt: result.testedAt,
             expiresAt: result.expiresAt,
-            toolsVerified: result.toolsVerified,
+            toolsTested: result.toolsTested,
             testsPassed: result.testsPassed,
             testsTotal: result.testsTotal,
             passRate: result.passRate,
@@ -280,23 +280,23 @@ async function handleVerify(
             bellwetherVersion: result.bellwetherVersion,
           };
 
-          const submission = await cloudClient.submitVerification(
+          const submission = await cloudClient.submitBenchmark(
             projectId,
             cloudResult,
             report as unknown as Record<string, unknown>
           );
 
-          output.info(chalk.green(`✓ Verification submitted successfully`));
+          output.info(chalk.green(`✓ Benchmark submitted successfully`));
           output.info(chalk.gray(`  View at: ${submission.viewUrl}`));
         } catch (submitError) {
-          output.error(chalk.red(`Failed to submit verification: ${submitError instanceof Error ? submitError.message : 'Unknown error'}`));
-          // Don't exit with error - local verification succeeded
+          output.error(chalk.red(`Failed to submit benchmark: ${submitError instanceof Error ? submitError.message : 'Unknown error'}`));
+          // Don't exit with error - local benchmark succeeded
         }
       }
     }
 
     // Exit with appropriate code
-    if (result.status !== 'verified') {
+    if (result.status !== 'passed') {
       process.exit(EXIT_CODES.ERROR);
     }
   } catch (error) {
@@ -307,7 +307,7 @@ async function handleVerify(
   }
 }
 
-function selectPersonasForTier(tier: VerificationTier, includeSecurity?: boolean): Persona[] {
+function selectPersonasForTier(tier: BenchmarkTier, includeSecurity?: boolean): Persona[] {
   switch (tier) {
     case 'platinum':
       // All personas including security
@@ -337,7 +337,7 @@ function selectPersonasForTier(tier: VerificationTier, includeSecurity?: boolean
   }
 }
 
-function displayVerificationResult(result: {
+function displayBenchmarkResult(result: {
   status: string;
   tier?: string;
   serverId: string;
@@ -345,16 +345,16 @@ function displayVerificationResult(result: {
   passRate: number;
   testsPassed: number;
   testsTotal: number;
-  toolsVerified: number;
-  verifiedAt: string;
+  toolsTested: number;
+  testedAt: string;
   expiresAt: string;
 }): void {
-  const statusColor = result.status === 'verified' ? chalk.green : chalk.red;
+  const statusColor = result.status === 'passed' ? chalk.green : chalk.red;
   const tierColor = getTierChalk(result.tier);
 
   output.info('─'.repeat(60));
   output.newline();
-  output.info(chalk.bold('Verification Result'));
+  output.info(chalk.bold('Benchmark Result'));
   output.newline();
   output.info(`  Server:     ${result.serverId} v${result.version}`);
   output.info(`  Status:     ${statusColor(result.status.toUpperCase())}`);
@@ -363,9 +363,9 @@ function displayVerificationResult(result: {
   }
   output.newline();
   output.info(`  Pass Rate:  ${result.passRate}% (${result.testsPassed}/${result.testsTotal} tests)`);
-  output.info(`  Tools:      ${result.toolsVerified} verified`);
+  output.info(`  Tools:      ${result.toolsTested} tested`);
   output.newline();
-  output.info(`  Verified:   ${new Date(result.verifiedAt).toLocaleDateString()}`);
+  output.info(`  Tested:     ${new Date(result.testedAt).toLocaleDateString()}`);
   output.info(`  Expires:    ${new Date(result.expiresAt).toLocaleDateString()}`);
   output.newline();
   output.info('─'.repeat(60));

@@ -140,7 +140,7 @@ output:
     exploreReport: ${defaults.output.files.exploreReport}
     contractDoc: ${defaults.output.files.contractDoc}
     agentsDoc: ${defaults.output.files.agentsDoc}
-    verificationReport: ${defaults.output.files.verificationReport}
+    benchmarkReport: ${defaults.output.files.benchmarkReport}
 
 # =============================================================================
 # CHECK COMMAND SETTINGS
@@ -475,22 +475,22 @@ golden:
   normalizeUuids: ${defaults.golden.normalizeUuids}
 
 # =============================================================================
-# VERIFY COMMAND SETTINGS
+# BENCHMARK COMMAND SETTINGS
 # =============================================================================
-# Settings for 'bellwether verify' verification reports.
+# Settings for 'bellwether benchmark' - Tested with Bellwether reports.
 
-verify:
-  # Default verification tier: bronze, silver, gold, platinum
-  tier: ${defaults.verify.tier}
+benchmark:
+  # Default benchmark tier: bronze, silver, gold, platinum
+  tier: ${defaults.benchmark.tier}
 
   # Include security testing by default
-  security: ${defaults.verify.security}
+  security: ${defaults.benchmark.security}
 
   # Output as JSON by default
-  json: ${defaults.verify.json}
+  json: ${defaults.benchmark.json}
 
   # Output badge URL only by default
-  badgeOnly: ${defaults.verify.badgeOnly}
+  badgeOnly: ${defaults.benchmark.badgeOnly}
 
 # =============================================================================
 # CONTRACT COMMAND SETTINGS

@@ -1,35 +1,35 @@
 /**
- * Verification module for the Verified by Bellwether program.
+ * Benchmark module for the Tested with Bellwether program.
  */
 
 import { createHash } from 'crypto';
 import type {
-  VerificationResult,
-  VerificationStatus,
-  VerificationTier,
-  VerificationReport,
-  VerificationBadge,
-  VerificationConfig,
+  BenchmarkResult,
+  BenchmarkStatus,
+  BenchmarkTier,
+  BenchmarkReport,
+  BenchmarkBadge,
+  BenchmarkConfig,
 } from './types.js';
 import type { InterviewResult } from '../interview/types.js';
 import { getLogger } from '../logging/logger.js';
 import { VERSION } from '../version.js';
-import { TIME_CONSTANTS, DISPLAY_LIMITS, VERIFICATION_TIERS } from '../constants.js';
+import { TIME_CONSTANTS, DISPLAY_LIMITS, BENCHMARK_TIERS } from '../constants.js';
 
-const logger = getLogger('verification');
+const logger = getLogger('benchmark');
 
-/** Verification validity period in days */
-const VERIFICATION_VALIDITY_DAYS = TIME_CONSTANTS.VERIFICATION_VALIDITY_DAYS;
+/** Benchmark validity period in days (90 days) */
+const BENCHMARK_VALIDITY_DAYS = 90;
 
 /**
- * Generate a verification result from an interview result.
+ * Generate a benchmark result from an interview result.
  */
-export function generateVerificationResult(
+export function generateBenchmarkResult(
   interview: InterviewResult,
-  config: VerificationConfig
-): VerificationResult {
+  config: BenchmarkConfig
+): BenchmarkResult {
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + VERIFICATION_VALIDITY_DAYS * TIME_CONSTANTS.MS_PER_DAY);
+  const expiresAt = new Date(now.getTime() + BENCHMARK_VALIDITY_DAYS * TIME_CONSTANTS.MS_PER_DAY);
 
   // Calculate test statistics
   const { testsPassed, testsTotal } = calculateTestStats(interview);
@@ -44,14 +44,14 @@ export function generateVerificationResult(
   // Generate report hash
   const reportHash = generateReportHash(interview);
 
-  const result: VerificationResult = {
+  const result: BenchmarkResult = {
     serverId: config.serverId,
     version: config.version ?? interview.discovery.serverInfo.version,
     status,
-    tier: status === 'verified' ? tier : undefined,
-    verifiedAt: now.toISOString(),
+    tier: status === 'passed' ? tier : undefined,
+    testedAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
-    toolsVerified: interview.toolProfiles.length,
+    toolsTested: interview.toolProfiles.length,
     testsPassed,
     testsTotal,
     passRate,
@@ -64,21 +64,21 @@ export function generateVerificationResult(
     status: result.status,
     tier: result.tier,
     passRate: result.passRate,
-  }, 'Verification result generated');
+  }, 'Benchmark result generated');
 
   return result;
 }
 
 /**
- * Generate a full verification report.
+ * Generate a full benchmark report.
  */
-export function generateVerificationReport(
+export function generateBenchmarkReport(
   interview: InterviewResult,
-  config: VerificationConfig
-): VerificationReport {
-  const result = generateVerificationResult(interview, config);
+  config: BenchmarkConfig
+): BenchmarkReport {
+  const result = generateBenchmarkResult(interview, config);
 
-  // Build tool verification details
+  // Build tool benchmark details
   const tools = interview.toolProfiles.map(profile => {
     const passed = profile.interactions.filter(i => !i.error && !i.response?.isError).length;
     const errors = profile.interactions
@@ -93,7 +93,7 @@ export function generateVerificationReport(
     };
   });
 
-  // Build prompt verification details
+  // Build prompt benchmark details
   const prompts = interview.promptProfiles?.map(profile => {
     const passed = profile.interactions.filter(i => !i.error).length;
     const errors = profile.interactions
@@ -108,7 +108,7 @@ export function generateVerificationReport(
     };
   });
 
-  // Build resource verification details
+  // Build resource benchmark details
   const resources = interview.resourceProfiles?.map(profile => {
     const passed = profile.interactions.filter(i => !i.error).length;
     const errors = profile.interactions
@@ -143,23 +143,23 @@ export function generateVerificationReport(
 }
 
 /**
- * Generate a verification badge for embedding.
+ * Generate a benchmark badge for embedding.
  */
-export function generateVerificationBadge(
-  result: VerificationResult
-): VerificationBadge {
-  const badge: VerificationBadge = {
+export function generateBenchmarkBadge(
+  result: BenchmarkResult
+): BenchmarkBadge {
+  const badge: BenchmarkBadge = {
     label: 'bellwether',
-    message: 'not verified',
+    message: 'not tested',
     color: 'lightgrey',
   };
 
   switch (result.status) {
-    case 'verified':
-      badge.message = result.tier ?? 'verified';
+    case 'passed':
+      badge.message = result.tier ?? 'passed';
       badge.color = getTierColor(result.tier);
       badge.icon = getTierIcon(result.tier);
-      badge.verifiedAt = result.verifiedAt;
+      badge.testedAt = result.testedAt;
       break;
 
     case 'pending':
@@ -184,8 +184,8 @@ export function generateVerificationBadge(
 /**
  * Generate a Shields.io compatible badge URL.
  */
-export function generateBadgeUrl(result: VerificationResult): string {
-  const badge = generateVerificationBadge(result);
+export function generateBadgeUrl(result: BenchmarkResult): string {
+  const badge = generateBenchmarkBadge(result);
   const encodedLabel = encodeURIComponent(badge.label);
   const encodedMessage = encodeURIComponent(badge.message);
   const encodedColor = encodeURIComponent(badge.color);
@@ -194,10 +194,10 @@ export function generateBadgeUrl(result: VerificationResult): string {
 }
 
 /**
- * Generate a verification badge markdown.
+ * Generate a benchmark badge markdown.
  */
 export function generateBadgeMarkdown(
-  result: VerificationResult,
+  result: BenchmarkResult,
   reportUrl?: string
 ): string {
   const badgeUrl = generateBadgeUrl(result);
@@ -211,11 +211,11 @@ export function generateBadgeMarkdown(
 }
 
 /**
- * Check if a verification result is still valid.
+ * Check if a benchmark result is still valid.
  */
-export function isVerificationValid(result: VerificationResult): boolean {
+export function isBenchmarkValid(result: BenchmarkResult): boolean {
   const expiresAt = new Date(result.expiresAt);
-  return result.status === 'verified' && expiresAt > new Date();
+  return result.status === 'passed' && expiresAt > new Date();
 }
 
 /**
@@ -278,7 +278,7 @@ function calculateTestStats(interview: InterviewResult): {
 function determineTier(
   interview: InterviewResult,
   passRate: number
-): VerificationTier {
+): BenchmarkTier {
   const hasSecurityTesting = interview.metadata.personas?.some(
     p => p.name.toLowerCase().includes('security')
   );
@@ -290,16 +290,16 @@ function determineTier(
   // Platinum: Security testing + all personas + high pass rate
   if (
     hasSecurityTesting &&
-    personaCount >= VERIFICATION_TIERS.PLATINUM.MIN_PERSONAS &&
-    passRate >= VERIFICATION_TIERS.PLATINUM.MIN_PASS_RATE
+    personaCount >= BENCHMARK_TIERS.PLATINUM.MIN_PERSONAS &&
+    passRate >= BENCHMARK_TIERS.PLATINUM.MIN_PASS_RATE
   ) {
     return 'platinum';
   }
 
   // Gold: Multiple personas + good coverage + high pass rate
   if (
-    personaCount >= VERIFICATION_TIERS.GOLD.MIN_PERSONAS &&
-    passRate >= VERIFICATION_TIERS.GOLD.MIN_PASS_RATE &&
+    personaCount >= BENCHMARK_TIERS.GOLD.MIN_PERSONAS &&
+    passRate >= BENCHMARK_TIERS.GOLD.MIN_PASS_RATE &&
     (hasPrompts || hasResources)
   ) {
     return 'gold';
@@ -307,8 +307,8 @@ function determineTier(
 
   // Silver: Error handling tested + decent pass rate
   if (
-    personaCount >= VERIFICATION_TIERS.SILVER.MIN_PERSONAS &&
-    passRate >= VERIFICATION_TIERS.SILVER.MIN_PASS_RATE
+    personaCount >= BENCHMARK_TIERS.SILVER.MIN_PERSONAS &&
+    passRate >= BENCHMARK_TIERS.SILVER.MIN_PASS_RATE
   ) {
     return 'silver';
   }
@@ -318,21 +318,21 @@ function determineTier(
 }
 
 /**
- * Determine verification status based on results.
+ * Determine benchmark status based on results.
  */
 function determineStatus(
   passRate: number,
-  achievedTier: VerificationTier,
-  targetTier?: VerificationTier
-): VerificationStatus {
-  // Minimum pass rate for verification
-  if (passRate < VERIFICATION_TIERS.MIN_PASS_RATE_FOR_VERIFICATION) {
+  achievedTier: BenchmarkTier,
+  targetTier?: BenchmarkTier
+): BenchmarkStatus {
+  // Minimum pass rate for passing benchmark
+  if (passRate < BENCHMARK_TIERS.MIN_PASS_RATE_FOR_BENCHMARK) {
     return 'failed';
   }
 
   // Check if target tier is met
   if (targetTier) {
-    const tierOrder: VerificationTier[] = ['bronze', 'silver', 'gold', 'platinum'];
+    const tierOrder: BenchmarkTier[] = ['bronze', 'silver', 'gold', 'platinum'];
     const achievedIndex = tierOrder.indexOf(achievedTier);
     const targetIndex = tierOrder.indexOf(targetTier);
 
@@ -341,11 +341,11 @@ function determineStatus(
     }
   }
 
-  return 'verified';
+  return 'passed';
 }
 
 /**
- * Generate a hash of the interview results for verification.
+ * Generate a hash of the interview results for benchmark.
  */
 function generateReportHash(interview: InterviewResult): string {
   const data = {
@@ -365,9 +365,9 @@ function generateReportHash(interview: InterviewResult): string {
 }
 
 /**
- * Get color for a verification tier.
+ * Get color for a benchmark tier.
  */
-function getTierColor(tier?: VerificationTier): string {
+function getTierColor(tier?: BenchmarkTier): string {
   switch (tier) {
     case 'platinum':
       return '00CED1'; // Dark cyan
@@ -383,9 +383,9 @@ function getTierColor(tier?: VerificationTier): string {
 }
 
 /**
- * Get icon for a verification tier.
+ * Get icon for a benchmark tier.
  */
-function getTierIcon(tier?: VerificationTier): string {
+function getTierIcon(tier?: BenchmarkTier): string {
   switch (tier) {
     case 'platinum':
       return '💎';

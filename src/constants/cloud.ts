@@ -37,7 +37,7 @@ export const EXTERNAL_URLS = {
  * Token estimation factors for cost prediction.
  */
 
-export const VERIFICATION_TIERS = {
+export const BENCHMARK_TIERS = {
   /** Platinum tier requirements: security testing + all personas + high pass rate */
   PLATINUM: {
     MIN_PERSONAS: 4,
@@ -60,8 +60,8 @@ export const VERIFICATION_TIERS = {
     MIN_PERSONAS: 1,
     MIN_PASS_RATE: 0,
   },
-  /** Minimum pass rate required for any verification to pass */
-  MIN_PASS_RATE_FOR_VERIFICATION: 50,
+  /** Minimum pass rate required for any benchmark to pass */
+  MIN_PASS_RATE_FOR_BENCHMARK: 50,
 } as const;
 
 /**

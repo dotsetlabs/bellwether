@@ -162,8 +162,8 @@ export const DEPRECATION = {
 } as const;
 
 /**
- * Verification tier thresholds for the Verified by Bellwether program.
- * Used by verifier.ts to determine verification tier based on test coverage.
+ * Benchmark tier thresholds for the Tested with Bellwether program.
+ * Used by benchmarker.ts to determine benchmark tier based on test coverage.
  */
 
 export const SCHEMA_EVOLUTION = {

@@ -117,21 +117,21 @@ export type {
   ListServersOptions,
 } from './registry/index.js';
 
-// Verification
+// Benchmark (Tested with Bellwether)
 export {
-  generateVerificationResult,
-  generateVerificationReport,
-  generateVerificationBadge,
+  generateBenchmarkResult,
+  generateBenchmarkReport,
+  generateBenchmarkBadge,
   generateBadgeUrl,
   generateBadgeMarkdown,
-  isVerificationValid,
-} from './verification/index.js';
+  isBenchmarkValid,
+} from './benchmark/index.js';
 export type {
-  VerificationStatus,
-  VerificationTier,
-  VerificationResult,
-  VerificationBadge,
-  VerificationConfig,
-  VerificationReport,
-  VerificationSubmission,
-} from './verification/index.js';
+  BenchmarkStatus,
+  BenchmarkTier,
+  BenchmarkResult,
+  BenchmarkBadge,
+  BenchmarkConfig,
+  BenchmarkReport,
+  BenchmarkSubmission,
+} from './benchmark/index.js';

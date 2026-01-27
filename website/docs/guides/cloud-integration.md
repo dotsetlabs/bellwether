@@ -80,14 +80,14 @@ bellwether badge --project proj_abc123
 Copy the markdown from the `badge` command:
 
 ```markdown
-[![Verified by Bellwether](https://img.shields.io/badge/bellwether-verified-brightgreen)](https://bellwether.sh/projects/proj_abc123)
+[![Tested with Bellwether](https://img.shields.io/badge/bellwether-tested-brightgreen)](https://bellwether.sh/projects/proj_abc123)
 ```
 
 ### Badge Status
 
 | Status | Color | Meaning |
 |:-------|:------|:--------|
-| `passing` | Green | Server verified, no drift |
+| `passing` | Green | Server tested, no drift |
 | `passing` (Stable) | Green | Multiple versions, no drift |
 | `drift` | Yellow | Behavioral changes detected |
 | `failing` | Red | Breaking changes detected |

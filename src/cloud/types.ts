@@ -529,64 +529,64 @@ export interface AuthMeResponse {
  * Badge status for a project.
  * Matches platform badge service status values.
  */
-export type BadgeStatus = 'verified' | 'failing' | 'drift' | 'unknown';
+export type BadgeStatus = 'passed' | 'failing' | 'drift' | 'unknown';
 
 /**
- * Verification status for a project.
- * Matches platform verification service status values.
+ * Benchmark status for a project.
+ * Matches platform benchmark service status values.
  */
-export type VerificationStatus =
-  | 'verified'
+export type BenchmarkStatus =
+  | 'passed'
   | 'pending'
   | 'failed'
   | 'expired'
-  | 'not_verified';
+  | 'not_tested';
 
 /**
- * Verification tier based on test coverage.
+ * Benchmark tier based on test coverage.
  */
-export type VerificationTier = 'bronze' | 'silver' | 'gold' | 'platinum';
+export type BenchmarkTier = 'bronze' | 'silver' | 'gold' | 'platinum';
 
 /**
- * Verification result from a verification run.
+ * Benchmark result from a benchmark run.
  * This matches the format expected by the platform API.
  */
-export interface CloudVerificationResult {
+export interface CloudBenchmarkResult {
   /** Server identifier (namespace/name) */
   serverId: string;
   /** Server version */
   version: string;
-  /** Verification status */
-  status: VerificationStatus;
-  /** Verification tier achieved */
-  tier?: VerificationTier | null;
-  /** ISO timestamp when verified */
-  verifiedAt: string;
-  /** ISO timestamp when verification expires */
+  /** Benchmark status */
+  status: BenchmarkStatus;
+  /** Benchmark tier achieved */
+  tier?: BenchmarkTier | null;
+  /** ISO timestamp when tested */
+  testedAt: string;
+  /** ISO timestamp when benchmark expires */
   expiresAt: string;
-  /** Number of tools verified */
-  toolsVerified: number;
+  /** Number of tools tested */
+  toolsTested: number;
   /** Number of tests passed */
   testsPassed: number;
   /** Total number of tests run */
   testsTotal: number;
   /** Pass rate (0-100) */
   passRate: number;
-  /** Checksum of the verification report */
+  /** Checksum of the benchmark report */
   reportHash: string;
   /** Bellwether version used */
   bellwetherVersion: string;
 }
 
 /**
- * Result of submitting a verification to the platform.
+ * Result of submitting a benchmark to the platform.
  */
-export interface VerificationSubmissionResult {
-  /** Verification ID assigned by the platform */
-  verificationId: string;
-  /** Project ID the verification was submitted to */
+export interface BenchmarkSubmissionResult {
+  /** Benchmark ID assigned by the platform */
+  benchmarkId: string;
+  /** Project ID the benchmark was submitted to */
   projectId: string;
-  /** URL to view the verification in the dashboard */
+  /** URL to view the benchmark in the dashboard */
   viewUrl: string;
 }
 
@@ -606,8 +606,8 @@ export interface BadgeInfo {
   badgeUrl: string;
   /** Badge markdown for README */
   markdown: string;
-  /** Last verification date */
-  lastVerified?: string;
+  /** Last benchmark date */
+  lastTested?: string;
   /** Latest version number */
   latestVersion?: number;
 }
@@ -662,10 +662,10 @@ export interface BellwetherCloudClient {
   /** Get badge info for a project */
   getBadgeInfo(projectId: string): Promise<BadgeInfo | null>;
 
-  /** Submit a verification result to a project */
-  submitVerification(
+  /** Submit a benchmark result to a project */
+  submitBenchmark(
     projectId: string,
-    result: CloudVerificationResult,
+    result: CloudBenchmarkResult,
     report?: Record<string, unknown>
-  ): Promise<VerificationSubmissionResult>;
+  ): Promise<BenchmarkSubmissionResult>;
 }

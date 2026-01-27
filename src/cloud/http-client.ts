@@ -15,8 +15,8 @@ import type {
   DiffSummary,
   BellwetherBaseline,
   BadgeInfo,
-  CloudVerificationResult,
-  VerificationSubmissionResult,
+  CloudBenchmarkResult,
+  BenchmarkSubmissionResult,
 } from './types.js';
 import { updateSessionToken } from './auth.js';
 import { isLocalhost } from '../utils/index.js';
@@ -279,22 +279,22 @@ export class HttpCloudClient implements BellwetherCloudClient {
     }
   }
 
-  async submitVerification(
+  async submitBenchmark(
     projectId: string,
-    result: CloudVerificationResult,
+    result: CloudBenchmarkResult,
     report?: Record<string, unknown>
-  ): Promise<VerificationSubmissionResult> {
-    const response = await this.request<{ verification: { id: string } }>(
+  ): Promise<BenchmarkSubmissionResult> {
+    const response = await this.request<{ benchmark: { id: string } }>(
       'POST',
-      `/projects/${projectId}/verifications`,
+      `/projects/${projectId}/benchmarks`,
       {
         serverId: result.serverId,
         version: result.version,
         status: result.status,
         tier: result.tier ?? null,
-        verifiedAt: result.verifiedAt,
+        testedAt: result.testedAt,
         expiresAt: result.expiresAt,
-        toolsVerified: result.toolsVerified,
+        toolsTested: result.toolsTested,
         testsPassed: result.testsPassed,
         testsTotal: result.testsTotal,
         passRate: result.passRate,
@@ -305,9 +305,9 @@ export class HttpCloudClient implements BellwetherCloudClient {
     );
 
     return {
-      verificationId: response.verification.id,
+      benchmarkId: response.benchmark.id,
       projectId,
-      viewUrl: `${this.baseUrl.replace('/api', '')}/projects/${projectId}/verification`,
+      viewUrl: `${this.baseUrl.replace('/api', '')}/projects/${projectId}/benchmark`,
     };
   }
 }

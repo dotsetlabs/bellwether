@@ -816,8 +816,8 @@ describe('MockCloudClient', () => {
 
       const badge = await client.getBadgeInfo(project.id);
 
-      expect(badge?.status).toBe('verified');
-      expect(badge?.statusText).toBe('Verified');
+      expect(badge?.status).toBe('passed');
+      expect(badge?.statusText).toBe('Passed');
     });
 
     it('should include badge URL and markdown', async () => {
@@ -835,16 +835,25 @@ describe('MockCloudClient', () => {
     });
   });
 
-  describe('verification submission', () => {
+  describe('benchmark submission', () => {
     it('should throw when not authenticated', async () => {
       const { MockCloudClient } = await import('../../src/cloud/mock-client.js');
       const client = new MockCloudClient();
 
       await expect(
-        client.submitVerification('proj_123', {
-          passed: true,
-          score: 100,
-          timestamp: new Date().toISOString(),
+        client.submitBenchmark('proj_123', {
+          serverId: 'test-server',
+          version: '1.0.0',
+          status: 'passed',
+          tier: 'bronze',
+          testedAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+          toolsTested: 5,
+          testsPassed: 5,
+          testsTotal: 5,
+          passRate: 100,
+          reportHash: 'abc123',
+          bellwetherVersion: '1.0.0',
         })
       ).rejects.toThrow('Not authenticated');
     });
@@ -856,29 +865,47 @@ describe('MockCloudClient', () => {
       const client = new MockCloudClient('sess_mock_test_123');
 
       await expect(
-        client.submitVerification('proj_nonexistent_123', {
-          passed: true,
-          score: 100,
-          timestamp: new Date().toISOString(),
+        client.submitBenchmark('proj_nonexistent_123', {
+          serverId: 'test-server',
+          version: '1.0.0',
+          status: 'passed',
+          tier: 'bronze',
+          testedAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+          toolsTested: 5,
+          testsPassed: 5,
+          testsTotal: 5,
+          passRate: 100,
+          reportHash: 'abc123',
+          bellwetherVersion: '1.0.0',
         })
       ).rejects.toThrow('Project not found');
     });
 
-    it('should successfully submit verification', async () => {
+    it('should successfully submit benchmark', async () => {
       const { MockCloudClient, clearMockData } = await import('../../src/cloud/mock-client.js');
       clearMockData();
 
       const client = new MockCloudClient('sess_mock_test_123');
       const project = await client.createProject('Test', 'npx server');
 
-      const result = await client.submitVerification(project.id, {
-        passed: true,
-        score: 95,
-        timestamp: new Date().toISOString(),
+      const result = await client.submitBenchmark(project.id, {
+        serverId: 'test-server',
+        version: '1.0.0',
+        status: 'passed',
+        tier: 'silver',
+        testedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+        toolsTested: 10,
+        testsPassed: 9,
+        testsTotal: 10,
+        passRate: 90,
+        reportHash: 'def456',
+        bellwetherVersion: '1.0.0',
       });
 
       expect(result).toBeDefined();
-      expect(result.verificationId).toMatch(/^ver_/);
+      expect(result.benchmarkId).toMatch(/^bench_/);
       expect(result.projectId).toBe(project.id);
       expect(result.viewUrl).toContain('file://');
     });
@@ -890,17 +917,26 @@ describe('MockCloudClient', () => {
       const client = new MockCloudClient('sess_mock_test_123');
       const project = await client.createProject('Test', 'npx server');
 
-      const result = await client.submitVerification(
+      const result = await client.submitBenchmark(
         project.id,
         {
-          passed: true,
-          score: 90,
-          timestamp: new Date().toISOString(),
+          serverId: 'test-server',
+          version: '1.0.0',
+          status: 'passed',
+          tier: 'gold',
+          testedAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+          toolsTested: 15,
+          testsPassed: 14,
+          testsTotal: 15,
+          passRate: 93,
+          reportHash: 'ghi789',
+          bellwetherVersion: '1.0.0',
         },
         { details: 'some report data' }
       );
 
-      expect(result.verificationId).toBeDefined();
+      expect(result.benchmarkId).toBeDefined();
     });
   });
 

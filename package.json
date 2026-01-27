@@ -1,6 +1,6 @@
 {
   "name": "@dotsetlabs/bellwether",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Structural drift detection for MCP servers. Zero-LLM check mode by default, optional multi-persona exploration with OpenAI/Anthropic. Auto-generate CONTRACT.md or AGENTS.md documentation.",
   "type": "module",
   "main": "dist/index.js",

@@ -54,8 +54,8 @@ export const badgeCommand = new Command('badge')
       output.info('');
       output.info(`Project: ${badge.projectName}`);
       output.info(`Status:  ${badge.statusText}`);
-      if (badge.lastVerified) {
-        output.info(`Verified: ${new Date(badge.lastVerified).toLocaleString()}`);
+      if (badge.lastTested) {
+        output.info(`Tested: ${new Date(badge.lastTested).toLocaleString()}`);
       }
       if (badge.latestVersion) {
         output.info(`Version: v${badge.latestVersion}`);
