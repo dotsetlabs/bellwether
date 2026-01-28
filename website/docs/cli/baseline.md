@@ -405,7 +405,6 @@ bellwether baseline save  # Error: baseline operations only work with check mode
 ## See Also
 
 - [check](/cli/check) - Run checks to generate reports
-- [upload](/cloud/upload) - Upload baseline to Bellwether Cloud
 - [Drift Detection](/concepts/drift-detection) - Understanding baseline comparison
 - [Baselines](/concepts/baselines) - Baseline concepts and best practices
 - [CI/CD Integration](/guides/ci-cd) - Pipeline integration

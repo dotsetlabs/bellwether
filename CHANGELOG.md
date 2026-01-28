@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2026-01-27
+
+### Breaking Changes
+
+- **Removed cloud commands**: The following commands have been removed: `login`, `upload`, `projects`, `history`, `diff`, `link`, `teams`, `badge`
+- **Removed benchmark command**: The `benchmark` command and "Tested with Bellwether" certification program have been removed
+- **Removed cloud module**: All cloud integration code has been removed from the CLI
+
+### Changed
+
+- **Fully open source**: Bellwether is now a completely free, open-source tool with no cloud dependencies
+- **Simplified configuration**: Removed cloud-related settings from `bellwether.yaml` template
+- **Updated documentation**: Removed all cloud-related documentation
+
+### Migration Guide
+
+If you were using cloud features:
+
+1. **Baselines**: Store baselines in git instead of uploading to cloud
+   ```bash
+   bellwether baseline save
+   git add bellwether-baseline.json
+   git commit -m "Add baseline"
+   ```
+
+2. **CI/CD**: Use local baseline comparison instead of cloud upload
+   ```bash
+   # Old
+   bellwether upload --ci --fail-on-drift
+
+   # New
+   bellwether check --fail-on-drift
+   bellwether baseline compare ./bellwether-baseline.json
+   ```
+
+3. **Environment variables**: Remove `BELLWETHER_SESSION`, `BELLWETHER_API_URL`, `BELLWETHER_TEAM_ID` from your CI/CD configuration
+
 ## [0.13.0] - 2026-01-27
 
 ### Breaking Changes

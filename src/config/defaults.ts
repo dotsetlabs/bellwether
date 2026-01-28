@@ -56,7 +56,6 @@ export const CONFIG_DEFAULTS = {
       exploreReport: PATHS.DEFAULT_EXPLORE_REPORT_FILE,
       contractDoc: PATHS.DEFAULT_CONTRACT_FILE,
       agentsDoc: PATHS.DEFAULT_AGENTS_FILE,
-      benchmarkReport: PATHS.DEFAULT_BENCHMARK_REPORT_FILE,
     },
   },
   check: {
@@ -145,13 +144,6 @@ export const CONFIG_DEFAULTS = {
     limit: 10,
     json: false,
   },
-  history: {
-    limit: 10,
-    json: false,
-  },
-  link: {
-    defaultServerCommand: 'node dist/server.js',
-  },
   golden: {
     defaultArgs: '{}',
     mode: 'structural' as const,
@@ -159,12 +151,6 @@ export const CONFIG_DEFAULTS = {
     listFormat: 'text' as const,
     normalizeTimestamps: true,
     normalizeUuids: true,
-  },
-  benchmark: {
-    tier: 'silver' as const,
-    security: false,
-    json: false,
-    badgeOnly: false,
   },
   contract: {
     mode: 'strict' as const,

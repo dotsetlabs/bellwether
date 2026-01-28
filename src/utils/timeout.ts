@@ -27,8 +27,8 @@ export const DEFAULT_TIMEOUTS = {
   probeTool: WORKFLOW.PROBE_TOOL_TIMEOUT,
   /** Timeout for resource reads - uses INTERVIEW.RESOURCE_TIMEOUT */
   resourceRead: INTERVIEW.RESOURCE_TIMEOUT,
-  /** Timeout for HTTP requests - uses TIMEOUTS.CLOUD_API */
-  httpRequest: TIMEOUTS.CLOUD_API,
+  /** Timeout for HTTP requests - uses TIMEOUTS.HTTP_REQUEST */
+  httpRequest: TIMEOUTS.HTTP_REQUEST,
   /** Timeout for SSE connection establishment */
   sseConnect: 10000,
   /** Timeout for interview question generation (longer for local models) */

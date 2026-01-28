@@ -67,7 +67,6 @@ output:
     exploreReport: "bellwether-explore.json"
     contractDoc: "CONTRACT.md"
     agentsDoc: "AGENTS.md"
-    benchmarkReport: "bellwether-benchmark.json"
 
 baseline:
   path: "bellwether-baseline.json"
@@ -179,13 +178,6 @@ registry:
   limit: 10
   json: false
 
-history:
-  limit: 10
-  json: false
-
-link:
-  defaultServerCommand: "node dist/server.js"
-
 golden:
   defaultArgs: "{}"
   mode: structural       # exact | structural | semantic
@@ -193,12 +185,6 @@ golden:
   listFormat: text
   normalizeTimestamps: true
   normalizeUuids: true
-
-benchmark:
-  tier: silver
-  security: false
-  json: false
-  badgeOnly: false
 
 contract:
   # path: "./contract.bellwether.yaml"

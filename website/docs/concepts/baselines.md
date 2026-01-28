@@ -253,19 +253,6 @@ When using `baseline accept` or `--accept-drift`, the baseline records acceptanc
 
 This creates an audit trail of intentional changes.
 
-## Baseline Cloud Sync
-
-Upload baselines to Bellwether Cloud for:
-- Historical tracking
-- Version comparison
-- Benchmark badges
-
-```bash
-bellwether login
-bellwether link
-bellwether upload
-```
-
 ## Baseline Format Versioning
 
 Baselines use the CLI package version as the format version (e.g., `0.11.0`):
@@ -354,4 +341,4 @@ When a tool's schema changes, it's automatically re-tested. Unchanged tools reus
 
 - [Drift Detection](/concepts/drift-detection) - Understanding drift severity
 - [CI/CD Integration](/guides/ci-cd) - Automated baseline checking
-- [upload](/cloud/upload) - Cloud baseline sync
+- [baseline](/cli/baseline) - Baseline commands

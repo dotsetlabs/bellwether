@@ -465,13 +465,6 @@ case $? in
 esac
 ```
 
-## Environment Variables
-
-| Variable | Description |
-|:---------|:------------|
-| `BELLWETHER_SESSION` | Cloud session token for CI/CD |
-| `BELLWETHER_API_URL` | Cloud API URL |
-
 ## See Also
 
 - [explore](/cli/explore) - LLM-powered behavioral exploration

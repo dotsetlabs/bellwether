@@ -23,8 +23,8 @@ describe('getBaselineVersion', () => {
     const version = getBaselineVersion();
     // CLI version should be semver format
     expect(version).toMatch(/^\d+\.\d+\.\d+$/);
-    // Currently CLI is 0.x.x
-    expect(version.startsWith('0.')).toBe(true);
+    // CLI is 1.x.x
+    expect(version.startsWith('1.')).toBe(true);
   });
 });
 
@@ -286,7 +286,7 @@ describe('requiresMigration', () => {
   });
 
   it('should return true for different major version', () => {
-    // Major version 99 is different from current CLI (0.x.x)
+    // Major version 99 is different from current CLI (1.x.x)
     expect(requiresMigration('99.0.0')).toBe(true);
   });
 

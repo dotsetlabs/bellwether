@@ -161,11 +161,6 @@ export const DEPRECATION = {
   },
 } as const;
 
-/**
- * Benchmark tier thresholds for the Tested with Bellwether program.
- * Used by benchmarker.ts to determine benchmark tier based on test coverage.
- */
-
 export const SCHEMA_EVOLUTION = {
   // Timeline tracking settings (schema-evolution.ts)
   /** Default maximum versions to keep per tool */
@@ -1427,12 +1422,12 @@ export const RELIABILITY_DISPLAY = {
 } as const;
 
 /**
- * Confidence indicators for terminal and documentation output.
+ * Confidence labels for terminal and documentation output.
  */
 export const CONFIDENCE_INDICATORS = {
-  high: '🟢',
-  medium: '🟡',
-  low: '🔴',
+  high: 'HIGH',
+  medium: 'MEDIUM',
+  low: 'LOW',
 } as const;
 
 // ==================== Documentation Quality Scoring ====================

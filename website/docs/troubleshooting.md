@@ -315,62 +315,6 @@ This is expected when drift is found. Options:
        path: debug.log
    ```
 
-## Cloud Issues
-
-### Login Failed
-
-```
-Error: Authentication failed
-```
-
-**Solutions:**
-
-1. **Try logging in again:**
-   ```bash
-   bellwether login
-   ```
-
-2. **Check your account at** [bellwether.sh](https://bellwether.sh)
-
-### Beta Email Mismatch
-
-```
-Error: Email mismatch: This invitation was sent to user@example.com, but you signed in with a GitHub account using other@example.com.
-```
-
-This error occurs when your beta invitation code was issued to a different email than your GitHub account's email.
-
-**Solutions:**
-
-1. **Use the correct GitHub account** - Sign in with a GitHub account that has the same email address as your invitation.
-
-2. **Check your GitHub email settings** at [github.com/settings/emails](https://github.com/settings/emails) to see which email is primary.
-
-3. **Request a new invitation** if you need to use a different email address.
-
-### Upload Failed
-
-```
-Error: Failed to upload baseline
-```
-
-**Solutions:**
-
-1. **Check you're logged in:**
-   ```bash
-   bellwether login
-   ```
-
-2. **Verify project is linked:**
-   ```bash
-   cat .bellwether/link.json
-   ```
-
-3. **Re-link if needed:**
-   ```bash
-   bellwether link my-project
-   ```
-
 ## Debug Mode
 
 For detailed troubleshooting, enable debug mode:

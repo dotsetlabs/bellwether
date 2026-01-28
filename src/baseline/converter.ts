@@ -51,7 +51,7 @@ import type {
   CloudAssertion,
   CloudAssertionType,
   CloudAssertionSeverity,
-} from '../cloud/types.js';
+} from './cloud-types.js';
 import { calculateMetrics, calculatePerformanceConfidence, type LatencySample } from './performance-tracker.js';
 import { computeConsensusSchemaHash } from './schema-compare.js';
 import { calculateBaselineHash } from './baseline-hash.js';

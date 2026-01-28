@@ -20,7 +20,7 @@ import {
 } from '../../src/baseline/comparator.js';
 import { BaselineVersionError } from '../../src/baseline/version.js';
 import type { BehavioralBaseline, ToolFingerprint, BehaviorChange, WorkflowSignature } from '../../src/baseline/types.js';
-import type { ToolCapability } from '../../src/cloud/types.js';
+import type { ToolCapability } from '../../src/baseline/cloud-types.js';
 
 /**
  * Helper to create a minimal valid baseline for testing.

@@ -117,21 +117,3 @@ export type {
   ListServersOptions,
 } from './registry/index.js';
 
-// Benchmark (Tested with Bellwether)
-export {
-  generateBenchmarkResult,
-  generateBenchmarkReport,
-  generateBenchmarkBadge,
-  generateBadgeUrl,
-  generateBadgeMarkdown,
-  isBenchmarkValid,
-} from './benchmark/index.js';
-export type {
-  BenchmarkStatus,
-  BenchmarkTier,
-  BenchmarkResult,
-  BenchmarkBadge,
-  BenchmarkConfig,
-  BenchmarkReport,
-  BenchmarkSubmission,
-} from './benchmark/index.js';

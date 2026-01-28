@@ -1,6 +1,4 @@
 export const URLS = {
-  /** Default cloud API base URL */
-  CLOUD_API: 'https://api.bellwether.sh',
   /** MCP Registry base URL */
   MCP_REGISTRY: 'https://registry.modelcontextprotocol.io',
 } as const;
@@ -18,50 +16,11 @@ export const REGISTRY = {
   API_VERSION: 'v0',
 } as const;
 
-// ==================== MCP Protocol ====================
-
-/**
- * MCP (Model Context Protocol) configuration.
- */
+// ==================== External URLs ====================
 
 export const EXTERNAL_URLS = {
-  /** Bellwether dashboard base URL */
-  DASHBOARD: 'https://bellwether.sh',
   /** Shields.io badge service */
   SHIELDS_BADGE: 'https://img.shields.io/badge',
-} as const;
-
-// ==================== Token Estimation ====================
-
-/**
- * Token estimation factors for cost prediction.
- */
-
-export const BENCHMARK_TIERS = {
-  /** Platinum tier requirements: security testing + all personas + high pass rate */
-  PLATINUM: {
-    MIN_PERSONAS: 4,
-    MIN_PASS_RATE: 90,
-    REQUIRES_SECURITY: true,
-  },
-  /** Gold tier requirements: multiple personas + good coverage + high pass rate */
-  GOLD: {
-    MIN_PERSONAS: 3,
-    MIN_PASS_RATE: 85,
-    REQUIRES_PROMPTS_OR_RESOURCES: true,
-  },
-  /** Silver tier requirements: error handling tested + decent pass rate */
-  SILVER: {
-    MIN_PERSONAS: 2,
-    MIN_PASS_RATE: 75,
-  },
-  /** Bronze tier is the default when other thresholds aren't met */
-  BRONZE: {
-    MIN_PERSONAS: 1,
-    MIN_PASS_RATE: 0,
-  },
-  /** Minimum pass rate required for any benchmark to pass */
-  MIN_PASS_RATE_FOR_BENCHMARK: 50,
 } as const;
 
 /**
