@@ -164,24 +164,6 @@ The action automatically uploads:
     file_pattern: 'bellwether-baseline.json'
 ```
 
-#### Action with Cloud Upload
-
-```yaml
-- name: Check MCP Server
-  uses: dotsetlabs/bellwether@v1
-  with:
-    server-command: 'npx @mcp/your-server'
-    save-baseline: 'true'
-  env:
-    BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
-
-- name: Upload to Cloud
-  if: success()
-  run: npx @dotsetlabs/bellwether upload --ci
-  env:
-    BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
-```
-
 #### Action with Server Environment Variables
 
 If your MCP server needs secrets, use interpolation in your config:
@@ -567,22 +549,6 @@ bellwether baseline diff ./baselines/v1.0.0.json ./baselines/v2.0.0.json
 
 ---
 
-## Cloud Integration
-
-Sync with Bellwether Cloud for history and team visibility:
-
-```yaml
-- name: Upload to Cloud
-  env:
-    BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
-  run: |
-    npx @dotsetlabs/bellwether check
-    npx @dotsetlabs/bellwether baseline save
-    npx @dotsetlabs/bellwether upload --ci --fail-on-drift
-```
-
----
-
 ## Cost Comparison
 
 | Mode | Cost | Speed | Use Case |
@@ -606,8 +572,7 @@ Sync with Bellwether Cloud for history and team visibility:
 |:---------|:------------|:---------|
 | `OPENAI_API_KEY` | OpenAI API key | For explore mode with OpenAI |
 | `ANTHROPIC_API_KEY` | Anthropic API key | For explore mode with Anthropic |
-| `BELLWETHER_SESSION` | Cloud session token | For cloud upload |
-| `BELLWETHER_TEAM_ID` | Team ID for multi-team organizations | For cloud upload with specific team |
+| `OLLAMA_BASE_URL` | Ollama server URL | For explore mode with Ollama (default: http://localhost:11434) |
 
 ---
 

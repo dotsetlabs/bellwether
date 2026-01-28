@@ -18,7 +18,7 @@ Understanding where Bellwether fits in your development workflow.
 ## Bellwether IS NOT:
 
 - **A replacement for unit tests**: Use both. Unit tests verify expected behavior, Bellwether discovers unexpected behavior.
-- **A security certification**: Platinum badges indicate testing coverage, not professional security audits
+- **A security certification**: Bellwether's security tests catch common issues, not professional security audits
 - **A substitute for code review**: Bellwether tests behavior, not code quality
 - **Enterprise software**: Built for individuals and small teams, not large organizations with SSO/SAML requirements
 
@@ -49,27 +49,6 @@ They're complementary. Use both.
 | Security compliance audits | ⚠️ Partial | Good first step, not sufficient alone |
 | Enterprise-wide rollout | ❌ Not ideal | No SSO, limited team features |
 
-## Understanding Benchmark Badges
-
-"Tested with Bellwether" means **systematically tested with Bellwether**, not independently certified. Badges indicate:
-
-- The server was tested with Bellwether
-- It achieved the specified test coverage tier
-- Results are self-reported by the server maintainer
-
-### What Each Tier Means
-
-| Tier | Requirements | What it signals |
-|:-----|:-------------|:----------------|
-| 🥉 Bronze | Basic testing (happy path) | "This server has been tested" |
-| 🥈 Silver | + Error handling coverage | "This server handles errors gracefully" |
-| 🥇 Gold | + All personas, good coverage | "This server is thoroughly tested" |
-| 💎 Platinum | + Comprehensive testing, all personas | "This server has thorough test coverage" |
-
-**Important**: Platinum benchmark indicates comprehensive coverage across all testing personas. Security hygiene checks are included but this is a first line of defense—not a replacement for professional security audits.
-
-Benchmark badges are valid for 90 days and should be re-run after significant changes.
-
 ## Complementary Tools
 
 Bellwether works best alongside:
@@ -83,12 +62,10 @@ Bellwether works best alongside:
 
 Bellwether is built by [Dotset Labs](https://dotsetlabs.com), a bootstrapped software company.
 
-**Three things make Bellwether sustainable:**
+**Bellwether is fully open source and sustainable:**
 
-1. **MIT Licensed CLI**: The core tool is fully open source. If the project is ever abandoned, the code is yours to fork and maintain.
+1. **MIT Licensed**: The entire tool is open source. If the project is ever abandoned, the code is yours to fork and maintain.
 
-2. **Simple Business Model**: Free CLI for adoption, paid plans ($12/mo Solo, $29/mo Team) for cloud costs. No VC pressure, no growth-at-all-costs.
+2. **Community-Driven**: Contributions welcome. The goal is community-maintained infrastructure, not a one-person dependency.
 
-3. **Community Building**: Contributions welcome. The goal is community-maintained infrastructure, not a one-person dependency.
-
-The CLI works entirely offline. Cloud features are optional conveniences, not lock-in.
+3. **No Lock-in**: Everything works locally. Store baselines in git, run checks in CI, no accounts required.

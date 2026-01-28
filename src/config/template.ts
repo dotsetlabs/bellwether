@@ -140,7 +140,6 @@ output:
     exploreReport: ${defaults.output.files.exploreReport}
     contractDoc: ${defaults.output.files.contractDoc}
     agentsDoc: ${defaults.output.files.agentsDoc}
-    benchmarkReport: ${defaults.output.files.benchmarkReport}
 
 # =============================================================================
 # CHECK COMMAND SETTINGS
@@ -430,27 +429,6 @@ registry:
   json: ${defaults.registry.json}
 
 # =============================================================================
-# HISTORY COMMAND SETTINGS
-# =============================================================================
-# Settings for 'bellwether history' and 'bellwether diff' (cloud history).
-
-history:
-  # Number of versions to show
-  limit: ${defaults.history.limit}
-
-  # Output as JSON
-  json: ${defaults.history.json}
-
-# =============================================================================
-# LINK COMMAND SETTINGS
-# =============================================================================
-# Settings for 'bellwether link' (cloud project linking).
-
-link:
-  # Default server command when creating new projects
-  defaultServerCommand: "${defaults.link.defaultServerCommand}"
-
-# =============================================================================
 # GOLDEN COMMAND SETTINGS
 # =============================================================================
 # Settings for 'bellwether golden' output validation.
@@ -473,24 +451,6 @@ golden:
 
   # Normalize UUIDs by default
   normalizeUuids: ${defaults.golden.normalizeUuids}
-
-# =============================================================================
-# BENCHMARK COMMAND SETTINGS
-# =============================================================================
-# Settings for 'bellwether benchmark' - Tested with Bellwether reports.
-
-benchmark:
-  # Default benchmark tier: bronze, silver, gold, platinum
-  tier: ${defaults.benchmark.tier}
-
-  # Include security testing by default
-  security: ${defaults.benchmark.security}
-
-  # Output as JSON by default
-  json: ${defaults.benchmark.json}
-
-  # Output badge URL only by default
-  badgeOnly: ${defaults.benchmark.badgeOnly}
 
 # =============================================================================
 # CONTRACT COMMAND SETTINGS

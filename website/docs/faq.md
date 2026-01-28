@@ -37,22 +37,10 @@ When you build an MCP server, you're creating capabilities that AI agents can ca
 
 ### Is Bellwether free?
 
-The CLI is free and open source (MIT license). `bellwether check` is completely free with no LLM costs.
+Yes! Bellwether is completely free and open source (MIT license).
 
-`bellwether explore` requires an LLM API key (OpenAI, Anthropic, or local Ollama).
-
-Cloud features are **free during the private beta**. To request beta access, [join the waitlist at bellwether.sh](https://bellwether.sh). After beta ends, we'll introduce paid plans.
-
-### How do I get beta access?
-
-Bellwether Cloud is in private beta. To request access:
-
-1. Visit [bellwether.sh](https://bellwether.sh) and join the waitlist
-2. We'll review your request and send an invitation code to your email
-3. Run `bellwether login` and enter your invitation code when prompted
-4. Complete the GitHub OAuth flow using a GitHub account with the same email
-
-Your invitation code is tied to your email address for security. Once you have access, you can invite team members directly from the dashboard.
+- `bellwether check` requires no LLM and has zero costs
+- `bellwether explore` requires an LLM API key (OpenAI, Anthropic) or local Ollama (also free)
 
 ### What LLM providers are supported?
 
@@ -98,15 +86,13 @@ This detects:
 
 For behavioral changes (how tools actually respond), use `bellwether explore` periodically for deeper analysis.
 
-### Is this project sustainable as a solo developer effort?
+### Is this project sustainable?
 
-Three things make Bellwether sustainable:
+Bellwether is fully open source (MIT license). The project is designed for long-term sustainability:
 
-1. **MIT License**: The CLI is fully open source. If the project is ever abandoned, the code is yours to fork and maintain.
-
-2. **Simple Business Model**: Free CLI for adoption, paid plans ($12/mo Solo, $29/mo Team) for ongoing cloud costs. No VC pressure, no growth-at-all-costs.
-
-3. **Community Building**: Contributions welcome. The goal is community-maintained infrastructure, not a one-person dependency.
+1. **Open Source**: If development ever stops, the code is yours to fork and maintain
+2. **Community-Driven**: Contributions welcome from the community
+3. **Simple Architecture**: Minimal dependencies, easy to understand and extend
 
 ## Installation
 
@@ -225,31 +211,6 @@ bellwether check --fail-on-drift
 
 Use `bellwether check` which is completely free. Only use `bellwether explore` periodically for deeper analysis (not in every CI run).
 
-## Cloud
-
-### Is cloud required?
-
-No. Bellwether works fully offline. Cloud adds:
-- Baseline history
-- Team collaboration
-- Benchmark badges
-- GitHub/GitLab integration
-
-### How do I connect to cloud?
-
-```bash
-bellwether login
-bellwether link my-project
-bellwether upload
-```
-
-### What data is stored in cloud?
-
-- Baseline snapshots (tool schemas, behavior observations)
-- Project metadata
-
-No source code or credentials are uploaded.
-
 ## Security
 
 ### Is my API key safe?
@@ -272,15 +233,6 @@ In check mode:
 ### Can Bellwether damage my server?
 
 Bellwether only calls tools that exist on your server. It generates test scenarios but doesn't execute arbitrary code. Use appropriate test environments.
-
-### Are "Tested with Bellwether" badges security certifications?
-
-No. Benchmark badges indicate testing coverage levels, not security certifications.
-
-- **Bronze-Gold**: Testing coverage tiers
-- **Platinum**: Comprehensive testing with all personas
-
-Badges show that a server has been systematically tested with Bellwether. While security hygiene checks are included, this is a first line of defense, not a replacement for professional security audits.
 
 ## Troubleshooting
 

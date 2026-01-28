@@ -1,4 +1,4 @@
-import type { CloudToolProfile, ToolCapability } from '../cloud/types.js';
+import type { CloudToolProfile, ToolCapability } from './cloud-types.js';
 import type { BehavioralAssertion, BehavioralBaseline, ToolFingerprint } from './types.js';
 
 function buildAssertions(profile: CloudToolProfile): BehavioralAssertion[] {

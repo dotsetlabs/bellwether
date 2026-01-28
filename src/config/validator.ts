@@ -158,8 +158,6 @@ export const outputFilesConfigSchema = z.object({
   contractDoc: z.string().default(CONFIG_DEFAULTS.output.files.contractDoc),
   /** Agents documentation file name */
   agentsDoc: z.string().default(CONFIG_DEFAULTS.output.files.agentsDoc),
-  /** Benchmark report JSON file name */
-  benchmarkReport: z.string().default(CONFIG_DEFAULTS.output.files.benchmarkReport),
 }).default(CONFIG_DEFAULTS.output.files);
 
 /**
@@ -499,24 +497,6 @@ export const registryConfigSchema = z.object({
 }).default(CONFIG_DEFAULTS.registry);
 
 /**
- * History command configuration schema.
- */
-export const historyConfigSchema = z.object({
-  /** Number of versions to show */
-  limit: z.number().int().min(1).max(1000).default(CONFIG_DEFAULTS.history.limit),
-  /** Output as JSON */
-  json: z.boolean().default(CONFIG_DEFAULTS.history.json),
-}).default(CONFIG_DEFAULTS.history);
-
-/**
- * Link command configuration schema.
- */
-export const linkConfigSchema = z.object({
-  /** Default server command when creating new projects */
-  defaultServerCommand: z.string().default(CONFIG_DEFAULTS.link.defaultServerCommand),
-}).default(CONFIG_DEFAULTS.link);
-
-/**
  * Golden command configuration schema.
  */
 export const goldenConfigSchema = z.object({
@@ -533,20 +513,6 @@ export const goldenConfigSchema = z.object({
   /** Normalize UUIDs by default */
   normalizeUuids: z.boolean().default(CONFIG_DEFAULTS.golden.normalizeUuids),
 }).default(CONFIG_DEFAULTS.golden);
-
-/**
- * Benchmark command configuration schema.
- */
-export const benchmarkConfigSchema = z.object({
-  /** Default benchmark tier */
-  tier: z.enum(['bronze', 'silver', 'gold', 'platinum']).default(CONFIG_DEFAULTS.benchmark.tier),
-  /** Include security testing by default */
-  security: z.boolean().default(CONFIG_DEFAULTS.benchmark.security),
-  /** Output as JSON */
-  json: z.boolean().default(CONFIG_DEFAULTS.benchmark.json),
-  /** Output badge URL only */
-  badgeOnly: z.boolean().default(CONFIG_DEFAULTS.benchmark.badgeOnly),
-}).default(CONFIG_DEFAULTS.benchmark);
 
 /**
  * Contract command configuration schema.
@@ -597,14 +563,8 @@ export const bellwetherConfigSchema = z.object({
   discovery: discoveryConfigSchema,
   /** Registry defaults (used by registry command) */
   registry: registryConfigSchema,
-  /** History defaults (used by history command) */
-  history: historyConfigSchema,
-  /** Link defaults (used by link command) */
-  link: linkConfigSchema,
   /** Golden command defaults */
   golden: goldenConfigSchema,
-  /** Benchmark command defaults */
-  benchmark: benchmarkConfigSchema,
   /** Contract command defaults */
   contract: contractConfigSchema,
 });
@@ -755,64 +715,6 @@ export function validateConfigForExplore(config: BellwetherConfig, serverCommand
     }
   }
   // Ollama doesn't require API keys
-}
-
-/**
- * Validate that required fields are present for the benchmark command.
- */
-export function validateConfigForBenchmark(config: BellwetherConfig, serverCommand?: string): void {
-  const transport = config.server.transport ?? 'stdio';
-  const effectiveCommand = serverCommand || config.server.command;
-  const remoteUrl = config.server.url?.trim();
-
-  if (transport === 'stdio') {
-    if (!effectiveCommand) {
-      throw new Error(
-        'No server command specified.\n\n' +
-        'Either add it to bellwether.yaml:\n' +
-        '  server:\n' +
-        '    command: "npx @your/mcp-server"\n\n' +
-        'Or pass it as an argument:\n' +
-        '  bellwether benchmark npx @your/mcp-server'
-      );
-    }
-  } else if (!remoteUrl) {
-    throw new Error(
-      `No server URL specified for transport "${transport}".\n\n` +
-      'Provide a URL in the config file:\n' +
-      '  server:\n' +
-      `    transport: ${transport}\n` +
-      '    url: "https://your-server.example.com/mcp"'
-    );
-  }
-
-  const provider = config.llm.provider;
-
-  if (provider === 'openai') {
-    const envVar = config.llm.openaiApiKeyEnvVar || 'OPENAI_API_KEY';
-    if (!process.env[envVar]) {
-      throw new Error(
-        `OpenAI API key not found.\n\n` +
-        `Set the ${envVar} environment variable or run:\n` +
-        `  bellwether auth\n\n` +
-        `Or switch to local Ollama (free) by setting:\n` +
-        `  llm:\n` +
-        `    provider: ollama`
-      );
-    }
-  } else if (provider === 'anthropic') {
-    const envVar = config.llm.anthropicApiKeyEnvVar || 'ANTHROPIC_API_KEY';
-    if (!process.env[envVar]) {
-      throw new Error(
-        `Anthropic API key not found.\n\n` +
-        `Set the ${envVar} environment variable or run:\n` +
-        `  bellwether auth\n\n` +
-        `Or switch to local Ollama (free) by setting:\n` +
-        `  llm:\n` +
-        `    provider: ollama`
-      );
-    }
-  }
 }
 
 /**

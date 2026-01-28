@@ -13,7 +13,7 @@ import type {
   BaselineMode as CloudBaselineMode,
   DriftAcceptance,
   AcceptedDiff,
-} from '../cloud/types.js';
+} from './cloud-types.js';
 
 export type { DriftAcceptance, AcceptedDiff };
 

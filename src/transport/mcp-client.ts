@@ -37,8 +37,6 @@ const FILTERED_ENV_VARS = new Set([
   'COHERE_API_KEY',
   'HUGGINGFACE_API_KEY',
   'REPLICATE_API_TOKEN',
-  // Bellwether-specific
-  'BELLWETHER_SESSION',
   // Cloud provider credentials
   'AWS_SECRET_ACCESS_KEY',
   'AWS_SESSION_TOKEN',
@@ -156,6 +154,8 @@ export class MCPClient {
   private logger = getLogger('mcp-client');
   /** Flag to prevent race condition during cleanup - ignore messages when true */
   private cleaningUp = false;
+  /** Flag to suppress exit warnings during intentional disconnect */
+  private disconnecting = false;
   /** Collected transport-level errors for reporting */
   private transportErrors: TransportErrorRecord[] = [];
   /** Connection state for diagnostic error messages */
@@ -393,8 +393,9 @@ export class MCPClient {
   ): Promise<void> {
     this.logger.info({ command, args: args.length }, 'Connecting to MCP server');
 
-    // Reset cleanup flag for new connection
+    // Reset flags for new connection
     this.cleaningUp = false;
+    this.disconnecting = false;
 
     // Track connection state for diagnostic error messages
     this.connectionState = {
@@ -445,7 +446,8 @@ export class MCPClient {
 
     this.process.on('exit', (code) => {
       this.connectionState.exitCode = code ?? undefined;
-      if (code !== 0) {
+      // Only warn about non-zero exit if we didn't intentionally disconnect
+      if (code !== 0 && !this.disconnecting) {
         this.logger.warn({ exitCode: code }, 'Server process exited with non-zero code');
         this.recordTransportError(
           `Server process exited with code ${code}`,
@@ -492,8 +494,9 @@ export class MCPClient {
     const transport = options?.transport ?? (this.transportType === 'stdio' ? 'sse' : this.transportType as 'sse' | 'streamable-http');
     this.transportType = transport;
 
-    // Reset cleanup flag for new connection
+    // Reset flags for new connection
     this.cleaningUp = false;
+    this.disconnecting = false;
 
     this.logger.info({ url, transport }, 'Connecting to remote MCP server');
 
@@ -727,6 +730,9 @@ export class MCPClient {
    * Disconnect from the server.
    */
   async disconnect(): Promise<void> {
+    // Mark as intentionally disconnecting to suppress exit warnings
+    this.disconnecting = true;
+
     if (this.process) {
       // Send graceful shutdown signal
       this.process.kill('SIGTERM');

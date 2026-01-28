@@ -2,7 +2,6 @@
  * Auth command for managing LLM provider API keys.
  *
  * Provides secure storage via system keychain with fallback to file-based storage.
- * Separate from the `login` command which handles Bellwether Cloud authentication.
  */
 
 import { Command } from 'commander';

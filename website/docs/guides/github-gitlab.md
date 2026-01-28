@@ -5,64 +5,13 @@ sidebar_position: 8
 
 # GitHub & GitLab Integration
 
-Integrate Bellwether with GitHub and GitLab for automated PR checks, status updates, and drift detection in your CI/CD pipeline.
+Integrate Bellwether with GitHub and GitLab for automated drift detection in your CI/CD pipeline.
 
 ## GitHub Integration
 
-### GitHub App (Team Plan)
+### GitHub Actions
 
-The Bellwether GitHub App provides native integration with automatic PR checks and status updates.
-
-#### Installation
-
-1. Go to your project in the Bellwether dashboard
-2. Navigate to **Settings** > **Integrations**
-3. Click **Connect GitHub**
-4. Select the repositories you want to connect
-5. Authorize the Bellwether GitHub App
-
-#### Features
-
-| Feature | Description |
-|:--------|:------------|
-| **PR Checks** | Automatic baseline comparison on pull requests |
-| **Status Updates** | Check status posted to PR (pass/fail) |
-| **PR Comments** | Detailed diff summary as PR comment |
-| **Commit Status** | Status badges on commits |
-
-#### How It Works
-
-When a PR is opened or updated:
-
-1. Bellwether compares the PR's baseline against the main branch baseline
-2. Posts a check run with pass/fail status
-3. Adds a comment with drift summary (if changes detected)
-4. Updates commit status
-
-#### Example PR Comment
-
-```markdown
-## Bellwether Drift Report
-
-**Status:** Breaking changes detected
-
-### Changes
-- **Tool added:** `new_helper_tool`
-- **Tool modified:** `execute_command`
-  - Schema changed: added `timeout` parameter
-  - Security: Potential command injection (high severity)
-
-### Summary
-- 1 breaking change
-- 2 warnings
-- 1 security finding
-
-[View full diff](https://bellwether.sh/projects/proj_abc/diff/11/12)
-```
-
-### GitHub Actions (All Plans)
-
-Use GitHub Actions for CI/CD integration without the GitHub App.
+Use GitHub Actions for CI/CD integration with drift detection.
 
 #### Basic Workflow
 
@@ -88,16 +37,10 @@ jobs:
       - name: Install Bellwether
         run: npm install -g @dotsetlabs/bellwether
 
-      - name: Run Test
+      - name: Run Check
         run: |
-          bellwether check npx your-mcp-server
-          bellwether baseline save
-
-      - name: Upload to Cloud
-        env:
-          BELLWETHER_SESSION: ${{ secrets.BELLWETHER_SESSION }}
-        run: |
-          bellwether upload --ci --fail-on-drift
+          bellwether check
+          bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
 #### Using the Official Action
@@ -110,8 +53,6 @@ jobs:
     server-args: '/tmp'
     baseline-path: './bellwether-baseline.json'
     fail-on-severity: 'warning'
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 ```
 
 #### PR Comparison Workflow
@@ -132,32 +73,18 @@ jobs:
       - name: Download main branch baseline
         run: |
           git fetch origin main
-          git checkout origin/main -- baseline.json || echo "{}" > baseline.json
-          mv baseline.json main-baseline.json
+          git checkout origin/main -- bellwether-baseline.json || echo "{}" > bellwether-baseline.json
+          mv bellwether-baseline.json main-baseline.json
 
       - name: Generate PR baseline
         run: |
-          npx @dotsetlabs/bellwether check npx your-server
+          npx @dotsetlabs/bellwether check
           npx @dotsetlabs/bellwether baseline save ./pr-baseline.json
 
       - name: Compare baselines
         run: |
-          npx @dotsetlabs/bellwether baseline diff main-baseline.json pr-baseline.json
+          npx @dotsetlabs/bellwether baseline diff main-baseline.json pr-baseline.json --fail-on-drift
 ```
-
-### Getting Your Session Token
-
-For cloud upload in CI:
-
-```bash
-# Login locally
-bellwether login
-
-# Get session token
-bellwether login --status
-```
-
-Add the `BELLWETHER_SESSION` value to your GitHub repository secrets.
 
 ---
 
@@ -177,11 +104,8 @@ bellwether:
   image: node:20
   script:
     - npm install -g @dotsetlabs/bellwether
-    - bellwether check npx your-mcp-server
-    - bellwether baseline save
-    - bellwether upload --ci --fail-on-drift
-  variables:
-    BELLWETHER_SESSION: $BELLWETHER_SESSION
+    - bellwether check
+    - bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -201,11 +125,11 @@ bellwether:mr:
 
     # Generate MR baseline
     - npm install -g @dotsetlabs/bellwether
-    - bellwether check npx your-server
+    - bellwether check
     - bellwether baseline save ./mr-baseline.json
 
     # Compare
-    - bellwether baseline diff main-baseline.json mr-baseline.json
+    - bellwether baseline diff main-baseline.json mr-baseline.json --fail-on-drift
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 ```
@@ -218,11 +142,11 @@ bellwether:commit:
   image: node:20
   script:
     - npm install -g @dotsetlabs/bellwether
-    - bellwether check npx your-server
+    - bellwether check
     - bellwether baseline save
     - |
       if ! git diff --quiet bellwether-baseline.json; then
-        git config user.email "ci@bellwether.sh"
+        git config user.email "ci@example.com"
         git config user.name "Bellwether CI"
         git add bellwether-baseline.json
         git commit -m "chore: update bellwether baseline [skip ci]"
@@ -238,7 +162,6 @@ Add these CI/CD variables in GitLab:
 
 | Variable | Description |
 |:---------|:------------|
-| `BELLWETHER_SESSION` | Bellwether Cloud session token (masked) |
 | `GITLAB_TOKEN` | GitLab personal access token (for committing baselines) |
 | `OPENAI_API_KEY` | Your OpenAI API key (masked, only for explore mode) |
 
@@ -248,10 +171,10 @@ Add these CI/CD variables in GitLab:
 
 ### 1. Use Presets for CI
 
-The `--preset ci` option is optimized for fast, low-cost CI runs:
+The `--preset ci` option is optimized for fast CI runs:
 
 ```bash
-bellwether check npx your-server
+bellwether init --preset ci npx your-server
 ```
 
 ### 2. Cache Dependencies
@@ -273,10 +196,10 @@ cache:
 
 ### 3. Fail on Breaking Changes
 
-`bellwether upload --ci` already fails on breaking changes. Use `--fail-on-drift` to fail on any drift severity:
+Use `--fail-on-drift` to fail on any drift:
 
 ```bash
-bellwether upload --ci --fail-on-drift
+bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 ```
 
 ### 4. Store Baselines in Git
@@ -284,7 +207,7 @@ bellwether upload --ci --fail-on-drift
 Commit baseline files to track history:
 
 ```bash
-git add bellwether-baseline.json
+git add bellwether-baseline.json bellwether.yaml
 git commit -m "Update bellwether baseline"
 ```
 
@@ -306,28 +229,13 @@ Require Bellwether checks to pass before merging:
 
 ### Check Not Running
 
-Ensure the webhook is configured:
-- GitHub: Check repository settings > Webhooks
-- GitLab: Check project settings > Webhooks
+Ensure the workflow file is in `.github/workflows/` (GitHub) or `.gitlab-ci.yml` exists (GitLab).
 
 ### Permission Errors
 
-Verify the GitHub App has access to the repository:
-- GitHub: Settings > Applications > Bellwether > Configure
-
-### Session Token Expired
-
-Refresh your session token:
-
-```bash
-bellwether login
-bellwether login --status  # Copy new token
-```
-
-Update your CI secrets with the new token.
+For GitLab, ensure `GITLAB_TOKEN` has write access to the repository.
 
 ## See Also
 
 - [CI/CD Integration](/guides/ci-cd) - Detailed CI/CD setup
-- [Cloud Integration](/guides/cloud-integration) - Cloud features overview
-- [Webhooks](/guides/webhooks) - Custom webhook integrations
+- [Configuration](/guides/configuration) - Customize bellwether.yaml

@@ -2,11 +2,9 @@
  * Terminal formatting helpers for check command output.
  */
 
-import chalk from 'chalk';
 import type { InterviewResult, ToolProfile } from '../../interview/types.js';
 import type { ToolProgressSummary } from '../../interview/interviewer.js';
-import { RELIABILITY_DISPLAY, CONFIDENCE_INDICATORS, DISPLAY_LIMITS } from '../../constants.js';
-import { getOutputConfig } from '../output.js';
+import { RELIABILITY_DISPLAY, DISPLAY_LIMITS } from '../../constants.js';
 
 export interface CheckSummary {
   fullyTested: number;
@@ -82,23 +80,11 @@ export function formatConfidenceLevel(level?: 'high' | 'medium' | 'low'): string
     return '-';
   }
 
-  const indicator = CONFIDENCE_INDICATORS[level];
-  return `${indicator} ${level.toUpperCase()}`;
+  return level.toUpperCase();
 }
 
-export function colorizeConfidence(label: string, level?: 'high' | 'medium' | 'low'): string {
-  if (!level || !supportsColor()) {
-    return label;
-  }
-
-  switch (level) {
-    case 'high':
-      return chalk.green(label);
-    case 'medium':
-      return chalk.yellow(label);
-    case 'low':
-      return chalk.red(label);
-  }
+export function colorizeConfidence(label: string, _level?: 'high' | 'medium' | 'low'): string {
+  return label;
 }
 
 export function profileHasIssues(profile: ToolProfile): boolean {
@@ -123,12 +109,4 @@ function resolveStatusSymbol(summary: ToolProgressSummary): string {
   }
 
   return RELIABILITY_DISPLAY.SYMBOLS.WARN;
-}
-
-function supportsColor(): boolean {
-  const config = getOutputConfig();
-  if (config.noColor) {
-    return false;
-  }
-  return process.stderr.isTTY ?? false;
 }

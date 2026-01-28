@@ -9,11 +9,11 @@ import { decryptEnvValue, isEncryptedEnvValue } from '../auth/keychain.js';
 // Load global ~/.bellwether/.env first (if exists)
 const globalEnvPath = join(homedir(), '.bellwether', '.env');
 if (existsSync(globalEnvPath)) {
-  config({ path: globalEnvPath });
+  config({ path: globalEnvPath, quiet: true });
 }
 
 // Then load project .env (overrides global settings)
-config();
+config({ quiet: true });
 
 function normalizeEncryptedEnvVar(key: string): void {
   const value = process.env[key];
@@ -71,17 +71,8 @@ import { authCommand } from './commands/auth.js';
 import { baselineCommand } from './commands/baseline.js';
 import { goldenCommand } from './commands/golden.js';
 import { registryCommand } from './commands/registry.js';
-import { benchmarkCommand } from './commands/benchmark.js';
 import { contractCommand } from './commands/contract.js';
 import { validateConfigCommand } from './commands/validate-config.js';
-import { badgeCommand } from './commands/cloud/badge.js';
-import { diffCommand } from './commands/cloud/diff.js';
-import { historyCommand } from './commands/cloud/history.js';
-import { linkCommand } from './commands/cloud/link.js';
-import { loginCommand } from './commands/cloud/login.js';
-import { projectsCommand } from './commands/cloud/projects.js';
-import { teamsCommand } from './commands/cloud/teams.js';
-import { uploadCommand } from './commands/cloud/upload.js';
 import { configureLogger, type LogLevel } from '../logging/logger.js';
 import { VERSION } from '../version.js';
 import { findConfigFile } from '../config/validator.js';
@@ -117,13 +108,6 @@ Examples:
 
   Search MCP Registry:
     $ bellwether registry filesystem
-
-  Cloud workflow:
-    $ bellwether login                      # Authenticate with Bellwether Cloud
-    $ bellwether teams                      # List your teams
-    $ bellwether link my-project            # Link to cloud project
-    $ bellwether upload                     # Upload baseline
-    $ bellwether history                    # View version history
 
 Documentation: https://docs.bellwether.sh
 `;
@@ -221,11 +205,6 @@ program.addCommand(
   )
 );
 program.addCommand(
-  benchmarkCommand.description(
-    'Generate benchmark report for Tested with Bellwether program'
-  )
-);
-program.addCommand(
   contractCommand.description(
     'Validate MCP servers against contract definitions (validate, generate, show)'
   )
@@ -233,48 +212,6 @@ program.addCommand(
 program.addCommand(
   validateConfigCommand.description(
     'Validate bellwether.yaml configuration (no tests)'
-  )
-);
-
-// Cloud commands - sync with Bellwether Cloud
-program.addCommand(
-  loginCommand.description(
-    'Authenticate with Bellwether Cloud'
-  )
-);
-program.addCommand(
-  teamsCommand.description(
-    'Manage team selection for cloud operations'
-  )
-);
-program.addCommand(
-  linkCommand.description(
-    'Link local project to Bellwether Cloud project'
-  )
-);
-program.addCommand(
-  projectsCommand.description(
-    'List your Bellwether Cloud projects'
-  )
-);
-program.addCommand(
-  uploadCommand.description(
-    'Upload baseline to Bellwether Cloud'
-  )
-);
-program.addCommand(
-  historyCommand.description(
-    'View baseline version history'
-  )
-);
-program.addCommand(
-  diffCommand.description(
-    'Compare two baseline versions'
-  )
-);
-program.addCommand(
-  badgeCommand.description(
-    'Get embeddable benchmark badge for your project'
   )
 );
 

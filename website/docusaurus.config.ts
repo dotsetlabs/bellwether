@@ -61,11 +61,6 @@ const config: Config = {
           label: 'Documentation',
         },
         {
-          href: 'https://bellwether.sh',
-          label: 'Cloud',
-          position: 'left',
-        },
-        {
           href: 'https://github.com/dotsetlabs/bellwether',
           label: 'GitHub',
           position: 'right',
@@ -93,19 +88,15 @@ const config: Config = {
           ],
         },
         {
-          title: 'Product',
+          title: 'Resources',
           items: [
             {
-              label: 'Bellwether Cloud',
-              href: 'https://bellwether.sh',
-            },
-            {
-              label: 'Pricing',
-              href: 'https://bellwether.sh/pricing',
-            },
-            {
               label: 'Changelog',
-              href: 'https://github.com/dotsetlabs/bellwether/blob/main/CHANGELOG.md',
+              href: 'https://github.com/dotsetlabs/bellwether/blob/main/cli/CHANGELOG.md',
+            },
+            {
+              label: 'Roadmap',
+              href: 'https://github.com/dotsetlabs/bellwether/blob/main/cli/ROADMAP.md',
             },
           ],
         },

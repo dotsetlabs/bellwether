@@ -676,8 +676,7 @@ function formatConfidenceIndicator(level?: ConfidenceLevel): string {
     return '-';
   }
 
-  const indicator = CONFIDENCE_INDICATORS[level];
-  return `${indicator} ${level}`;
+  return level.toUpperCase();
 }
 
 /**

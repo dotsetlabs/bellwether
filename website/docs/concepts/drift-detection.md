@@ -387,29 +387,13 @@ bellwether check --fail-on-severity warning
 bellwether check --fail-on-severity breaking
 ```
 
-## Cloud Integration
-
-Track drift history with Bellwether Cloud:
-
-```bash
-# Run check, save baseline, and upload
-bellwether check
-bellwether baseline save
-bellwether upload
-```
-
-Cloud provides:
-- Historical drift timeline
-- Version-to-version comparison
-- Drift notifications
-
 ## Best Practices
 
 1. **Run drift detection in CI** - Catch changes early
 2. **Review drift before merging** - Understand what changed
 3. **Update baselines intentionally** - Don't auto-update
 4. **Use appropriate severity** - Configure `baseline.severity.failOnSeverity` and handle exit codes in CI
-5. **Track drift over time** - Use cloud for history
+5. **Commit baselines to git** - Track history in version control
 
 ## See Also
 

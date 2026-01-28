@@ -23,9 +23,11 @@ export interface LoggerConfig {
 
 /**
  * Default configuration.
+ * Default level is 'warn' to keep CLI output clean.
+ * Users can enable verbose output with --log-level info or --log-level debug.
  */
 const DEFAULT_CONFIG: Required<Omit<LoggerConfig, 'file' | 'name'>> = {
-  level: 'info',
+  level: 'warn',
   pretty: false,
   timestamp: true,
 };
@@ -77,7 +79,7 @@ export function createLogger(config: LoggerConfig = {}): PinoLogger {
  */
 export function getLogger(name?: string): PinoLogger {
   if (!globalLogger) {
-    globalLogger = createLogger({ level: 'info' });
+    globalLogger = createLogger({ level: 'warn' });
   }
 
   if (name) {

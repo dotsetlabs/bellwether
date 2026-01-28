@@ -13,8 +13,8 @@ export const TIMEOUTS = {
   SERVER_READY_POLL: 100,
   /** Process shutdown SIGKILL timeout (5 seconds) */
   SHUTDOWN_KILL: 5000,
-  /** Cloud API timeout (30 seconds) */
-  CLOUD_API: 30000,
+  /** HTTP request timeout (30 seconds) */
+  HTTP_REQUEST: 30000,
 } as const;
 
 // ==================== LLM Configuration ====================
@@ -368,8 +368,6 @@ export const TIME_CONSTANTS = {
   SSE_MAX_BACKOFF: 30000,
   /** Default cache TTL (1 hour) */
   DEFAULT_CACHE_TTL: 3600000,
-  /** Benchmark validity period in days */
-  BENCHMARK_VALIDITY_DAYS: 90,
   /** Embedding timeout (5 seconds) */
   EMBEDDING_TIMEOUT: 5000,
 } as const;
@@ -607,12 +605,10 @@ export const VALIDATION_BOUNDS = {
 export const PATHS = {
   /** User config directory name (under home) */
   CONFIG_DIR: '.bellwether',
-  /** Session storage file name */
-  SESSION_FILE: 'session.json',
   /** Device ID storage file name */
   DEVICE_ID_FILE: 'device-id',
   /** Mock data directory for testing */
-  MOCK_DATA_DIR: 'mock-cloud',
+  MOCK_DATA_DIR: 'mock-data',
   /** Possible config file names (in order of preference) */
   CONFIG_FILENAMES: [
     'bellwether.yaml',
@@ -622,14 +618,12 @@ export const PATHS = {
   ],
   /** Default config file name (first in CONFIG_FILENAMES) */
   DEFAULT_CONFIG_FILENAME: 'bellwether.yaml',
-  /** Default baseline output file (for upload command) */
+  /** Default baseline output file */
   DEFAULT_BASELINE_FILE: 'bellwether-baseline.json',
   /** Default check report file */
   DEFAULT_CHECK_REPORT_FILE: 'bellwether-check.json',
   /** Default explore report file */
   DEFAULT_EXPLORE_REPORT_FILE: 'bellwether-explore.json',
-  /** Default benchmark report file */
-  DEFAULT_BENCHMARK_REPORT_FILE: 'bellwether-benchmark.json',
   /** Default test scenarios file */
   DEFAULT_SCENARIOS_FILE: 'bellwether-tests.yaml',
   /** Default workflows file */
@@ -661,10 +655,6 @@ export const REPORT_SCHEMAS = {
  */
 
 export const PATTERNS = {
-  /** Valid session token format (64 hex chars after prefix) */
-  SESSION_TOKEN: /^sess_[a-f0-9]{64}$/,
-  /** Mock session token format for testing */
-  MOCK_SESSION_TOKEN: /^sess_mock_[a-zA-Z0-9]+_[a-f0-9]+$/,
   /** Semver version format */
   SEMVER: /^\d+\.\d+\.\d+$/,
   /** Partial semver (major.minor) */
@@ -682,12 +672,6 @@ export const PATTERNS = {
 export const CLI_SECURITY = {
   /** Hostnames considered localhost (skip TLS verification) */
   LOCALHOST_HOSTS: ['localhost', '127.0.0.1', '::1'],
-  /** Allowed domains for Bellwether Cloud */
-  ALLOWED_DOMAINS: ['bellwether.sh', 'api.bellwether.sh', 'dashboard.bellwether.sh'],
-  /** Session token prefix */
-  SESSION_PREFIX: 'sess_',
-  /** Mock session token prefix for testing */
-  MOCK_SESSION_PREFIX: 'sess_mock_',
 } as const;
 
 // ==================== External URLs ====================

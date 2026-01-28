@@ -78,4 +78,4 @@ bellwether check --fail-on-drift
 - [Quick Start](/quickstart) - Run your first check
 - [Test Modes](/concepts/test-modes) - Understand check vs explore
 - [CLI Reference](/cli/check) - Full command documentation
-- [Cloud](/cloud) - Baseline history and benchmark badges
+- [CI/CD Integration](/guides/ci-cd) - Integrate with GitHub Actions, GitLab CI
