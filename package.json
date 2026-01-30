@@ -35,7 +35,7 @@
     "clean": "rm -rf dist",
     "docs:generate": "typedoc",
     "man:generate": "./scripts/generate-manpage.sh",
-    "prepare": "husky install",
+    "prepare": "husky install || true",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
