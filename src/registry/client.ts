@@ -23,15 +23,54 @@ export const REGISTRY_BASE_URL = URLS.MCP_REGISTRY;
 export const API_VERSION = REGISTRY.API_VERSION;
 
 /**
+ * Rate limiter for registry requests.
+ * Simple token bucket implementation.
+ */
+class RateLimiter {
+  private tokens: number;
+  private lastRefill: number;
+  private maxTokens: number;
+  private refillRate: number; // tokens per second
+
+  constructor(maxTokens: number = 10, refillRate: number = 5) {
+    this.maxTokens = maxTokens;
+    this.tokens = maxTokens;
+    this.refillRate = refillRate;
+    this.lastRefill = Date.now();
+  }
+
+  async acquire(): Promise<void> {
+    this.refill();
+    if (this.tokens >= 1) {
+      this.tokens--;
+      return;
+    }
+    // Wait for next token
+    const waitMs = (1 - this.tokens) * (1000 / this.refillRate);
+    await new Promise(resolve => setTimeout(resolve, waitMs));
+    return this.acquire();
+  }
+
+  private refill(): void {
+    const now = Date.now();
+    const elapsed = (now - this.lastRefill) / 1000;
+    this.tokens = Math.min(this.maxTokens, this.tokens + elapsed * this.refillRate);
+    this.lastRefill = now;
+  }
+}
+
+/**
  * Client for interacting with the MCP Registry API.
  */
 export class RegistryClient {
   private baseUrl: string;
   private timeout: number;
+  private rateLimiter: RateLimiter;
 
-  constructor(options?: { baseUrl?: string; timeout?: number }) {
+  constructor(options?: { baseUrl?: string; timeout?: number; rateLimit?: boolean }) {
     this.baseUrl = options?.baseUrl ?? REGISTRY_BASE_URL;
     this.timeout = options?.timeout ?? REGISTRY.TIMEOUT;
+    this.rateLimiter = new RateLimiter();
   }
 
   /**
@@ -52,6 +91,9 @@ export class RegistryClient {
 
     const url = `${this.baseUrl}/${API_VERSION}/servers?${params}`;
     logger.debug({ url }, 'Fetching from registry');
+
+    // Apply rate limiting
+    await this.rateLimiter.acquire();
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -188,7 +230,7 @@ function generatePackageArguments(pkg: RegistryPackage): string {
     }
   }
 
-  return args.length > 0 ? ' ' + args.join(' ') : '';
+  return args.length > 0 ? ` ${args.join(' ')}` : '';
 }
 
 /**

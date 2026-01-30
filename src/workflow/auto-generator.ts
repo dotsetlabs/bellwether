@@ -272,7 +272,7 @@ function findParameterFlowWorkflows(
         if (!paramPattern.test(paramName)) continue;
 
         // Find a producer for this parameter
-        const producerKey = sourceField === 'token' ? 'token' : extractResourceName(paramName) + '_list';
+        const producerKey = sourceField === 'token' ? 'token' : `${extractResourceName(paramName)}_list`;
         const producer = producerTools.get(producerKey) || producerTools.get('token');
 
         if (!producer || producer.name === tool.name) continue;
@@ -341,7 +341,7 @@ function extractResourceName(toolName: string): string | null {
 
   for (const prefixes of Object.values(CRUD_PREFIXES)) {
     for (const prefix of prefixes) {
-      if (name.startsWith(prefix + '_')) {
+      if (name.startsWith(`${prefix}_`)) {
         name = name.slice(prefix.length + 1);
         break;
       }
@@ -368,7 +368,7 @@ function matchesCrudOperation(
 ): boolean {
   const name = toolName.toLowerCase();
   return CRUD_PREFIXES[operation].some(prefix =>
-    name.startsWith(prefix + '_') || name.startsWith(prefix)
+    name.startsWith(`${prefix}_`) || name.startsWith(prefix)
   );
 }
 

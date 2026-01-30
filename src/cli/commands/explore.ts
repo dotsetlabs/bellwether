@@ -170,7 +170,7 @@ export const exploreCommand = new Command('explore')
         onUsage: onUsageCallback,
       });
     } catch (error) {
-      output.error('Failed to initialize LLM client: ' + (error instanceof Error ? error.message : String(error)));
+      output.error(`Failed to initialize LLM client: ${error instanceof Error ? error.message : String(error)}`);
       output.error(`\nProvider: ${provider}`);
       output.error('Make sure the appropriate API key environment variable is set:');
       output.error('  - OpenAI: OPENAI_API_KEY');

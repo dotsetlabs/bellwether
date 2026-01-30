@@ -2,6 +2,17 @@ name: 'Bellwether MCP Check'
 description: 'Schema validation and drift detection for MCP servers'
 author: 'Dotset Labs LLC'
 
+#
+# Required permissions for this action:
+#   contents: read          # To read baseline files
+#   security-events: write  # Required when upload-sarif is true (GitHub Code Scanning)
+#
+# Example workflow permissions:
+#   permissions:
+#     contents: read
+#     security-events: write
+#
+
 branding:
   icon: 'shield'
   color: 'purple'
@@ -196,25 +207,40 @@ runs:
           fi
         fi
 
-        # Run check for parsing (compact output)
-        echo "Running: bellwether check $CHECK_FLAGS --format compact ${{ inputs.server-command }} ${{ inputs.server-args }}"
-        CHECK_OUTPUT=$(bellwether check $CHECK_FLAGS --format compact ${{ inputs.server-command }} ${{ inputs.server-args }} 2>&1)
+        # Run check once with JSON output, then derive other formats
+        echo "Running: bellwether check $CHECK_FLAGS --format json ${{ inputs.server-command }} ${{ inputs.server-args }}"
+        bellwether check $CHECK_FLAGS --format json ${{ inputs.server-command }} ${{ inputs.server-args }} > "$CHECK_REPORT_PATH" 2>&1
         CHECK_EXIT=$?
 
-        # Display output in requested format
-        if [ "${{ inputs.format }}" = "compact" ]; then
-          echo "$CHECK_OUTPUT"
-        else
-          bellwether check $CHECK_FLAGS --format ${{ inputs.format }} ${{ inputs.server-command }} ${{ inputs.server-args }} || true
-        fi
-
-        # Extract tool count from JSON report
+        # Parse JSON output for metrics and display
         if [ -f "$CHECK_REPORT_PATH" ]; then
+          # Extract tool count
           TOOL_COUNT=$(node --input-type=module -e 'import fs from "fs"; const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log((report.toolProfiles || []).length);' "$CHECK_REPORT_PATH" 2>/dev/null || echo "0")
+          echo "tool-count=$TOOL_COUNT" >> $GITHUB_OUTPUT
+
+          # Extract documentation quality from metadata
+          DOC_SCORE=$(node --input-type=module -e 'import fs from "fs"; const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log(report.metadata?.documentationScore?.overall ?? "");' "$CHECK_REPORT_PATH" 2>/dev/null || echo "")
+          if [ -n "$DOC_SCORE" ] && [ "$DOC_SCORE" != "undefined" ]; then
+            echo "doc-score=$DOC_SCORE" >> $GITHUB_OUTPUT
+          fi
+
+          # Extract security findings count
+          SECURITY_FINDINGS=$(node --input-type=module -e 'import fs from "fs"; const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); const tools = report.capabilities?.tools || []; const count = tools.reduce((sum, t) => sum + (t.securityFingerprint?.findings?.length || 0), 0); console.log(count);' "$CHECK_REPORT_PATH" 2>/dev/null || echo "0")
+          echo "security-findings=$SECURITY_FINDINGS" >> $GITHUB_OUTPUT
         else
           TOOL_COUNT="0"
+          echo "tool-count=$TOOL_COUNT" >> $GITHUB_OUTPUT
+          echo "security-findings=0" >> $GITHUB_OUTPUT
         fi
-        echo "tool-count=$TOOL_COUNT" >> $GITHUB_OUTPUT
+
+        # Display output in requested format (run again only if format is not json)
+        if [ "${{ inputs.format }}" = "json" ]; then
+          cat "$CHECK_REPORT_PATH"
+        elif [ "${{ inputs.format }}" = "compact" ]; then
+          bellwether check $CHECK_FLAGS --format compact ${{ inputs.server-command }} ${{ inputs.server-args }} 2>&1 || true
+        else
+          bellwether check $CHECK_FLAGS --format ${{ inputs.format }} ${{ inputs.server-command }} ${{ inputs.server-args }} 2>&1 || true
+        fi
 
         # Set CONTRACT.md output path
         if [ -f "$CONTRACT_MD" ]; then
@@ -244,26 +270,18 @@ runs:
         fi
         echo "drift-detected=$DRIFT_DETECTED" >> $GITHUB_OUTPUT
 
-        # Extract documentation quality from compact output
-        DOC_SCORE=$(echo "$CHECK_OUTPUT" | grep -o 'doc_score=[0-9]*' | grep -o '[0-9]*' | head -1 || echo "")
-        if [ -n "$DOC_SCORE" ]; then
-          echo "doc-score=$DOC_SCORE" >> $GITHUB_OUTPUT
+        # Extract change counts from JSON if available
+        if [ -f "$CHECK_REPORT_PATH" ]; then
+          BREAKING_COUNT=$(node --input-type=module -e 'import fs from "fs"; const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log(report.metadata?.diff?.breakingCount ?? 0);' "$CHECK_REPORT_PATH" 2>/dev/null || echo "0")
+          WARNING_COUNT=$(node --input-type=module -e 'import fs from "fs"; const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log(report.metadata?.diff?.warningCount ?? 0);' "$CHECK_REPORT_PATH" 2>/dev/null || echo "0")
+          INFO_COUNT=$(node --input-type=module -e 'import fs from "fs"; const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log(report.metadata?.diff?.infoCount ?? 0);' "$CHECK_REPORT_PATH" 2>/dev/null || echo "0")
+        else
+          BREAKING_COUNT="0"
+          WARNING_COUNT="0"
+          INFO_COUNT="0"
         fi
-        DOC_GRADE=$(echo "$CHECK_OUTPUT" | grep -o 'doc_grade=[A-F]' | grep -o '[A-F]' | head -1 || echo "")
-        if [ -n "$DOC_GRADE" ]; then
-          echo "doc-grade=$DOC_GRADE" >> $GITHUB_OUTPUT
-        fi
-
-        # Extract security findings count from compact output
-        SECURITY_FINDINGS=$(echo "$CHECK_OUTPUT" | grep -o 'new_security_findings=[0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
-        echo "security-findings=$SECURITY_FINDINGS" >> $GITHUB_OUTPUT
-
-        # Extract change counts from compact output
-        BREAKING_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'breaking=[0-9]*' | head -1 | cut -d= -f2 || echo "0")
         echo "breaking-count=$BREAKING_COUNT" >> $GITHUB_OUTPUT
-        WARNING_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'warnings=[0-9]*' | head -1 | cut -d= -f2 || echo "0")
         echo "warning-count=$WARNING_COUNT" >> $GITHUB_OUTPUT
-        INFO_COUNT=$(echo "$CHECK_OUTPUT" | grep -o 'info=[0-9]*' | head -1 | cut -d= -f2 || echo "0")
         echo "info-count=$INFO_COUNT" >> $GITHUB_OUTPUT
 
         # Save baseline if requested and check was clean
@@ -273,23 +291,88 @@ runs:
           bellwether baseline save "$BASELINE_PATH" --force
         fi
 
-        # Generate SARIF file for GitHub Code Scanning
+        # Generate SARIF file for GitHub Code Scanning (convert from JSON to avoid re-running check)
         SARIF_FILE="${OUTPUT_DIR}/bellwether.sarif"
-        if [ "${{ inputs.upload-sarif }}" = "true" ]; then
+        if [ "${{ inputs.upload-sarif }}" = "true" ] && [ -f "$CHECK_REPORT_PATH" ]; then
           echo ""
-          echo "Generating SARIF report..."
-          bellwether check --config "$CONFIG_PATH" --format sarif ${{ inputs.server-command }} ${{ inputs.server-args }} > "$SARIF_FILE" 2>/dev/null || true
+          echo "Generating SARIF report from JSON..."
+          node --input-type=module -e '
+            import fs from "fs";
+            const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const sarif = {
+              "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+              "version": "2.1.0",
+              "runs": [{
+                "tool": {
+                  "driver": {
+                    "name": "Bellwether",
+                    "version": report.metadata?.version || "1.0.0",
+                    "informationUri": "https://github.com/dotsetlabs/bellwether",
+                    "rules": []
+                  }
+                },
+                "results": []
+              }]
+            };
+            const run = sarif.runs[0];
+            const diff = report.metadata?.diff;
+            if (diff?.behaviorChanges) {
+              for (const change of diff.behaviorChanges) {
+                const level = change.severity === "breaking" ? "error" : change.severity === "warning" ? "warning" : "note";
+                run.results.push({
+                  "ruleId": `bellwether/${change.aspect}`,
+                  "level": level,
+                  "message": { "text": change.description || `${change.aspect} changed` },
+                  "locations": [{
+                    "physicalLocation": {
+                      "artifactLocation": { "uri": "bellwether-baseline.json" },
+                      "region": { "startLine": 1 }
+                    }
+                  }]
+                });
+              }
+            }
+            console.log(JSON.stringify(sarif, null, 2));
+          ' "$CHECK_REPORT_PATH" > "$SARIF_FILE" 2>/dev/null || true
           if [ -f "$SARIF_FILE" ] && [ -s "$SARIF_FILE" ]; then
             echo "sarif-file=$SARIF_FILE" >> $GITHUB_OUTPUT
           fi
         fi
 
-        # Generate JUnit file if requested
-        if [ "${{ inputs.format }}" = "junit" ]; then
+        # Generate JUnit file if requested (convert from JSON to avoid re-running check)
+        if [ "${{ inputs.format }}" = "junit" ] && [ -f "$CHECK_REPORT_PATH" ]; then
           JUNIT_FILE="${OUTPUT_DIR}/bellwether-junit.xml"
           echo ""
-          echo "Generating JUnit report..."
-          bellwether check --config "$CONFIG_PATH" --format junit ${{ inputs.server-command }} ${{ inputs.server-args }} > "$JUNIT_FILE" 2>/dev/null || true
+          echo "Generating JUnit report from JSON..."
+          node --input-type=module -e '
+            import fs from "fs";
+            const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const diff = report.metadata?.diff || {};
+            const toolCount = (report.toolProfiles || []).length;
+            const failures = diff.breakingCount || 0;
+            const warnings = diff.warningCount || 0;
+            const tests = Math.max(toolCount, 1);
+            let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+            xml += `<testsuites name="Bellwether MCP Check" tests="${tests}" failures="${failures}" errors="0">\n`;
+            xml += `  <testsuite name="Schema Drift Detection" tests="${tests}" failures="${failures}" errors="0">\n`;
+            if (diff.behaviorChanges) {
+              for (const change of diff.behaviorChanges) {
+                const escaped = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+                if (change.severity === "breaking") {
+                  xml += `    <testcase name="${escaped(change.tool)}: ${escaped(change.aspect)}">\n`;
+                  xml += `      <failure message="${escaped(change.description)}">${escaped(change.before)} -> ${escaped(change.after)}</failure>\n`;
+                  xml += `    </testcase>\n`;
+                } else {
+                  xml += `    <testcase name="${escaped(change.tool)}: ${escaped(change.aspect)}"/>\n`;
+                }
+              }
+            } else {
+              xml += `    <testcase name="No changes detected"/>\n`;
+            }
+            xml += `  </testsuite>\n`;
+            xml += `</testsuites>\n`;
+            console.log(xml);
+          ' "$CHECK_REPORT_PATH" > "$JUNIT_FILE" 2>/dev/null || true
           if [ -f "$JUNIT_FILE" ] && [ -s "$JUNIT_FILE" ]; then
             echo "junit-file=$JUNIT_FILE" >> $GITHUB_OUTPUT
           fi

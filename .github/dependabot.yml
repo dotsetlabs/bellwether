@@ -1,0 +1,29 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - dotsetlabs/maintainers
+    assignees:
+      - dotsetlabs/maintainers
+    commit-message:
+      prefix: chore
+      prefix-development: chore(dev)
+      include: scope
+    labels:
+      - dependencies
+    groups:
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch

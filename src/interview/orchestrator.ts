@@ -1624,7 +1624,7 @@ Return ONLY valid JSON, no explanation.`;
     for (const content of response.contents) {
       if (content.text) {
         const preview = content.text.length > DISPLAY_LIMITS.CONTENT_PREVIEW_LENGTH
-          ? content.text.substring(0, DISPLAY_LIMITS.CONTENT_PREVIEW_LENGTH) + '...'
+          ? `${content.text.substring(0, DISPLAY_LIMITS.CONTENT_PREVIEW_LENGTH)}...`
           : content.text;
         summaries.push(`Text (${content.mimeType ?? 'unknown'}): ${preview}`);
       } else if (content.blob) {

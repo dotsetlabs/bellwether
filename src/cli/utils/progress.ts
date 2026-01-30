@@ -171,7 +171,7 @@ export class InterviewProgressBar {
     this.bar.stop();
 
     // Write to stderr (same stream as progress bar) to avoid mixing streams
-    process.stderr.write(message + '\n');
+    process.stderr.write(`${message}\n`);
 
     // Restart the progress bar with tracked state
     this.bar.start(this.totalWork, this.currentValue, this.currentPayload);
@@ -191,22 +191,22 @@ export function formatCheckBanner(options: {
   const maxCmdLen = DISPLAY_LIMITS.BANNER_COMMAND_MAX_LENGTH;
   const displayCmd =
     serverCommand.length > maxCmdLen
-      ? serverCommand.substring(0, maxCmdLen - 3) + '...'
+      ? `${serverCommand.substring(0, maxCmdLen - 3)}...`
       : serverCommand;
 
   const lines = [
     'Bellwether Check - Schema Validation & Drift Detection',
     '',
-    '\u250C' + '\u2500'.repeat(50) + '\u2510',
+    `\u250C${'\u2500'.repeat(50)}\u2510`,
     `\u2502 Server:    ${displayCmd.padEnd(38)}\u2502`,
     `\u2502 Mode:      ${'Check (free, deterministic)'.padEnd(38)}\u2502`,
   ];
 
   if (toolCount !== undefined) {
-    lines.push(`\u2502 Tools:     ${String(toolCount + ' discovered').padEnd(38)}\u2502`);
+    lines.push(`\u2502 Tools:     ${String(`${toolCount} discovered`).padEnd(38)}\u2502`);
   }
 
-  lines.push('\u2514' + '\u2500'.repeat(50) + '\u2518');
+  lines.push(`\u2514${'\u2500'.repeat(50)}\u2518`);
 
   return lines.join('\n');
 }
@@ -235,7 +235,7 @@ export function formatExploreBanner(options: {
   const maxCmdLen = DISPLAY_LIMITS.BANNER_COMMAND_MAX_LENGTH;
   const displayCmd =
     serverCommand.length > maxCmdLen
-      ? serverCommand.substring(0, maxCmdLen - 3) + '...'
+      ? `${serverCommand.substring(0, maxCmdLen - 3)}...`
       : serverCommand;
 
   const personaList = personas.join(', ');
@@ -244,19 +244,19 @@ export function formatExploreBanner(options: {
   const lines = [
     'Bellwether Explore - Behavioral Documentation',
     '',
-    '\u250C' + '\u2500'.repeat(50) + '\u2510',
+    `\u250C${'\u2500'.repeat(50)}\u2510`,
     `\u2502 Server:    ${displayCmd.padEnd(38)}\u2502`,
     `\u2502 Provider:  ${provider.padEnd(38)}\u2502`,
     `\u2502 Model:     ${model.padEnd(38)}\u2502`,
     `\u2502 Personas:  ${personaLabel.padEnd(38)}\u2502`,
-    `\u2502 Questions: ${String(questionsPerTool + ' per tool').padEnd(38)}\u2502`,
+    `\u2502 Questions: ${String(`${questionsPerTool} per tool`).padEnd(38)}\u2502`,
   ];
 
   if (toolCount !== undefined) {
-    lines.push(`\u2502 Tools:     ${String(toolCount + ' discovered').padEnd(38)}\u2502`);
+    lines.push(`\u2502 Tools:     ${String(`${toolCount} discovered`).padEnd(38)}\u2502`);
   }
 
-  lines.push('\u2514' + '\u2500'.repeat(50) + '\u2518');
+  lines.push(`\u2514${'\u2500'.repeat(50)}\u2518`);
   lines.push('');
   lines.push(
     'Tip: For drift detection, use "bellwether check" instead'

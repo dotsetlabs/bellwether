@@ -774,7 +774,7 @@ function generateReportSummary(
     return `No performance data for ${total} tool(s).`;
   }
 
-  return parts.join(', ') + '.';
+  return `${parts.join(', ')}.`;
 }
 /**
  * Format performance metrics for display.

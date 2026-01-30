@@ -14,6 +14,9 @@ import { join } from 'path';
 import { createRequire } from 'module';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import type { LLMProviderId } from '../llm/client.js';
+import { getLogger } from '../logging/logger.js';
+
+const logger = getLogger('keychain');
 
 // Create require function for loading CommonJS optional dependencies in ESM
 const require = createRequire(import.meta.url);
@@ -95,7 +98,8 @@ export function decryptEnvValue(value: string): string | undefined {
     const decipher = createDecipheriv('aes-256-gcm', key, iv);
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
-  } catch {
+  } catch (error) {
+    logger.debug({ error }, 'Failed to decrypt env value');
     return undefined;
   }
 }
@@ -136,8 +140,8 @@ class KeytarBackend implements KeychainBackend {
         // Dynamic import to avoid requiring keytar if not installed
         // Using require() for optional dependency
         this.keytar = require('keytar');
-      } catch {
-        // keytar not available - will use fallback
+      } catch (error) {
+        logger.debug({ error }, 'keytar not available, will use file fallback');
         this.keytar = null;
       }
     })();
@@ -195,7 +199,8 @@ class FileBackend implements KeychainBackend {
       } else {
         this.envLines = [];
       }
-    } catch {
+    } catch (error) {
+      logger.debug({ error }, 'Failed to load credentials file');
       this.envLines = [];
     }
 
@@ -317,7 +322,8 @@ export class KeychainService {
       // Try to access keytar using require
       require('keytar');
       return true;
-    } catch {
+    } catch (error) {
+      logger.debug({ error }, 'Secure keychain (keytar) not available');
       return false;
     }
   }
@@ -351,7 +357,8 @@ export class KeychainService {
 
     try {
       return await this.backend.getPassword(SERVICE_NAME, account);
-    } catch {
+    } catch (error) {
+      logger.debug({ error, provider }, 'Keychain get failed, trying file backend');
       // If keytar fails, try file backend
       if (!this.useFileBackend) {
         this.enableFileBackend();
@@ -394,7 +401,8 @@ export class KeychainService {
 
     try {
       return await this.backend.deletePassword(SERVICE_NAME, account);
-    } catch {
+    } catch (error) {
+      logger.debug({ error, provider }, 'Keychain delete failed, trying file backend');
       // If keytar fails, try file backend
       if (!this.useFileBackend) {
         this.enableFileBackend();

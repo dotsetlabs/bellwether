@@ -5,7 +5,7 @@
  * Use `bellwether init` to create a config file with all options documented.
  */
 
-import { readFileSync } from 'fs';
+import { readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import { parseYamlSecure } from '../utils/yaml-parser.js';
 import {
@@ -14,6 +14,9 @@ import {
   type BellwetherConfig,
 } from './validator.js';
 import { PATHS } from '../constants.js';
+import { getLogger } from '../logging/logger.js';
+
+const logger = getLogger('config');
 
 /**
  * Interpolate environment variables in a string.
@@ -23,8 +26,8 @@ import { PATHS } from '../constants.js';
  * @returns String with env vars replaced with their values
  */
 function interpolateEnvVars(value: string): string {
-  // Match ${VAR} or ${VAR:-default} syntax
-  return value.replace(/\$\{([^}]+)\}/g, (match, expr) => {
+  // First match ${VAR} or ${VAR:-default} syntax
+  let result = value.replace(/\$\{([^}]+)\}/g, (match, expr) => {
     // Check for default value syntax: ${VAR:-default}
     const [varName, defaultValue] = expr.split(':-');
     const envValue = process.env[varName.trim()];
@@ -34,9 +37,23 @@ function interpolateEnvVars(value: string): string {
     if (defaultValue !== undefined) {
       return defaultValue;
     }
-    // Return original if no value and no default
+    // Warn about unresolved variable - this often indicates a misconfiguration
+    logger.warn({ variable: varName.trim() }, `Environment variable ${varName.trim()} is not set and has no default, leaving as literal value`);
     return match;
   });
+
+  // Then match $VAR syntax (but not $$ which is escaped $)
+  result = result.replace(/\$([A-Z_][A-Z0-9_]*)/g, (match, varName) => {
+    const envValue = process.env[varName];
+    if (envValue !== undefined) {
+      return envValue;
+    }
+    // Warn about unresolved variable - this often indicates a misconfiguration
+    logger.warn({ variable: varName }, `Environment variable $${varName} is not set, leaving as literal value`);
+    return match;
+  });
+
+  return result;
 }
 
 /**
@@ -172,6 +189,21 @@ export function loadConfig(explicitPath?: string): BellwetherConfig {
       ? [explicitPath]
       : PATHS.CONFIG_FILENAMES.map((name) => join(process.cwd(), name));
     throw new ConfigNotFoundError(searchedPaths);
+  }
+
+  // SECURITY: Check file permissions (skip on Windows)
+  if (process.platform !== 'win32') {
+    try {
+      const stats = statSync(configPath);
+      const mode = stats.mode;
+      // Check if file is readable by others (0o044 = S_IRGRP | S_IROTH)
+      // Log at debug level since this is common in CI/CD environments
+      if (mode & 0o044) {
+        logger.debug({ configPath }, 'Config file is readable by others. Consider running: chmod 600 <path>');
+      }
+    } catch {
+      // Ignore permission check errors
+    }
   }
 
   // Load and parse the file

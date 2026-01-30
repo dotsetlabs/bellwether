@@ -509,6 +509,6 @@ export class StateTracker {
       parts.push(`Dependencies: ${tracking.dependencies.length} inferred (${verified} verified)`);
     }
 
-    return parts.join('. ') + '.';
+    return `${parts.join('. ')}.`;
   }
 }

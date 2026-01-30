@@ -37,7 +37,7 @@ export async function runSecurityTests(
   options: SecurityTestOptions = {}
 ): Promise<SecurityFingerprint> {
   const {
-    categories = SECURITY_TESTING.DEFAULT_CATEGORIES as unknown as SecurityCategory[],
+    categories = [...SECURITY_TESTING.DEFAULT_CATEGORIES] as SecurityCategory[],
     maxPayloadsPerCategory = SECURITY_TESTING.MAX_PAYLOADS_PER_CATEGORY,
     testErrorDisclosure = true,
   } = options;
@@ -533,7 +533,7 @@ function getRemediation(category: SecurityCategory): string {
  */
 function truncate(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str;
-  return str.slice(0, maxLength - 3) + '...';
+  return `${str.slice(0, maxLength - 3)}...`;
 }
 
 /**

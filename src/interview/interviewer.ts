@@ -1181,7 +1181,7 @@ export class Interviewer {
           const content = successfulRead.response.contents[0];
           if (content.text) {
             contentPreview = content.text.length > DISPLAY_LIMITS.CONTENT_TEXT_PREVIEW
-              ? content.text.substring(0, DISPLAY_LIMITS.CONTENT_TEXT_PREVIEW) + '...'
+              ? `${content.text.substring(0, DISPLAY_LIMITS.CONTENT_TEXT_PREVIEW)}...`
               : content.text;
           } else if (content.blob) {
             contentPreview = `[Binary data: ${content.blob.length} bytes base64]`;

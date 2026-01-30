@@ -16,8 +16,10 @@
   },
   "rules": {
     "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
-    "@typescript-eslint/no-explicit-any": "warn",
-    "no-console": "off"
+    "@typescript-eslint/no-explicit-any": "error",
+    "no-console": "off",
+    "prefer-template": "error",
+    "template-curly-spacing": ["error", "never"]
   },
   "ignorePatterns": ["dist/", "node_modules/"]
 }

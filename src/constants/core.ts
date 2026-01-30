@@ -754,3 +754,13 @@ export const PREMIUM_MODELS = {
   anthropic: 'claude-sonnet-4-5',
   ollama: 'llama3.2:70b',
 } as const;
+
+/**
+ * Conversion factor for percentage values (e.g., 10% = 10 / 100 = 0.1)
+ */
+export const PERCENTAGE_CONVERSION = {
+  /** Divisor to convert percentage to decimal */
+  DIVISOR: 100,
+  /** Multiplier to convert decimal to percentage */
+  MULTIPLIER: 100,
+} as const;

@@ -288,7 +288,7 @@ export class MCPClient {
       case 'shutdown_error':
         return 'Error occurred during server shutdown';
       default:
-        return rawError.length > 100 ? rawError.slice(0, 97) + '...' : rawError;
+        return rawError.length > 100 ? `${rawError.slice(0, 97)}...` : rawError;
     }
   }
 
@@ -464,7 +464,7 @@ export class MCPClient {
         // Capture stderr for diagnostic messages (limit to 500 chars)
         const currentStderr = this.connectionState.stderrOutput ?? '';
         if (currentStderr.length < 500) {
-          this.connectionState.stderrOutput = (currentStderr + '\n' + msg).trim().slice(0, 500);
+          this.connectionState.stderrOutput = (`${currentStderr}\n${msg}`).trim().slice(0, 500);
         }
         // Check if stderr contains error indicators that suggest transport issues
         if (this.looksLikeTransportError(msg)) {

@@ -683,12 +683,12 @@ export function formatMigrationGuideMarkdown(guide: MigrationGuide): string {
         lines.push(`**${example.title}**`);
         lines.push('');
         lines.push('Before:');
-        lines.push('```' + example.language);
+        lines.push(`\`\`\`${example.language}`);
         lines.push(example.before);
         lines.push('```');
         lines.push('');
         lines.push('After:');
-        lines.push('```' + example.language);
+        lines.push(`\`\`\`${example.language}`);
         lines.push(example.after);
         lines.push('```');
         lines.push('');

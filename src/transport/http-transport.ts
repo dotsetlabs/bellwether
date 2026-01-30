@@ -225,7 +225,7 @@ export class HTTPTransport extends BaseTransport {
               this.emit('message', message);
             } catch (error) {
               // Log streaming parse errors for visibility
-              const preview = data.length > DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW ? data.substring(0, DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW) + '...' : data;
+              const preview = data.length > DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW ? `${data.substring(0, DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW)}...` : data;
               this.logger.warn({ preview, error: error instanceof Error ? error.message : String(error) }, 'Failed to parse SSE message');
             }
           } else {
