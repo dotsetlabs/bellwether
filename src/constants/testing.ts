@@ -983,8 +983,6 @@ export const PAYLOAD_LIMITS = {
   MAX_SCHEMA_DEPTH: 50,
 } as const;
 
-// ==================== Documentation Quality Scoring ====================
-
 // ==================== Check Mode Sampling ====================
 
 /**

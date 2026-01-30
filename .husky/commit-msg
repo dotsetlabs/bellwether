@@ -1,0 +1,31 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Validate commit message format
+# Format: type(scope): description
+# Types: feat, fix, docs, style, refactor, test, chore
+
+commit_msg_file="$1"
+commit_msg=$(head -n1 "$commit_msg_file")
+
+# Check if commit message follows conventional commits format
+if ! echo "$commit_msg" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|ci|build|perf)(\(.+\))?: .+"; then
+    echo "Error: Commit message does not follow conventional commits format."
+    echo ""
+    echo "Format: type(scope): description"
+    echo ""
+    echo "Types:"
+    echo "  feat:     A new feature"
+    echo "  fix:      A bug fix"
+    echo "  docs:     Documentation only changes"
+    echo "  style:    Code style changes (formatting, semicolons, etc)"
+    echo "  refactor: Code changes that neither fix a bug nor add a feature"
+    echo "  test:     Adding or correcting tests"
+    echo "  chore:    Changes to build process or auxiliary tools"
+    echo "  ci:       Changes to CI configuration"
+    echo "  build:    Changes that affect the build system"
+    echo "  perf:     Performance improvements"
+    echo ""
+    echo "Example: feat(check): add parallel testing support"
+    exit 1
+fi

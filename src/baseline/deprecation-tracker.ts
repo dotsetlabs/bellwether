@@ -360,7 +360,7 @@ function generateDeprecationSummary(
     parts.push(`${criticalTools.length} tool(s) will be removed within ${DEPRECATION_THRESHOLDS.CRITICAL_REMOVAL_DAYS} days`);
   }
 
-  return parts.join(', ') + '.';
+  return `${parts.join(', ')}.`;
 }
 /**
  * Get all deprecated tools from a baseline.

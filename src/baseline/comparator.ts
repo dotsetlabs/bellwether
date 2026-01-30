@@ -464,7 +464,7 @@ function formatSchemaChangeValue(value: unknown): string {
   // For objects, show a compact representation
   try {
     const json = JSON.stringify(value);
-    return json.length > 50 ? json.slice(0, 47) + '...' : json;
+    return json.length > 50 ? `${json.slice(0, 47)}...` : json;
   } catch {
     return String(value);
   }
@@ -581,7 +581,7 @@ function generateSummary(
     parts.push(`${warningChanges} warning(s)`);
   }
 
-  return parts.join('. ') + '.';
+  return `${parts.join('. ')}.`;
 }
 
 export function hasBreakingChanges(diff: BehavioralDiff): boolean {

@@ -19,10 +19,11 @@ vi.mock('../../../src/cli/output.js', () => ({
 }));
 
 // Mock process.exit to throw to stop execution (like real process.exit)
-const mockExit = vi.fn((code?: number) => {
+// We use spyOn instead of stubGlobal to preserve all process methods (on, off, emit, etc.)
+// that pino and other libraries depend on
+const mockExit = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null | undefined) => {
   throw new Error(`Process exit: ${code}`);
 });
-vi.stubGlobal('process', { ...process, exit: mockExit, env: { ...process.env } });
 
 describe('baseline accept command', () => {
   let testDir: string;
@@ -169,6 +170,7 @@ describe('baseline accept command', () => {
     if (existsSync(testDir)) {
       rmSync(testDir, { recursive: true, force: true });
     }
+    mockExit.mockClear();
   });
 
   describe('loadInterviewResult helper', () => {

@@ -276,7 +276,7 @@ export function truncateText(text: string, maxTokens: number): string {
     truncated = truncated.slice(0, lastSpace);
   }
 
-  return truncated + '...';
+  return `${truncated}...`;
 }
 
 /**

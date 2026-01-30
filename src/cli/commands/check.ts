@@ -78,6 +78,7 @@ import {
   CHECK_SAMPLING,
   WORKFLOW,
   REPORT_SCHEMAS,
+  PERCENTAGE_CONVERSION,
 } from '../../constants.js';
 
 
@@ -174,7 +175,7 @@ export const checkCommand = new Command('check')
     const incrementalCacheHours = config.check.incrementalCacheHours;
     const parallelEnabled = config.check.parallel;
     const parallelWorkers = config.check.parallelWorkers;
-    const performanceThreshold = config.check.performanceThreshold / 100;
+    const performanceThreshold = config.check.performanceThreshold / PERCENTAGE_CONVERSION.DIVISOR;
     const diffFormat = options.format ?? config.check.diffFormat;
 
     // Resolve security options from config
@@ -240,7 +241,11 @@ export const checkCommand = new Command('check')
       if (transport === 'stdio') {
         await mcpClient.connect(serverCommand, args, config.server.env);
       } else {
-        await mcpClient.connectRemote(remoteUrl!, {
+        if (!remoteUrl) {
+          output.error('No server URL specified for remote transport');
+          process.exit(EXIT_CODES.ERROR);
+        }
+        await mcpClient.connectRemote(remoteUrl, {
           transport,
           sessionId: remoteSessionId || undefined,
         });
@@ -303,24 +308,25 @@ export const checkCommand = new Command('check')
           output.warn('Incremental mode requires a baseline. Testing all tools.');
         } else {
           incrementalBaseline = loadBaseline(baselinePath);
-          incrementalResult = analyzeForIncremental(
+          const result = analyzeForIncremental(
             discovery.tools,
             incrementalBaseline,
             { maxCacheAgeHours: incrementalCacheHours }
           );
+          incrementalResult = result;
 
-          const summary = formatIncrementalSummary(incrementalResult.changeSummary);
+          const summary = formatIncrementalSummary(result.changeSummary);
           output.info(`Incremental analysis: ${summary}`);
 
-          if (incrementalResult.toolsToTest.length === 0) {
+          if (result.toolsToTest.length === 0) {
             output.info('All tools unchanged. Using cached results.');
             // Still need to generate output with cached data
             // Skip to comparison section
           } else {
-            output.info(`Testing ${incrementalResult.toolsToTest.length} tools (${incrementalResult.toolsToSkip.length} cached)\n`);
+            output.info(`Testing ${result.toolsToTest.length} tools (${result.toolsToSkip.length} cached)\n`);
             // Filter discovery to only include tools that need testing
             discovery.tools = discovery.tools.filter(t =>
-              incrementalResult!.toolsToTest.includes(t.name)
+              result.toolsToTest.includes(t.name)
             );
           }
         }
@@ -561,7 +567,7 @@ export const checkCommand = new Command('check')
             {
               toolName: tool.name,
               toolDescription: tool.description || '',
-              inputSchema: tool.inputSchema as Record<string, unknown>,
+              inputSchema: tool.inputSchema ?? {},
               callTool: async (args: Record<string, unknown>) => {
                 try {
                   const response = await mcpClient.callTool(tool.name, args);

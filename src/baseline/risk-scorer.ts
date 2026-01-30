@@ -538,5 +538,5 @@ export function generateRiskScoreMarkdown(riskScore: RegressionRiskScore): strin
 function generateScoreBar(score: number, width = 10): string {
   const filled = Math.round((score / 100) * width);
   const empty = width - filled;
-  return '[' + '█'.repeat(filled) + '░'.repeat(empty) + ']';
+  return `[${'█'.repeat(filled)}${'░'.repeat(empty)}]`;
 }

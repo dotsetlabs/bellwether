@@ -326,12 +326,12 @@ function generateMigrationSection(
     if (step.codeExamples && step.codeExamples.length > 0) {
       const example = step.codeExamples[0];
       lines.push('');
-      lines.push('   ```' + (example.language || ''));
+      lines.push(`   \`\`\`${example.language || ''}`);
       lines.push('   // Before:');
-      lines.push('   ' + example.before.split('\n').join('\n   '));
+      lines.push(`   ${example.before.split('\n').join('\n   ')}`);
       lines.push('');
       lines.push('   // After:');
-      lines.push('   ' + example.after.split('\n').join('\n   '));
+      lines.push(`   ${example.after.split('\n').join('\n   ')}`);
       lines.push('   ```');
     }
 
@@ -428,7 +428,7 @@ function formatAspect(aspect: string): string {
  */
 function truncate(value: string, maxLength: number = PR_COMMENTS.VALUE_TRUNCATE_LENGTH): string {
   if (value.length <= maxLength) return value;
-  return value.substring(0, maxLength - 3) + '...';
+  return `${value.substring(0, maxLength - 3)}...`;
 }
 
 /**

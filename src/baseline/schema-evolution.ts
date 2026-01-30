@@ -598,7 +598,7 @@ export function generateVisualTimeline(
     const marker = v.hasBreakingChanges ? '◆' : '●';
     bar += marker + '─'.repeat(segmentWidth - 1);
   }
-  lines.push('  ' + bar);
+  lines.push(`  ${bar}`);
 
   // Version labels
   let labels = '  ';

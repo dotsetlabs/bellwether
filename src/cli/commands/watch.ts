@@ -182,7 +182,7 @@ export const watchCommand = new Command('watch')
                   output.error(`On-drift command exited with code ${cmdResult.status}`);
                 }
               } catch (e) {
-                output.error('On-drift command failed: ' + (e instanceof Error ? e.message : String(e)));
+                output.error(`On-drift command failed: ${e instanceof Error ? e.message : String(e)}`);
               }
             }
           } else {
@@ -196,7 +196,7 @@ export const watchCommand = new Command('watch')
         output.info(`Baseline updated: ${newBaseline.hash.slice(0, 8)}`);
 
       } catch (error) {
-        output.error('Test failed: ' + (error instanceof Error ? error.message : String(error)));
+        output.error(`Test failed: ${error instanceof Error ? error.message : String(error)}`);
       } finally {
         await mcpClient.disconnect();
       }
@@ -237,7 +237,7 @@ export const watchCommand = new Command('watch')
           }
         } catch (error) {
           if (verbose) {
-            output.error(`Warning: Error scanning ${dir}: ` + (error instanceof Error ? error.message : String(error)));
+            output.error(`Warning: Error scanning ${dir}: ${error instanceof Error ? error.message : String(error)}`);
           }
         }
       }
@@ -270,7 +270,7 @@ export const watchCommand = new Command('watch')
           output.info('\nWatching for changes... (Press Ctrl+C to exit)\n');
         }
       } catch (error) {
-        output.error('Watch polling error: ' + (error instanceof Error ? error.message : String(error)));
+        output.error(`Watch polling error: ${error instanceof Error ? error.message : String(error)}`);
       } finally {
         isRunningInterview = false;
       }
@@ -279,7 +279,7 @@ export const watchCommand = new Command('watch')
     // Start polling interval
     currentInterval = setInterval(() => {
       pollForChanges().catch((error) => {
-        output.error('Unexpected polling error: ' + (error instanceof Error ? error.message : String(error)));
+        output.error(`Unexpected polling error: ${error instanceof Error ? error.message : String(error)}`);
       });
     }, interval);
 

@@ -173,7 +173,7 @@ export function validateJsonForCodeBlock(
   // Truncate if needed
   let truncated = false;
   if (maxLength && content.length > maxLength) {
-    content = content.substring(0, maxLength) + '\n' + truncationIndicator;
+    content = `${content.substring(0, maxLength)}\n${truncationIndicator}`;
     truncated = true;
   }
 
@@ -235,7 +235,7 @@ export function escapeListItem(text: string): string {
 
   // Leading dash, asterisk, plus (unordered list)
   if (/^[-*+]\s/.test(escaped)) {
-    escaped = '\\' + escaped;
+    escaped = `\\${escaped}`;
   }
 
   // Leading number with period (ordered list)
@@ -272,7 +272,7 @@ export function wrapTableCell(text: string, maxWidth: number = DISPLAY_LIMITS.TA
       if (currentLine) {
         lines.push(currentLine);
       }
-      currentLine = word.length > maxWidth ? word.substring(0, maxWidth) + '...' : word;
+      currentLine = word.length > maxWidth ? `${word.substring(0, maxWidth)}...` : word;
     }
   }
 

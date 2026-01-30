@@ -153,7 +153,7 @@ export function keyValue(key: string, value: string | number | boolean | undefin
  */
 export function listItem(item: string, indent: number = 0): void {
   if (!globalConfig.quiet) {
-    const prefix = '  '.repeat(indent) + '- ';
+    const prefix = `${'  '.repeat(indent)}- `;
     console.log(`${prefix}${item}`);
   }
 }
@@ -245,7 +245,7 @@ export class Output {
 
   listItem(item: string, indent: number = 0): void {
     if (!this.config.quiet) {
-      const prefix = '  '.repeat(indent) + '- ';
+      const prefix = `${'  '.repeat(indent)}- `;
       console.log(`${prefix}${item}`);
     }
   }

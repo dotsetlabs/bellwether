@@ -78,10 +78,10 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
         const sevColor = getSeverityColor(change.severity, useColors);
         lines.push(`    ${sevColor(`[${change.severity.toUpperCase()}]`)} ${change.aspect}`);
         if (change.before) {
-          lines.push(`      ${red('- ' + change.before)}`);
+          lines.push(`      ${red(`- ${change.before}`)}`);
         }
         if (change.after) {
-          lines.push(`      ${green('+ ' + change.after)}`);
+          lines.push(`      ${green(`+ ${change.after}`)}`);
         }
       }
       lines.push('');
@@ -176,10 +176,10 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
         lines.push(`      ${issue.summary}`);
 
         if (issue.fieldsRemoved.length > 0) {
-          lines.push(`      ${red('- Removed: ' + issue.fieldsRemoved.join(', '))}`);
+          lines.push(`      ${red(`- Removed: ${issue.fieldsRemoved.join(', ')}`)}`);
         }
         if (issue.fieldsAdded.length > 0) {
-          lines.push(`      ${green('+ Added: ' + issue.fieldsAdded.join(', '))}`);
+          lines.push(`      ${green(`+ Added: ${issue.fieldsAdded.join(', ')}`)}`);
         }
       }
       lines.push('');

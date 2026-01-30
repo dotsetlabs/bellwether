@@ -2,6 +2,8 @@
  * Bellwether - Interview MCP servers to generate behavioral documentation
  *
  * @packageDocumentation
+ * @license MIT
+ * @copyright (c) 2026 Dotset Labs LLC
  */
 
 // Transport layer
@@ -50,6 +52,8 @@ export type {
 // LLM
 export type { LLMClient, Message, CompletionOptions } from './llm/client.js';
 export { OpenAIClient, type OpenAIClientOptions } from './llm/openai.js';
+export { AnthropicClient, type AnthropicClientOptions } from './llm/anthropic.js';
+export { OllamaClient, type OllamaClientOptions } from './llm/ollama.js';
 
 // Documentation
 export { generateAgentsMd, generateContractMd, generateJsonReport } from './docs/generator.js';

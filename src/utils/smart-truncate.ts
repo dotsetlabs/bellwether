@@ -229,7 +229,7 @@ function truncateJsonValue(
     if (typeof value === 'string' && value.length > maxLength / 4) {
       // Truncate long strings
       return {
-        value: value.slice(0, Math.floor(maxLength / 4)) + '...',
+        value: `${value.slice(0, Math.floor(maxLength / 4))}...`,
         itemsOmitted: 0,
       };
     }

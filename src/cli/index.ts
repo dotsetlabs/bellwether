@@ -1,5 +1,12 @@
 #!/usr/bin/env node
 
+/**
+ * Bellwether CLI - MCP Server Testing Tool
+ *
+ * @license MIT
+ * @copyright (c) 2026 Dotset Labs LLC
+ */
+
 import { config } from 'dotenv';
 import { existsSync } from 'fs';
 import { join } from 'path';
@@ -218,7 +225,7 @@ program.addCommand(
 // Custom help formatting
 program.configureHelp({
   sortSubcommands: false, // Keep our custom order
-  subcommandTerm: (cmd) => cmd.name() + ' ' + cmd.usage(),
+  subcommandTerm: (cmd) => `${cmd.name()} ${cmd.usage()}`,
 });
 
 // Load keychain credentials, then parse commands

@@ -174,7 +174,7 @@ export function summarizeDiscovery(result: DiscoveryResult): string {
 
   // Header with box drawing
   lines.push('┌─────────────────────────────────────────────────────────────────┐');
-  lines.push(`│  ${result.serverInfo.name} v${result.serverInfo.version}`.padEnd(66) + '│');
+  lines.push(`${`│  ${result.serverInfo.name} v${result.serverInfo.version}`.padEnd(66)}│`);
   lines.push('└─────────────────────────────────────────────────────────────────┘');
   lines.push('');
 
@@ -212,7 +212,7 @@ export function summarizeDiscovery(result: DiscoveryResult): string {
       if (tool.description) {
         // Truncate long descriptions
         const desc = tool.description.length > DISPLAY_LIMITS.DESCRIPTION_MAX_LENGTH
-          ? tool.description.substring(0, DISPLAY_LIMITS.DESCRIPTION_TRUNCATE_AT) + '...'
+          ? `${tool.description.substring(0, DISPLAY_LIMITS.DESCRIPTION_TRUNCATE_AT)}...`
           : tool.description;
         lines.push(`    └─ ${desc}`);
       }
@@ -231,7 +231,7 @@ export function summarizeDiscovery(result: DiscoveryResult): string {
       lines.push(`  ${prompt.name}(${args})`);
       if (prompt.description) {
         const desc = prompt.description.length > DISPLAY_LIMITS.DESCRIPTION_MAX_LENGTH
-          ? prompt.description.substring(0, DISPLAY_LIMITS.DESCRIPTION_TRUNCATE_AT) + '...'
+          ? `${prompt.description.substring(0, DISPLAY_LIMITS.DESCRIPTION_TRUNCATE_AT)}...`
           : prompt.description;
         lines.push(`    └─ ${desc}`);
       }
@@ -250,7 +250,7 @@ export function summarizeDiscovery(result: DiscoveryResult): string {
       lines.push(`    URI: ${resource.uri}`);
       if (resource.description) {
         const desc = resource.description.length > DISPLAY_LIMITS.DESCRIPTION_MAX_LENGTH
-          ? resource.description.substring(0, DISPLAY_LIMITS.DESCRIPTION_TRUNCATE_AT) + '...'
+          ? `${resource.description.substring(0, DISPLAY_LIMITS.DESCRIPTION_TRUNCATE_AT)}...`
           : resource.description;
         lines.push(`    └─ ${desc}`);
       }

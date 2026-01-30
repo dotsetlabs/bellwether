@@ -106,7 +106,7 @@ async function discoverAction(command: string | undefined, args: string[], optio
       output.info(summarizeDiscovery(result));
     }
   } catch (error) {
-    output.error('Discovery failed: ' + (error instanceof Error ? error.message : String(error)));
+    output.error(`Discovery failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(EXIT_CODES.ERROR);
   } finally {
     await client.disconnect();

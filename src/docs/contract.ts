@@ -308,7 +308,7 @@ export function generateContractMd(result: InterviewResult, options?: ContractMd
     for (const tool of discovery.tools) {
       const params = extractParameters(tool.inputSchema);
       const desc = tool.description?.substring(0, 50) || 'No description';
-      const descDisplay = tool.description && tool.description.length > 50 ? desc + '...' : desc;
+      const descDisplay = tool.description && tool.description.length > 50 ? `${desc}...` : desc;
       const profile = toolProfiles.find(p => p.name === tool.name);
       const perf = performanceByTool.get(tool.name);
       const successRate = calculateToolSuccessRate(profile, {
@@ -1473,7 +1473,7 @@ function generateWorkflowTestingSection(results: WorkflowResult[]): string[] {
  */
 function truncateString(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str;
-  return str.slice(0, maxLength - 3) + '...';
+  return `${str.slice(0, maxLength - 3)}...`;
 }
 
 /**
@@ -1799,7 +1799,7 @@ function generateErrorAnalysisSection(summaries: Map<string, ErrorAnalysisSummar
       : '-';
     const topRemediation = summary.topRemediations[0] ?? '-';
     const truncatedRemediation = topRemediation.length > 50
-      ? topRemediation.slice(0, 47) + '...'
+      ? `${topRemediation.slice(0, 47)}...`
       : topRemediation;
 
     lines.push(
@@ -2150,7 +2150,7 @@ function generateToolErrorPatterns(profile: ToolProfile | undefined): string[] {
     const category = categorizeError(errorContent);
     const existing = errorCategories.get(category) || [];
     if (existing.length < 2) { // Max 2 examples per category
-      const truncated = errorContent.length > 100 ? errorContent.slice(0, 97) + '...' : errorContent;
+      const truncated = errorContent.length > 100 ? `${errorContent.slice(0, 97)}...` : errorContent;
       existing.push(truncated);
     }
     errorCategories.set(category, existing);
@@ -2224,7 +2224,7 @@ function generateErrorSummarySection(profiles: ToolProfile[]): string[] {
       existing.count++;
       existing.tools.add(profile.name);
       if (!existing.example) {
-        existing.example = errorContent.length > 80 ? errorContent.slice(0, 77) + '...' : errorContent;
+        existing.example = errorContent.length > 80 ? `${errorContent.slice(0, 77)}...` : errorContent;
       }
       categoryCounts.set(category, existing);
     }

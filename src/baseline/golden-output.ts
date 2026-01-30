@@ -805,7 +805,7 @@ function isPathAllowed(path: string, allowedPaths: string[]): boolean {
 
     // Simple glob matching: * matches any segment
     const regex = new RegExp(
-      '^' + normalizedPattern.replace(/\*/g, '[^.]+').replace(/\./g, '\\.') + '$'
+      `^${normalizedPattern.replace(/\*/g, '[^.]+').replace(/\./g, '\\.')}$`
     );
     return regex.test(normalizedPath);
   });
@@ -826,7 +826,7 @@ function getType(value: unknown): string {
 function truncateForDisplay(value: unknown, maxLength = 50): string {
   const str = typeof value === 'string' ? value : JSON.stringify(value);
   if (str.length <= maxLength) return str;
-  return str.slice(0, maxLength - 3) + '...';
+  return `${str.slice(0, maxLength - 3)}...`;
 }
 
 /**

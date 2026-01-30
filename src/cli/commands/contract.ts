@@ -142,10 +142,10 @@ contractCommand
       // Output results
       switch (format) {
         case 'json':
-          console.log(JSON.stringify(result, null, 2));
+          output.info(JSON.stringify(result, null, 2));
           break;
         case 'markdown':
-          console.log(generateContractValidationMarkdown(result));
+          output.info(generateContractValidationMarkdown(result));
           break;
         default:
           // Text format
@@ -294,10 +294,10 @@ contractCommand
       output.newline();
 
       if (options.json) {
-        console.log(JSON.stringify(contract, null, 2));
+        output.info(JSON.stringify(contract, null, 2));
       } else {
         const content = readFileSync(path, 'utf-8');
-        console.log(content);
+        output.info(content);
       }
     } catch (error) {
       output.error(`Failed to load contract: ${error instanceof Error ? error.message : error}`);

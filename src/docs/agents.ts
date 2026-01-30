@@ -362,7 +362,7 @@ export function generateAgentsMd(result: InterviewResult): string {
         lines.push('**Example Output:**');
         lines.push('```');
         lines.push(profile.exampleOutput.length > DISPLAY_LIMITS.DOCS_EXAMPLE_LENGTH
-          ? profile.exampleOutput.substring(0, DISPLAY_LIMITS.DOCS_EXAMPLE_LENGTH) + '...'
+          ? `${profile.exampleOutput.substring(0, DISPLAY_LIMITS.DOCS_EXAMPLE_LENGTH)}...`
           : profile.exampleOutput);
         lines.push('```');
         lines.push('');

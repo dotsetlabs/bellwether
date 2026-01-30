@@ -225,7 +225,7 @@ export class StdioTransport extends BaseTransport {
       if (this.debug) {
         this.logger.debug({ format: 'newline', content }, 'Sending message');
       }
-      writeData(content + '\n');
+      writeData(`${content}\n`);
     } else {
       // Content-Length framing
       const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`;

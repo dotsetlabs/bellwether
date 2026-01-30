@@ -275,7 +275,7 @@ export class AnthropicClient implements LLMClient {
         const lastRole = result[result.length - 1].role;
         if (msg.role === lastRole) {
           // Same role as previous - merge content
-          result[result.length - 1].content += '\n\n' + msg.content;
+          result[result.length - 1].content += `\n\n${msg.content}`;
         } else {
           result.push(msg);
         }

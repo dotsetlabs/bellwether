@@ -252,13 +252,13 @@ baselineCommand
     // Format and output
     switch (format) {
       case 'json':
-        console.log(formatDiffJson(diff));
+        output.info(formatDiffJson(diff));
         break;
       case 'markdown':
-        console.log(formatDiffMarkdown(diff));
+        output.info(formatDiffMarkdown(diff));
         break;
       case 'compact':
-        console.log(formatDiffCompact(diff));
+        output.info(formatDiffCompact(diff));
         break;
       default:
         output.info('--- Drift Report ---');
@@ -327,7 +327,7 @@ baselineCommand
 
     // Raw JSON output
     if (options.json) {
-      console.log(JSON.stringify(baseline, null, 2));
+      output.info(JSON.stringify(baseline, null, 2));
       return;
     }
 
@@ -479,13 +479,13 @@ baselineCommand
     // Format and output
     switch (format) {
       case 'json':
-        console.log(formatDiffJson(diff));
+        output.info(formatDiffJson(diff));
         break;
       case 'markdown':
-        console.log(formatDiffMarkdown(diff));
+        output.info(formatDiffMarkdown(diff));
         break;
       case 'compact':
-        console.log(formatDiffCompact(diff));
+        output.info(formatDiffCompact(diff));
         break;
       default:
         output.info(formatDiffText(diff));

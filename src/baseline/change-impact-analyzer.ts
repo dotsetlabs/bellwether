@@ -738,7 +738,7 @@ function generateImpactSummary(
     parts.push(`${brokenWorkflows.length} workflow(s) may be affected`);
   }
 
-  return parts.length > 0 ? parts.join('. ') + '.' : 'No changes detected.';
+  return parts.length > 0 ? `${parts.join('. ')}.` : 'No changes detected.';
 }
 /**
  * Check if a behavior change is actually breaking based on semantic analysis.

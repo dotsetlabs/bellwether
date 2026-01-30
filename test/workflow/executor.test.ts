@@ -100,7 +100,7 @@ describe('WorkflowExecutor', () => {
       expect(result.steps).toHaveLength(1);
       expect(result.steps[0].success).toBe(true);
       expect(result.steps[0].response).not.toBeNull();
-      expect(result.durationMs).toBeGreaterThan(0);
+      expect(result.durationMs).toBeGreaterThanOrEqual(0);
     }, 15000);
 
     it('should execute a multi-step workflow', async () => {

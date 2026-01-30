@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [1.0.1] - 2026-01-29
+
+### Added
+
+- Added `$VAR` syntax support for environment variable interpolation in config files
+- Added rate limiting to registry client (5 req/s default)
+- Added `AnthropicClient` and `OllamaClient` exports to public API
+- Added `repository.directory` and `funding` fields to package.json
+- Added required permissions documentation to GitHub Action
+- Added debug logging for all credential operations
+- Added warning when environment variables in config are not resolved
+
+### Changed
+
+- Optimized GitHub Action to run check once; SARIF and JUnit are now converted from JSON output
+- Removed test coverage exclusion for CLI entry point
+- Removed unnecessary type casts in check.ts and security-tester.ts
+- Replaced magic number 100 with PERCENTAGE_CONVERSION.DIVISOR constant
+- Removed dead code sections from constants
+- Refactored string concatenation to template literals in CLI output modules
+
+### Fixed
+
+- Fixed version fallback inconsistency (0.13.0 → 1.0.1)
+- Fixed missing pino-pretty dependency
+- Fixed non-null assertion for remoteUrl in check.ts (added proper null check)
+- Fixed non-null assertion for incrementalResult in check.ts
+- Added debug logging to catch blocks in keychain.ts (graceful degradation with visibility)
+- Fixed flaky test in workflow executor (timing assertion)
+- Fixed test failures in baseline-accept tests (process.exit mock)
+
 ## [1.0.0] - 2026-01-27
 
 ### Breaking Changes
