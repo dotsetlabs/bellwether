@@ -923,6 +923,17 @@ export const checkCommand = new Command('check')
         output.info(`\nBaseline saved: ${saveBaselinePath}`);
       }
 
+      // Output formatted results for sarif/junit when no baseline comparison
+      // This allows CI systems to consume check results even without drift detection
+      if (!baselinePath) {
+        const formattedCheckResults = formatCheckResults(currentBaseline, diffFormat);
+        if (formattedCheckResults) {
+          output.info('\n--- Check Results ---');
+          // Output directly to stdout for machine-readable formats
+          console.log(formattedCheckResults);
+        }
+      }
+
       // Handle baseline comparison
       if (baselinePath) {
         if (!existsSync(baselinePath)) {
@@ -1086,5 +1097,167 @@ function formatDiff(diff: BehavioralDiff, format: string, baselinePath: string):
     case 'text':
     default:
       return formatDiffText(diff);
+  }
+}
+
+/**
+ * Format check results as JUnit XML (for CI systems that expect test results).
+ * This is used when --format junit is specified but no baseline comparison occurs.
+ */
+function formatCheckResultsJUnit(baseline: BehavioralBaseline): string {
+  const tools = getToolFingerprints(baseline);
+  const lines: string[] = [];
+  const securityFailures = tools.filter(t =>
+    t.securityFingerprint?.findings?.some(f => f.riskLevel === 'critical' || f.riskLevel === 'high')
+  ).length;
+
+  lines.push('<?xml version="1.0" encoding="UTF-8"?>');
+  lines.push('<testsuites>');
+  lines.push(`  <testsuite name="bellwether-check" tests="${tools.length}" failures="${securityFailures}" errors="0">`);
+
+  for (const tool of tools) {
+    const successRate = tool.baselineSuccessRate ?? 1;
+    const status = successRate >= 0.9 ? 'passed' : 'warning';
+    lines.push(`    <testcase name="${tool.name}" classname="mcp-tools" time="0">`);
+    lines.push(`      <system-out>Success rate: ${(successRate * 100).toFixed(0)}%</system-out>`);
+    if (status === 'warning') {
+      lines.push(`      <system-err>Tool has success rate below 90%</system-err>`);
+    }
+    lines.push('    </testcase>');
+  }
+
+  // Add security findings as test cases if present
+  const securityTools = tools.filter(t => t.securityFingerprint?.findings?.length);
+  if (securityTools.length > 0) {
+    lines.push(`    <!-- Security findings -->`);
+    for (const tool of securityTools) {
+      const findings = tool.securityFingerprint?.findings ?? [];
+      const criticalHigh = findings.filter(f => f.riskLevel === 'critical' || f.riskLevel === 'high').length;
+      if (criticalHigh > 0) {
+        lines.push(`    <testcase name="${tool.name}-security" classname="security">`);
+        lines.push(`      <failure message="${criticalHigh} critical/high security findings">`);
+        for (const finding of findings.filter(f => f.riskLevel === 'critical' || f.riskLevel === 'high')) {
+          lines.push(`        ${finding.riskLevel.toUpperCase()}: ${finding.title} (${finding.cweId})`);
+        }
+        lines.push(`      </failure>`);
+        lines.push('    </testcase>');
+      }
+    }
+  }
+
+  lines.push('  </testsuite>');
+  lines.push('</testsuites>');
+
+  return lines.join('\n');
+}
+
+/**
+ * Format check results as SARIF (for GitHub Code Scanning and other tools).
+ * This is used when --format sarif is specified but no baseline comparison occurs.
+ */
+function formatCheckResultsSarif(baseline: BehavioralBaseline): string {
+  const tools = getToolFingerprints(baseline);
+  const serverUri = baseline.metadata?.serverCommand || baseline.server.name || 'mcp-server';
+  const results: Array<{
+    ruleId: string;
+    level: 'note' | 'warning' | 'error';
+    message: { text: string };
+    locations: Array<{
+      physicalLocation: {
+        artifactLocation: { uri: string };
+        region: { startLine: number };
+      };
+    }>;
+  }> = [];
+
+  // Add results for tools with security findings
+  const securityTools = tools.filter(t => t.securityFingerprint?.findings?.length);
+  for (const tool of securityTools) {
+    const findings = tool.securityFingerprint?.findings ?? [];
+    for (const finding of findings) {
+      const level = finding.riskLevel === 'critical' || finding.riskLevel === 'high'
+        ? 'error' as const
+        : finding.riskLevel === 'medium'
+          ? 'warning' as const
+          : 'note' as const;
+
+      results.push({
+        ruleId: finding.cweId || 'BWH-SEC',
+        level,
+        message: { text: `[${tool.name}] ${finding.title}: ${finding.description}` },
+        locations: [{
+          physicalLocation: {
+            artifactLocation: { uri: serverUri },
+            region: { startLine: 1 },
+          },
+        }],
+      });
+    }
+  }
+
+  // Add results for tools with low success rate
+  for (const tool of tools) {
+    const successRate = tool.baselineSuccessRate ?? 1;
+    if (successRate < 0.9) {
+      results.push({
+        ruleId: 'BWH-REL',
+        level: 'warning',
+        message: { text: `Tool "${tool.name}" has ${(successRate * 100).toFixed(0)}% success rate` },
+        locations: [{
+          physicalLocation: {
+            artifactLocation: { uri: serverUri },
+            region: { startLine: 1 },
+          },
+        }],
+      });
+    }
+  }
+
+  const sarif = {
+    $schema: 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
+    version: '2.1.0',
+    runs: [{
+      tool: {
+        driver: {
+          name: 'bellwether',
+          version: '1.0.0',
+          informationUri: 'https://github.com/dotsetlabs/bellwether',
+          rules: [
+            {
+              id: 'BWH-SEC',
+              name: 'SecurityFinding',
+              shortDescription: { text: 'Security vulnerability detected' },
+              defaultConfiguration: { level: 'warning' },
+            },
+            {
+              id: 'BWH-REL',
+              name: 'LowReliability',
+              shortDescription: { text: 'Tool reliability below threshold' },
+              defaultConfiguration: { level: 'warning' },
+            },
+          ],
+        },
+      },
+      results,
+    }],
+  };
+
+  return JSON.stringify(sarif, null, 2);
+}
+
+/**
+ * Format check results using the specified output format.
+ * Used when no baseline comparison occurs.
+ */
+function formatCheckResults(baseline: BehavioralBaseline, format: string): string | null {
+  switch (format.toLowerCase()) {
+    case 'junit':
+    case 'junit-xml':
+    case 'xml':
+      return formatCheckResultsJUnit(baseline);
+    case 'sarif':
+      return formatCheckResultsSarif(baseline);
+    default:
+      return null; // No special formatting needed for other formats
   }
 }

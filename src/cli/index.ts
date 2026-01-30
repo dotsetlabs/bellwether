@@ -139,7 +139,7 @@ For more information on a specific command, use:
     const opts = activeCommand.opts();
 
     // Commands that don't require config
-    const configOptionalCommands = ['init', 'validate-config', 'registry', 'discover'];
+    const configOptionalCommands = ['init', 'validate-config', 'registry', 'discover', 'auth'];
     if (!configOptionalCommands.includes(commandName)) {
       const configPath = opts.config as string | undefined;
       const found = findConfigFile(configPath);

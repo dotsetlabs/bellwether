@@ -21,11 +21,27 @@ export interface OutputConfig {
 }
 
 /**
+ * Check if colors should be disabled based on environment.
+ * Respects NO_COLOR standard (https://no-color.org/)
+ */
+function shouldDisableColor(): boolean {
+  // NO_COLOR takes precedence when set to any non-empty value
+  if (process.env.NO_COLOR !== undefined && process.env.NO_COLOR !== '') {
+    return true;
+  }
+  // FORCE_COLOR=0 also disables colors
+  if (process.env.FORCE_COLOR === '0') {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Global output configuration.
  */
 let globalConfig: OutputConfig = {
   quiet: false,
-  noColor: false,
+  noColor: shouldDisableColor(),
 };
 
 /**
@@ -288,11 +304,14 @@ export class StreamingDisplay {
   private lineLength: number = 0;
   private isActive: boolean = false;
   private quietMode: boolean;
+  private supportsAnsi: boolean;
 
   constructor(config: StreamingDisplayConfig = {}) {
     this.config = config;
     this.stream = config.stream ?? process.stdout;
     this.quietMode = globalConfig.quiet ?? false;
+    // Only use ANSI codes if output is a TTY and noColor is not set
+    this.supportsAnsi = (this.stream.isTTY ?? false) && !globalConfig.noColor;
   }
 
   /**
@@ -320,12 +339,14 @@ export class StreamingDisplay {
 
     this.buffer += chunk;
 
-    // Apply styling if configured
+    // Apply styling only if ANSI is supported (TTY and noColor not set)
     let styledChunk = chunk;
-    if (this.config.style === 'dim') {
-      styledChunk = `\x1b[2m${chunk}\x1b[0m`;
-    } else if (this.config.style === 'bright') {
-      styledChunk = `\x1b[1m${chunk}\x1b[0m`;
+    if (this.supportsAnsi) {
+      if (this.config.style === 'dim') {
+        styledChunk = `\x1b[2m${chunk}\x1b[0m`;
+      } else if (this.config.style === 'bright') {
+        styledChunk = `\x1b[1m${chunk}\x1b[0m`;
+      }
     }
 
     // Handle line wrapping if maxWidth is set
@@ -340,7 +361,11 @@ export class StreamingDisplay {
             this.stream.write('\n');
             this.lineLength = 0;
           }
-          this.stream.write(this.config.style === 'dim' ? `\x1b[2m${char}\x1b[0m` : char);
+          // Only apply ANSI styling per-character if supported
+          const styledChar = this.supportsAnsi && this.config.style === 'dim'
+            ? `\x1b[2m${char}\x1b[0m`
+            : char;
+          this.stream.write(styledChar);
           this.lineLength++;
         }
       }
