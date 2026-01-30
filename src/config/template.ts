@@ -27,6 +27,8 @@ export interface ConfigTemplateOptions {
   envVars?: string[];
   /** Whether to optimize for CI (affects baseline.failOnDrift default) */
   ciOptimized?: boolean;
+  /** Whether to enable security testing (affects check.security.enabled default) */
+  securityEnabled?: boolean;
 }
 
 /**
@@ -45,8 +47,12 @@ export function generateConfigTemplate(options: ConfigTemplateOptions = {}): str
     preset,
     envVars = [],
     ciOptimized = false,
+    securityEnabled = false,
   } = options;
   const defaults = CONFIG_DEFAULTS;
+
+  // Override security.enabled if preset specifies it
+  const securityEnabledValue = securityEnabled ? 'true' : String(defaults.check.security.enabled);
 
   const serverArgsYaml = serverArgs.length > 0
     ? `\n  args:\n${serverArgs.map(arg => `    - "${arg}"`).join('\n')}`
@@ -247,7 +253,7 @@ check:
   security:
     # Enable security vulnerability testing
     # Tests for SQL injection, XSS, path traversal, command injection, SSRF
-    enabled: ${defaults.check.security.enabled}
+    enabled: ${securityEnabledValue}
 
     # Security categories to test (when enabled)
     categories:
@@ -490,16 +496,20 @@ export const PRESETS: Record<string, ConfigTemplateOptions> = {
 
   /**
    * Security preset: Optimized for 'bellwether explore' with security focus.
+   * Enables security testing by default.
    */
   security: {
     provider: 'anthropic',
+    securityEnabled: true,
   },
 
   /**
    * Thorough preset: Optimized for 'bellwether explore' with all personas.
+   * Enables security testing by default.
    */
   thorough: {
     provider: 'anthropic',
+    securityEnabled: true,
   },
 
   /**

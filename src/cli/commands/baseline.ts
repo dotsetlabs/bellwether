@@ -191,13 +191,30 @@ baselineCommand
       process.exit(EXIT_CODES.ERROR);
     }
 
-    const baselineBaseDir = baselinePath ? process.cwd() : outputDir;
-    const fullBaselinePath = resolvedBaselinePath.startsWith('/')
-      ? resolvedBaselinePath
-      : join(baselineBaseDir, resolvedBaselinePath);
+    // Resolve baseline path consistently with 'show' command:
+    // 1. If absolute path, use as-is
+    // 2. First try relative to outputDir (e.g., .bellwether/)
+    // 3. Fall back to relative to cwd
+    let fullBaselinePath: string;
+    if (resolvedBaselinePath.startsWith('/')) {
+      fullBaselinePath = resolvedBaselinePath;
+    } else {
+      const outputDirPath = join(outputDir, resolvedBaselinePath);
+      const cwdPath = join(process.cwd(), resolvedBaselinePath);
+
+      if (existsSync(outputDirPath)) {
+        fullBaselinePath = outputDirPath;
+      } else if (existsSync(cwdPath)) {
+        fullBaselinePath = cwdPath;
+      } else {
+        // Default to outputDir path for error message consistency
+        fullBaselinePath = outputDirPath;
+      }
+    }
 
     if (!existsSync(fullBaselinePath)) {
       output.error(`Baseline not found: ${fullBaselinePath}`);
+      output.error('\nRun `bellwether baseline save` to create a baseline.');
       process.exit(EXIT_CODES.ERROR);
     }
 

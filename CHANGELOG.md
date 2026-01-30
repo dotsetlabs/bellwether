@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-01-30
+
+### Added
+
+- Added SARIF and JUnit output format support for `bellwether check` without baseline comparison
+  - Use `--format sarif` for GitHub Code Scanning integration
+  - Use `--format junit` for CI/CD test reporting
+- Added registry validation indicators showing environment variable requirements
+  - Servers requiring setup now display ⚙ indicator
+  - Environment variables show ✓/✗ status based on whether they're set
+  - Automatic detection of common service patterns (postgres→DATABASE_URL, etc.)
+  - Setup hints displayed for unconfigured servers
+
+### Changed
+
+- Security and thorough presets now enable security testing by default (`check.security.enabled: true`)
+
+### Fixed
+
+- Fixed baseline path resolution in `baseline compare` to be consistent with `baseline show`
+  - Now checks both output directory and current working directory before failing
+- Fixed `bellwether auth status` requiring a config file
+  - Auth commands now work without bellwether.yaml present
+- Fixed ANSI escape codes appearing in non-TTY output (e.g., when piping to files)
+  - StreamingDisplay now checks for TTY before applying ANSI styling
+  - Automatically respects `NO_COLOR` and `FORCE_COLOR=0` environment variables
+
 ## [1.0.1] - 2026-01-29
 
 ### Added
