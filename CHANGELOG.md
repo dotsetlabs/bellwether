@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-02-02
+
+### Added
+
+- Added `version` input to GitHub Action for explicit npm version selection
+  - Action now derives version from ref (e.g., `v1.0.3`) or accepts explicit `inputs.version`
+  - Provides clear error message when version cannot be determined
+- Added `signal` option to LLM completion requests for request cancellation via AbortSignal
+- Added AbortController integration to timeout utilities for proper request cancellation
+- Added JSON extraction from mixed LLM responses (handles prose around JSON blocks)
+
+### Changed
+
+- Improved timeout handling with AbortController propagation across LLM and transport layers
+- Improved error handling and resource cleanup in interview, orchestrator, and transport modules
+- Refactored response cache, workflow executor, and state tracker for better reliability
+- Updated CI/CD and GitHub/GitLab integration documentation
+
+### Fixed
+
+- Fixed GitHub Action stderr handling in check command output capture
+- Fixed various code formatting and linting issues across LLM clients and transport modules
+
 ## [1.0.2] - 2026-01-30
 
 ### Added
