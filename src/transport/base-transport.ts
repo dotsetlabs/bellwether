@@ -45,7 +45,7 @@ export abstract class BaseTransport extends EventEmitter {
   /**
    * Send a JSON-RPC message to the server.
    */
-  abstract send(message: JSONRPCMessage): void;
+  abstract send(message: JSONRPCMessage, signal?: AbortSignal): void;
 
   /**
    * Close the transport connection.
@@ -67,10 +67,7 @@ export abstract class BaseTransport extends EventEmitter {
   }
 
   // Type-safe event methods
-  override on<K extends keyof TransportEvents>(
-    event: K,
-    listener: TransportEvents[K]
-  ): this {
+  override on<K extends keyof TransportEvents>(event: K, listener: TransportEvents[K]): this {
     return super.on(event, listener);
   }
 

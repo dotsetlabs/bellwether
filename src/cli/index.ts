@@ -20,7 +20,7 @@ if (existsSync(globalEnvPath)) {
 }
 
 // Then load project .env (overrides global settings)
-config({ quiet: true });
+config({ quiet: true, override: true });
 
 function normalizeEncryptedEnvVar(key: string): void {
   const value = process.env[key];
@@ -121,7 +121,8 @@ Documentation: https://docs.bellwether.sh
 
 program
   .name('bellwether')
-  .description(`${banner}
+  .description(
+    `${banner}
 Check MCP servers for drift. Explore behavior. Generate documentation.
 
 Commands:
@@ -129,7 +130,8 @@ Commands:
   explore  - LLM-powered behavioral exploration and documentation
 
 For more information on a specific command, use:
-  bellwether <command> --help`)
+  bellwether <command> --help`
+  )
   .version(VERSION)
   .option('--log-level <level>', 'Log level: debug, info, warn, error, silent')
   .option('--log-file <path>', 'Write logs to file instead of stderr')
@@ -167,59 +169,33 @@ program.addHelpText('beforeAll', '\nCore Commands:');
 
 // Core commands - check and explore
 program.addCommand(
-  checkCommand.description(
-    'Check MCP server schema and detect drift (free, fast, deterministic)'
-  )
+  checkCommand.description('Check MCP server schema and detect drift (free, fast, deterministic)')
 );
 program.addCommand(
-  exploreCommand.description(
-    'Explore MCP server behavior with LLM-powered testing'
-  )
+  exploreCommand.description('Explore MCP server behavior with LLM-powered testing')
 );
+program.addCommand(watchCommand.description('Watch for MCP server changes and auto-check'));
 program.addCommand(
-  watchCommand.description(
-    'Watch for MCP server changes and auto-check'
-  )
+  discoverCommand.description('Discover MCP server capabilities (tools, prompts, resources)')
 );
+program.addCommand(initCommand.description('Create a new bellwether.yaml configuration file'));
+program.addCommand(authCommand.description('Manage LLM provider API keys (keychain storage)'));
 program.addCommand(
-  discoverCommand.description(
-    'Discover MCP server capabilities (tools, prompts, resources)'
-  )
-);
-program.addCommand(
-  initCommand.description(
-    'Create a new bellwether.yaml configuration file'
-  )
-);
-program.addCommand(
-  authCommand.description(
-    'Manage LLM provider API keys (keychain storage)'
-  )
-);
-program.addCommand(
-  baselineCommand.description(
-    'Manage baselines for drift detection (save, compare, show, diff)'
-  )
+  baselineCommand.description('Manage baselines for drift detection (save, compare, show, diff)')
 );
 program.addCommand(
   goldenCommand.description(
     'Manage golden outputs for tool validation (save, compare, list, delete)'
   )
 );
-program.addCommand(
-  registryCommand.description(
-    'Search the MCP Registry for servers'
-  )
-);
+program.addCommand(registryCommand.description('Search the MCP Registry for servers'));
 program.addCommand(
   contractCommand.description(
     'Validate MCP servers against contract definitions (validate, generate, show)'
   )
 );
 program.addCommand(
-  validateConfigCommand.description(
-    'Validate bellwether.yaml configuration (no tests)'
-  )
+  validateConfigCommand.description('Validate bellwether.yaml configuration (no tests)')
 );
 
 // Custom help formatting
@@ -229,9 +205,11 @@ program.configureHelp({
 });
 
 // Load keychain credentials, then parse commands
-loadKeychainCredentials().then(() => {
-  program.parse();
-}).catch(() => {
-  // If keychain loading fails, still parse commands
-  program.parse();
-});
+loadKeychainCredentials()
+  .then(() => {
+    program.parse();
+  })
+  .catch(() => {
+    // If keychain loading fails, still parse commands
+    program.parse();
+  });

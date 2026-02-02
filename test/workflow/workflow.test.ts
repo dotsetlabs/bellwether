@@ -9,24 +9,26 @@ import { tmpdir } from 'os';
 import { WorkflowExecutor } from '../../src/workflow/executor.js';
 import { WorkflowDiscoverer } from '../../src/workflow/discovery.js';
 import { loadWorkflowsFromFile, generateSampleWorkflowYaml } from '../../src/workflow/loader.js';
-import type { Workflow, WorkflowStep, WorkflowResult } from '../../src/workflow/types.js';
+import type { Workflow } from '../../src/workflow/types.js';
 import type { MCPClient } from '../../src/transport/mcp-client.js';
-import type { LLMClient, CompletionOptions } from '../../src/llm/client.js';
+import type { LLMClient } from '../../src/llm/client.js';
 import type { MCPTool, MCPToolCallResult } from '../../src/transport/types.js';
 
 // Mock MCP client
 function createMockClient(responses: Map<string, MCPToolCallResult>): MCPClient {
   return {
-    callTool: vi.fn((toolName: string) => {
-      const response = responses.get(toolName);
-      if (response) {
-        return Promise.resolve(response);
+    callTool: vi.fn(
+      (toolName: string, _args?: Record<string, unknown>, _options?: { signal?: AbortSignal }) => {
+        const response = responses.get(toolName);
+        if (response) {
+          return Promise.resolve(response);
+        }
+        return Promise.resolve({
+          content: [{ type: 'text', text: JSON.stringify({ error: 'Unknown tool' }) }],
+          isError: true,
+        });
       }
-      return Promise.resolve({
-        content: [{ type: 'text', text: JSON.stringify({ error: 'Unknown tool' }) }],
-        isError: true,
-      });
-    }),
+    ),
   } as unknown as MCPClient;
 }
 
@@ -87,10 +89,17 @@ describe('Workflow System', () => {
     beforeEach(() => {
       const responses = new Map<string, MCPToolCallResult>();
       responses.set('search_items', {
-        content: [{ type: 'text', text: JSON.stringify({ items: [{ id: '123', name: 'Test Item' }] }) }],
+        content: [
+          { type: 'text', text: JSON.stringify({ items: [{ id: '123', name: 'Test Item' }] }) },
+        ],
       });
       responses.set('get_item', {
-        content: [{ type: 'text', text: JSON.stringify({ id: '123', name: 'Test Item', status: 'active' }) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ id: '123', name: 'Test Item', status: 'active' }),
+          },
+        ],
       });
       responses.set('update_item', {
         content: [{ type: 'text', text: JSON.stringify({ success: true, id: '123' }) }],
@@ -98,7 +107,10 @@ describe('Workflow System', () => {
 
       mockClient = createMockClient(responses);
       mockLLM = createMockLLM();
-      executor = new WorkflowExecutor(mockClient, mockLLM, sampleTools, { analyzeSteps: false, generateSummary: false });
+      executor = new WorkflowExecutor(mockClient, mockLLM, sampleTools, {
+        analyzeSteps: false,
+        generateSummary: false,
+      });
     });
 
     it('should execute a simple workflow', async () => {
@@ -121,7 +133,11 @@ describe('Workflow System', () => {
       expect(result.success).toBe(true);
       expect(result.steps).toHaveLength(1);
       expect(result.steps[0].success).toBe(true);
-      expect(mockClient.callTool).toHaveBeenCalledWith('search_items', { query: 'test' });
+      expect(mockClient.callTool).toHaveBeenCalledWith(
+        'search_items',
+        { query: 'test' },
+        expect.objectContaining({ signal: expect.any(Object) })
+      );
     });
 
     it('should chain workflow steps with argument mapping', async () => {
@@ -151,7 +167,11 @@ describe('Workflow System', () => {
       expect(result.success).toBe(true);
       expect(result.steps).toHaveLength(2);
       expect(result.steps[1].resolvedArgs).toEqual({ id: '123' });
-      expect(mockClient.callTool).toHaveBeenCalledWith('get_item', { id: '123' });
+      expect(mockClient.callTool).toHaveBeenCalledWith(
+        'get_item',
+        { id: '123' },
+        expect.objectContaining({ signal: expect.any(Object) })
+      );
     });
 
     it('should build data flow graph', async () => {
@@ -193,7 +213,10 @@ describe('Workflow System', () => {
       });
 
       mockClient = createMockClient(responses);
-      executor = new WorkflowExecutor(mockClient, mockLLM, sampleTools, { analyzeSteps: false, generateSummary: false });
+      executor = new WorkflowExecutor(mockClient, mockLLM, sampleTools, {
+        analyzeSteps: false,
+        generateSummary: false,
+      });
 
       const workflow: Workflow = {
         id: 'fail_test',
@@ -232,7 +255,10 @@ describe('Workflow System', () => {
       });
 
       mockClient = createMockClient(responses);
-      executor = new WorkflowExecutor(mockClient, mockLLM, sampleTools, { analyzeSteps: false, generateSummary: false });
+      executor = new WorkflowExecutor(mockClient, mockLLM, sampleTools, {
+        analyzeSteps: false,
+        generateSummary: false,
+      });
 
       const workflow: Workflow = {
         id: 'optional_test',
@@ -306,7 +332,7 @@ describe('Workflow System', () => {
 
       expect(result.success).toBe(true);
       expect(result.steps[0].assertionResults).toHaveLength(3);
-      expect(result.steps[0].assertionResults!.every(r => r.passed)).toBe(true);
+      expect(result.steps[0].assertionResults!.every((r) => r.passed)).toBe(true);
     });
 
     it('should run assertions and fail when not met', async () => {
@@ -321,7 +347,12 @@ describe('Workflow System', () => {
             description: 'Get item with failing assertion',
             args: { id: '123' },
             assertions: [
-              { path: 'status', condition: 'equals', value: 'inactive', message: 'Expected inactive status' },
+              {
+                path: 'status',
+                condition: 'equals',
+                value: 'inactive',
+                message: 'Expected inactive status',
+              },
             ],
           },
         ],
@@ -357,7 +388,11 @@ describe('Workflow System', () => {
           expectedOutcome: 'View item details',
           steps: [
             { tool: 'search_items', description: 'Search', args: { query: 'test' } },
-            { tool: 'get_item', description: 'View', argMapping: { id: '$steps[0].result.items[0].id' } },
+            {
+              tool: 'get_item',
+              description: 'View',
+              argMapping: { id: '$steps[0].result.items[0].id' },
+            },
           ],
         },
       ]);

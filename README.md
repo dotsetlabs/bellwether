@@ -124,8 +124,9 @@ Requires LLM (Ollama for free local, or OpenAI/Anthropic). Generates `AGENTS.md`
 ## GitHub Action
 
 ```yaml
-- uses: dotsetlabs/bellwether@v1
+- uses: dotsetlabs/bellwether@v1.0.2
   with:
+    version: '1.0.2'
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
     fail-on-severity: 'warning'
@@ -167,7 +168,7 @@ bellwether init --preset local npx @mcp/server # Local Ollama (free)
 
 ```bash
 git clone https://github.com/dotsetlabs/bellwether
-cd bellwether/cli
+cd bellwether
 npm install
 npm run build
 npm test

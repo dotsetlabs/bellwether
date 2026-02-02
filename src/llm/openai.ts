@@ -1,5 +1,12 @@
 import OpenAI from 'openai';
-import type { LLMClient, Message, CompletionOptions, ProviderInfo, StreamingOptions, StreamingResult } from './client.js';
+import type {
+  LLMClient,
+  Message,
+  CompletionOptions,
+  ProviderInfo,
+  StreamingOptions,
+  StreamingResult,
+} from './client.js';
 import { DEFAULT_MODELS, parseJSONResponse } from './client.js';
 import { withRetry, LLM_RETRY_OPTIONS } from '../errors/retry.js';
 import {
@@ -34,14 +41,7 @@ export interface OpenAIClientOptions {
  * - Don't support custom temperature (only default of 1)
  * - Use reasoning tokens that come out of the completion token budget
  */
-const MODELS_WITH_RESTRICTED_PARAMS = [
-  'o1',
-  'o1-mini',
-  'o1-preview',
-  'o3',
-  'o3-mini',
-  'gpt-5',
-];
+const MODELS_WITH_RESTRICTED_PARAMS = ['o1', 'o1-mini', 'o1-preview', 'o3', 'o3-mini', 'gpt-5'];
 
 /**
  * Minimum max_completion_tokens for reasoning models.
@@ -50,14 +50,47 @@ const MODELS_WITH_RESTRICTED_PARAMS = [
  */
 const REASONING_MODEL_MIN_TOKENS = 8192;
 
+type ErrorWithDetails = {
+  status?: number;
+  statusCode?: number;
+  code?: string;
+  type?: string;
+  message?: string;
+  error?: {
+    code?: string;
+    type?: string;
+    message?: string;
+  };
+  headers?: { get?: (name: string) => string | null };
+  cause?: { message?: string };
+};
+
+function getErrorStatus(error: unknown): number | undefined {
+  const err = error as ErrorWithDetails;
+  return err.status ?? err.statusCode;
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  const err = error as ErrorWithDetails;
+  return err.code ?? err.error?.code;
+}
+
+function getErrorType(error: unknown): string | undefined {
+  const err = error as ErrorWithDetails;
+  return err.type ?? err.error?.type;
+}
+
+function getErrorMessage(error: unknown): string {
+  const err = error as ErrorWithDetails;
+  return err.error?.message ?? err.message ?? '';
+}
+
 /**
  * Check if a model has restricted parameters (newer reasoning/GPT-5 models).
  */
 function hasRestrictedParams(model: string): boolean {
   const modelLower = model.toLowerCase();
-  return MODELS_WITH_RESTRICTED_PARAMS.some(prefix =>
-    modelLower.startsWith(prefix)
-  );
+  return MODELS_WITH_RESTRICTED_PARAMS.some((prefix) => modelLower.startsWith(prefix));
 }
 
 /**
@@ -120,33 +153,32 @@ export class OpenAIClient implements LLMClient {
           // For reasoning models, ensure we have enough tokens for both reasoning AND output
           const maxTokensValue = getEffectiveMaxTokens(model, requestedMaxTokens);
 
-          const response = await this.client.chat.completions.create({
-            model,
-            messages: allMessages.map(m => ({
-              role: m.role,
-              content: m.content,
-            })),
-            // Use max_completion_tokens for newer models (o1, o3, gpt-5+)
-            // Use max_tokens for older models (gpt-4, gpt-3.5, etc.)
-            ...(restrictedParams
-              ? { max_completion_tokens: maxTokensValue }
-              : { max_tokens: maxTokensValue }),
-            // Newer models (o1, o3, gpt-5+) don't support custom temperature
-            // Only include temperature for models that support it
-            ...(restrictedParams
-              ? {}
-              : { temperature: options?.temperature ?? LLM_DEFAULTS.TEMPERATURE }),
-            response_format: options?.responseFormat === 'json'
-              ? { type: 'json_object' }
-              : undefined,
-          });
+          const response = await this.client.chat.completions.create(
+            {
+              model,
+              messages: allMessages.map((m) => ({
+                role: m.role,
+                content: m.content,
+              })),
+              // Use max_completion_tokens for newer models (o1, o3, gpt-5+)
+              // Use max_tokens for older models (gpt-4, gpt-3.5, etc.)
+              ...(restrictedParams
+                ? { max_completion_tokens: maxTokensValue }
+                : { max_tokens: maxTokensValue }),
+              // Newer models (o1, o3, gpt-5+) don't support custom temperature
+              // Only include temperature for models that support it
+              ...(restrictedParams
+                ? {}
+                : { temperature: options?.temperature ?? LLM_DEFAULTS.TEMPERATURE }),
+              response_format:
+                options?.responseFormat === 'json' ? { type: 'json_object' } : undefined,
+            },
+            { signal: options?.signal }
+          );
 
           // Track actual token usage from API response
           if (this.onUsage && response.usage) {
-            this.onUsage(
-              response.usage.prompt_tokens,
-              response.usage.completion_tokens
-            );
+            this.onUsage(response.usage.prompt_tokens, response.usage.completion_tokens);
           }
 
           const choice = response.choices[0];
@@ -158,9 +190,10 @@ export class OpenAIClient implements LLMClient {
             // Check if the refusal actually contains JSON (model mistake)
             if (refusal.includes('[') || refusal.includes('{')) {
               // Extract JSON from refusal text
-              const jsonMatch = refusal.match(/```json\s*([\s\S]*?)\s*```/) ||
-                               refusal.match(/(\[[\s\S]*\])/) ||
-                               refusal.match(/(\{[\s\S]*\})/);
+              const jsonMatch =
+                refusal.match(/```json\s*([\s\S]*?)\s*```/) ||
+                refusal.match(/(\[[\s\S]*\])/) ||
+                refusal.match(/(\{[\s\S]*\})/);
               if (jsonMatch) {
                 content = jsonMatch[1];
               }
@@ -171,7 +204,10 @@ export class OpenAIClient implements LLMClient {
           }
 
           if (!content) {
-            this.logger.error({ response: JSON.stringify(response) }, 'No content in OpenAI response');
+            this.logger.error(
+              { response: JSON.stringify(response) },
+              'No content in OpenAI response'
+            );
             throw new Error('No content in LLM response');
           }
 
@@ -179,15 +215,18 @@ export class OpenAIClient implements LLMClient {
         } catch (error) {
           // Convert to typed errors for retry logic
           if (error instanceof Error) {
-            const message = error.message.toLowerCase();
+            const status = getErrorStatus(error);
+            const code = (getErrorCode(error) ?? '').toLowerCase();
+            const type = (getErrorType(error) ?? '').toLowerCase();
+            const message = getErrorMessage(error).toLowerCase();
 
-            if (message.includes('401')) {
+            if (status === 401 || status === 403) {
               throw new LLMAuthError('openai', model);
             }
-            if (message.includes('429')) {
+            if (status === 429 || code.includes('rate_limit') || type.includes('rate_limit')) {
               // Extract Retry-After header if available from OpenAI API error
               let retryAfterMs: number | undefined;
-              const apiError = error as { headers?: { get?: (name: string) => string | null } };
+              const apiError = error as ErrorWithDetails;
               if (apiError.headers?.get) {
                 const retryAfter = apiError.headers.get('retry-after');
                 if (retryAfter) {
@@ -208,13 +247,21 @@ export class OpenAIClient implements LLMClient {
                     const unit = match[2];
                     const multipliers: Record<string, number> = { s: 1000, m: 60000, h: 3600000 };
                     retryAfterMs = value * (multipliers[unit] || 1000);
-                    this.logger.debug({ retryAfterMs, resetRequests }, 'Extracted x-ratelimit-reset-requests');
+                    this.logger.debug(
+                      { retryAfterMs, resetRequests },
+                      'Extracted x-ratelimit-reset-requests'
+                    );
                   }
                 }
               }
               throw new LLMRateLimitError('openai', retryAfterMs, model);
             }
-            if (message.includes('insufficient_quota')) {
+            if (
+              status === 402 ||
+              code.includes('insufficient_quota') ||
+              type.includes('insufficient_quota') ||
+              message.includes('insufficient_quota')
+            ) {
               throw new LLMQuotaError('openai', model);
             }
             if (message.includes('econnrefused') || message.includes('fetch failed')) {
@@ -269,27 +316,29 @@ export class OpenAIClient implements LLMClient {
           // For reasoning models, ensure we have enough tokens for both reasoning AND output
           const maxTokensValue = getEffectiveMaxTokens(model, requestedMaxTokens);
 
-          const stream = await this.client.chat.completions.create({
-            model,
-            messages: allMessages.map(m => ({
-              role: m.role,
-              content: m.content,
-            })),
-            // Use max_completion_tokens for newer models (o1, o3, gpt-5+)
-            // Use max_tokens for older models (gpt-4, gpt-3.5, etc.)
-            ...(restrictedParams
-              ? { max_completion_tokens: maxTokensValue }
-              : { max_tokens: maxTokensValue }),
-            // Newer models (o1, o3, gpt-5+) don't support custom temperature
-            // Only include temperature for models that support it
-            ...(restrictedParams
-              ? {}
-              : { temperature: options?.temperature ?? LLM_DEFAULTS.TEMPERATURE }),
-            response_format: options?.responseFormat === 'json'
-              ? { type: 'json_object' }
-              : undefined,
-            stream: true,
-          });
+          const stream = await this.client.chat.completions.create(
+            {
+              model,
+              messages: allMessages.map((m) => ({
+                role: m.role,
+                content: m.content,
+              })),
+              // Use max_completion_tokens for newer models (o1, o3, gpt-5+)
+              // Use max_tokens for older models (gpt-4, gpt-3.5, etc.)
+              ...(restrictedParams
+                ? { max_completion_tokens: maxTokensValue }
+                : { max_tokens: maxTokensValue }),
+              // Newer models (o1, o3, gpt-5+) don't support custom temperature
+              // Only include temperature for models that support it
+              ...(restrictedParams
+                ? {}
+                : { temperature: options?.temperature ?? LLM_DEFAULTS.TEMPERATURE }),
+              response_format:
+                options?.responseFormat === 'json' ? { type: 'json_object' } : undefined,
+              stream: true,
+            },
+            { signal: options?.signal }
+          );
 
           let fullText = '';
           let inputTokens = 0;

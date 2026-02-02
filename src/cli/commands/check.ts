@@ -15,7 +15,12 @@ import { discover } from '../../discovery/discovery.js';
 import { Interviewer } from '../../interview/interviewer.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
 import { generateContractMd, generateJsonReport } from '../../docs/generator.js';
-import { loadConfig, ConfigNotFoundError, parseCommandString, type BellwetherConfig } from '../../config/loader.js';
+import {
+  loadConfig,
+  ConfigNotFoundError,
+  parseCommandString,
+  type BellwetherConfig,
+} from '../../config/loader.js';
 import { validateConfigForCheck, getConfigWarnings } from '../../config/validator.js';
 import {
   createBaseline,
@@ -56,7 +61,11 @@ import {
   formatConfidenceLevel,
   formatToolResultLine,
 } from '../output/terminal-reporter.js';
-import { loadScenariosFromFile, tryLoadDefaultScenarios, DEFAULT_SCENARIOS_FILE } from '../../scenarios/index.js';
+import {
+  loadScenariosFromFile,
+  tryLoadDefaultScenarios,
+  DEFAULT_SCENARIOS_FILE,
+} from '../../scenarios/index.js';
 import {
   loadWorkflowsFromFile,
   tryLoadDefaultWorkflows,
@@ -81,7 +90,6 @@ import {
   PERCENTAGE_CONVERSION,
 } from '../../constants.js';
 
-
 export const checkCommand = new Command('check')
   .description('Check MCP server schema and detect drift (free, fast, deterministic)')
   .allowUnknownOption() // Allow server flags like -y for npx to pass through
@@ -91,9 +99,18 @@ export const checkCommand = new Command('check')
   .option('--fail-on-drift', 'Exit with error if drift detected (overrides config)')
   .option('--accept-drift', 'Accept detected drift as intentional and update baseline')
   .option('--accept-reason <reason>', 'Reason for accepting drift (used with --accept-drift)')
-  .option('--format <format>', 'Diff output format: text, json, compact, github, markdown, junit, sarif')
-  .option('--min-severity <level>', 'Minimum severity to report (overrides config): none, info, warning, breaking')
-  .option('--fail-on-severity <level>', 'Fail threshold (overrides config): none, info, warning, breaking')
+  .option(
+    '--format <format>',
+    'Diff output format: text, json, compact, github, markdown, junit, sarif'
+  )
+  .option(
+    '--min-severity <level>',
+    'Minimum severity to report (overrides config): none, info, warning, breaking'
+  )
+  .option(
+    '--fail-on-severity <level>',
+    'Fail threshold (overrides config): none, info, warning, breaking'
+  )
   .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
     // Load configuration
     let config: BellwetherConfig;
@@ -131,15 +148,6 @@ export const checkCommand = new Command('check')
       process.exit(EXIT_CODES.ERROR);
     }
 
-    const warnings = getConfigWarnings(config);
-    if (warnings.length > 0) {
-      output.warn('Configuration warnings:');
-      for (const warning of warnings) {
-        output.warn(`  - ${warning}`);
-      }
-      output.newline();
-    }
-
     // Extract settings from config
     const timeout = config.server.timeout;
     const outputDir = config.output.dir;
@@ -164,10 +172,13 @@ export const checkCommand = new Command('check')
 
     // Build severity config (CLI options override config file)
     const severityConfig: SeverityConfig = {
-      minimumSeverity: (options.minSeverity as ChangeSeverity) ?? config.baseline.severity.minimumSeverity,
-      failOnSeverity: (options.failOnSeverity as ChangeSeverity) ?? config.baseline.severity.failOnSeverity,
+      minimumSeverity:
+        (options.minSeverity as ChangeSeverity) ?? config.baseline.severity.minimumSeverity,
+      failOnSeverity:
+        (options.failOnSeverity as ChangeSeverity) ?? config.baseline.severity.failOnSeverity,
       suppressWarnings: config.baseline.severity.suppressWarnings,
-      aspectOverrides: config.baseline.severity.aspectOverrides as SeverityConfig['aspectOverrides'],
+      aspectOverrides: config.baseline.severity
+        .aspectOverrides as SeverityConfig['aspectOverrides'],
     };
 
     // Resolve check options from config (no CLI overrides for these)
@@ -177,15 +188,35 @@ export const checkCommand = new Command('check')
     const parallelWorkers = config.check.parallelWorkers;
     const performanceThreshold = config.check.performanceThreshold / PERCENTAGE_CONVERSION.DIVISOR;
     const diffFormat = options.format ?? config.check.diffFormat;
+    const machineReadableFormats = new Set(['json', 'junit', 'sarif']);
+    const machineReadable = machineReadableFormats.has(String(diffFormat).toLowerCase());
+    if (machineReadable) {
+      // Suppress standard CLI output to keep stdout clean for machine-readable formats.
+      output.configureOutput({ quiet: true });
+    }
+
+    const warnings = getConfigWarnings(config);
+    if (warnings.length > 0) {
+      output.warn('Configuration warnings:');
+      for (const warning of warnings) {
+        output.warn(`  - ${warning}`);
+      }
+      if (!machineReadable) {
+        output.newline();
+      }
+    }
 
     // Resolve security options from config
     const securityEnabled = config.check.security.enabled;
-    let securityCategories: SecurityCategory[] = config.check.security.categories as SecurityCategory[];
+    let securityCategories: SecurityCategory[] = config.check.security
+      .categories as SecurityCategory[];
     // Validate security categories
     try {
       securityCategories = parseSecurityCategories(securityCategories.join(','));
     } catch (error) {
-      output.error(`Invalid security categories in config: ${error instanceof Error ? error.message : error}`);
+      output.error(
+        `Invalid security categories in config: ${error instanceof Error ? error.message : error}`
+      );
       output.info(`Valid categories: ${getAllSecurityCategories().join(', ')}`);
       process.exit(EXIT_CODES.ERROR);
     }
@@ -203,18 +234,21 @@ export const checkCommand = new Command('check')
     const exampleLength = config.output.examples.maxLength;
     const maxExamplesPerTool = config.output.examples.maxPerTool;
 
-    const serverIdentifier = transport === 'stdio'
-      ? `${serverCommand} ${args.join(' ')}`.trim()
-      : (remoteUrl ?? 'unknown');
+    const serverIdentifier =
+      transport === 'stdio'
+        ? `${serverCommand} ${args.join(' ')}`.trim()
+        : (remoteUrl ?? 'unknown');
 
     // Display startup banner
-    const banner = formatCheckBanner({
-      serverCommand: serverIdentifier,
-    });
-    output.info(banner);
-    output.newline();
-    output.info('Check: Schema validation and drift detection (free, deterministic)');
-    output.newline();
+    if (!machineReadable) {
+      const banner = formatCheckBanner({
+        serverCommand: serverIdentifier,
+      });
+      output.info(banner);
+      output.newline();
+      output.info('Check: Schema validation and drift detection (free, deterministic)');
+      output.newline();
+    }
 
     // Initialize metrics collector
     resetMetricsCollector();
@@ -255,11 +289,14 @@ export const checkCommand = new Command('check')
       output.info('Discovering capabilities...');
       const discovery = await discover(
         mcpClient,
-        transport === 'stdio' ? serverCommand : remoteUrl ?? serverCommand,
+        transport === 'stdio' ? serverCommand : (remoteUrl ?? serverCommand),
         transport === 'stdio' ? args : []
       );
       const resourceCount = discovery.resources?.length ?? 0;
-      const discoveryParts = [`${discovery.tools.length} tools`, `${discovery.prompts.length} prompts`];
+      const discoveryParts = [
+        `${discovery.tools.length} tools`,
+        `${discovery.prompts.length} prompts`,
+      ];
       if (resourceCount > 0) {
         discoveryParts.push(`${resourceCount} resources`);
       }
@@ -308,11 +345,9 @@ export const checkCommand = new Command('check')
           output.warn('Incremental mode requires a baseline. Testing all tools.');
         } else {
           incrementalBaseline = loadBaseline(baselinePath);
-          const result = analyzeForIncremental(
-            discovery.tools,
-            incrementalBaseline,
-            { maxCacheAgeHours: incrementalCacheHours }
-          );
+          const result = analyzeForIncremental(discovery.tools, incrementalBaseline, {
+            maxCacheAgeHours: incrementalCacheHours,
+          });
           incrementalResult = result;
 
           const summary = formatIncrementalSummary(result.changeSummary);
@@ -323,11 +358,11 @@ export const checkCommand = new Command('check')
             // Still need to generate output with cached data
             // Skip to comparison section
           } else {
-            output.info(`Testing ${result.toolsToTest.length} tools (${result.toolsToSkip.length} cached)\n`);
-            // Filter discovery to only include tools that need testing
-            discovery.tools = discovery.tools.filter(t =>
-              result.toolsToTest.includes(t.name)
+            output.info(
+              `Testing ${result.toolsToTest.length} tools (${result.toolsToSkip.length} cached)\n`
             );
+            // Filter discovery to only include tools that need testing
+            discovery.tools = discovery.tools.filter((t) => result.toolsToTest.includes(t.name));
           }
         }
       }
@@ -337,16 +372,22 @@ export const checkCommand = new Command('check')
       if (config.scenarios.path) {
         try {
           customScenarios = loadScenariosFromFile(config.scenarios.path);
-          output.info(`Loaded ${customScenarios.toolScenarios.length} tool scenarios from ${config.scenarios.path}`);
+          output.info(
+            `Loaded ${customScenarios.toolScenarios.length} tool scenarios from ${config.scenarios.path}`
+          );
         } catch (error) {
-          output.error(`Failed to load scenarios: ${error instanceof Error ? error.message : error}`);
+          output.error(
+            `Failed to load scenarios: ${error instanceof Error ? error.message : error}`
+          );
           process.exit(EXIT_CODES.ERROR);
         }
       } else {
         const defaultScenarios = tryLoadDefaultScenarios(outputDir);
         if (defaultScenarios) {
           customScenarios = defaultScenarios;
-          output.info(`Auto-loaded ${customScenarios.toolScenarios.length} scenarios from ${DEFAULT_SCENARIOS_FILE}`);
+          output.info(
+            `Auto-loaded ${customScenarios.toolScenarios.length} scenarios from ${DEFAULT_SCENARIOS_FILE}`
+          );
         }
       }
 
@@ -371,15 +412,21 @@ export const checkCommand = new Command('check')
       }
 
       if (config.check.rateLimit.enabled) {
-        output.info(`Rate limiting enabled (${config.check.rateLimit.requestsPerSecond} req/s, burst ${config.check.rateLimit.burstLimit})`);
+        output.info(
+          `Rate limiting enabled (${config.check.rateLimit.requestsPerSecond} req/s, burst ${config.check.rateLimit.burstLimit})`
+        );
       }
 
       if (config.check.assertions.enabled) {
-        output.info(`Response assertions enabled (strict: ${config.check.assertions.strict ? 'on' : 'off'})`);
+        output.info(
+          `Response assertions enabled (strict: ${config.check.assertions.strict ? 'on' : 'off'})`
+        );
       }
 
       if (config.check.statefulTesting.enabled) {
-        output.info(`Stateful testing enabled (max chain length: ${config.check.statefulTesting.maxChainLength})`);
+        output.info(
+          `Stateful testing enabled (max chain length: ${config.check.statefulTesting.maxChainLength})`
+        );
       }
 
       const interviewer = new Interviewer(null, {
@@ -406,20 +453,24 @@ export const checkCommand = new Command('check')
 
       // Log sampling configuration
       if (minSamples > CHECK_SAMPLING.DEFAULT_MIN_SAMPLES) {
-        output.info(`Sampling: ${minSamples} samples per tool (target confidence: ${targetConfidence})`);
+        output.info(
+          `Sampling: ${minSamples} samples per tool (target confidence: ${targetConfidence})`
+        );
       }
 
       // Extract server context
       if (transport === 'stdio') {
         const serverContext = extractServerContextFromArgs(serverCommand, args);
         if (serverContext.allowedDirectories && serverContext.allowedDirectories.length > 0) {
-          output.info(`Detected allowed directories: ${serverContext.allowedDirectories.join(', ')}`);
+          output.info(
+            `Detected allowed directories: ${serverContext.allowedDirectories.join(', ')}`
+          );
         }
         interviewer.setServerContext(serverContext);
       }
 
       // Set up progress display
-      const progressBar = new InterviewProgressBar({ enabled: !verbose });
+      const progressBar = new InterviewProgressBar({ enabled: !verbose && !machineReadable });
 
       const reportedTools = new Set<string>();
       const progressCallback = (progress: InterviewProgress) => {
@@ -427,10 +478,17 @@ export const checkCommand = new Command('check')
           switch (progress.phase) {
             case 'starting':
               output.info('Starting check...');
-              progressBar.start(progress.totalTools, 0, progress.totalPrompts ?? 0, progress.totalResources ?? 0);
+              progressBar.start(
+                progress.totalTools,
+                0,
+                progress.totalPrompts ?? 0,
+                progress.totalResources ?? 0
+              );
               break;
             case 'interviewing':
-              output.info(`Checking: ${progress.currentTool} (${progress.toolsCompleted + 1}/${progress.totalTools})`);
+              output.info(
+                `Checking: ${progress.currentTool} (${progress.toolsCompleted + 1}/${progress.totalTools})`
+              );
               break;
             case 'complete':
               output.info('Check complete!');
@@ -438,7 +496,12 @@ export const checkCommand = new Command('check')
           }
         } else {
           if (progress.phase === 'starting') {
-            progressBar.start(progress.totalTools, 0, progress.totalPrompts ?? 0, progress.totalResources ?? 0);
+            progressBar.start(
+              progress.totalTools,
+              0,
+              progress.totalPrompts ?? 0,
+              progress.totalResources ?? 0
+            );
           } else if (['interviewing', 'prompts', 'resources'].includes(progress.phase)) {
             progressBar.update(progress);
           } else if (progress.phase === 'complete') {
@@ -484,7 +547,9 @@ export const checkCommand = new Command('check')
         const passed = result.scenarioResults.filter((r) => r.passed).length;
         const failed = result.scenarioResults.length - passed;
         const statusIcon = failed === 0 ? '\u2713' : '\u2717';
-        output.info(`\nCustom scenarios: ${passed}/${result.scenarioResults.length} passed ${statusIcon}`);
+        output.info(
+          `\nCustom scenarios: ${passed}/${result.scenarioResults.length} passed ${statusIcon}`
+        );
 
         if (failed > 0) {
           output.info('\nFailed scenarios:');
@@ -506,15 +571,21 @@ export const checkCommand = new Command('check')
           output.warn(`\nExternal services not configured: ${ext.unconfiguredServices.join(', ')}`);
         }
         if (ext.skippedTools.length > 0) {
-          output.warn(`Tools skipped (${ext.skippedTools.length}): ${ext.skippedTools.slice(0, 5).join(', ')}${ext.skippedTools.length > 5 ? ' ...' : ''}`);
+          output.warn(
+            `Tools skipped (${ext.skippedTools.length}): ${ext.skippedTools.slice(0, 5).join(', ')}${ext.skippedTools.length > 5 ? ' ...' : ''}`
+          );
         }
         if (ext.mockedTools.length > 0) {
-          output.info(`Tools mocked (${ext.mockedTools.length}): ${ext.mockedTools.slice(0, 5).join(', ')}${ext.mockedTools.length > 5 ? ' ...' : ''}`);
+          output.info(
+            `Tools mocked (${ext.mockedTools.length}): ${ext.mockedTools.slice(0, 5).join(', ')}${ext.mockedTools.length > 5 ? ' ...' : ''}`
+          );
         }
       }
 
       if (result.metadata.statefulTesting?.enabled) {
-        output.info(`\nStateful testing: ${result.metadata.statefulTesting.dependencyCount} dependency edge(s)`);
+        output.info(
+          `\nStateful testing: ${result.metadata.statefulTesting.dependencyCount} dependency edge(s)`
+        );
       }
 
       // Assertion summary
@@ -530,9 +601,13 @@ export const checkCommand = new Command('check')
       // Rate limit summary
       if (result.metadata.rateLimit) {
         const rateLimit = result.metadata.rateLimit;
-        output.warn(`\nRate limit events: ${rateLimit.totalEvents} (retries: ${rateLimit.totalRetries})`);
+        output.warn(
+          `\nRate limit events: ${rateLimit.totalEvents} (retries: ${rateLimit.totalRetries})`
+        );
         if (rateLimit.tools.length > 0) {
-          output.info(`Rate-limited tools: ${rateLimit.tools.slice(0, 5).join(', ')}${rateLimit.tools.length > 5 ? ' ...' : ''}`);
+          output.info(
+            `Rate-limited tools: ${rateLimit.tools.slice(0, 5).join(', ')}${rateLimit.tools.length > 5 ? ' ...' : ''}`
+          );
         }
       }
 
@@ -572,7 +647,7 @@ export const checkCommand = new Command('check')
                 try {
                   const response = await mcpClient.callTool(tool.name, args);
                   const content = response.content
-                    .map((c: { type: string; text?: string }) => c.type === 'text' ? c.text : '')
+                    .map((c: { type: string; text?: string }) => (c.type === 'text' ? c.text : ''))
                     .join('\n');
                   return {
                     isError: response.isError ?? false,
@@ -603,11 +678,12 @@ export const checkCommand = new Command('check')
 
           if (verbose && fingerprint.findings.length > 0) {
             for (const finding of fingerprint.findings) {
-              const color = finding.riskLevel === 'critical' || finding.riskLevel === 'high'
-                ? output.error
-                : finding.riskLevel === 'medium'
-                  ? output.warn
-                  : output.info;
+              const color =
+                finding.riskLevel === 'critical' || finding.riskLevel === 'high'
+                  ? output.error
+                  : finding.riskLevel === 'medium'
+                    ? output.warn
+                    : output.info;
               color(`  [${finding.riskLevel.toUpperCase()}] ${finding.title}`);
             }
           }
@@ -637,7 +713,9 @@ export const checkCommand = new Command('check')
           workflows = loadWorkflowsFromFile(config.workflows.path);
           output.info(`Loaded ${workflows.length} workflow(s) from ${config.workflows.path}`);
         } catch (error) {
-          output.error(`Failed to load workflows: ${error instanceof Error ? error.message : error}`);
+          output.error(
+            `Failed to load workflows: ${error instanceof Error ? error.message : error}`
+          );
           process.exit(EXIT_CODES.ERROR);
         }
       } else {
@@ -706,32 +784,41 @@ export const checkCommand = new Command('check')
             workflowResults.push(workflowResult);
 
             const statusIcon = workflowResult.success ? '\u2713' : '\u2717';
-            const stepsInfo = `${workflowResult.steps.filter(s => s.success).length}/${workflow.steps.length} steps`;
+            const stepsInfo = `${workflowResult.steps.filter((s) => s.success).length}/${workflow.steps.length} steps`;
 
             if (workflowResult.success) {
-              output.success(`  ${statusIcon} ${workflow.name} (${stepsInfo}) - ${workflowResult.durationMs}ms`);
+              output.success(
+                `  ${statusIcon} ${workflow.name} (${stepsInfo}) - ${workflowResult.durationMs}ms`
+              );
             } else {
-              const failedStep = workflowResult.failedStepIndex !== undefined
-                ? workflow.steps[workflowResult.failedStepIndex]
-                : undefined;
-              output.error(`  ${statusIcon} ${workflow.name} (${stepsInfo}) - Failed at: ${failedStep?.tool ?? 'unknown'}`);
+              const failedStep =
+                workflowResult.failedStepIndex !== undefined
+                  ? workflow.steps[workflowResult.failedStepIndex]
+                  : undefined;
+              output.error(
+                `  ${statusIcon} ${workflow.name} (${stepsInfo}) - Failed at: ${failedStep?.tool ?? 'unknown'}`
+              );
               if (verbose && workflowResult.failureReason) {
                 output.info(`      Reason: ${workflowResult.failureReason}`);
               }
             }
           } catch (error) {
-            output.error(`  \u2717 ${workflow.name} - Error: ${error instanceof Error ? error.message : error}`);
+            output.error(
+              `  \u2717 ${workflow.name} - Error: ${error instanceof Error ? error.message : error}`
+            );
           }
         }
 
         // Workflow summary
-        const passed = workflowResults.filter(r => r.success).length;
+        const passed = workflowResults.filter((r) => r.success).length;
         const failed = workflowResults.length - passed;
         output.newline();
         if (failed === 0) {
           output.success(`Workflow testing complete: ${passed}/${workflowResults.length} passed`);
         } else {
-          output.warn(`Workflow testing complete: ${passed}/${workflowResults.length} passed, ${failed} failed`);
+          output.warn(
+            `Workflow testing complete: ${passed}/${workflowResults.length} passed, ${failed} failed`
+          );
         }
         output.newline();
       }
@@ -759,9 +846,8 @@ export const checkCommand = new Command('check')
 
       if (writeJson) {
         // Add workflow results to the result object for the JSON report
-        const resultWithWorkflows = workflowResults.length > 0
-          ? { ...result, workflowResults }
-          : result;
+        const resultWithWorkflows =
+          workflowResults.length > 0 ? { ...result, workflowResults } : result;
         let jsonReport: string;
         try {
           jsonReport = generateJsonReport(resultWithWorkflows, {
@@ -801,10 +887,9 @@ export const checkCommand = new Command('check')
       if (incrementalResult && incrementalResult.cachedFingerprints.length > 0) {
         // Merge new fingerprints with cached ones
         const cachedTools = incrementalResult.cachedFingerprints.map(toToolCapability);
-        const mergedTools = [
-          ...currentBaseline.capabilities.tools,
-          ...cachedTools,
-        ].sort((a, b) => a.name.localeCompare(b.name));
+        const mergedTools = [...currentBaseline.capabilities.tools, ...cachedTools].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
 
         currentBaseline = {
           ...currentBaseline,
@@ -815,7 +900,9 @@ export const checkCommand = new Command('check')
         };
 
         if (incrementalBaseline) {
-          const cachedToolNames = new Set(incrementalResult.cachedFingerprints.map((fp) => fp.name));
+          const cachedToolNames = new Set(
+            incrementalResult.cachedFingerprints.map((fp) => fp.name)
+          );
           const profileMap = new Map(
             (currentBaseline.toolProfiles ?? []).map((profile) => [profile.name, profile])
           );
@@ -859,12 +946,16 @@ export const checkCommand = new Command('check')
 
           currentBaseline = {
             ...currentBaseline,
-            toolProfiles: Array.from(profileMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+            toolProfiles: Array.from(profileMap.values()).sort((a, b) =>
+              a.name.localeCompare(b.name)
+            ),
             assertions: Array.from(assertionMap.values()),
           };
         }
 
-        output.info(`Merged ${incrementalResult.cachedFingerprints.length} cached tool fingerprints`);
+        output.info(
+          `Merged ${incrementalResult.cachedFingerprints.length} cached tool fingerprints`
+        );
       }
 
       // Check statistical confidence of performance metrics
@@ -896,13 +987,19 @@ export const checkCommand = new Command('check')
         output.warn(
           `${lowConfidenceTools.length}/${totalTools} tool(s) (${pct}%) have low statistical confidence`
         );
-        output.warn(`Target confidence: ${confidenceLabel} (requires ${CHECK_SAMPLING.SAMPLES_FOR_CONFIDENCE[targetConfidence]}+ samples)`);
+        output.warn(
+          `Target confidence: ${confidenceLabel} (requires ${CHECK_SAMPLING.SAMPLES_FOR_CONFIDENCE[targetConfidence]}+ samples)`
+        );
         if (lowConfidenceTools.length <= 5) {
           output.warn(`Affected tools: ${lowConfidenceTools.join(', ')}`);
         } else {
-          output.warn(`Affected tools: ${lowConfidenceTools.slice(0, 5).join(', ')} +${lowConfidenceTools.length - 5} more`);
+          output.warn(
+            `Affected tools: ${lowConfidenceTools.slice(0, 5).join(', ')} +${lowConfidenceTools.length - 5} more`
+          );
         }
-        output.info(`Tip: Run multiple times or increase check.sampling.minSamples for more stable metrics`);
+        output.info(
+          `Tip: Run multiple times or increase check.sampling.minSamples for more stable metrics`
+        );
 
         // Exit with low confidence code if configured
         if (failOnLowConfidence) {
@@ -928,7 +1025,9 @@ export const checkCommand = new Command('check')
       if (!baselinePath) {
         const formattedCheckResults = formatCheckResults(currentBaseline, diffFormat);
         if (formattedCheckResults) {
-          output.info('\n--- Check Results ---');
+          if (!machineReadable) {
+            output.info('\n--- Check Results ---');
+          }
           // Output directly to stdout for machine-readable formats
           console.log(formattedCheckResults);
         }
@@ -950,11 +1049,17 @@ export const checkCommand = new Command('check')
         // Apply severity configuration (filtering, overrides)
         const diff = applySeverityConfig(rawDiff, severityConfig);
 
-        output.info('\n--- Drift Report ---');
+        if (!machineReadable) {
+          output.info('\n--- Drift Report ---');
+        }
 
         // Select formatter based on --format option
         const formattedDiff = formatDiff(diff, diffFormat, baselinePath);
-        output.info(formattedDiff);
+        if (machineReadable) {
+          console.log(formattedDiff);
+        } else {
+          output.info(formattedDiff);
+        }
 
         // Report performance regressions if detected
         if (diff.performanceReport?.hasRegressions) {
@@ -978,11 +1083,12 @@ export const checkCommand = new Command('check')
           if (secReport.newFindings.length > 0) {
             output.error('\n--- New Security Findings ---');
             for (const finding of secReport.newFindings) {
-              const icon = finding.riskLevel === 'critical' || finding.riskLevel === 'high'
-                ? '!'
-                : finding.riskLevel === 'medium'
-                  ? '*'
-                  : '-';
+              const icon =
+                finding.riskLevel === 'critical' || finding.riskLevel === 'high'
+                  ? '!'
+                  : finding.riskLevel === 'medium'
+                    ? '*'
+                    : '-';
               output.error(
                 `  ${icon} [${finding.riskLevel.toUpperCase()}] ${finding.tool}: ${finding.title}`
               );
@@ -1107,13 +1213,17 @@ function formatDiff(diff: BehavioralDiff, format: string, baselinePath: string):
 function formatCheckResultsJUnit(baseline: BehavioralBaseline): string {
   const tools = getToolFingerprints(baseline);
   const lines: string[] = [];
-  const securityFailures = tools.filter(t =>
-    t.securityFingerprint?.findings?.some(f => f.riskLevel === 'critical' || f.riskLevel === 'high')
+  const securityFailures = tools.filter((t) =>
+    t.securityFingerprint?.findings?.some(
+      (f) => f.riskLevel === 'critical' || f.riskLevel === 'high'
+    )
   ).length;
 
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
   lines.push('<testsuites>');
-  lines.push(`  <testsuite name="bellwether-check" tests="${tools.length}" failures="${securityFailures}" errors="0">`);
+  lines.push(
+    `  <testsuite name="bellwether-check" tests="${tools.length}" failures="${securityFailures}" errors="0">`
+  );
 
   for (const tool of tools) {
     const successRate = tool.baselineSuccessRate ?? 1;
@@ -1127,17 +1237,23 @@ function formatCheckResultsJUnit(baseline: BehavioralBaseline): string {
   }
 
   // Add security findings as test cases if present
-  const securityTools = tools.filter(t => t.securityFingerprint?.findings?.length);
+  const securityTools = tools.filter((t) => t.securityFingerprint?.findings?.length);
   if (securityTools.length > 0) {
     lines.push(`    <!-- Security findings -->`);
     for (const tool of securityTools) {
       const findings = tool.securityFingerprint?.findings ?? [];
-      const criticalHigh = findings.filter(f => f.riskLevel === 'critical' || f.riskLevel === 'high').length;
+      const criticalHigh = findings.filter(
+        (f) => f.riskLevel === 'critical' || f.riskLevel === 'high'
+      ).length;
       if (criticalHigh > 0) {
         lines.push(`    <testcase name="${tool.name}-security" classname="security">`);
         lines.push(`      <failure message="${criticalHigh} critical/high security findings">`);
-        for (const finding of findings.filter(f => f.riskLevel === 'critical' || f.riskLevel === 'high')) {
-          lines.push(`        ${finding.riskLevel.toUpperCase()}: ${finding.title} (${finding.cweId})`);
+        for (const finding of findings.filter(
+          (f) => f.riskLevel === 'critical' || f.riskLevel === 'high'
+        )) {
+          lines.push(
+            `        ${finding.riskLevel.toUpperCase()}: ${finding.title} (${finding.cweId})`
+          );
         }
         lines.push(`      </failure>`);
         lines.push('    </testcase>');
@@ -1171,26 +1287,29 @@ function formatCheckResultsSarif(baseline: BehavioralBaseline): string {
   }> = [];
 
   // Add results for tools with security findings
-  const securityTools = tools.filter(t => t.securityFingerprint?.findings?.length);
+  const securityTools = tools.filter((t) => t.securityFingerprint?.findings?.length);
   for (const tool of securityTools) {
     const findings = tool.securityFingerprint?.findings ?? [];
     for (const finding of findings) {
-      const level = finding.riskLevel === 'critical' || finding.riskLevel === 'high'
-        ? 'error' as const
-        : finding.riskLevel === 'medium'
-          ? 'warning' as const
-          : 'note' as const;
+      const level =
+        finding.riskLevel === 'critical' || finding.riskLevel === 'high'
+          ? ('error' as const)
+          : finding.riskLevel === 'medium'
+            ? ('warning' as const)
+            : ('note' as const);
 
       results.push({
         ruleId: finding.cweId || 'BWH-SEC',
         level,
         message: { text: `[${tool.name}] ${finding.title}: ${finding.description}` },
-        locations: [{
-          physicalLocation: {
-            artifactLocation: { uri: serverUri },
-            region: { startLine: 1 },
+        locations: [
+          {
+            physicalLocation: {
+              artifactLocation: { uri: serverUri },
+              region: { startLine: 1 },
+            },
           },
-        }],
+        ],
       });
     }
   }
@@ -1202,44 +1321,51 @@ function formatCheckResultsSarif(baseline: BehavioralBaseline): string {
       results.push({
         ruleId: 'BWH-REL',
         level: 'warning',
-        message: { text: `Tool "${tool.name}" has ${(successRate * 100).toFixed(0)}% success rate` },
-        locations: [{
-          physicalLocation: {
-            artifactLocation: { uri: serverUri },
-            region: { startLine: 1 },
+        message: {
+          text: `Tool "${tool.name}" has ${(successRate * 100).toFixed(0)}% success rate`,
+        },
+        locations: [
+          {
+            physicalLocation: {
+              artifactLocation: { uri: serverUri },
+              region: { startLine: 1 },
+            },
           },
-        }],
+        ],
       });
     }
   }
 
   const sarif = {
-    $schema: 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
+    $schema:
+      'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
     version: '2.1.0',
-    runs: [{
-      tool: {
-        driver: {
-          name: 'bellwether',
-          version: '1.0.0',
-          informationUri: 'https://github.com/dotsetlabs/bellwether',
-          rules: [
-            {
-              id: 'BWH-SEC',
-              name: 'SecurityFinding',
-              shortDescription: { text: 'Security vulnerability detected' },
-              defaultConfiguration: { level: 'warning' },
-            },
-            {
-              id: 'BWH-REL',
-              name: 'LowReliability',
-              shortDescription: { text: 'Tool reliability below threshold' },
-              defaultConfiguration: { level: 'warning' },
-            },
-          ],
+    runs: [
+      {
+        tool: {
+          driver: {
+            name: 'bellwether',
+            version: '1.0.0',
+            informationUri: 'https://github.com/dotsetlabs/bellwether',
+            rules: [
+              {
+                id: 'BWH-SEC',
+                name: 'SecurityFinding',
+                shortDescription: { text: 'Security vulnerability detected' },
+                defaultConfiguration: { level: 'warning' },
+              },
+              {
+                id: 'BWH-REL',
+                name: 'LowReliability',
+                shortDescription: { text: 'Tool reliability below threshold' },
+                defaultConfiguration: { level: 'warning' },
+              },
+            ],
+          },
         },
+        results,
       },
-      results,
-    }],
+    ],
   };
 
   return JSON.stringify(sarif, null, 2);

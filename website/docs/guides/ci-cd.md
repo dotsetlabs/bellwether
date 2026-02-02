@@ -95,8 +95,9 @@ For a streamlined experience, use the official GitHub Action:
 
 ```yaml
 - name: Detect Behavioral Drift
-  uses: dotsetlabs/bellwether@v1
+  uses: dotsetlabs/bellwether@v1.0.2
   with:
+    version: '1.0.2'
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
     fail-on-severity: 'warning'
@@ -108,6 +109,7 @@ The action auto-creates `bellwether.yaml` with `--preset ci` if not found.
 
 | Input | Description | Default |
 |:------|:------------|:--------|
+| `version` | Bellwether npm version to install (pin for reproducibility) | action ref (semver only) |
 | `server-command` | MCP server command (required) | - |
 | `server-args` | Arguments to pass to the server | `''` |
 | `config-path` | Path to bellwether.yaml | `bellwether.yaml` |
@@ -152,8 +154,9 @@ The action automatically uploads:
 
 ```yaml
 - name: Check and Save Baseline
-  uses: dotsetlabs/bellwether@v1
+  uses: dotsetlabs/bellwether@v1.0.2
   with:
+    version: '1.0.2'
     server-command: 'npx @mcp/your-server'
     save-baseline: 'true'
 
@@ -179,8 +182,9 @@ server:
 ```yaml
 # workflow
 - name: Test with Secrets
-  uses: dotsetlabs/bellwether@v1
+  uses: dotsetlabs/bellwether@v1.0.2
   with:
+    version: '1.0.2'
     server-command: 'npx @mcp/your-server'
   env:
     API_KEY: ${{ secrets.API_KEY }}

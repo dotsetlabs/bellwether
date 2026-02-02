@@ -17,6 +17,8 @@ export interface CacheEntry<T> {
   value: T;
   /** When the entry was created */
   createdAt: Date;
+  /** When the entry was last accessed */
+  lastAccessedAt: Date;
   /** When the entry expires */
   expiresAt: Date;
   /** Cache key (hash) */
@@ -83,18 +85,10 @@ export class ResponseCache {
    * Generate a cache key from input data.
    */
   generateKey(...parts: unknown[]): string {
-    const serialized = parts.map((p) => {
-      if (typeof p === 'string') return p;
-      if (typeof p === 'undefined') return 'undefined';
-      if (p === null) return 'null';
-      try {
-        return JSON.stringify(p, Object.keys(p as object).sort());
-      } catch {
-        return String(p);
-      }
-    }).join('|');
+    const serialized = parts.map((p) => stableStringify(p)).join('|');
 
-    return createHash('sha256').update(serialized).digest('hex').slice(0, 16);
+    // Use 128-bit hash (32 hex chars) to reduce collision risk.
+    return createHash('sha256').update(serialized).digest('hex').slice(0, 32);
   }
 
   /**
@@ -120,6 +114,7 @@ export class ResponseCache {
     }
 
     entry.hitCount++;
+    entry.lastAccessedAt = new Date();
     this.stats.hits++;
     logger.debug({ key, hitCount: entry.hitCount }, 'Cache hit');
     return entry.value as T;
@@ -128,11 +123,7 @@ export class ResponseCache {
   /**
    * Set an entry in cache.
    */
-  set<T>(
-    key: string,
-    value: T,
-    options?: { ttlMs?: number; description?: string }
-  ): void {
+  set<T>(key: string, value: T, options?: { ttlMs?: number; description?: string }): void {
     if (!this.config.enabled) {
       return;
     }
@@ -149,6 +140,7 @@ export class ResponseCache {
     const entry: CacheEntry<T> = {
       value,
       createdAt: now,
+      lastAccessedAt: now,
       expiresAt: new Date(now.getTime() + ttl),
       key,
       description: options?.description,
@@ -247,37 +239,34 @@ export class ResponseCache {
   private evictIfNeeded(newEntrySize: number): void {
     // Check entry count
     while (this.cache.size >= this.config.maxEntries) {
-      this.evictOldest();
+      this.evictLeastRecentlyUsed();
     }
 
     // Check size
-    while (
-      this.totalSizeBytes + newEntrySize > this.config.maxSizeBytes &&
-      this.cache.size > 0
-    ) {
-      this.evictOldest();
+    while (this.totalSizeBytes + newEntrySize > this.config.maxSizeBytes && this.cache.size > 0) {
+      this.evictLeastRecentlyUsed();
     }
   }
 
   /**
-   * Evict the oldest entry (LRU based on creation time).
+   * Evict the least recently used entry (LRU based on last access time).
    */
-  private evictOldest(): void {
-    let oldestKey: string | undefined;
-    let oldestTime = Infinity;
+  private evictLeastRecentlyUsed(): void {
+    let lruKey: string | undefined;
+    let oldestAccessTime = Infinity;
 
     for (const [key, entry] of this.cache) {
-      const time = entry.createdAt.getTime();
-      if (time < oldestTime) {
-        oldestTime = time;
-        oldestKey = key;
+      const time = entry.lastAccessedAt.getTime();
+      if (time < oldestAccessTime) {
+        oldestAccessTime = time;
+        lruKey = key;
       }
     }
 
-    if (oldestKey) {
-      this.delete(oldestKey);
+    if (lruKey) {
+      this.delete(lruKey);
       this.stats.evictions++;
-      logger.debug({ key: oldestKey }, 'Evicted cache entry');
+      logger.debug({ key: lruKey }, 'Evicted cache entry');
     }
   }
 
@@ -294,6 +283,63 @@ export class ResponseCache {
 }
 
 /**
+ * Stable, deterministic JSON stringify with deep key sorting.
+ * Falls back to string conversion for unsupported types.
+ */
+function stableStringify(value: unknown): string {
+  const seen = new WeakSet<object>();
+
+  const normalize = (input: unknown): unknown => {
+    if (input === null || input === undefined) return input;
+
+    const type = typeof input;
+    if (type === 'string' || type === 'number' || type === 'boolean') {
+      return input;
+    }
+
+    if (type === 'bigint') {
+      return input.toString();
+    }
+
+    if (type === 'symbol' || type === 'function') {
+      return String(input);
+    }
+
+    if (input instanceof Date) {
+      return input.toISOString();
+    }
+
+    if (Array.isArray(input)) {
+      return input.map((item) => normalize(item));
+    }
+
+    if (typeof input === 'object') {
+      const obj = input as Record<string, unknown>;
+      if (seen.has(obj)) {
+        return '[Circular]';
+      }
+      seen.add(obj);
+      const keys = Object.keys(obj).sort();
+      const normalized: Record<string, unknown> = {};
+      for (const key of keys) {
+        normalized[key] = normalize(obj[key]);
+      }
+      return normalized;
+    }
+
+    try {
+      return JSON.parse(JSON.stringify(input));
+    } catch {
+      return String(input);
+    }
+  };
+
+  const normalized = normalize(value);
+  const json = JSON.stringify(normalized);
+  return json === undefined ? 'undefined' : json;
+}
+
+/**
  * Specialized cache for tool responses.
  */
 export class ToolResponseCache extends ResponseCache {
@@ -307,10 +353,7 @@ export class ToolResponseCache extends ResponseCache {
   /**
    * Get cached tool response.
    */
-  getToolResponse<T>(
-    toolName: string,
-    args: Record<string, unknown>
-  ): T | undefined {
+  getToolResponse<T>(toolName: string, args: Record<string, unknown>): T | undefined {
     const key = this.toolCallKey(toolName, args);
     return this.get<T>(key);
   }
@@ -334,11 +377,7 @@ export class ToolResponseCache extends ResponseCache {
   /**
    * Generate key for LLM analysis.
    */
-  analysisKey(
-    toolName: string,
-    args: Record<string, unknown>,
-    responseHash: string
-  ): string {
+  analysisKey(toolName: string, args: Record<string, unknown>, responseHash: string): string {
     return this.generateKey('analysis', toolName, args, responseHash);
   }
 

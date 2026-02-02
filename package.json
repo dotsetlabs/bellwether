@@ -33,10 +33,11 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "clean": "rm -rf dist",
-    "docs:generate": "typedoc",
+    "docs:generate": "npm --prefix website run build",
+    "docs:dev": "npm --prefix website run start",
     "man:generate": "./scripts/generate-manpage.sh",
     "prepare": "husky install || true",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build && npm run man:generate"
   },
   "keywords": [
     "mcp",
@@ -59,8 +60,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dotsetlabs/bellwether",
-    "directory": "cli"
+    "url": "https://github.com/dotsetlabs/bellwether"
   },
   "funding": {
     "type": "github",
@@ -100,7 +100,6 @@
     "lint-staged": "^16.2.7",
     "prettier": "^3.3.0",
     "tsx": "^4.21.0",
-    "typedoc": "^0.28.16",
     "typescript": "^5.3.0",
     "vitest": "^4.0.17"
   },

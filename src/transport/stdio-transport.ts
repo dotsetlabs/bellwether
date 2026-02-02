@@ -17,10 +17,9 @@ export interface StdioTransportConfig extends BaseTransportConfig {
   useNewlineDelimited?: boolean;
 }
 
-
 const DEFAULT_MAX_MESSAGE_SIZE = 10 * 1024 * 1024; // 10MB
-const DEFAULT_MAX_BUFFER_SIZE = 20 * 1024 * 1024;  // 20MB
-const DEFAULT_MAX_HEADER_SIZE = 8 * 1024;           // 8KB
+const DEFAULT_MAX_BUFFER_SIZE = 20 * 1024 * 1024; // 20MB
+const DEFAULT_MAX_HEADER_SIZE = 8 * 1024; // 8KB
 
 /**
  * StdioTransport handles JSON-RPC message framing over stdio streams.
@@ -60,13 +59,17 @@ export class StdioTransport extends BaseTransport {
   private setupInputHandler(): void {
     this.input.on('data', (chunk: Buffer) => {
       if (this.debug) {
-        this.logger.debug({ preview: chunk.toString('utf-8').substring(0, DISPLAY_LIMITS.TRANSPORT_INPUT_PREVIEW) }, 'Raw input received');
+        this.logger.debug(
+          { preview: chunk.toString('utf-8').substring(0, DISPLAY_LIMITS.TRANSPORT_INPUT_PREVIEW) },
+          'Raw input received'
+        );
       }
       const newSize = this.buffer.length + chunk.length;
       if (newSize > this.maxBufferSize) {
-        this.emit('error', new Error(
-          `Buffer size limit exceeded: ${newSize} > ${this.maxBufferSize} bytes.`
-        ));
+        this.emit(
+          'error',
+          new Error(`Buffer size limit exceeded: ${newSize} > ${this.maxBufferSize} bytes.`)
+        );
         this.buffer = '';
         this.contentLength = null;
         return;
@@ -99,9 +102,10 @@ export class StdioTransport extends BaseTransport {
           if (newlineIndex === -1) {
             // No complete message yet
             if (this.buffer.length > this.maxHeaderSize) {
-              this.emit('error', new Error(
-                `Buffer size limit exceeded without finding message boundary`
-              ));
+              this.emit(
+                'error',
+                new Error(`Buffer size limit exceeded without finding message boundary`)
+              );
               this.buffer = '';
             }
             return;
@@ -112,9 +116,12 @@ export class StdioTransport extends BaseTransport {
           this.buffer = this.buffer.substring(newlineIndex + 1);
 
           if (line.length > this.maxMessageSize) {
-            this.emit('error', new Error(
-              `Message size limit exceeded: ${line.length} > ${this.maxMessageSize} bytes.`
-            ));
+            this.emit(
+              'error',
+              new Error(
+                `Message size limit exceeded: ${line.length} > ${this.maxMessageSize} bytes.`
+              )
+            );
             continue;
           }
 
@@ -124,7 +131,12 @@ export class StdioTransport extends BaseTransport {
               this.emit('message', message);
             } catch (error) {
               // Emit error for invalid JSON for consistent behavior with Content-Length mode
-              this.emit('error', new Error(`Invalid JSON in newline-delimited message: ${error instanceof Error ? error.message : String(error)}`));
+              this.emit(
+                'error',
+                new Error(
+                  `Invalid JSON in newline-delimited message: ${error instanceof Error ? error.message : String(error)}`
+                )
+              );
             }
           }
           continue;
@@ -141,9 +153,12 @@ export class StdioTransport extends BaseTransport {
           this.buffer = this.buffer.substring(newlineIndex + 1);
 
           if (line.length > this.maxMessageSize) {
-            this.emit('error', new Error(
-              `Message size limit exceeded: ${line.length} > ${this.maxMessageSize} bytes.`
-            ));
+            this.emit(
+              'error',
+              new Error(
+                `Message size limit exceeded: ${line.length} > ${this.maxMessageSize} bytes.`
+              )
+            );
             continue;
           }
 
@@ -153,7 +168,12 @@ export class StdioTransport extends BaseTransport {
               this.emit('message', message);
             } catch (error) {
               // Emit error for invalid JSON for consistent behavior with Content-Length mode
-              this.emit('error', new Error(`Invalid JSON in newline-delimited message: ${error instanceof Error ? error.message : String(error)}`));
+              this.emit(
+                'error',
+                new Error(
+                  `Invalid JSON in newline-delimited message: ${error instanceof Error ? error.message : String(error)}`
+                )
+              );
             }
           }
           continue;
@@ -161,17 +181,21 @@ export class StdioTransport extends BaseTransport {
 
         const contentLength = parseInt(match[1], 10);
         if (!Number.isFinite(contentLength) || contentLength < 0) {
-          this.emit('error', new Error(
-            `Invalid Content-Length: ${match[1]}. Must be a positive integer.`
-          ));
+          this.emit(
+            'error',
+            new Error(`Invalid Content-Length: ${match[1]}. Must be a positive integer.`)
+          );
           this.buffer = this.buffer.substring(headerEnd + 4);
           continue;
         }
 
         if (contentLength > this.maxMessageSize) {
-          this.emit('error', new Error(
-            `Content-Length ${contentLength} exceeds maximum allowed size of ${this.maxMessageSize} bytes.`
-          ));
+          this.emit(
+            'error',
+            new Error(
+              `Content-Length ${contentLength} exceeds maximum allowed size of ${this.maxMessageSize} bytes.`
+            )
+          );
           this.buffer = this.buffer.substring(headerEnd + 4);
           if (this.buffer.length >= contentLength) {
             this.buffer = this.buffer.substring(contentLength);
@@ -200,7 +224,7 @@ export class StdioTransport extends BaseTransport {
     }
   }
 
-  send(message: JSONRPCMessage): void {
+  send(message: JSONRPCMessage, _signal?: AbortSignal): void {
     const content = JSON.stringify(message);
 
     const writeData = (data: string): void => {
@@ -214,9 +238,12 @@ export class StdioTransport extends BaseTransport {
         }
       } catch (error) {
         // Emit error for broken pipe (EPIPE) or other write failures
-        this.emit('error', new Error(
-          `Failed to write to output stream: ${error instanceof Error ? error.message : String(error)}`
-        ));
+        this.emit(
+          'error',
+          new Error(
+            `Failed to write to output stream: ${error instanceof Error ? error.message : String(error)}`
+          )
+        );
       }
     };
 
@@ -230,7 +257,10 @@ export class StdioTransport extends BaseTransport {
       // Content-Length framing
       const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`;
       if (this.debug) {
-        this.logger.debug({ format: 'content-length', content: header + content }, 'Sending message');
+        this.logger.debug(
+          { format: 'content-length', content: header + content },
+          'Sending message'
+        );
       }
       writeData(header + content);
     }
