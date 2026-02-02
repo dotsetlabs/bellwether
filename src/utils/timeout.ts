@@ -54,6 +54,14 @@ export interface TimeoutConfig {
 }
 
 /**
+ * Optional timeout behavior overrides.
+ */
+export interface TimeoutOptions {
+  /** Abort controller to signal when timeout occurs */
+  abortController?: AbortController;
+}
+
+/**
  * Error class for timeout errors.
  */
 export class TimeoutError extends Error {
@@ -105,13 +113,18 @@ export function checkAborted(signal: AbortSignal | undefined, operationName: str
 export async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
-  operationName: string
+  operationName: string,
+  options?: TimeoutOptions
 ): Promise<T> {
   let timeoutId: NodeJS.Timeout;
+  const abortController = options?.abortController;
 
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
       logger.warn({ operationName, timeoutMs }, 'Operation timed out');
+      if (abortController) {
+        abortController.abort(new TimeoutError(operationName, timeoutMs));
+      }
       reject(new TimeoutError(operationName, timeoutMs));
     }, timeoutMs);
   });
@@ -134,10 +147,11 @@ export async function withTimeout<T>(
 export async function withTimeoutResult<T>(
   promise: Promise<T>,
   timeoutMs: number,
-  operationName: string
+  operationName: string,
+  options?: TimeoutOptions
 ): Promise<{ success: true; result: T } | { success: false; error: TimeoutError | Error }> {
   try {
-    const result = await withTimeout(promise, timeoutMs, operationName);
+    const result = await withTimeout(promise, timeoutMs, operationName, options);
     return { success: true, result };
   } catch (error) {
     return {
@@ -182,12 +196,15 @@ export async function withTimeoutAll<T>(
     promise: Promise<T>;
     timeoutMs: number;
     operationName: string;
+    options?: TimeoutOptions;
   }>
-): Promise<Array<{ success: true; result: T } | { success: false; error: Error; operationName: string }>> {
+): Promise<
+  Array<{ success: true; result: T } | { success: false; error: Error; operationName: string }>
+> {
   return Promise.all(
-    operations.map(async ({ promise, timeoutMs, operationName }) => {
+    operations.map(async ({ promise, timeoutMs, operationName, options }) => {
       try {
-        const result = await withTimeout(promise, timeoutMs, operationName);
+        const result = await withTimeout(promise, timeoutMs, operationName, options);
         return { success: true as const, result };
       } catch (error) {
         return {
@@ -224,10 +241,7 @@ export async function withTimeoutRetry<T>(
       lastError = error instanceof Error ? error : new Error(String(error));
 
       if (error instanceof TimeoutError && attempt < maxRetries) {
-        logger.debug(
-          { operationName, attempt: attempt + 1, maxRetries },
-          'Retrying after timeout'
-        );
+        logger.debug({ operationName, attempt: attempt + 1, maxRetries }, 'Retrying after timeout');
         continue;
       }
       throw lastError;
@@ -245,7 +259,10 @@ export async function withTimeoutRetry<T>(
  * @param operationName - Name of the overall operation
  * @returns Deadline manager
  */
-export function createDeadline(totalTimeoutMs: number, operationName: string): {
+export function createDeadline(
+  totalTimeoutMs: number,
+  operationName: string
+): {
   /** Get remaining time in milliseconds */
   getRemainingMs: () => number;
   /** Check if deadline has passed */

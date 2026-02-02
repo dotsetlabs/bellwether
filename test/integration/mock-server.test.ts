@@ -10,12 +10,12 @@ import { generateContractMd, generateJsonReport } from '../../src/docs/generator
 import { REPORT_SCHEMAS } from '../../src/constants.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { getTsxCommand } from '../fixtures/tsx-command.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const MOCK_SERVER_PATH = join(__dirname, '../fixtures/mock-mcp-server.ts');
-const TSX_PATH = 'npx';
-const TSX_ARGS = ['tsx', MOCK_SERVER_PATH];
+const { command: TSX_PATH, args: TSX_ARGS } = getTsxCommand(MOCK_SERVER_PATH);
 
 describe('mock MCP server integration', () => {
   let client: MCPClient;

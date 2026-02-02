@@ -23,6 +23,8 @@ export interface CompletionOptions {
   responseFormat?: 'text' | 'json';
   /** System prompt to set context */
   systemPrompt?: string;
+  /** Optional abort signal to cancel the request */
+  signal?: AbortSignal;
 }
 
 /**
@@ -159,6 +161,72 @@ export function parseJSONResponse<T>(response: string): T {
   try {
     return JSON.parse(cleaned) as T;
   } catch (error) {
+    // Try to extract a JSON object/array from mixed content
+    const extracted = extractFirstJsonBlock(cleaned);
+    if (extracted) {
+      try {
+        return JSON.parse(extracted) as T;
+      } catch (extractedError) {
+        throw new Error(`Failed to parse extracted JSON from LLM response: ${extractedError}`);
+      }
+    }
     throw new Error(`Failed to parse JSON from LLM response: ${error}`);
   }
+}
+
+/**
+ * Extract the first valid JSON object or array from a string.
+ * Handles mixed content like "Here is the JSON: {...}".
+ */
+function extractFirstJsonBlock(text: string): string | null {
+  const startIndexes: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (char === '{' || char === '[') {
+      startIndexes.push(i);
+    }
+  }
+
+  for (const start of startIndexes) {
+    const opening = text[start];
+    const closing = opening === '{' ? '}' : ']';
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+
+    for (let i = start; i < text.length; i++) {
+      const char = text[i];
+
+      if (inString) {
+        if (escape) {
+          escape = false;
+          continue;
+        }
+        if (char === '\\') {
+          escape = true;
+          continue;
+        }
+        if (char === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (char === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (char === opening) {
+        depth += 1;
+      } else if (char === closing) {
+        depth -= 1;
+        if (depth === 0) {
+          return text.slice(start, i + 1);
+        }
+      }
+    }
+  }
+
+  return null;
 }

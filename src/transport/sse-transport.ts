@@ -14,7 +14,7 @@ function validateSecureUrl(url: string): void {
     if (parsed.protocol !== 'https:' && !isLocalhost(parsed.hostname)) {
       throw new Error(
         `SSE transport requires HTTPS for remote servers. ` +
-        `Got: ${parsed.protocol}//. Use HTTPS to protect session tokens in transit.`
+          `Got: ${parsed.protocol}//. Use HTTPS to protect session tokens in transit.`
       );
     }
   } catch (error) {
@@ -120,12 +120,14 @@ export class SSETransport extends BaseTransport {
     // We use globalThis to check availability at runtime, requiring `any` cast
     // because TypeScript's lib.dom.d.ts doesn't type globalThis.EventSource.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const EventSourceImpl = (globalThis as any).EventSource as (new (url: string) => EventSourceLike) | undefined;
+    const EventSourceImpl = (globalThis as any).EventSource as
+      | (new (url: string) => EventSourceLike)
+      | undefined;
     if (!EventSourceImpl) {
       throw new Error(
         'EventSource is not available. ' +
-        'SSE transport requires Node.js 18+ or a browser environment. ' +
-        'For older Node.js versions, consider using streamable-http transport instead.'
+          'SSE transport requires Node.js 18+ or a browser environment. ' +
+          'For older Node.js versions, consider using streamable-http transport instead.'
       );
     }
 
@@ -202,7 +204,9 @@ export class SSETransport extends BaseTransport {
       const message = JSON.parse(data) as JSONRPCMessage;
       this.emit('message', message);
     } catch (error) {
-      this.log('Failed to parse SSE message', { error: error instanceof Error ? error.message : String(error) });
+      this.log('Failed to parse SSE message', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Don't emit error for parse failures - just log
     }
   }
@@ -239,7 +243,10 @@ export class SSETransport extends BaseTransport {
         this.eventSource = null;
       }
 
-      this.emit('error', new Error(`Max reconnection attempts (${this.maxReconnectAttempts}) exceeded`));
+      this.emit(
+        'error',
+        new Error(`Max reconnection attempts (${this.maxReconnectAttempts}) exceeded`)
+      );
       this.emit('close');
       return;
     }
@@ -250,7 +257,9 @@ export class SSETransport extends BaseTransport {
     const exponentialDelay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
     const delay = Math.min(exponentialDelay, this.maxBackoffDelay);
 
-    this.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    this.log(
+      `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
+    );
 
     // Clear any existing reconnect timer
     if (this.reconnectTimer) {
@@ -282,7 +291,7 @@ export class SSETransport extends BaseTransport {
   /**
    * Send a JSON-RPC message to the server via HTTP POST.
    */
-  send(message: JSONRPCMessage): void {
+  send(message: JSONRPCMessage, _signal?: AbortSignal): void {
     if (!this.connected) {
       this.emit('error', new Error('Transport not connected'));
       return;

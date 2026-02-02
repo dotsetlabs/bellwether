@@ -3,6 +3,7 @@ import { MCPClient } from '../../src/transport/mcp-client.js';
 import { standardToolSet, samplePrompts } from '../fixtures/sample-tools.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { getTsxCommand } from '../fixtures/tsx-command.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -10,9 +11,7 @@ const __dirname = dirname(__filename);
 // Path to the mock server source (use tsx to run TypeScript directly)
 const MOCK_SERVER_PATH = join(__dirname, '../fixtures/mock-mcp-server.ts');
 
-// Command to run TypeScript directly
-const TSX_PATH = 'npx';
-const TSX_ARGS = ['tsx', MOCK_SERVER_PATH];
+const { command: TSX_PATH, args: TSX_ARGS } = getTsxCommand(MOCK_SERVER_PATH);
 
 describe('MCPClient', () => {
   let client: MCPClient;
@@ -70,14 +69,14 @@ describe('MCPClient', () => {
       const tools = await client.listTools();
 
       expect(tools).toHaveLength(standardToolSet.length);
-      expect(tools.map(t => t.name)).toContain('get_weather');
-      expect(tools.map(t => t.name)).toContain('calculate');
-      expect(tools.map(t => t.name)).toContain('read_file');
+      expect(tools.map((t) => t.name)).toContain('get_weather');
+      expect(tools.map((t) => t.name)).toContain('calculate');
+      expect(tools.map((t) => t.name)).toContain('read_file');
     });
 
     it('should include tool schemas', async () => {
       const tools = await client.listTools();
-      const weatherTool = tools.find(t => t.name === 'get_weather');
+      const weatherTool = tools.find((t) => t.name === 'get_weather');
 
       expect(weatherTool?.inputSchema).toBeDefined();
       expect(weatherTool?.inputSchema?.properties).toBeDefined();
@@ -94,13 +93,13 @@ describe('MCPClient', () => {
       const prompts = await client.listPrompts();
 
       expect(prompts).toHaveLength(samplePrompts.length);
-      expect(prompts.map(p => p.name)).toContain('summarize');
-      expect(prompts.map(p => p.name)).toContain('translate');
+      expect(prompts.map((p) => p.name)).toContain('summarize');
+      expect(prompts.map((p) => p.name)).toContain('translate');
     });
 
     it('should include prompt arguments', async () => {
       const prompts = await client.listPrompts();
-      const summarize = prompts.find(p => p.name === 'summarize');
+      const summarize = prompts.find((p) => p.name === 'summarize');
 
       expect(summarize?.arguments).toBeDefined();
       expect(summarize?.arguments?.length).toBeGreaterThan(0);
@@ -146,9 +145,7 @@ describe('MCPClient', () => {
     });
 
     it('should handle unknown tool', async () => {
-      await expect(
-        client.callTool('nonexistent_tool', {})
-      ).rejects.toThrow('Unknown tool');
+      await expect(client.callTool('nonexistent_tool', {})).rejects.toThrow('Unknown tool');
     });
 
     it('should handle tool timeout', async () => {
@@ -221,7 +218,7 @@ describe('MCPClient', () => {
       });
 
       // Give it a moment to send the request
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Disconnect while request is pending
       await slowClient.disconnect();
@@ -299,7 +296,7 @@ describe('MCPClient', () => {
       await client.connect('nonexistent-command-xyz', []);
 
       // Wait for error to be processed
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Should have recorded a transport error
       const errors = client.getTransportErrors();
@@ -318,13 +315,13 @@ describe('MCPClient', () => {
       });
 
       // Wait for exit
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const errors = client.getTransportErrors();
       // May or may not capture the error depending on timing
       // If captured, should be exit-related
       if (errors.length > 0) {
-        const exitErrors = errors.filter(e => e.operation === 'process_exit');
+        const exitErrors = errors.filter((e) => e.operation === 'process_exit');
         if (exitErrors.length > 0) {
           expect(exitErrors[0].message).toContain('exited');
         }
@@ -334,7 +331,7 @@ describe('MCPClient', () => {
     it('should clear transport errors when requested', async () => {
       // Create an error condition
       await client.connect('nonexistent-command-xyz', []);
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Verify we have errors
       expect(client.getTransportErrors().length).toBeGreaterThanOrEqual(0);
@@ -361,13 +358,13 @@ describe('MCPClient', () => {
       // This test validates the classification logic indirectly
       // by checking that connection errors are NOT classified as server bugs
       await client.connect('nonexistent-command-xyz', []);
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const errors = client.getTransportErrors();
       if (errors.length > 0) {
         // Connection refused errors should NOT be classified as server bugs
-        const connectionErrors = errors.filter(e => e.category === 'connection_refused');
-        connectionErrors.forEach(e => {
+        const connectionErrors = errors.filter((e) => e.category === 'connection_refused');
+        connectionErrors.forEach((e) => {
           expect(e.likelyServerBug).toBe(false);
         });
       }

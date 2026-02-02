@@ -106,16 +106,19 @@ export class StateTracker {
 
     // Use specified probe tools if provided
     if (this.options.probeTools?.length) {
-      this.probeTools = this.options.probeTools.filter(name =>
-        this.tools.some(t => t.name === name)
+      this.probeTools = this.options.probeTools.filter((name) =>
+        this.tools.some((t) => t.name === name)
       );
     }
 
-    this.logger.debug({
-      toolCount: this.tools.length,
-      probeCount: this.probeTools.length,
-      probes: this.probeTools,
-    }, 'Tools classified');
+    this.logger.debug(
+      {
+        toolCount: this.tools.length,
+        probeCount: this.probeTools.length,
+        probes: this.probeTools,
+      },
+      'Tools classified'
+    );
   }
 
   /**
@@ -126,9 +129,9 @@ export class StateTracker {
     const description = tool.description ?? '';
     const combined = `${name} ${description}`;
 
-    const isReader = READER_PATTERNS.some(p => p.test(combined));
-    const isWriter = WRITER_PATTERNS.some(p => p.test(combined));
-    const isProbe = PROBE_PATTERNS.some(p => p.test(combined));
+    const isReader = READER_PATTERNS.some((p) => p.test(combined));
+    const isWriter = WRITER_PATTERNS.some((p) => p.test(combined));
+    const isProbe = PROBE_PATTERNS.some((p) => p.test(combined));
 
     let role: ToolStateRole;
     let confidence: number;
@@ -216,10 +219,7 @@ export class StateTracker {
    * @param afterStepIndex - The step index this snapshot was taken after
    * @param snapshotTimeoutMs - Optional total timeout for the snapshot operation (overrides configured timeout)
    */
-  async takeSnapshot(
-    afterStepIndex: number,
-    snapshotTimeoutMs?: number
-  ): Promise<StateSnapshot> {
+  async takeSnapshot(afterStepIndex: number, snapshotTimeoutMs?: number): Promise<StateSnapshot> {
     const effectiveSnapshotTimeout = snapshotTimeoutMs ?? this.snapshotTimeout;
     const snapshotStart = Date.now();
     const timestamp = new Date();
@@ -229,7 +229,9 @@ export class StateTracker {
 
     // Track consecutive failures for circuit breaker
     let consecutiveFailures = 0;
-    const maxConsecutiveFailures = Math.ceil(this.probeTools.length * MATH_FACTORS.PROBE_FAILURE_THRESHOLD);
+    const maxConsecutiveFailures = Math.ceil(
+      this.probeTools.length * MATH_FACTORS.PROBE_FAILURE_THRESHOLD
+    );
 
     // Call each probe tool to gather state with individual timeouts
     for (const probeName of this.probeTools) {
@@ -253,11 +255,13 @@ export class StateTracker {
       }
 
       try {
+        const abortController = new AbortController();
         // Apply timeout to individual probe tool call
         const result = await withTimeout(
-          this.client.callTool(probeName, {}),
+          this.client.callTool(probeName, {}, { signal: abortController.signal }),
           this.probeTimeout,
-          `Probe tool '${probeName}'`
+          `Probe tool '${probeName}'`,
+          { abortController }
         );
         const content = this.extractContent(result);
         stateData[probeName] = content;
@@ -268,12 +272,15 @@ export class StateTracker {
         consecutiveFailures++;
 
         const isTimeout = error instanceof TimeoutError;
-        this.logger.warn({
-          probe: probeName,
-          error: error instanceof Error ? error.message : String(error),
-          isTimeout,
-          consecutiveFailures,
-        }, 'Probe tool failed');
+        this.logger.warn(
+          {
+            probe: probeName,
+            error: error instanceof Error ? error.message : String(error),
+            isTimeout,
+            consecutiveFailures,
+          },
+          'Probe tool failed'
+        );
 
         stateData[probeName] = {
           error: isTimeout ? 'probe_timeout' : 'probe_failed',
@@ -283,13 +290,16 @@ export class StateTracker {
     }
 
     // Log snapshot summary
-    this.logger.debug({
-      afterStepIndex,
-      probeCount: this.probeTools.length,
-      successCount,
-      failureCount,
-      durationMs: Date.now() - snapshotStart,
-    }, 'Snapshot completed');
+    this.logger.debug(
+      {
+        afterStepIndex,
+        probeCount: this.probeTools.length,
+        successCount,
+        failureCount,
+        durationMs: Date.now() - snapshotStart,
+      },
+      'Snapshot completed'
+    );
 
     // If no probes available or all failed, create empty snapshot
     const data = successCount > 0 ? stateData : null;
@@ -308,7 +318,7 @@ export class StateTracker {
    * Extract content from a tool call result.
    */
   private extractContent(result: MCPToolCallResult): unknown {
-    const textContent = result.content.find(c => c.type === 'text' && c.text !== undefined);
+    const textContent = result.content.find((c) => c.type === 'text' && c.text !== undefined);
     if (!textContent || textContent.text === undefined) {
       return null;
     }
@@ -325,13 +335,20 @@ export class StateTracker {
    */
   private hashState(data: unknown): string {
     const json = JSON.stringify(data, null, 0);
-    return createHash('sha256').update(json).digest('hex').slice(0, DISPLAY_LIMITS.HASH_DISPLAY_LENGTH);
+    return createHash('sha256')
+      .update(json)
+      .digest('hex')
+      .slice(0, DISPLAY_LIMITS.HASH_DISPLAY_LENGTH);
   }
 
   /**
    * Compare two snapshots and identify changes.
    */
-  compareSnapshots(before: StateSnapshot, after: StateSnapshot, causedByStep: number): StateChange[] {
+  compareSnapshots(
+    before: StateSnapshot,
+    after: StateSnapshot,
+    causedByStep: number
+  ): StateChange[] {
     const changes: StateChange[] = [];
 
     if (before.hash === after.hash) {
@@ -430,7 +447,7 @@ export class StateTracker {
           const writers = writerSteps.get(stateType) ?? [];
 
           // Find most recent writer for this state type
-          const recentWriters = writers.filter(w => w < i);
+          const recentWriters = writers.filter((w) => w < i);
           if (recentWriters.length > 0) {
             const producerStep = recentWriters[recentWriters.length - 1];
             const producerTool = stepResults[producerStep].step.tool;
@@ -458,9 +475,9 @@ export class StateTracker {
     _snapshots: StateSnapshot[],
     changes: StateChange[]
   ): StateDependency[] {
-    return dependencies.map(dep => {
+    return dependencies.map((dep) => {
       // Check if the producer step caused any changes
-      const producerChanges = changes.filter(c => c.causedByStep === dep.producerStep);
+      const producerChanges = changes.filter((c) => c.causedByStep === dep.producerStep);
       const verified = producerChanges.length > 0;
 
       return {
@@ -477,21 +494,21 @@ export class StateTracker {
     const parts: string[] = [];
 
     // Summarize tool roles
-    const writers = tracking.toolRoles.filter(t => t.role === 'writer' || t.role === 'both');
-    const readers = tracking.toolRoles.filter(t => t.role === 'reader' || t.role === 'both');
+    const writers = tracking.toolRoles.filter((t) => t.role === 'writer' || t.role === 'both');
+    const readers = tracking.toolRoles.filter((t) => t.role === 'reader' || t.role === 'both');
 
     if (writers.length > 0) {
-      parts.push(`State writers: ${writers.map(t => t.tool).join(', ')}`);
+      parts.push(`State writers: ${writers.map((t) => t.tool).join(', ')}`);
     }
     if (readers.length > 0) {
-      parts.push(`State readers: ${readers.map(t => t.tool).join(', ')}`);
+      parts.push(`State readers: ${readers.map((t) => t.tool).join(', ')}`);
     }
 
     // Summarize changes
     if (tracking.changes.length > 0) {
-      const created = tracking.changes.filter(c => c.type === 'created').length;
-      const modified = tracking.changes.filter(c => c.type === 'modified').length;
-      const deleted = tracking.changes.filter(c => c.type === 'deleted').length;
+      const created = tracking.changes.filter((c) => c.type === 'created').length;
+      const modified = tracking.changes.filter((c) => c.type === 'modified').length;
+      const deleted = tracking.changes.filter((c) => c.type === 'deleted').length;
 
       const changeParts: string[] = [];
       if (created > 0) changeParts.push(`${created} created`);
@@ -505,7 +522,7 @@ export class StateTracker {
 
     // Summarize dependencies
     if (tracking.dependencies.length > 0) {
-      const verified = tracking.dependencies.filter(d => d.verified).length;
+      const verified = tracking.dependencies.filter((d) => d.verified).length;
       parts.push(`Dependencies: ${tracking.dependencies.length} inferred (${verified} verified)`);
     }
 

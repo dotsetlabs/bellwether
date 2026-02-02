@@ -24,6 +24,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { getTsxCommand } from '../../fixtures/tsx-command.js';
 
 // Import core functions used by check command
 import { MCPClient } from '../../../src/transport/mcp-client.js';
@@ -49,15 +50,17 @@ import { REPORT_SCHEMAS, EXIT_CODES, SEVERITY_TO_EXIT_CODE } from '../../../src/
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const MOCK_SERVER_PATH = join(__dirname, '../../fixtures/mock-mcp-server.ts');
-const TSX_PATH = 'npx';
-const TSX_ARGS = ['tsx', MOCK_SERVER_PATH];
+const { command: TSX_PATH, args: TSX_ARGS } = getTsxCommand(MOCK_SERVER_PATH);
 
 describe('check command integration', () => {
   let testDir: string;
   let client: MCPClient;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `bellwether-check-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(
+      tmpdir(),
+      `bellwether-check-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
     mkdirSync(testDir, { recursive: true });
     client = new MCPClient({ timeout: 10000, startupDelay: 100 });
   });
@@ -492,16 +495,18 @@ describe('check command integration', () => {
         severity: 'warning' as const,
         toolsAdded: [],
         toolsRemoved: [],
-        toolsModified: [{
-          tool: 'test',
-          changes: [],
-          schemaChanged: false,
-          descriptionChanged: true,
-          responseStructureChanged: false,
-          errorPatternsChanged: false,
-          responseSchemaEvolutionChanged: false,
-          securityChanged: false,
-        }],
+        toolsModified: [
+          {
+            tool: 'test',
+            changes: [],
+            schemaChanged: false,
+            descriptionChanged: true,
+            responseStructureChanged: false,
+            errorPatternsChanged: false,
+            responseSchemaEvolutionChanged: false,
+            securityChanged: false,
+          },
+        ],
         behaviorChanges: [],
         summary: 'Warning-level changes detected',
         breakingCount: 0,

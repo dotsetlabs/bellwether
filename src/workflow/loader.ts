@@ -8,9 +8,11 @@ import { parseAllDocuments } from 'yaml';
 import type { Workflow, WorkflowStep, WorkflowYAML, Assertion } from './types.js';
 import { parseYamlSecure, YAML_SECURITY_LIMITS } from '../utils/yaml-parser.js';
 import { PATHS } from '../constants.js';
+import { getLogger } from '../logging/logger.js';
 
 /** Default file name for workflow definitions */
 export const DEFAULT_WORKFLOWS_FILE = PATHS.DEFAULT_WORKFLOWS_FILE;
+const logger = getLogger('workflow');
 
 /**
  * Load workflows from a YAML file.
@@ -67,9 +69,13 @@ export function tryLoadDefaultWorkflows(directory: string): Workflow[] | null {
   }
   try {
     return loadWorkflowsFromFile(path);
-  } catch {
+  } catch (error) {
     // If the file exists but is invalid, return null rather than throwing
     // This allows the interview to proceed without workflows
+    logger.warn(
+      { path, error: error instanceof Error ? error.message : String(error) },
+      'Failed to load default workflow file'
+    );
     return null;
   }
 }
@@ -90,13 +96,17 @@ function validateAndNormalizeWorkflow(
     throw new Error(`Workflow ${index + 1} from ${source} missing required field: name`);
   }
   if (!data.steps || !Array.isArray(data.steps) || data.steps.length === 0) {
-    throw new Error(`Workflow ${index + 1} from ${source} missing required field: steps (must be non-empty array)`);
+    throw new Error(
+      `Workflow ${index + 1} from ${source} missing required field: steps (must be non-empty array)`
+    );
   }
 
   // Validate each step
   const steps: WorkflowStep[] = data.steps.map((step, stepIndex) => {
     if (!step.tool || typeof step.tool !== 'string') {
-      throw new Error(`Step ${stepIndex + 1} in workflow "${data.id}" missing required field: tool`);
+      throw new Error(
+        `Step ${stepIndex + 1} in workflow "${data.id}" missing required field: tool`
+      );
     }
 
     // Validate argMapping format
@@ -105,7 +115,7 @@ function validateAndNormalizeWorkflow(
         if (typeof expr !== 'string' || !expr.startsWith('$steps[')) {
           throw new Error(
             `Invalid argMapping for "${param}" in step ${stepIndex + 1} of workflow "${data.id}". ` +
-            `Expected format: $steps[N].result.path.to.value`
+              `Expected format: $steps[N].result.path.to.value`
           );
         }
       }
@@ -123,7 +133,7 @@ function validateAndNormalizeWorkflow(
       if (!a.condition || !validConditions.includes(a.condition)) {
         throw new Error(
           `Assertion ${aIndex + 1} in step ${stepIndex + 1} of workflow "${data.id}" has invalid condition. ` +
-          `Valid conditions: ${validConditions.join(', ')}`
+            `Valid conditions: ${validConditions.join(', ')}`
         );
       }
 

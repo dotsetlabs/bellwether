@@ -40,7 +40,13 @@ import type { PromptQuestion, ResourceQuestion } from './types.js';
 import { evaluateAssertions } from '../scenarios/evaluator.js';
 import { withTimeout, DEFAULT_TIMEOUTS, parallelLimit, createMutex } from '../utils/index.js';
 import type { ToolResponseCache } from '../cache/response-cache.js';
-import { INTERVIEW, WORKFLOW, DISPLAY_LIMITS, SCHEMA_TESTING, OUTCOME_ASSESSMENT } from '../constants.js';
+import {
+  INTERVIEW,
+  WORKFLOW,
+  DISPLAY_LIMITS,
+  SCHEMA_TESTING,
+  OUTCOME_ASSESSMENT,
+} from '../constants.js';
 import { generateSchemaTests } from './schema-test-generator.js';
 import { WorkflowDiscoverer } from '../workflow/discovery.js';
 import { WorkflowExecutor } from '../workflow/executor.js';
@@ -69,7 +75,14 @@ export const DEFAULT_CONFIG: InterviewConfig = {
 export const DEFAULT_PERSONAS: Persona[] = [DEFAULT_PERSONA];
 
 export interface InterviewProgress {
-  phase: 'starting' | 'interviewing' | 'prompts' | 'resources' | 'workflows' | 'synthesizing' | 'complete';
+  phase:
+    | 'starting'
+    | 'interviewing'
+    | 'prompts'
+    | 'resources'
+    | 'workflows'
+    | 'synthesizing'
+    | 'complete';
   currentTool?: string;
   currentPersona?: string;
   personasCompleted: number;
@@ -194,13 +207,16 @@ export class Interviewer {
 
     // Validate: if no LLM provided, must be in check mode
     if (!llm && !this.config.checkMode) {
-      throw new Error('LLM client is required for explore mode. Use checkMode: true for check mode.');
+      throw new Error(
+        'LLM client is required for explore mode. Use checkMode: true for check mode.'
+      );
     }
 
     // Use multiple personas by default for better coverage
     // Fall back to DEFAULT_PERSONAS if no personas provided or empty array
     const providedPersonas = config?.personas;
-    this.personas = (providedPersonas && providedPersonas.length > 0) ? providedPersonas : DEFAULT_PERSONAS;
+    this.personas =
+      providedPersonas && providedPersonas.length > 0 ? providedPersonas : DEFAULT_PERSONAS;
     // Store cache reference for tool response and analysis caching
     this.cache = config?.cache;
     if (this.config.rateLimit?.enabled) {
@@ -280,13 +296,20 @@ export class Interviewer {
     if (OUTCOME_ASSESSMENT.EITHER_OUTCOME_CATEGORIES.includes(question.category as never)) {
       return 'either';
     }
-    if (OUTCOME_ASSESSMENT.EXPECTS_ERROR_PATTERNS.some((pattern) => pattern.test(question.description))) {
+    if (
+      OUTCOME_ASSESSMENT.EXPECTS_ERROR_PATTERNS.some((pattern) =>
+        pattern.test(question.description)
+      )
+    ) {
       return 'error';
     }
     return 'success';
   }
 
-  private extractErrorMessage(response: MCPToolCallResult | null, error: string | null): string | null {
+  private extractErrorMessage(
+    response: MCPToolCallResult | null,
+    error: string | null
+  ): string | null {
     if (error) return error;
     const errorContent = response?.content?.find((c) => c.type === 'text');
     if (errorContent && 'text' in errorContent) {
@@ -313,14 +336,13 @@ export class Interviewer {
       return { action: 'allow', serviceName: detected.serviceName };
     }
 
-    const missing = status.missingCredentials.length > 0
-      ? `Missing: ${status.missingCredentials.join(', ')}`
-      : 'Service not configured';
+    const missing =
+      status.missingCredentials.length > 0
+        ? `Missing: ${status.missingCredentials.join(', ')}`
+        : 'Service not configured';
 
     if (externalConfig.mode === 'fail') {
-      throw new Error(
-        `External service "${detected.displayName}" is not configured. ${missing}`
-      );
+      throw new Error(`External service "${detected.displayName}" is not configured. ${missing}`);
     }
 
     if (externalConfig.mode === 'mock' && status.mockAvailable) {
@@ -410,7 +432,10 @@ export class Interviewer {
           this.recordRateLimitEvent(tool.name);
           this.rateLimitRetries += 1;
           attempts += 1;
-          const backoff = calculateBackoffMs(attempts, this.config.rateLimit?.backoffStrategy ?? 'exponential');
+          const backoff = calculateBackoffMs(
+            attempts,
+            this.config.rateLimit?.backoffStrategy ?? 'exponential'
+          );
           await new Promise((resolve) => setTimeout(resolve, backoff));
           lastError = errorMessage ?? 'Rate limit exceeded';
           continue;
@@ -424,7 +449,10 @@ export class Interviewer {
           this.recordRateLimitEvent(tool.name);
           this.rateLimitRetries += 1;
           attempts += 1;
-          const backoff = calculateBackoffMs(attempts, this.config.rateLimit?.backoffStrategy ?? 'exponential');
+          const backoff = calculateBackoffMs(
+            attempts,
+            this.config.rateLimit?.backoffStrategy ?? 'exponential'
+          );
           await new Promise((resolve) => setTimeout(resolve, backoff));
           lastError = message;
           continue;
@@ -461,12 +489,12 @@ export class Interviewer {
 
     // Look for tools that reveal server constraints
     for (const toolName of INTERVIEW.CONSTRAINT_DISCOVERY_TOOLS) {
-      const tool = discovery.tools.find(t => t.name === toolName);
+      const tool = discovery.tools.find((t) => t.name === toolName);
       if (tool) {
         try {
           const result = await client.callTool(toolName, {});
           if (result?.content) {
-            const textContent = result.content.find(c => c.type === 'text');
+            const textContent = result.content.find((c) => c.type === 'text');
             if (textContent && 'text' in textContent) {
               const text = String(textContent.text);
               // Parse allowed directories from response
@@ -478,10 +506,13 @@ export class Interviewer {
             }
           }
         } catch (error) {
-          this.logger.debug({
-            toolName,
-            error: error instanceof Error ? error.message : String(error),
-          }, 'Tool probe failed during context extraction');
+          this.logger.debug(
+            {
+              toolName,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            'Tool probe failed during context extraction'
+          );
         }
       }
     }
@@ -522,7 +553,9 @@ export class Interviewer {
     // This will be populated by the interview command based on server args
     if (context.allowedDirectories?.length === 0) {
       // Default fallback - will be overridden if server args specify directories
-      context.constraints?.push('Server may have directory restrictions - watch for access denied errors');
+      context.constraints?.push(
+        'Server may have directory restrictions - watch for access denied errors'
+      );
     }
 
     return context;
@@ -538,13 +571,16 @@ export class Interviewer {
     try {
       const parsed = JSON.parse(text);
       if (Array.isArray(parsed)) {
-        return parsed.filter(d => typeof d === 'string' && d.startsWith('/'));
+        return parsed.filter((d) => typeof d === 'string' && d.startsWith('/'));
       }
     } catch (error) {
-      this.logger.debug({
-        error: error instanceof Error ? error.message : String(error),
-        textPreview: text.substring(0, 100),
-      }, 'Directory list not JSON, trying line-by-line parsing');
+      this.logger.debug(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          textPreview: text.substring(0, 100),
+        },
+        'Directory list not JSON, trying line-by-line parsing'
+      );
     }
 
     // Parse line by line looking for paths
@@ -587,11 +623,14 @@ export class Interviewer {
     const done = startTiming(this.logger, 'interview');
     const startTime = new Date();
 
-    this.logger.info({
-      serverName: discovery.serverInfo.name,
-      toolCount: discovery.tools.length,
-      personaCount: this.personas.length,
-    }, 'Starting interview');
+    this.logger.info(
+      {
+        serverName: discovery.serverInfo.name,
+        toolCount: discovery.tools.length,
+        personaCount: this.personas.length,
+      },
+      'Starting interview'
+    );
 
     // Extract server context if not already set
     if (!this.serverContext) {
@@ -626,10 +665,13 @@ export class Interviewer {
     onProgress?.(progress);
 
     // Aggregate interactions by tool across all personas
-    const toolInteractionsMap = new Map<string, {
-      interactions: ToolInteraction[];
-      findingsByPersona: PersonaFindings[];
-    }>();
+    const toolInteractionsMap = new Map<
+      string,
+      {
+        interactions: ToolInteraction[];
+        findingsByPersona: PersonaFindings[];
+      }
+    >();
 
     // Initialize map for each tool
     for (const tool of discovery.tools) {
@@ -660,13 +702,16 @@ export class Interviewer {
       const concurrency = this.config.personaConcurrency ?? INTERVIEW.DEFAULT_PERSONA_CONCURRENCY;
       const toolCallMutex = createMutex(); // Shared mutex for serializing MCP tool calls
 
-      this.logger.info({
-        personaCount: this.personas.length,
-        concurrency,
-      }, 'Running persona interviews in parallel');
+      this.logger.info(
+        {
+          personaCount: this.personas.length,
+          concurrency,
+        },
+        'Running persona interviews in parallel'
+      );
 
       // Create tasks for each persona
-      const personaTasks = this.personas.map(persona => async () => {
+      const personaTasks = this.personas.map((persona) => async () => {
         progress.currentPersona = persona.name;
         onProgress?.(progress);
 
@@ -685,15 +730,20 @@ export class Interviewer {
       // Check for errors
       if (!parallelResults.allSucceeded) {
         for (const [index, error] of parallelResults.errors) {
-          this.logger.error({
-            persona: this.personas[index]?.name,
-            error: error.message,
-          }, 'Persona interview failed');
+          this.logger.error(
+            {
+              persona: this.personas[index]?.name,
+              error: error.message,
+            },
+            'Persona interview failed'
+          );
         }
       }
 
       // Aggregate results
-      const successfulResults = parallelResults.results.filter((r): r is PersonaInterviewData => r !== undefined);
+      const successfulResults = parallelResults.results.filter(
+        (r): r is PersonaInterviewData => r !== undefined
+      );
       const aggregated = this.aggregateParallelResults(successfulResults, discovery);
 
       // Update tracking maps
@@ -711,7 +761,6 @@ export class Interviewer {
       }
 
       allScenarioResults = aggregated.allScenarioResults;
-
     } else if (this.config.checkMode) {
       // Check mode tool testing (parallel or sequential based on config)
       // This path doesn't require an LLM - uses fallback questions and simple analysis
@@ -725,8 +774,8 @@ export class Interviewer {
       const toolMap = new Map(discovery.tools.map((tool) => [tool.name, tool]));
       const orderedTools = statefulEnabled
         ? getDependencyOrder(dependencies)
-          .map((name) => toolMap.get(name))
-          .filter((tool): tool is MCPTool => !!tool)
+            .map((name) => toolMap.get(name))
+            .filter((tool): tool is MCPTool => !!tool)
         : discovery.tools;
 
       const effectiveConcurrency = statefulEnabled
@@ -739,7 +788,13 @@ export class Interviewer {
         this.logger.info({ toolCount: orderedTools.length }, 'Stateful testing enabled');
       }
 
-      this.logger.info({ parallel: this.config.parallelTools && !statefulEnabled, concurrency: effectiveConcurrency }, 'Using check mode tool testing');
+      this.logger.info(
+        {
+          parallel: this.config.parallelTools && !statefulEnabled,
+          concurrency: effectiveConcurrency,
+        },
+        'Using check mode tool testing'
+      );
 
       const statefulRunner = statefulEnabled
         ? new StatefulTestRunner({ shareOutputs: statefulConfig?.shareOutputsBetweenTools ?? true })
@@ -763,13 +818,15 @@ export class Interviewer {
         const toolData = toolInteractionsMap.get(profile.name);
         if (toolData) {
           toolData.interactions = profile.interactions;
-          toolData.findingsByPersona = [{
-            personaId: 'check_mode',
-            personaName: 'Check Mode',
-            behavioralNotes: [],
-            limitations: [],
-            securityNotes: [],
-          }];
+          toolData.findingsByPersona = [
+            {
+              personaId: 'check_mode',
+              personaName: 'Check Mode',
+              behavioralNotes: [],
+              limitations: [],
+              securityNotes: [],
+            },
+          ];
         }
       }
 
@@ -782,7 +839,6 @@ export class Interviewer {
       }
 
       allScenarioResults = parallelResult.scenarioResults;
-
     } else {
       // Sequential persona execution (original behavior)
       for (const persona of this.personas) {
@@ -791,7 +847,7 @@ export class Interviewer {
 
         // Create orchestrator with server context and streaming if enabled
         const orchestrator = this.createOrchestrator(persona);
-        const stats = personaStats.get(persona.id)!
+        const stats = personaStats.get(persona.id)!;
 
         // Interview each tool with this persona
         for (const tool of discovery.tools) {
@@ -817,7 +873,7 @@ export class Interviewer {
             allScenarioResults.push(...scenarioResults);
 
             // Convert scenarios to interview questions for integration with profiling
-            questions = customScenarios.map(s => this.scenarioToQuestion(s));
+            questions = customScenarios.map((s) => this.scenarioToQuestion(s));
 
             // If not custom-only mode, also generate LLM questions (skip in fast CI mode)
             if (!this.config.customScenariosOnly && !this.config.checkMode) {
@@ -832,7 +888,8 @@ export class Interviewer {
             // No custom scenarios - generate questions
             if (this.config.checkMode) {
               // Fast CI mode: use fallback questions (no LLM call)
-              questions = orchestrator.getFallbackQuestions(tool, this.config.skipErrorTests)
+              questions = orchestrator
+                .getFallbackQuestions(tool, this.config.skipErrorTests)
                 .slice(0, this.config.maxQuestionsPerTool);
             } else {
               // Normal mode: generate LLM questions
@@ -867,12 +924,18 @@ export class Interviewer {
 
               // If we have multiple failures, regenerate remaining questions with error context
               // Skip in scenarios-only mode and fast CI mode
-              if (!this.config.customScenariosOnly && !this.config.checkMode &&
-                previousErrors.length >= 2 && personaInteractions.length < questions.length) {
+              if (
+                !this.config.customScenariosOnly &&
+                !this.config.checkMode &&
+                previousErrors.length >= 2 &&
+                personaInteractions.length < questions.length
+              ) {
                 const remaining = this.config.maxQuestionsPerTool - personaInteractions.length;
                 if (remaining > 0) {
-                  this.logger.debug({ tool: tool.name, errors: previousErrors.length },
-                    'Regenerating questions after errors');
+                  this.logger.debug(
+                    { tool: tool.name, errors: previousErrors.length },
+                    'Regenerating questions after errors'
+                  );
                   const newQuestions = await orchestrator.generateQuestions(
                     tool,
                     remaining,
@@ -892,7 +955,11 @@ export class Interviewer {
 
           // Synthesize this persona's findings for this tool
           // Skip LLM synthesis in scenarios-only mode and fast CI mode
-          let personaProfile: { behavioralNotes: string[]; limitations: string[]; securityNotes: string[] };
+          let personaProfile: {
+            behavioralNotes: string[];
+            limitations: string[];
+            securityNotes: string[];
+          };
           if (this.config.customScenariosOnly || this.config.checkMode) {
             // Check mode: minimal profile, no misleading error counts
             personaProfile = {
@@ -903,7 +970,7 @@ export class Interviewer {
           } else {
             personaProfile = await orchestrator.synthesizeToolProfile(
               tool,
-              personaInteractions.map(i => ({
+              personaInteractions.map((i) => ({
                 question: i.question,
                 response: i.response,
                 error: i.error,
@@ -943,7 +1010,11 @@ export class Interviewer {
         const toolData = toolInteractionsMap.get(tool.name)!;
 
         // Aggregate findings across personas (deduplicate)
-        const aggregatedProfile = this.aggregateFindings(tool.name, tool.description ?? '', toolData);
+        const aggregatedProfile = this.aggregateFindings(
+          tool.name,
+          tool.description ?? '',
+          toolData
+        );
         toolProfiles.push(aggregatedProfile);
       }
     }
@@ -959,7 +1030,9 @@ export class Interviewer {
       onProgress?.(progress);
 
       // Only create orchestrator if NOT in check mode (requires LLM)
-      const primaryOrchestrator = this.isCheckMode() ? null : this.createOrchestrator(this.personas[0]);
+      const primaryOrchestrator = this.isCheckMode()
+        ? null
+        : this.createOrchestrator(this.personas[0]);
 
       for (const prompt of discovery.prompts) {
         progress.currentTool = `prompt:${prompt.name}`;
@@ -983,7 +1056,7 @@ export class Interviewer {
           allScenarioResults.push(...scenarioResults);
 
           // Convert scenarios to prompt questions for profiling
-          questions = customScenarios.map(s => ({
+          questions = customScenarios.map((s) => ({
             description: s.description,
             args: s.args,
           }));
@@ -993,7 +1066,11 @@ export class Interviewer {
             const llmQuestions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
             questions = [...questions, ...llmQuestions];
           }
-        } else if (!this.config.customScenariosOnly && !this.config.checkMode && primaryOrchestrator) {
+        } else if (
+          !this.config.customScenariosOnly &&
+          !this.config.checkMode &&
+          primaryOrchestrator
+        ) {
           // No custom scenarios - generate LLM questions as usual
           questions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
         } else if (this.config.checkMode) {
@@ -1041,7 +1118,13 @@ export class Interviewer {
 
         // Synthesize prompt profile
         // Skip LLM synthesis in scenarios-only mode and fast CI mode
-        let profile: { name: string; description: string; arguments: Array<{ name: string; description?: string; required?: boolean }>; behavioralNotes: string[]; limitations: string[] };
+        let profile: {
+          name: string;
+          description: string;
+          arguments: Array<{ name: string; description?: string; required?: boolean }>;
+          behavioralNotes: string[];
+          limitations: string[];
+        };
         if (this.config.customScenariosOnly || this.config.checkMode || !primaryOrchestrator) {
           // Check mode: minimal profile, no misleading error counts
           profile = {
@@ -1054,7 +1137,7 @@ export class Interviewer {
         } else {
           profile = await primaryOrchestrator.synthesizePromptProfile(
             prompt,
-            promptInteractions.map(i => ({
+            promptInteractions.map((i) => ({
               question: i.question,
               response: i.response,
               error: i.error,
@@ -1088,7 +1171,9 @@ export class Interviewer {
       onProgress?.(progress);
 
       // Only create orchestrator if NOT in check mode (requires LLM)
-      const primaryOrchestrator = this.isCheckMode() ? null : this.createOrchestrator(this.personas[0]);
+      const primaryOrchestrator = this.isCheckMode()
+        ? null
+        : this.createOrchestrator(this.personas[0]);
 
       for (const resource of discoveredResources) {
         progress.currentTool = `resource:${resource.name}`;
@@ -1100,7 +1185,9 @@ export class Interviewer {
         let questions: ResourceQuestion[];
         if (this.config.checkMode || !primaryOrchestrator) {
           // Fast CI mode: use simple fallback question
-          questions = [{ description: 'Basic resource read test', category: 'happy_path' as const }];
+          questions = [
+            { description: 'Basic resource read test', category: 'happy_path' as const },
+          ];
         } else {
           questions = await primaryOrchestrator.generateResourceQuestions(resource, 2);
         }
@@ -1111,11 +1198,13 @@ export class Interviewer {
           let error = null;
 
           try {
+            const abortController = new AbortController();
             // Apply timeout to resource read to prevent indefinite hangs
             response = await withTimeout(
-              client.readResource(resource.uri),
+              client.readResource(resource.uri, { signal: abortController.signal }),
               this.config.resourceTimeout ?? DEFAULT_TIMEOUTS.resourceRead,
-              `Resource read: ${resource.uri}`
+              `Resource read: ${resource.uri}`,
+              { abortController }
             );
             resourceReadCount++;
           } catch (e) {
@@ -1165,7 +1254,7 @@ export class Interviewer {
         } else {
           profile = await primaryOrchestrator.synthesizeResourceProfile(
             resource,
-            resourceInteractions.map(i => ({
+            resourceInteractions.map((i) => ({
               question: i.question,
               response: i.response,
               error: i.error,
@@ -1176,13 +1265,14 @@ export class Interviewer {
 
         // Extract content preview from first successful read
         let contentPreview: string | undefined;
-        const successfulRead = resourceInteractions.find(i => i.response && !i.error);
+        const successfulRead = resourceInteractions.find((i) => i.response && !i.error);
         if (successfulRead?.response?.contents?.[0]) {
           const content = successfulRead.response.contents[0];
           if (content.text) {
-            contentPreview = content.text.length > DISPLAY_LIMITS.CONTENT_TEXT_PREVIEW
-              ? `${content.text.substring(0, DISPLAY_LIMITS.CONTENT_TEXT_PREVIEW)}...`
-              : content.text;
+            contentPreview =
+              content.text.length > DISPLAY_LIMITS.CONTENT_TEXT_PREVIEW
+                ? `${content.text.substring(0, DISPLAY_LIMITS.CONTENT_TEXT_PREVIEW)}...`
+                : content.text;
           } else if (content.blob) {
             contentPreview = `[Binary data: ${content.blob.length} bytes base64]`;
           }
@@ -1251,35 +1341,37 @@ export class Interviewer {
     const endTime = new Date();
     const allInteractions = toolProfiles.flatMap((p) => p.interactions);
     const assertionSummary = summarizeAssertions(allInteractions);
-    const rateLimitSummary = this.rateLimitEvents.size > 0
-      ? {
-        totalEvents: Array.from(this.rateLimitEvents.values()).reduce((sum, v) => sum + v, 0),
-        totalRetries: this.rateLimitRetries,
-        tools: Array.from(this.rateLimitEvents.keys()),
-      }
-      : undefined;
+    const rateLimitSummary =
+      this.rateLimitEvents.size > 0
+        ? {
+            totalEvents: Array.from(this.rateLimitEvents.values()).reduce((sum, v) => sum + v, 0),
+            totalRetries: this.rateLimitRetries,
+            tools: Array.from(this.rateLimitEvents.keys()),
+          }
+        : undefined;
 
-    const externalServicesSummary = this.externalServiceStatuses.size > 0
-      ? {
-        mode: this.config.externalServices?.mode ?? 'skip',
-        unconfiguredServices: Array.from(this.externalServiceStatuses.values())
-          .filter((s) => !s.configured)
-          .map((s) => s.service),
-        skippedTools: Array.from(this.skippedTools),
-        mockedTools: Array.from(this.mockedTools),
-      }
-      : undefined;
+    const externalServicesSummary =
+      this.externalServiceStatuses.size > 0
+        ? {
+            mode: this.config.externalServices?.mode ?? 'skip',
+            unconfiguredServices: Array.from(this.externalServiceStatuses.values())
+              .filter((s) => !s.configured)
+              .map((s) => s.service),
+            skippedTools: Array.from(this.skippedTools),
+            mockedTools: Array.from(this.mockedTools),
+          }
+        : undefined;
 
     const statefulSummary = this.config.statefulTesting?.enabled
       ? {
-        enabled: true,
-        toolCount: toolProfiles.length,
-        dependencyCount: toolProfiles.reduce(
-          (sum, profile) => sum + (profile.dependencyInfo?.dependsOn.length ?? 0),
-          0
-        ),
-        maxChainLength: this.config.statefulTesting?.maxChainLength ?? 0,
-      }
+          enabled: true,
+          toolCount: toolProfiles.length,
+          dependencyCount: toolProfiles.reduce(
+            (sum, profile) => sum + (profile.dependencyInfo?.dependsOn.length ?? 0),
+            0
+          ),
+          maxChainLength: this.config.statefulTesting?.maxChainLength ?? 0,
+        }
       : undefined;
 
     const metadata: InterviewMetadata = {
@@ -1302,12 +1394,15 @@ export class Interviewer {
     progress.phase = 'complete';
     onProgress?.(progress);
 
-    this.logger.info({
-      toolsProfiled: toolProfiles.length,
-      totalToolCalls: totalToolCallCount,
-      totalErrors: totalErrorCount,
-      durationMs: metadata.durationMs,
-    }, 'Interview complete');
+    this.logger.info(
+      {
+        toolsProfiled: toolProfiles.length,
+        totalToolCalls: totalToolCallCount,
+        totalErrors: totalErrorCount,
+        durationMs: metadata.durationMs,
+      },
+      'Interview complete'
+    );
     done();
 
     return {
@@ -1340,11 +1435,7 @@ export class Interviewer {
 
     for (const interaction of interactions) {
       if (interaction.error) {
-        const analysis = categorizeErrorSource(
-          interaction.error,
-          toolName,
-          toolDescription
-        );
+        const analysis = categorizeErrorSource(interaction.error, toolName, toolDescription);
 
         switch (analysis.source) {
           case 'external_dependency':
@@ -1446,13 +1537,16 @@ export class Interviewer {
       if (cachedResponse) {
         response = cachedResponse;
         fromCache = true;
-        this.logger.debug({ toolName: tool.name, args: question.args }, 'Tool response served from cache');
+        this.logger.debug(
+          { toolName: tool.name, args: question.args },
+          'Tool response served from cache'
+        );
         stats.toolCallCount++; // Still count as a tool call for metrics
 
         if (response.isError) {
           stats.errorCount++;
           hadError = true;
-          const errorContent = response.content?.find(c => c.type === 'text');
+          const errorContent = response.content?.find((c) => c.type === 'text');
           if (errorContent && 'text' in errorContent) {
             error = String(errorContent.text);
           }
@@ -1498,12 +1592,7 @@ export class Interviewer {
       llmAnalysisMs = 0; // No LLM call in fast mode
     } else {
       const analysisTool: MCPTool = { name: tool.name, description: tool.description ?? '' };
-      analysis = await orchestrator.analyzeResponse(
-        analysisTool,
-        question,
-        response,
-        error
-      );
+      analysis = await orchestrator.analyzeResponse(analysisTool, question, response, error);
       llmAnalysisMs = Date.now() - llmAnalysisStart;
     }
 
@@ -1531,7 +1620,9 @@ export class Interviewer {
    */
   private learnFromError(error: string, orchestrator: Orchestrator): void {
     // Extract allowed directories from error messages
-    const pathMatch = error.match(/access denied|not allowed|outside.*(?:allowed|permitted).*?([/\\][^\s"']+)/i);
+    const pathMatch = error.match(
+      /access denied|not allowed|outside.*(?:allowed|permitted).*?([/\\][^\s"']+)/i
+    );
     if (pathMatch) {
       // Error mentions a path restriction
       const constraint = `Path access restricted: ${error.substring(0, DISPLAY_LIMITS.ERROR_CONSTRAINT_LENGTH)}`;
@@ -1545,7 +1636,7 @@ export class Interviewer {
     // Extract allowed directories explicitly mentioned
     const allowedMatch = error.match(/allowed director(?:y|ies)[:\s]+([^\n]+)/i);
     if (allowedMatch) {
-      const dirs = allowedMatch[1].split(/[,\s]+/).filter(d => d.startsWith('/'));
+      const dirs = allowedMatch[1].split(/[,\s]+/).filter((d) => d.startsWith('/'));
       if (dirs.length > 0) {
         const currentContext = orchestrator.getServerContext() ?? { allowedDirectories: [] };
         const existingDirs = currentContext.allowedDirectories ?? [];
@@ -1611,7 +1702,7 @@ export class Interviewer {
         }
 
         // Convert scenarios to interview questions
-        questions = customScenarios.map(s => this.scenarioToQuestion(s));
+        questions = customScenarios.map((s) => this.scenarioToQuestion(s));
 
         // If not custom-only mode, also generate LLM questions
         if (!this.config.customScenariosOnly) {
@@ -1662,12 +1753,17 @@ export class Interviewer {
           });
 
           // If we have multiple failures, regenerate remaining questions
-          if (!this.config.customScenariosOnly &&
-            previousErrors.length >= 2 && personaInteractions.length < questions.length) {
+          if (
+            !this.config.customScenariosOnly &&
+            previousErrors.length >= 2 &&
+            personaInteractions.length < questions.length
+          ) {
             const remaining = this.config.maxQuestionsPerTool - personaInteractions.length;
             if (remaining > 0) {
-              this.logger.debug({ tool: tool.name, errors: previousErrors.length },
-                'Regenerating questions after errors');
+              this.logger.debug(
+                { tool: tool.name, errors: previousErrors.length },
+                'Regenerating questions after errors'
+              );
               const newQuestions = await orchestrator.generateQuestions(
                 tool,
                 remaining,
@@ -1683,7 +1779,11 @@ export class Interviewer {
       }
 
       // Synthesize this persona's findings for this tool
-      let personaProfile: { behavioralNotes: string[]; limitations: string[]; securityNotes: string[] };
+      let personaProfile: {
+        behavioralNotes: string[];
+        limitations: string[];
+        securityNotes: string[];
+      };
       if (this.config.customScenariosOnly) {
         // Scenarios-only mode: minimal profile, no misleading error counts
         personaProfile = {
@@ -1694,7 +1794,7 @@ export class Interviewer {
       } else {
         personaProfile = await orchestrator.synthesizeToolProfile(
           tool,
-          personaInteractions.map(i => ({
+          personaInteractions.map((i) => ({
             question: i.question,
             response: i.response,
             error: i.error,
@@ -1714,11 +1814,14 @@ export class Interviewer {
       });
     }
 
-    this.logger.debug({
-      persona: persona.name,
-      toolCount: discovery.tools.length,
-      questionsAsked: stats.questionsAsked,
-    }, 'Persona interview complete');
+    this.logger.debug(
+      {
+        persona: persona.name,
+        toolCount: discovery.tools.length,
+        questionsAsked: stats.questionsAsked,
+      },
+      'Persona interview complete'
+    );
 
     return {
       persona,
@@ -1736,11 +1839,17 @@ export class Interviewer {
     personaResults: PersonaInterviewData[],
     discovery: DiscoveryResult
   ): {
-    toolInteractionsMap: Map<string, { interactions: ToolInteraction[]; findingsByPersona: PersonaFindings[] }>;
+    toolInteractionsMap: Map<
+      string,
+      { interactions: ToolInteraction[]; findingsByPersona: PersonaFindings[] }
+    >;
     personaStats: Map<string, PersonaSummary>;
     allScenarioResults: ScenarioResult[];
   } {
-    const toolInteractionsMap = new Map<string, { interactions: ToolInteraction[]; findingsByPersona: PersonaFindings[] }>();
+    const toolInteractionsMap = new Map<
+      string,
+      { interactions: ToolInteraction[]; findingsByPersona: PersonaFindings[] }
+    >();
 
     // Initialize map for each tool
     for (const tool of discovery.tools) {
@@ -1801,7 +1910,8 @@ export class Interviewer {
     let toolCallCount = 0;
     let errorCount = 0;
     const maxChainLength = statefulConfig?.maxChainLength ?? Number.POSITIVE_INFINITY;
-    const allowStateful = !!statefulRunner && (dependencyInfo?.sequencePosition ?? 0) < maxChainLength;
+    const allowStateful =
+      !!statefulRunner && (dependencyInfo?.sequencePosition ?? 0) < maxChainLength;
     const externalDecision = this.resolveExternalServiceDecision(tool);
 
     if (externalDecision.action === 'skip') {
@@ -1832,19 +1942,21 @@ export class Interviewer {
         const results = await this.executeToolScenarios(client, tool.name, customScenarios);
         scenarioResults.push(...results);
         toolCallCount += results.length;
-        errorCount += results.filter(r => !r.passed).length;
+        errorCount += results.filter((r) => !r.passed).length;
       } finally {
         toolCallMutex.release();
       }
 
       // Convert scenarios to interview questions
-      questions = customScenarios.map(s => this.scenarioToQuestion(s));
+      questions = customScenarios.map((s) => this.scenarioToQuestion(s));
     } else {
       // No custom scenarios - use fallback questions (check mode, no LLM)
       // We need an orchestrator for fallback questions, but we won't use LLM
       // Get fallback questions directly
-      questions = this.getFallbackQuestionsForTool(tool, this.config.skipErrorTests)
-        .slice(0, this.config.maxQuestionsPerTool);
+      questions = this.getFallbackQuestionsForTool(tool, this.config.skipErrorTests).slice(
+        0,
+        this.config.maxQuestionsPerTool
+      );
     }
 
     // Execute warmup runs if configured (helps reduce cold-start timing variance)
@@ -1880,9 +1992,10 @@ export class Interviewer {
 
       const expectedOutcome = this.inferExpectedOutcome(question);
       const shouldUseState = allowStateful && expectedOutcome !== 'error';
-      const statefulArgs = shouldUseState && statefulRunner
-        ? statefulRunner.applyStateToQuestion(tool.name, question)
-        : { args: { ...question.args }, usedKeys: [] };
+      const statefulArgs =
+        shouldUseState && statefulRunner
+          ? statefulRunner.applyStateToQuestion(tool.name, question)
+          : { args: { ...question.args }, usedKeys: [] };
 
       const resolvedQuestion: InterviewQuestion = {
         ...question,
@@ -1898,7 +2011,12 @@ export class Interviewer {
       // Acquire mutex for tool calls (shared MCP client)
       await toolCallMutex.acquire();
       try {
-        const result = await this.callToolWithPolicies(client, tool, resolvedQuestion.args, externalDecision);
+        const result = await this.callToolWithPolicies(
+          client,
+          tool,
+          resolvedQuestion.args,
+          externalDecision
+        );
         response = result.response;
         error = result.error;
         toolExecutionMs = result.toolExecutionMs;
@@ -1920,7 +2038,12 @@ export class Interviewer {
 
       const outcomeAssessment = this.assessOutcome(resolvedQuestion, response, error);
 
-      if (this.config.assertions?.enabled && outcomeAssessment.expected === 'success' && response && !response.isError) {
+      if (
+        this.config.assertions?.enabled &&
+        outcomeAssessment.expected === 'success' &&
+        response &&
+        !response.isError
+      ) {
         let schema = this.responseSchemas.get(tool.name);
         if (!schema && this.config.assertions?.infer) {
           const inferred = inferResponseSchema(response);
@@ -1968,12 +2091,15 @@ export class Interviewer {
       questionsAsked++;
     }
 
-    this.logger.debug({
-      tool: tool.name,
-      questionsAsked,
-      toolCallCount,
-      errorCount,
-    }, 'Tool check complete');
+    this.logger.debug(
+      {
+        tool: tool.name,
+        questionsAsked,
+        toolCallCount,
+        errorCount,
+      },
+      'Tool check complete'
+    );
 
     return {
       toolName: tool.name,
@@ -1996,10 +2122,7 @@ export class Interviewer {
    * Uses the SchemaTestGenerator to produce comprehensive deterministic tests
    * including boundaries, type coercion, enum validation, and error handling.
    */
-  private getFallbackQuestionsForTool(
-    tool: MCPTool,
-    skipErrorTests: boolean
-  ): InterviewQuestion[] {
+  private getFallbackQuestionsForTool(tool: MCPTool, skipErrorTests: boolean): InterviewQuestion[] {
     // Use the enhanced schema test generator for comprehensive coverage
     // Allow more tests in check mode since there's no LLM cost
     const maxTests = Math.max(
@@ -2048,14 +2171,17 @@ export class Interviewer {
         : 1;
     const toolCallMutex = createMutex(); // Shared mutex for serializing MCP client calls
 
-    this.logger.info({
-      toolCount: tools.length,
-      concurrency,
-      parallel: this.config.parallelTools,
-    }, 'Running check mode tool testing');
+    this.logger.info(
+      {
+        toolCount: tools.length,
+        concurrency,
+        parallel: this.config.parallelTools,
+      },
+      'Running check mode tool testing'
+    );
 
     // Create tasks for each tool
-    const toolTasks = tools.map(tool => async () => {
+    const toolTasks = tools.map((tool) => async () => {
       progress.currentTool = tool.name;
       onProgress?.(progress);
 
@@ -2082,15 +2208,20 @@ export class Interviewer {
     // Check for errors
     if (!parallelResults.allSucceeded) {
       for (const [index, error] of parallelResults.errors) {
-        this.logger.error({
-          tool: tools[index]?.name,
-          error: error.message,
-        }, 'Tool check failed');
+        this.logger.error(
+          {
+            tool: tools[index]?.name,
+            error: error.message,
+          },
+          'Tool check failed'
+        );
       }
     }
 
     // Aggregate results
-    const successfulResults = parallelResults.results.filter((r): r is ToolCheckResult => r !== undefined);
+    const successfulResults = parallelResults.results.filter(
+      (r): r is ToolCheckResult => r !== undefined
+    );
     const toolProfiles: ToolProfile[] = [];
     const scenarioResults: ScenarioResult[] = [];
     let totalToolCallCount = 0;
@@ -2098,7 +2229,7 @@ export class Interviewer {
     let totalQuestionsAsked = 0;
 
     for (const result of successfulResults) {
-      const tool = tools.find(t => t.name === result.toolName);
+      const tool = tools.find((t) => t.name === result.toolName);
       if (!tool) continue;
 
       // Classify errors to separate tool correctness from environment issues
@@ -2135,11 +2266,14 @@ export class Interviewer {
       totalQuestionsAsked += result.questionsAsked;
     }
 
-    this.logger.info({
-      toolCount: toolProfiles.length,
-      totalToolCallCount,
-      totalErrorCount,
-    }, 'Parallel tool testing complete');
+    this.logger.info(
+      {
+        toolCount: toolProfiles.length,
+        totalToolCallCount,
+        totalErrorCount,
+      },
+      'Parallel tool testing complete'
+    );
 
     return {
       toolProfiles,
@@ -2151,7 +2285,7 @@ export class Interviewer {
   }
 
   private buildToolProgressSummary(result: ToolCheckResult): ToolProgressSummary {
-    const interactions = result.interactions.filter(i => !i.mocked);
+    const interactions = result.interactions.filter((i) => !i.mocked);
     const totalTests = interactions.length;
     let passedTests = 0;
     let validationTotal = 0;
@@ -2211,7 +2345,7 @@ export class Interviewer {
    */
   private getScenariosForTool(toolName: string): TestScenario[] {
     const scenarios = this.config.customScenarios?.toolScenarios ?? [];
-    return scenarios.filter(s => s.tool === toolName && !s.skip);
+    return scenarios.filter((s) => s.tool === toolName && !s.skip);
   }
 
   /**
@@ -2219,7 +2353,7 @@ export class Interviewer {
    */
   private getScenariosForPrompt(promptName: string): PromptScenario[] {
     const scenarios = this.config.customScenarios?.promptScenarios ?? [];
-    return scenarios.filter(s => s.prompt === promptName && !s.skip);
+    return scenarios.filter((s) => s.prompt === promptName && !s.skip);
   }
 
   /**
@@ -2253,7 +2387,7 @@ export class Interviewer {
           response = result.response;
           isError = response?.isError ?? false;
           if (isError) {
-            const errorContent = response?.content?.find(c => c.type === 'text');
+            const errorContent = response?.content?.find((c) => c.type === 'text');
             if (errorContent && 'text' in errorContent) {
               error = String(errorContent.text);
             }
@@ -2274,7 +2408,7 @@ export class Interviewer {
         : [];
 
       // Scenario passes if no error (or expected error) and all assertions pass
-      const allAssertionsPassed = assertionResults.every(r => r.passed);
+      const allAssertionsPassed = assertionResults.every((r) => r.passed);
       const passed = allAssertionsPassed && (!isError || scenario.category === 'error_handling');
 
       const result: ScenarioResult = {
@@ -2288,12 +2422,15 @@ export class Interviewer {
 
       results.push(result);
 
-      this.logger.debug({
-        tool: toolName,
-        scenario: scenario.description,
-        passed,
-        assertions: assertionResults.length,
-      }, 'Scenario executed');
+      this.logger.debug(
+        {
+          tool: toolName,
+          scenario: scenario.description,
+          passed,
+          assertions: assertionResults.length,
+        },
+        'Scenario executed'
+      );
     }
 
     return results;
@@ -2330,11 +2467,10 @@ export class Interviewer {
         ? evaluateAssertions(scenario.assertions, response, !!error)
         : [];
 
-      const allAssertionsPassed = assertionResults.every(r => r.passed);
+      const allAssertionsPassed = assertionResults.every((r) => r.passed);
       // Check if this scenario expects an error (has an assertion checking for 'error' to exist)
-      const expectsError = scenario.assertions?.some(
-        a => a.path === 'error' && a.condition === 'exists'
-      ) ?? false;
+      const expectsError =
+        scenario.assertions?.some((a) => a.path === 'error' && a.condition === 'exists') ?? false;
       // Scenario passes if assertions pass AND (no error OR scenario expects error)
       const passed = allAssertionsPassed && (!error || expectsError);
 
@@ -2349,12 +2485,15 @@ export class Interviewer {
 
       results.push(result);
 
-      this.logger.debug({
-        prompt: promptName,
-        scenario: scenario.description,
-        passed,
-        assertions: assertionResults.length,
-      }, 'Prompt scenario executed');
+      this.logger.debug(
+        {
+          prompt: promptName,
+          scenario: scenario.description,
+          passed,
+          assertions: assertionResults.length,
+        },
+        'Prompt scenario executed'
+      );
     }
 
     return results;
@@ -2398,17 +2537,23 @@ export class Interviewer {
         if (discovered.length > 0) {
           allWorkflows.push(...discovered);
           discoveredCount = discovered.length;
-          this.logger.info({
-            count: discoveredCount,
-            workflows: discovered.map(w => w.name),
-          }, 'Discovered workflows');
+          this.logger.info(
+            {
+              count: discoveredCount,
+              workflows: discovered.map((w) => w.name),
+            },
+            'Discovered workflows'
+          );
         } else {
           this.logger.info('No workflows discovered from tool analysis');
         }
       } catch (error) {
-        this.logger.warn({
-          error: error instanceof Error ? error.message : String(error),
-        }, 'Workflow discovery failed');
+        this.logger.warn(
+          {
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'Workflow discovery failed'
+        );
       }
     }
 
@@ -2432,50 +2577,54 @@ export class Interviewer {
         llmSummary: WORKFLOW.LLM_SUMMARY_TIMEOUT,
       };
 
-      const executor = new WorkflowExecutor(
-        client,
-        this.llm,
-        discovery.tools,
-        {
-          stepTimeout,
-          analyzeSteps: !this.config.customScenariosOnly,
-          generateSummary: !this.config.customScenariosOnly,
-          stateTracking: workflowConfig.enableStateTracking
-            ? {
+      const executor = new WorkflowExecutor(client, this.llm, discovery.tools, {
+        stepTimeout,
+        analyzeSteps: !this.config.customScenariosOnly,
+        generateSummary: !this.config.customScenariosOnly,
+        stateTracking: workflowConfig.enableStateTracking
+          ? {
               enabled: true,
               snapshotBefore: true,
               snapshotAfter: true,
               snapshotAfterEachStep: false,
             }
-            : undefined,
-          timeouts,
-        }
-      );
+          : undefined,
+        timeouts,
+      });
 
       for (const workflow of allWorkflows) {
         progress.currentWorkflow = workflow.name;
         onProgress?.(progress);
 
-        this.logger.debug({
-          workflowId: workflow.id,
-          workflowName: workflow.name,
-          stepCount: workflow.steps.length,
-        }, 'Executing workflow');
+        this.logger.debug(
+          {
+            workflowId: workflow.id,
+            workflowName: workflow.name,
+            stepCount: workflow.steps.length,
+          },
+          'Executing workflow'
+        );
 
         try {
           const result = await executor.execute(workflow);
           results.push(result);
 
-          this.logger.info({
-            workflowId: workflow.id,
-            success: result.success,
-            durationMs: result.durationMs,
-          }, 'Workflow execution complete');
+          this.logger.info(
+            {
+              workflowId: workflow.id,
+              success: result.success,
+              durationMs: result.durationMs,
+            },
+            'Workflow execution complete'
+          );
         } catch (error) {
-          this.logger.error({
-            workflowId: workflow.id,
-            error: error instanceof Error ? error.message : String(error),
-          }, 'Workflow execution failed');
+          this.logger.error(
+            {
+              workflowId: workflow.id,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            'Workflow execution failed'
+          );
 
           // Create a failed result
           results.push({
@@ -2494,7 +2643,7 @@ export class Interviewer {
     }
 
     // Build summary
-    const successfulCount = results.filter(r => r.success).length;
+    const successfulCount = results.filter((r) => r.success).length;
     const summary: WorkflowSummary = {
       workflowCount: results.length,
       successfulCount,
@@ -2503,22 +2652,23 @@ export class Interviewer {
       loadedCount,
     };
 
-    this.logger.info({
-      total: summary.workflowCount,
-      successful: summary.successfulCount,
-      failed: summary.failedCount,
-      discovered: summary.discoveredCount,
-      loaded: summary.loadedCount,
-    }, 'Workflow execution summary');
+    this.logger.info(
+      {
+        total: summary.workflowCount,
+        successful: summary.successfulCount,
+        failed: summary.failedCount,
+        discovered: summary.discoveredCount,
+        loaded: summary.loadedCount,
+      },
+      'Workflow execution summary'
+    );
 
     return { results, summary };
   }
 }
 
 function summarizeAssertions(interactions: ToolInteraction[]): AssertionSummary | undefined {
-  const allResults = interactions
-    .filter((i) => !i.mocked)
-    .flatMap((i) => i.assertionResults ?? []);
+  const allResults = interactions.filter((i) => !i.mocked).flatMap((i) => i.assertionResults ?? []);
   if (allResults.length === 0) return undefined;
   const passed = allResults.filter((r) => r.passed).length;
   const failed = allResults.length - passed;

@@ -61,7 +61,8 @@ describe('LLM Error Handling', () => {
     });
 
     it('should throw LLM_AUTH_ERROR on 401', async () => {
-      mockOpenAICreate.mockRejectedValue(new Error('401 Unauthorized'));
+      const error = Object.assign(new Error('401 Unauthorized'), { status: 401 });
+      mockOpenAICreate.mockRejectedValue(error);
 
       try {
         await client.chat([{ role: 'user', content: 'test' }]);
@@ -73,7 +74,8 @@ describe('LLM Error Handling', () => {
     });
 
     it('should throw LLM_RATE_LIMITED on 429', async () => {
-      mockOpenAICreate.mockRejectedValue(new Error('429 Too Many Requests'));
+      const error = Object.assign(new Error('429 Too Many Requests'), { status: 429 });
+      mockOpenAICreate.mockRejectedValue(error);
 
       try {
         await client.chat([{ role: 'user', content: 'test' }]);
@@ -118,13 +120,15 @@ describe('LLM Error Handling', () => {
 
     it('should throw LLM_REFUSED when response has refusal', async () => {
       mockOpenAICreate.mockResolvedValue({
-        choices: [{
-          message: {
-            content: null,
-            refusal: 'I cannot help with that request.',
+        choices: [
+          {
+            message: {
+              content: null,
+              refusal: 'I cannot help with that request.',
+            },
+            finish_reason: 'stop',
           },
-          finish_reason: 'stop',
-        }],
+        ],
         usage: { prompt_tokens: 10, completion_tokens: 5 },
       });
 
@@ -138,13 +142,15 @@ describe('LLM Error Handling', () => {
 
     it('should extract JSON from refusal field when model makes mistake', async () => {
       mockOpenAICreate.mockResolvedValue({
-        choices: [{
-          message: {
-            content: null,
-            refusal: '```json\n{"result": "test"}\n```',
+        choices: [
+          {
+            message: {
+              content: null,
+              refusal: '```json\n{"result": "test"}\n```',
+            },
+            finish_reason: 'stop',
           },
-          finish_reason: 'stop',
-        }],
+        ],
         usage: { prompt_tokens: 10, completion_tokens: 5 },
       });
 
@@ -154,12 +160,14 @@ describe('LLM Error Handling', () => {
 
     it('should handle successful response correctly', async () => {
       mockOpenAICreate.mockResolvedValue({
-        choices: [{
-          message: {
-            content: 'Hello, this is a test response.',
+        choices: [
+          {
+            message: {
+              content: 'Hello, this is a test response.',
+            },
+            finish_reason: 'stop',
           },
-          finish_reason: 'stop',
-        }],
+        ],
         usage: { prompt_tokens: 10, completion_tokens: 8 },
       });
 
@@ -172,10 +180,12 @@ describe('LLM Error Handling', () => {
       const clientWithUsage = new OpenAIClient({ apiKey: 'test-key', onUsage: usageCallback });
 
       mockOpenAICreate.mockResolvedValue({
-        choices: [{
-          message: { content: 'test' },
-          finish_reason: 'stop',
-        }],
+        choices: [
+          {
+            message: { content: 'test' },
+            finish_reason: 'stop',
+          },
+        ],
         usage: { prompt_tokens: 100, completion_tokens: 50 },
       });
 
@@ -208,17 +218,14 @@ describe('LLM Error Handling', () => {
 
       await client.chat([{ role: 'user', content: 'test' }]);
 
-      expect(mockOpenAICreate).toHaveBeenCalledWith(
+      const callArgs = mockOpenAICreate.mock.calls[0][0];
+      expect(callArgs).toEqual(
         expect.objectContaining({
           max_completion_tokens: expect.any(Number),
         })
       );
       // Should NOT have max_tokens
-      expect(mockOpenAICreate).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          max_tokens: expect.any(Number),
-        })
-      );
+      expect(callArgs).not.toHaveProperty('max_tokens');
     });
 
     it('should use max_tokens for standard gpt-4 models', async () => {
@@ -231,7 +238,8 @@ describe('LLM Error Handling', () => {
 
       await client.chat([{ role: 'user', content: 'test' }]);
 
-      expect(mockOpenAICreate).toHaveBeenCalledWith(
+      const callArgs = mockOpenAICreate.mock.calls[0][0];
+      expect(callArgs).toEqual(
         expect.objectContaining({
           max_tokens: expect.any(Number),
           temperature: expect.any(Number),

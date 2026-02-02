@@ -17,6 +17,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { getTsxCommand } from '../fixtures/tsx-command.js';
 import { MCPClient } from '../../src/transport/mcp-client.js';
 import { discover } from '../../src/discovery/discovery.js';
 import { WorkflowExecutor } from '../../src/workflow/executor.js';
@@ -26,8 +27,7 @@ import type { MCPTool } from '../../src/transport/types.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const MOCK_SERVER_PATH = join(__dirname, '../fixtures/mock-mcp-server.ts');
-const TSX_PATH = 'npx';
-const TSX_ARGS = ['tsx', MOCK_SERVER_PATH];
+const { command: TSX_PATH, args: TSX_ARGS } = getTsxCommand(MOCK_SERVER_PATH);
 
 /**
  * Create a simple test workflow step.
@@ -58,9 +58,7 @@ function createTestWorkflow(options: {
     name: options.name ?? 'Test Workflow',
     description: 'A test workflow',
     expectedOutcome: 'Test workflow completes successfully',
-    steps: options.steps ?? [
-      createStep('get_weather', { location: 'New York' }),
-    ],
+    steps: options.steps ?? [createStep('get_weather', { location: 'New York' })],
   };
 }
 
@@ -252,12 +250,16 @@ describe('WorkflowExecutor', () => {
       const workflow = createTestWorkflow({
         steps: [
           createStep('get_weather', { location: 'Seattle' }),
-          createStep('calculate', { expression: '1 + 1' }, {
-            argMapping: {
-              // This won't actually use the weather data for calculation,
-              // but tests that the mapping mechanism works
-            },
-          }),
+          createStep(
+            'calculate',
+            { expression: '1 + 1' },
+            {
+              argMapping: {
+                // This won't actually use the weather data for calculation,
+                // but tests that the mapping mechanism works
+              },
+            }
+          ),
         ],
       });
 
@@ -275,11 +277,15 @@ describe('WorkflowExecutor', () => {
     it('should fail when referencing future step', async () => {
       const workflow = createTestWorkflow({
         steps: [
-          createStep('calculate', {}, {
-            argMapping: {
-              expression: '$steps[1].result.value', // Can't reference step 1 from step 0
-            },
-          }),
+          createStep(
+            'calculate',
+            {},
+            {
+              argMapping: {
+                expression: '$steps[1].result.value', // Can't reference step 1 from step 0
+              },
+            }
+          ),
           createStep('get_weather', { location: 'Seattle' }),
         ],
       });
@@ -299,11 +305,15 @@ describe('WorkflowExecutor', () => {
       const workflow = createTestWorkflow({
         steps: [
           createStep('get_weather', { location: 'Seattle' }),
-          createStep('calculate', {}, {
-            argMapping: {
-              expression: 'invalid.path.format', // Missing $steps[n] prefix
-            },
-          }),
+          createStep(
+            'calculate',
+            {},
+            {
+              argMapping: {
+                expression: 'invalid.path.format', // Missing $steps[n] prefix
+              },
+            }
+          ),
         ],
       });
 
@@ -322,11 +332,15 @@ describe('WorkflowExecutor', () => {
       const workflow = createTestWorkflow({
         steps: [
           createStep('nonexistent_tool'), // Step 0 will fail
-          createStep('calculate', {}, {
-            argMapping: {
-              expression: '$steps[0].result.value', // Depends on failed step
-            },
-          }),
+          createStep(
+            'calculate',
+            {},
+            {
+              argMapping: {
+                expression: '$steps[0].result.value', // Depends on failed step
+              },
+            }
+          ),
         ],
       });
 
@@ -350,11 +364,13 @@ describe('WorkflowExecutor', () => {
     it('should pass "exists" assertion when value exists', async () => {
       const workflow = createTestWorkflow({
         steps: [
-          createStep('get_weather', { location: 'Seattle' }, {
-            assertions: [
-              { path: 'location', condition: 'exists' },
-            ],
-          }),
+          createStep(
+            'get_weather',
+            { location: 'Seattle' },
+            {
+              assertions: [{ path: 'location', condition: 'exists' }],
+            }
+          ),
         ],
       });
 
@@ -373,11 +389,13 @@ describe('WorkflowExecutor', () => {
     it('should fail "exists" assertion when value is missing', async () => {
       const workflow = createTestWorkflow({
         steps: [
-          createStep('get_weather', { location: 'Seattle' }, {
-            assertions: [
-              { path: 'nonexistent_field', condition: 'exists' },
-            ],
-          }),
+          createStep(
+            'get_weather',
+            { location: 'Seattle' },
+            {
+              assertions: [{ path: 'nonexistent_field', condition: 'exists' }],
+            }
+          ),
         ],
       });
 
@@ -395,11 +413,13 @@ describe('WorkflowExecutor', () => {
     it('should check "equals" assertion', async () => {
       const workflow = createTestWorkflow({
         steps: [
-          createStep('calculate', { expression: '2 + 2' }, {
-            assertions: [
-              { path: 'result', condition: 'equals', value: 4 },
-            ],
-          }),
+          createStep(
+            'calculate',
+            { expression: '2 + 2' },
+            {
+              assertions: [{ path: 'result', condition: 'equals', value: 4 }],
+            }
+          ),
         ],
       });
 
@@ -418,11 +438,13 @@ describe('WorkflowExecutor', () => {
     it('should check "contains" assertion for strings', async () => {
       const workflow = createTestWorkflow({
         steps: [
-          createStep('get_weather', { location: 'Seattle' }, {
-            assertions: [
-              { path: 'location', condition: 'contains', value: 'Seattle' },
-            ],
-          }),
+          createStep(
+            'get_weather',
+            { location: 'Seattle' },
+            {
+              assertions: [{ path: 'location', condition: 'contains', value: 'Seattle' }],
+            }
+          ),
         ],
       });
 
@@ -440,11 +462,13 @@ describe('WorkflowExecutor', () => {
     it('should check "type" assertion', async () => {
       const workflow = createTestWorkflow({
         steps: [
-          createStep('calculate', { expression: '5 * 5' }, {
-            assertions: [
-              { path: 'result', condition: 'type', value: 'number' },
-            ],
-          }),
+          createStep(
+            'calculate',
+            { expression: '5 * 5' },
+            {
+              assertions: [{ path: 'result', condition: 'type', value: 'number' }],
+            }
+          ),
         ],
       });
 
@@ -462,11 +486,13 @@ describe('WorkflowExecutor', () => {
     it('should check "truthy" assertion', async () => {
       const workflow = createTestWorkflow({
         steps: [
-          createStep('get_weather', { location: 'Seattle' }, {
-            assertions: [
-              { path: 'conditions', condition: 'truthy' },
-            ],
-          }),
+          createStep(
+            'get_weather',
+            { location: 'Seattle' },
+            {
+              assertions: [{ path: 'conditions', condition: 'truthy' }],
+            }
+          ),
         ],
       });
 
@@ -484,11 +510,15 @@ describe('WorkflowExecutor', () => {
     it('should record assertion error messages', async () => {
       const workflow = createTestWorkflow({
         steps: [
-          createStep('calculate', { expression: '3 + 3' }, {
-            assertions: [
-              { path: 'result', condition: 'equals', value: 100, message: 'Expected 100' },
-            ],
-          }),
+          createStep(
+            'calculate',
+            { expression: '3 + 3' },
+            {
+              assertions: [
+                { path: 'result', condition: 'equals', value: 100, message: 'Expected 100' },
+              ],
+            }
+          ),
         ],
       });
 
@@ -534,12 +564,16 @@ describe('WorkflowExecutor', () => {
         expectedOutcome: 'Data flow edges are built correctly',
         steps: [
           createStep('get_weather', { location: 'Seattle' }),
-          createStep('calculate', { precision: 2 }, {
-            // This will fail resolution but we can still test graph building
-            argMapping: {
-              expression: '$steps[0].result.temperature',
-            },
-          }),
+          createStep(
+            'calculate',
+            { precision: 2 },
+            {
+              // This will fail resolution but we can still test graph building
+              argMapping: {
+                expression: '$steps[0].result.temperature',
+              },
+            }
+          ),
         ],
       };
 
@@ -710,9 +744,7 @@ describe('WorkflowExecutor', () => {
   describe('resolved arguments', () => {
     it('should record resolved arguments in step results', async () => {
       const workflow = createTestWorkflow({
-        steps: [
-          createStep('get_weather', { location: 'Seattle', units: 'fahrenheit' }),
-        ],
+        steps: [createStep('get_weather', { location: 'Seattle', units: 'fahrenheit' })],
       });
 
       const executor = new WorkflowExecutor(client, null, tools, {

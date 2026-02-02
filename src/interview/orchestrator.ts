@@ -38,7 +38,14 @@ import { RETRY, DISPLAY_LIMITS, ORCHESTRATOR } from '../constants.js';
 /**
  * Error categories for LLM operations.
  */
-type LLMErrorCategory = 'refusal' | 'rate_limit' | 'timeout' | 'auth' | 'network' | 'format_error' | 'unknown';
+type LLMErrorCategory =
+  | 'refusal'
+  | 'rate_limit'
+  | 'timeout'
+  | 'auth'
+  | 'network'
+  | 'format_error'
+  | 'unknown';
 
 /**
  * Extended schema property type for structural test generation.
@@ -79,12 +86,17 @@ interface StructuralInputSchema {
 /**
  * Categorize an error from LLM operations.
  */
-function categorizeLLMError(error: unknown): { category: LLMErrorCategory; isRetryable: boolean; message: string } {
+function categorizeLLMError(error: unknown): {
+  category: LLMErrorCategory;
+  isRetryable: boolean;
+  message: string;
+} {
   if (error instanceof TimeoutError) {
     return { category: 'timeout', isRetryable: true, message: error.message };
   }
 
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
 
   // Check for refusals
   if (
@@ -133,7 +145,11 @@ function categorizeLLMError(error: unknown): { category: LLMErrorCategory; isRet
     message.includes('token exhaustion') ||
     message.includes('unexpected end of json')
   ) {
-    return { category: 'format_error', isRetryable: true, message: 'LLM returned empty response (possible token exhaustion)' };
+    return {
+      category: 'format_error',
+      isRetryable: true,
+      message: 'LLM returned empty response (possible token exhaustion)',
+    };
   }
 
   // Check for format errors (LLM returned wrong format) - retryable once
@@ -146,7 +162,11 @@ function categorizeLLMError(error: unknown): { category: LLMErrorCategory; isRet
     return { category: 'format_error', isRetryable: true, message: 'LLM returned invalid format' };
   }
 
-  return { category: 'unknown', isRetryable: false, message: error instanceof Error ? error.message : String(error) };
+  return {
+    category: 'unknown',
+    isRetryable: false,
+    message: error instanceof Error ? error.message : String(error),
+  };
 }
 
 /**
@@ -241,18 +261,30 @@ export class Orchestrator {
         const result = await this.llm.stream(prompt, { ...options, ...streamingOpts });
         // If streaming returned empty/incomplete, fall back to non-streaming
         if (!result.completed || !result.text) {
-          this.logger.warn({ operation }, 'Streaming returned empty, falling back to non-streaming');
+          this.logger.warn(
+            { operation },
+            'Streaming returned empty, falling back to non-streaming'
+          );
           // Notify callbacks about the fallback
-          this.streamingCallbacks?.onError?.(new Error('Streaming returned empty content'), operation);
+          this.streamingCallbacks?.onError?.(
+            new Error('Streaming returned empty content'),
+            operation
+          );
           return this.llm.complete(prompt, options);
         }
         return result.text;
       } catch (error) {
         // On streaming error, fall back to non-streaming
         const errorMessage = error instanceof Error ? error.message : String(error);
-        this.logger.warn({ operation, error: errorMessage }, 'Streaming failed, falling back to non-streaming');
+        this.logger.warn(
+          { operation, error: errorMessage },
+          'Streaming failed, falling back to non-streaming'
+        );
         // Notify callbacks about the error
-        this.streamingCallbacks?.onError?.(error instanceof Error ? error : new Error(errorMessage), operation);
+        this.streamingCallbacks?.onError?.(
+          error instanceof Error ? error : new Error(errorMessage),
+          operation
+        );
         return this.llm.complete(prompt, options);
       }
     }
@@ -359,17 +391,21 @@ export class Orchestrator {
   ): Promise<InterviewQuestion[]> {
     // Get category distribution based on persona bias
     const targetCategories = this.getCategoryDistribution(maxQuestions);
-    const categoryCounts = targetCategories.reduce((acc, cat) => {
-      acc[cat] = (acc[cat] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const categoryCounts = targetCategories.reduce(
+      (acc, cat) => {
+        acc[cat] = (acc[cat] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
 
     const categoryGuidance = Object.entries(categoryCounts)
       .map(([cat, count]) => `${count} ${cat.replace('_', ' ')} example(s)`)
       .join(', ');
 
     // Build category list including security if persona uses it
-    let categoryList = '"happy_path" (normal usage), "edge_case" (boundary values), "error_handling" (incomplete inputs), "boundary" (limits)';
+    let categoryList =
+      '"happy_path" (normal usage), "edge_case" (boundary values), "error_handling" (incomplete inputs), "boundary" (limits)';
     if (this.persona.questionBias.security && this.persona.questionBias.security > 0) {
       categoryList += ', "security" (security testing)';
     }
@@ -391,14 +427,21 @@ export class Orchestrator {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       let rawResponse: string | undefined;
       try {
+        const abortController = new AbortController();
         // Apply timeout to LLM call - use streaming if enabled
         const response = await withTimeout(
-          this.completeWithStreaming(prompt, {
-            ...COMPLETION_OPTIONS.questionGeneration,
-            systemPrompt: this.getSystemPrompt(),
-          }, `generate-questions:${tool.name}`),
+          this.completeWithStreaming(
+            prompt,
+            {
+              ...COMPLETION_OPTIONS.questionGeneration,
+              systemPrompt: this.getSystemPrompt(),
+              signal: abortController.signal,
+            },
+            `generate-questions:${tool.name}`
+          ),
           DEFAULT_TIMEOUTS.questionGeneration,
-          `Question generation for ${tool.name}`
+          `Question generation for ${tool.name}`,
+          { abortController }
         );
 
         rawResponse = response;
@@ -406,10 +449,14 @@ export class Orchestrator {
         // Check for empty/whitespace-only responses (common with token exhaustion)
         const trimmed = response.trim();
         if (!trimmed || /^[\s\t\n]+$/.test(response)) {
-          throw new Error('LLM returned empty or whitespace-only response (possible token exhaustion)');
+          throw new Error(
+            'LLM returned empty or whitespace-only response (possible token exhaustion)'
+          );
         }
 
-        const parsed = this.llm.parseJSON<InterviewQuestion[] | InterviewQuestion | { error?: string }>(response);
+        const parsed = this.llm.parseJSON<
+          InterviewQuestion[] | InterviewQuestion | { error?: string }
+        >(response);
 
         // Handle different response formats
         if (Array.isArray(parsed)) {
@@ -421,7 +468,10 @@ export class Orchestrator {
         const obj = parsed as Record<string, unknown>;
         if (obj.description && obj.category && obj.args !== undefined) {
           // It's a valid question object, wrap it in an array
-          this.logger.debug({ tool: tool.name }, 'LLM returned single question object, wrapping in array');
+          this.logger.debug(
+            { tool: tool.name },
+            'LLM returned single question object, wrapping in array'
+          );
           return [parsed as InterviewQuestion];
         }
 
@@ -430,13 +480,17 @@ export class Orchestrator {
         const wrapperKeys = ['test_cases', 'questions', 'tests', 'items', 'data'];
         for (const key of wrapperKeys) {
           if (Array.isArray(obj[key])) {
-            this.logger.debug({ tool: tool.name, wrapperKey: key }, 'LLM wrapped array in object, unwrapping');
+            this.logger.debug(
+              { tool: tool.name, wrapperKey: key },
+              'LLM wrapped array in object, unwrapping'
+            );
             return (obj[key] as InterviewQuestion[]).slice(0, maxQuestions);
           }
         }
 
         // It's an error object or invalid format
-        const errorMsg = (parsed as { error?: string })?.error ?? 'Response was not a valid question format';
+        const errorMsg =
+          (parsed as { error?: string })?.error ?? 'Response was not a valid question format';
         throw new Error(`Invalid question format: ${errorMsg}`);
       } catch (error) {
         const categorized = categorizeLLMError(error);
@@ -463,7 +517,7 @@ export class Orchestrator {
         // Wait before retry with exponential backoff
         if (attempt < maxRetries) {
           const delay = Math.min(RETRY.INITIAL_DELAY * Math.pow(2, attempt), RETRY.MAX_DELAY);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
@@ -497,7 +551,10 @@ export class Orchestrator {
       const responseHash = this.cache.hashResponse(response);
       const cachedAnalysis = this.cache.getAnalysis(tool.name, question.args, responseHash);
       if (cachedAnalysis) {
-        this.logger.debug({ tool: tool.name, args: question.args }, 'LLM analysis served from cache');
+        this.logger.debug(
+          { tool: tool.name, args: question.args },
+          'LLM analysis served from cache'
+        );
         return cachedAnalysis;
       }
     }
@@ -511,10 +568,14 @@ export class Orchestrator {
     });
 
     try {
-      const analysis = await this.completeWithStreaming(prompt, {
-        ...COMPLETION_OPTIONS.responseAnalysis,
-        systemPrompt: this.getSystemPrompt(),
-      }, `analyze:${tool.name}`);
+      const analysis = await this.completeWithStreaming(
+        prompt,
+        {
+          ...COMPLETION_OPTIONS.responseAnalysis,
+          systemPrompt: this.getSystemPrompt(),
+        },
+        `analyze:${tool.name}`
+      );
 
       // Cache successful analysis
       if (this.cache && response && analysis) {
@@ -526,15 +587,18 @@ export class Orchestrator {
       return analysis;
     } catch (llmError) {
       // Graceful fallback if LLM refuses or fails
-      this.logger.debug({
-        tool: tool.name,
-        error: llmError instanceof Error ? llmError.message : String(llmError),
-      }, 'LLM analysis failed, using fallback');
+      this.logger.debug(
+        {
+          tool: tool.name,
+          error: llmError instanceof Error ? llmError.message : String(llmError),
+        },
+        'LLM analysis failed, using fallback'
+      );
       if (error) {
         return `Tool returned an error: ${error}`;
       }
       if (response?.content) {
-        const textContent = response.content.find(c => c.type === 'text');
+        const textContent = response.content.find((c) => c.type === 'text');
         if (textContent && 'text' in textContent) {
           return `Tool returned: ${String(textContent.text).substring(0, DISPLAY_LIMITS.TOOL_RESPONSE_PREVIEW)}`;
         }
@@ -548,15 +612,24 @@ export class Orchestrator {
    */
   async synthesizeToolProfile(
     tool: MCPTool,
-    interactions: { question: InterviewQuestion; response: MCPToolCallResult | null; error: string | null; analysis: string }[]
+    interactions: {
+      question: InterviewQuestion;
+      response: MCPToolCallResult | null;
+      error: string | null;
+      analysis: string;
+    }[]
   ): Promise<Omit<ToolProfile, 'interactions'>> {
     const prompt = buildToolProfileSynthesisPrompt({ tool, interactions });
 
     try {
-      const response = await this.completeWithStreaming(prompt, {
-        ...COMPLETION_OPTIONS.profileSynthesis,
-        systemPrompt: this.getSystemPrompt(),
-      }, `synthesize-tool:${tool.name}`);
+      const response = await this.completeWithStreaming(
+        prompt,
+        {
+          ...COMPLETION_OPTIONS.profileSynthesis,
+          systemPrompt: this.getSystemPrompt(),
+        },
+        `synthesize-tool:${tool.name}`
+      );
 
       const result = this.llm.parseJSON<{
         behavioralNotes: string[];
@@ -580,7 +653,7 @@ export class Orchestrator {
       return {
         name: tool.name,
         description: tool.description ?? 'No description provided',
-        behavioralNotes: interactions.map(i => i.analysis).filter(a => a),
+        behavioralNotes: interactions.map((i) => i.analysis).filter((a) => a),
         limitations: [],
         securityNotes: [],
       };
@@ -597,10 +670,14 @@ export class Orchestrator {
     const prompt = buildOverallSynthesisPrompt({ discovery, toolProfiles });
 
     try {
-      const response = await this.completeWithStreaming(prompt, {
-        ...COMPLETION_OPTIONS.overallSynthesis,
-        systemPrompt: this.getSystemPrompt(),
-      }, 'synthesize-overall');
+      const response = await this.completeWithStreaming(
+        prompt,
+        {
+          ...COMPLETION_OPTIONS.overallSynthesis,
+          systemPrompt: this.getSystemPrompt(),
+        },
+        'synthesize-overall'
+      );
 
       return this.llm.parseJSON<{
         summary: string;
@@ -653,47 +730,62 @@ export class Orchestrator {
     if (schema?.examples && Array.isArray(schema.examples)) {
       for (const example of schema.examples.slice(0, ORCHESTRATOR.MAX_SCHEMA_EXAMPLES)) {
         if (example && typeof example === 'object') {
-          addQuestion({
-            description: 'Test with schema-provided example',
-            category: 'happy_path',
-            args: example as Record<string, unknown>,
-          }, happyPathTests);
+          addQuestion(
+            {
+              description: 'Test with schema-provided example',
+              category: 'happy_path',
+              args: example as Record<string, unknown>,
+            },
+            happyPathTests
+          );
         }
       }
     }
 
     if (schema?.default && typeof schema.default === 'object') {
-      addQuestion({
-        description: 'Test with schema default values',
-        category: 'happy_path',
-        args: schema.default as Record<string, unknown>,
-      }, happyPathTests);
+      addQuestion(
+        {
+          description: 'Test with schema default values',
+          category: 'happy_path',
+          args: schema.default as Record<string, unknown>,
+        },
+        happyPathTests
+      );
     }
 
     const defaultArgs = this.buildArgsFromDefaults(schema);
     if (Object.keys(defaultArgs).length > 0) {
-      addQuestion({
-        description: 'Test with property default values',
-        category: 'happy_path',
-        args: defaultArgs,
-      }, happyPathTests);
+      addQuestion(
+        {
+          description: 'Test with property default values',
+          category: 'happy_path',
+          args: defaultArgs,
+        },
+        happyPathTests
+      );
     }
 
     const exampleArgs = this.buildArgsFromExamples(schema);
     if (Object.keys(exampleArgs).length > 0) {
-      addQuestion({
-        description: 'Test with property example values',
-        category: 'happy_path',
-        args: exampleArgs,
-      }, happyPathTests);
+      addQuestion(
+        {
+          description: 'Test with property example values',
+          category: 'happy_path',
+          args: exampleArgs,
+        },
+        happyPathTests
+      );
     }
 
     const smartArgs = this.buildSmartDefaultArgs(schema);
-    addQuestion({
-      description: 'Basic functionality test with required parameters',
-      category: 'happy_path',
-      args: smartArgs,
-    }, happyPathTests);
+    addQuestion(
+      {
+        description: 'Basic functionality test with required parameters',
+        category: 'happy_path',
+        args: smartArgs,
+      },
+      happyPathTests
+    );
 
     const enumTests = this.generateEnumTests(schema, smartArgs);
     for (const test of enumTests.slice(0, ORCHESTRATOR.MAX_ENUM_TESTS)) {
@@ -712,11 +804,14 @@ export class Orchestrator {
 
     if (!skipErrorTests) {
       // Empty args (missing required)
-      addQuestion({
-        description: 'Test with empty/missing parameters',
-        category: 'error_handling',
-        args: {},
-      }, errorTests);
+      addQuestion(
+        {
+          description: 'Test with empty/missing parameters',
+          category: 'error_handling',
+          args: {},
+        },
+        errorTests
+      );
 
       // Invalid type tests
       const invalidTests = this.generateInvalidTypeTests(schema);
@@ -764,7 +859,9 @@ export class Orchestrator {
    * Build args from property-level default values.
    * Also includes required parameters with smart defaults.
    */
-  private buildArgsFromDefaults(schema: StructuralInputSchema | undefined): Record<string, unknown> {
+  private buildArgsFromDefaults(
+    schema: StructuralInputSchema | undefined
+  ): Record<string, unknown> {
     const args: Record<string, unknown> = {};
     if (!schema?.properties) return args;
 
@@ -793,7 +890,9 @@ export class Orchestrator {
    * Build args from property-level example values.
    * Also includes required parameters with smart defaults.
    */
-  private buildArgsFromExamples(schema: StructuralInputSchema | undefined): Record<string, unknown> {
+  private buildArgsFromExamples(
+    schema: StructuralInputSchema | undefined
+  ): Record<string, unknown> {
     const args: Record<string, unknown> = {};
     if (!schema?.properties) return args;
 
@@ -821,7 +920,9 @@ export class Orchestrator {
   /**
    * Build smart default args based on parameter analysis.
    */
-  private buildSmartDefaultArgs(schema: StructuralInputSchema | undefined): Record<string, unknown> {
+  private buildSmartDefaultArgs(
+    schema: StructuralInputSchema | undefined
+  ): Record<string, unknown> {
     const args: Record<string, unknown> = {};
     if (!schema?.properties) return args;
 
@@ -841,7 +942,11 @@ export class Orchestrator {
    * Generate a smart value for a parameter based on comprehensive schema analysis.
    * @param depth - Current recursion depth for circular schema protection
    */
-  private generateSmartValue(paramName: string, schema: StructuralPropertySchema, depth: number = 0): unknown {
+  private generateSmartValue(
+    paramName: string,
+    schema: StructuralPropertySchema,
+    depth: number = 0
+  ): unknown {
     // Prevent infinite recursion with circular schemas
     if (depth > ORCHESTRATOR.MAX_SCHEMA_RECURSION_DEPTH) {
       this.logger.debug({ paramName, depth }, 'Max schema recursion depth reached');
@@ -920,7 +1025,11 @@ export class Orchestrator {
     // Check name-based hints
     if (lowerName.includes('path') || lowerName.includes('file')) {
       const baseDir = this.serverContext?.allowedDirectories?.[0] ?? '/tmp';
-      if (lowerName.includes('dir') || lowerName.includes('directory') || lowerName.includes('folder')) {
+      if (
+        lowerName.includes('dir') ||
+        lowerName.includes('directory') ||
+        lowerName.includes('folder')
+      ) {
         return baseDir;
       }
       return `${baseDir}/test.txt`;
@@ -949,12 +1058,20 @@ export class Orchestrator {
       return 'test-name';
     }
 
-    if (lowerName.includes('query') || lowerName.includes('search') || lowerName.includes('filter')) {
+    if (
+      lowerName.includes('query') ||
+      lowerName.includes('search') ||
+      lowerName.includes('filter')
+    ) {
       // Use a more realistic search term based on description
       if (description.includes('movie') || description.includes('film')) {
         return 'The Matrix';
       }
-      if (description.includes('music') || description.includes('song') || description.includes('artist')) {
+      if (
+        description.includes('music') ||
+        description.includes('song') ||
+        description.includes('artist')
+      ) {
         return 'Beatles';
       }
       if (description.includes('book') || description.includes('author')) {
@@ -967,11 +1084,19 @@ export class Orchestrator {
       return 'Test Title';
     }
 
-    if (lowerName.includes('description') || lowerName.includes('summary') || lowerName.includes('text')) {
+    if (
+      lowerName.includes('description') ||
+      lowerName.includes('summary') ||
+      lowerName.includes('text')
+    ) {
       return 'This is a test description for validation purposes.';
     }
 
-    if (lowerName.includes('content') || lowerName.includes('body') || lowerName.includes('message')) {
+    if (
+      lowerName.includes('content') ||
+      lowerName.includes('body') ||
+      lowerName.includes('message')
+    ) {
       return 'Test content for the operation.';
     }
 
@@ -983,7 +1108,11 @@ export class Orchestrator {
       return 'function example() { return "Hello"; }';
     }
 
-    if (lowerName.includes('pattern') || lowerName.includes('glob') || lowerName.includes('regex')) {
+    if (
+      lowerName.includes('pattern') ||
+      lowerName.includes('glob') ||
+      lowerName.includes('regex')
+    ) {
       return '*.txt';
     }
 
@@ -1039,7 +1168,11 @@ export class Orchestrator {
    * Generate a smart array value.
    * @param depth - Current recursion depth for circular schema protection
    */
-  private generateSmartArray(paramName: string, schema: StructuralPropertySchema, depth: number = 0): unknown[] {
+  private generateSmartArray(
+    paramName: string,
+    schema: StructuralPropertySchema,
+    depth: number = 0
+  ): unknown[] {
     const lowerName = paramName.toLowerCase();
 
     // Handle path arrays
@@ -1061,7 +1194,10 @@ export class Orchestrator {
    * Generate a smart object value.
    * @param depth - Current recursion depth for circular schema protection
    */
-  private generateSmartObject(schema: StructuralPropertySchema, depth: number = 0): Record<string, unknown> {
+  private generateSmartObject(
+    schema: StructuralPropertySchema,
+    depth: number = 0
+  ): Record<string, unknown> {
     const obj: Record<string, unknown> = {};
 
     if (schema.properties) {
@@ -1086,13 +1222,21 @@ export class Orchestrator {
     if (lowerName.includes('count') || lowerName.includes('limit') || lowerName.includes('num')) {
       return 10;
     }
-    if (lowerName.includes('enabled') || lowerName.includes('active') || lowerName.includes('flag')) {
+    if (
+      lowerName.includes('enabled') ||
+      lowerName.includes('active') ||
+      lowerName.includes('flag')
+    ) {
       return true;
     }
     if (lowerName.includes('list') || lowerName.includes('items') || lowerName.includes('array')) {
       return [];
     }
-    if (lowerName.includes('config') || lowerName.includes('options') || lowerName.includes('settings')) {
+    if (
+      lowerName.includes('config') ||
+      lowerName.includes('options') ||
+      lowerName.includes('settings')
+    ) {
       return {};
     }
 
@@ -1185,13 +1329,16 @@ export class Orchestrator {
   /**
    * Generate tests for optional parameters.
    */
-  private generateOptionalParamTests(schema: StructuralInputSchema | undefined): InterviewQuestion[] {
+  private generateOptionalParamTests(
+    schema: StructuralInputSchema | undefined
+  ): InterviewQuestion[] {
     const tests: InterviewQuestion[] = [];
     if (!schema?.properties) return tests;
 
     const required = new Set(schema.required ?? []);
-    const optionalParams = Object.entries(schema.properties)
-      .filter(([name]) => !required.has(name));
+    const optionalParams = Object.entries(schema.properties).filter(
+      ([name]) => !required.has(name)
+    );
 
     if (optionalParams.length === 0) return tests;
 
@@ -1278,18 +1425,25 @@ export class Orchestrator {
     });
 
     try {
-      const response = await this.completeWithStreaming(promptText, {
-        ...COMPLETION_OPTIONS.promptQuestionGeneration,
-        systemPrompt: this.getSystemPrompt(),
-      }, `generate-prompt-questions:${prompt.name}`);
+      const response = await this.completeWithStreaming(
+        promptText,
+        {
+          ...COMPLETION_OPTIONS.promptQuestionGeneration,
+          systemPrompt: this.getSystemPrompt(),
+        },
+        `generate-prompt-questions:${prompt.name}`
+      );
 
       const questions = this.llm.parseJSON<PromptQuestion[]>(response);
       return questions.slice(0, maxQuestions);
     } catch (llmError) {
-      this.logger.debug({
-        prompt: prompt.name,
-        error: llmError instanceof Error ? llmError.message : String(llmError),
-      }, 'LLM prompt question generation failed, using fallback');
+      this.logger.debug(
+        {
+          prompt: prompt.name,
+          error: llmError instanceof Error ? llmError.message : String(llmError),
+        },
+        'LLM prompt question generation failed, using fallback'
+      );
       // Fallback to basic questions (slice to respect maxQuestions limit)
       return this.generateFallbackPromptQuestions(prompt).slice(0, maxQuestions);
     }
@@ -1312,16 +1466,23 @@ export class Orchestrator {
     });
 
     try {
-      return await this.completeWithStreaming(promptText, {
-        ...COMPLETION_OPTIONS.promptResponseAnalysis,
-        systemPrompt: this.getSystemPrompt(),
-      }, `analyze-prompt:${prompt.name}`);
+      return await this.completeWithStreaming(
+        promptText,
+        {
+          ...COMPLETION_OPTIONS.promptResponseAnalysis,
+          systemPrompt: this.getSystemPrompt(),
+        },
+        `analyze-prompt:${prompt.name}`
+      );
     } catch (llmError) {
       // Graceful fallback
-      this.logger.debug({
-        prompt: prompt.name,
-        error: llmError instanceof Error ? llmError.message : String(llmError),
-      }, 'LLM prompt analysis failed, using fallback');
+      this.logger.debug(
+        {
+          prompt: prompt.name,
+          error: llmError instanceof Error ? llmError.message : String(llmError),
+        },
+        'LLM prompt analysis failed, using fallback'
+      );
       if (error) {
         return `Prompt returned an error: ${error}`;
       }
@@ -1347,10 +1508,14 @@ export class Orchestrator {
     const promptText = buildPromptProfileSynthesisPrompt({ prompt, interactions });
 
     try {
-      const response = await this.completeWithStreaming(promptText, {
-        ...COMPLETION_OPTIONS.promptProfileSynthesis,
-        systemPrompt: this.getSystemPrompt(),
-      }, `synthesize-prompt:${prompt.name}`);
+      const response = await this.completeWithStreaming(
+        promptText,
+        {
+          ...COMPLETION_OPTIONS.promptProfileSynthesis,
+          systemPrompt: this.getSystemPrompt(),
+        },
+        `synthesize-prompt:${prompt.name}`
+      );
 
       const result = this.llm.parseJSON<{
         behavioralNotes: string[];
@@ -1359,7 +1524,7 @@ export class Orchestrator {
 
       // Extract example output from first successful interaction
       let exampleOutput: string | undefined;
-      const successful = interactions.find(i => !i.error && i.response?.messages?.length);
+      const successful = interactions.find((i) => !i.error && i.response?.messages?.length);
       if (successful?.response) {
         const firstMsg = successful.response.messages[0];
         if (firstMsg?.content?.type === 'text' && firstMsg.content.text) {
@@ -1376,15 +1541,18 @@ export class Orchestrator {
         exampleOutput,
       };
     } catch (llmError) {
-      this.logger.debug({
-        prompt: prompt.name,
-        error: llmError instanceof Error ? llmError.message : String(llmError),
-      }, 'LLM prompt profile synthesis failed, using fallback');
+      this.logger.debug(
+        {
+          prompt: prompt.name,
+          error: llmError instanceof Error ? llmError.message : String(llmError),
+        },
+        'LLM prompt profile synthesis failed, using fallback'
+      );
       return {
         name: prompt.name,
         description: prompt.description ?? 'No description provided',
         arguments: prompt.arguments ?? [],
-        behavioralNotes: interactions.map(i => i.analysis).filter(a => a),
+        behavioralNotes: interactions.map((i) => i.analysis).filter((a) => a),
         limitations: [],
       };
     }
@@ -1412,7 +1580,7 @@ export class Orchestrator {
     });
 
     // If there are optional args, add a test with all args
-    const optionalArgs = prompt.arguments?.filter(a => !a.required) ?? [];
+    const optionalArgs = prompt.arguments?.filter((a) => !a.required) ?? [];
     if (optionalArgs.length > 0) {
       const allArgs = { ...args };
       for (const arg of optionalArgs) {
@@ -1458,18 +1626,25 @@ Return JSON array:
 Return ONLY valid JSON, no explanation.`;
 
     try {
-      const response = await this.completeWithStreaming(prompt, {
-        ...COMPLETION_OPTIONS.questionGeneration,
-        systemPrompt: this.getSystemPrompt(),
-      }, `generate-resource-questions:${resource.name}`);
+      const response = await this.completeWithStreaming(
+        prompt,
+        {
+          ...COMPLETION_OPTIONS.questionGeneration,
+          systemPrompt: this.getSystemPrompt(),
+        },
+        `generate-resource-questions:${resource.name}`
+      );
 
       const questions = this.llm.parseJSON<ResourceQuestion[]>(response);
       return questions.slice(0, maxQuestions);
     } catch (llmError) {
-      this.logger.debug({
-        resource: resource.name,
-        error: llmError instanceof Error ? llmError.message : String(llmError),
-      }, 'LLM resource question generation failed, using fallback');
+      this.logger.debug(
+        {
+          resource: resource.name,
+          error: llmError instanceof Error ? llmError.message : String(llmError),
+        },
+        'LLM resource question generation failed, using fallback'
+      );
       // Fallback to basic questions (slice to respect maxQuestions limit)
       return this.generateFallbackResourceQuestions(resource).slice(0, maxQuestions);
     }
@@ -1502,16 +1677,23 @@ Provide a brief analysis (1-2 sentences) of:
 - Relevance of content to the resource description`;
 
     try {
-      return await this.completeWithStreaming(prompt, {
-        ...COMPLETION_OPTIONS.responseAnalysis,
-        systemPrompt: this.getSystemPrompt(),
-      }, `analyze-resource:${resource.name}`);
+      return await this.completeWithStreaming(
+        prompt,
+        {
+          ...COMPLETION_OPTIONS.responseAnalysis,
+          systemPrompt: this.getSystemPrompt(),
+        },
+        `analyze-resource:${resource.name}`
+      );
     } catch (llmError) {
       // Graceful fallback
-      this.logger.debug({
-        resource: resource.name,
-        error: llmError instanceof Error ? llmError.message : String(llmError),
-      }, 'LLM resource analysis failed, using fallback');
+      this.logger.debug(
+        {
+          resource: resource.name,
+          error: llmError instanceof Error ? llmError.message : String(llmError),
+        },
+        'LLM resource analysis failed, using fallback'
+      );
       if (error) {
         return `Resource read failed: ${error}`;
       }
@@ -1542,10 +1724,14 @@ Description: ${resource.description ?? 'No description'}
 MIME Type: ${resource.mimeType ?? 'Not specified'}
 
 Test interactions:
-${interactions.map((i, idx) => `
+${interactions
+  .map(
+    (i, idx) => `
 ${idx + 1}. ${i.question.description}
    ${i.error ? `Error: ${i.error}` : `Analysis: ${i.analysis}`}
-`).join('')}
+`
+  )
+  .join('')}
 
 Generate a JSON object with:
 {
@@ -1556,10 +1742,14 @@ Generate a JSON object with:
 Return ONLY valid JSON, no explanation.`;
 
     try {
-      const response = await this.completeWithStreaming(prompt, {
-        ...COMPLETION_OPTIONS.profileSynthesis,
-        systemPrompt: this.getSystemPrompt(),
-      }, `synthesize-resource:${resource.name}`);
+      const response = await this.completeWithStreaming(
+        prompt,
+        {
+          ...COMPLETION_OPTIONS.profileSynthesis,
+          systemPrompt: this.getSystemPrompt(),
+        },
+        `synthesize-resource:${resource.name}`
+      );
 
       const result = this.llm.parseJSON<{
         behavioralNotes: string[];
@@ -1575,16 +1765,19 @@ Return ONLY valid JSON, no explanation.`;
         limitations: result.limitations ?? [],
       };
     } catch (llmError) {
-      this.logger.debug({
-        resource: resource.name,
-        error: llmError instanceof Error ? llmError.message : String(llmError),
-      }, 'LLM resource profile synthesis failed, using fallback');
+      this.logger.debug(
+        {
+          resource: resource.name,
+          error: llmError instanceof Error ? llmError.message : String(llmError),
+        },
+        'LLM resource profile synthesis failed, using fallback'
+      );
       return {
         uri: resource.uri,
         name: resource.name,
         description: resource.description ?? 'No description provided',
         mimeType: resource.mimeType,
-        behavioralNotes: interactions.map(i => i.analysis).filter(a => a),
+        behavioralNotes: interactions.map((i) => i.analysis).filter((a) => a),
         limitations: [],
       };
     }
@@ -1623,12 +1816,15 @@ Return ONLY valid JSON, no explanation.`;
     const summaries: string[] = [];
     for (const content of response.contents) {
       if (content.text) {
-        const preview = content.text.length > DISPLAY_LIMITS.CONTENT_PREVIEW_LENGTH
-          ? `${content.text.substring(0, DISPLAY_LIMITS.CONTENT_PREVIEW_LENGTH)}...`
-          : content.text;
+        const preview =
+          content.text.length > DISPLAY_LIMITS.CONTENT_PREVIEW_LENGTH
+            ? `${content.text.substring(0, DISPLAY_LIMITS.CONTENT_PREVIEW_LENGTH)}...`
+            : content.text;
         summaries.push(`Text (${content.mimeType ?? 'unknown'}): ${preview}`);
       } else if (content.blob) {
-        summaries.push(`Binary data (${content.mimeType ?? 'unknown'}): ${content.blob.length} bytes base64`);
+        summaries.push(
+          `Binary data (${content.mimeType ?? 'unknown'}): ${content.blob.length} bytes base64`
+        );
       }
     }
 

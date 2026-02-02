@@ -100,6 +100,8 @@ interface PendingRequest {
   resolve: (result: unknown) => void;
   reject: (error: Error) => void;
   timer: NodeJS.Timeout;
+  signal?: AbortSignal;
+  abortListener?: () => void;
 }
 
 /**
@@ -241,10 +243,7 @@ export class MCPClient {
   /**
    * Record a transport error for later reporting.
    */
-  private recordTransportError(
-    error: Error | string,
-    operation?: string
-  ): void {
+  private recordTransportError(error: Error | string, operation?: string): void {
     if (this.transportErrors.length >= TRANSPORT_ERRORS.MAX_ERRORS_TO_COLLECT) {
       return; // Prevent unbounded growth
     }
@@ -268,10 +267,7 @@ export class MCPClient {
   /**
    * Format a user-friendly error message based on category.
    */
-  private formatTransportErrorMessage(
-    category: TransportErrorCategory,
-    rawError: string
-  ): string {
+  private formatTransportErrorMessage(category: TransportErrorCategory, rawError: string): string {
     switch (category) {
       case 'invalid_json':
         return 'Server output invalid JSON on stdout (possible logging interference)';
@@ -358,14 +354,17 @@ export class MCPClient {
     }
 
     // Check patterns
-    return FILTERED_ENV_PATTERNS.some(pattern => pattern.test(name));
+    return FILTERED_ENV_PATTERNS.some((pattern) => pattern.test(name));
   }
 
   /**
    * Filter sensitive environment variables before passing to subprocess.
    * Uses both explicit list and pattern matching to catch common secret naming conventions.
    */
-  private filterEnv(baseEnv: NodeJS.ProcessEnv, additionalEnv?: Record<string, string>): Record<string, string> {
+  private filterEnv(
+    baseEnv: NodeJS.ProcessEnv,
+    additionalEnv?: Record<string, string>
+  ): Record<string, string> {
     const filtered: Record<string, string> = {};
 
     // Copy process.env, filtering out sensitive variables
@@ -386,11 +385,7 @@ export class MCPClient {
   /**
    * Connect to an MCP server by spawning it as a subprocess.
    */
-  async connect(
-    command: string,
-    args: string[] = [],
-    env?: Record<string, string>
-  ): Promise<void> {
+  async connect(command: string, args: string[] = [], env?: Record<string, string>): Promise<void> {
     this.logger.info({ command, args: args.length }, 'Connecting to MCP server');
 
     // Reset flags for new connection
@@ -416,11 +411,9 @@ export class MCPClient {
       throw new Error('Failed to create stdio streams for server process');
     }
 
-    this.transport = new StdioTransport(
-      this.process.stdout,
-      this.process.stdin,
-      { debug: this.debug }
-    );
+    this.transport = new StdioTransport(this.process.stdout, this.process.stdin, {
+      debug: this.debug,
+    });
 
     this.transport.on('message', (msg: JSONRPCMessage) => {
       this.log('Received:', JSON.stringify(msg));
@@ -449,10 +442,7 @@ export class MCPClient {
       // Only warn about non-zero exit if we didn't intentionally disconnect
       if (code !== 0 && !this.disconnecting) {
         this.logger.warn({ exitCode: code }, 'Server process exited with non-zero code');
-        this.recordTransportError(
-          `Server process exited with code ${code}`,
-          'process_exit'
-        );
+        this.recordTransportError(`Server process exited with code ${code}`, 'process_exit');
       }
       this.cleanup();
     });
@@ -464,7 +454,7 @@ export class MCPClient {
         // Capture stderr for diagnostic messages (limit to 500 chars)
         const currentStderr = this.connectionState.stderrOutput ?? '';
         if (currentStderr.length < 500) {
-          this.connectionState.stderrOutput = (`${currentStderr}\n${msg}`).trim().slice(0, 500);
+          this.connectionState.stderrOutput = `${currentStderr}\n${msg}`.trim().slice(0, 500);
         }
         // Check if stderr contains error indicators that suggest transport issues
         if (this.looksLikeTransportError(msg)) {
@@ -491,7 +481,9 @@ export class MCPClient {
       headers?: Record<string, string>;
     }
   ): Promise<void> {
-    const transport = options?.transport ?? (this.transportType === 'stdio' ? 'sse' : this.transportType as 'sse' | 'streamable-http');
+    const transport =
+      options?.transport ??
+      (this.transportType === 'stdio' ? 'sse' : (this.transportType as 'sse' | 'streamable-http'));
     this.transportType = transport;
 
     // Reset flags for new connection
@@ -567,7 +559,7 @@ export class MCPClient {
     const delay = Math.max(this.startupDelay, TIMEOUTS.MIN_SERVER_STARTUP_WAIT);
 
     this.logger.debug({ delay }, 'Waiting for server startup');
-    await new Promise(resolve => setTimeout(resolve, delay));
+    await new Promise((resolve) => setTimeout(resolve, delay));
 
     // Mark server as ready (startup delay complete)
     // Note: This only means we can *try* to initialize - actual readiness
@@ -602,14 +594,15 @@ export class MCPClient {
       // Send initialized notification
       this.sendNotification('notifications/initialized', {});
 
-      this.logger.info({ capabilities: result.capabilities }, 'MCP server initialized successfully');
+      this.logger.info(
+        { capabilities: result.capabilities },
+        'MCP server initialized successfully'
+      );
       return result;
     } catch (error) {
       // Clear all pending requests on initialization failure
       // This prevents stale requests from hanging around
-      this.clearPendingRequests(
-        error instanceof Error ? error.message : 'Initialization failed'
-      );
+      this.clearPendingRequests(error instanceof Error ? error.message : 'Initialization failed');
 
       // Re-throw the error for the caller to handle
       throw error;
@@ -628,6 +621,9 @@ export class MCPClient {
 
     for (const [id, pending] of this.pendingRequests) {
       clearTimeout(pending.timer);
+      if (pending.signal && pending.abortListener) {
+        pending.signal.removeEventListener('abort', pending.abortListener);
+      }
       pending.reject(new Error(`Request ${id} cancelled: ${reason}`));
     }
     this.pendingRequests.clear();
@@ -636,36 +632,43 @@ export class MCPClient {
   /**
    * List all tools available on the server.
    */
-  async listTools(): Promise<MCPTool[]> {
-    const result = await this.sendRequest<MCPToolsListResult>('tools/list', {});
+  async listTools(options?: { signal?: AbortSignal }): Promise<MCPTool[]> {
+    const result = await this.sendRequest<MCPToolsListResult>('tools/list', {}, options);
     return result.tools;
   }
 
   /**
    * List all prompts available on the server.
    */
-  async listPrompts(): Promise<MCPPrompt[]> {
-    const result = await this.sendRequest<MCPPromptsListResult>('prompts/list', {});
+  async listPrompts(options?: { signal?: AbortSignal }): Promise<MCPPrompt[]> {
+    const result = await this.sendRequest<MCPPromptsListResult>('prompts/list', {}, options);
     return result.prompts;
   }
 
   /**
    * List all resources available on the server.
    */
-  async listResources(): Promise<MCPResource[]> {
-    const result = await this.sendRequest<MCPResourcesListResult>('resources/list', {});
+  async listResources(options?: { signal?: AbortSignal }): Promise<MCPResource[]> {
+    const result = await this.sendRequest<MCPResourcesListResult>('resources/list', {}, options);
     return result.resources;
   }
 
   /**
    * Read a resource from the server by URI.
    */
-  async readResource(uri: string): Promise<MCPResourceReadResult> {
+  async readResource(
+    uri: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<MCPResourceReadResult> {
     const done = startTiming(this.logger, `readResource:${uri}`);
     try {
-      const result = await this.sendRequest<MCPResourceReadResult>('resources/read', {
-        uri,
-      });
+      const result = await this.sendRequest<MCPResourceReadResult>(
+        'resources/read',
+        {
+          uri,
+        },
+        options
+      );
       done();
       return result;
     } catch (error) {
@@ -677,13 +680,21 @@ export class MCPClient {
   /**
    * Get a prompt from the server with the given arguments.
    */
-  async getPrompt(name: string, args: Record<string, string> = {}): Promise<MCPPromptGetResult> {
+  async getPrompt(
+    name: string,
+    args: Record<string, string> = {},
+    options?: { signal?: AbortSignal }
+  ): Promise<MCPPromptGetResult> {
     const done = startTiming(this.logger, `getPrompt:${name}`);
     try {
-      const result = await this.sendRequest<MCPPromptGetResult>('prompts/get', {
-        name,
-        arguments: args,
-      });
+      const result = await this.sendRequest<MCPPromptGetResult>(
+        'prompts/get',
+        {
+          name,
+          arguments: args,
+        },
+        options
+      );
       done();
       return result;
     } catch (error) {
@@ -695,13 +706,21 @@ export class MCPClient {
   /**
    * Call a tool on the server.
    */
-  async callTool(name: string, args: Record<string, unknown> = {}): Promise<MCPToolCallResult> {
+  async callTool(
+    name: string,
+    args: Record<string, unknown> = {},
+    options?: { signal?: AbortSignal }
+  ): Promise<MCPToolCallResult> {
     const done = startTiming(this.logger, `callTool:${name}`);
     try {
-      const result = await this.sendRequest<MCPToolCallResult>('tools/call', {
-        name,
-        arguments: args,
-      });
+      const result = await this.sendRequest<MCPToolCallResult>(
+        'tools/call',
+        {
+          name,
+          arguments: args,
+        },
+        options
+      );
       done();
       return result;
     } catch (error) {
@@ -753,7 +772,11 @@ export class MCPClient {
     this.cleanup();
   }
 
-  private sendRequest<T>(method: string, params: unknown): Promise<T> {
+  private sendRequest<T>(
+    method: string,
+    params: unknown,
+    options?: { signal?: AbortSignal }
+  ): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.transport) {
         reject(new Error(this.buildConnectionErrorMessage()));
@@ -769,18 +792,40 @@ export class MCPClient {
       };
 
       const timer = setTimeout(() => {
+        const pending = this.pendingRequests.get(id);
+        if (pending?.signal && pending.abortListener) {
+          pending.signal.removeEventListener('abort', pending.abortListener);
+        }
         this.pendingRequests.delete(id);
         reject(new Error(`Request timeout: ${method}`));
       }, this.timeout);
+
+      let abortListener: (() => void) | undefined;
+      const signal = options?.signal;
+      if (signal) {
+        if (signal.aborted) {
+          clearTimeout(timer);
+          reject(new Error(`Request aborted: ${method}`));
+          return;
+        }
+        abortListener = () => {
+          clearTimeout(timer);
+          this.pendingRequests.delete(id);
+          reject(new Error(`Request aborted: ${method}`));
+        };
+        signal.addEventListener('abort', abortListener, { once: true });
+      }
 
       this.pendingRequests.set(id, {
         resolve: resolve as (result: unknown) => void,
         reject,
         timer,
+        signal,
+        abortListener,
       });
 
       this.log('Sending:', JSON.stringify(request));
-      this.transport.send(request);
+      this.transport.send(request, signal);
     });
   }
 
@@ -808,12 +853,13 @@ export class MCPClient {
       if (pending) {
         clearTimeout(pending.timer);
         this.pendingRequests.delete(msg.id);
+        if (pending.signal && pending.abortListener) {
+          pending.signal.removeEventListener('abort', pending.abortListener);
+        }
 
         const response = msg as JSONRPCResponse;
         if (response.error) {
-          pending.reject(new Error(
-            `${response.error.message} (code: ${response.error.code})`
-          ));
+          pending.reject(new Error(`${response.error.message} (code: ${response.error.code})`));
         } else {
           pending.resolve(response.result);
         }

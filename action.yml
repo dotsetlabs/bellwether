@@ -18,6 +18,10 @@ branding:
   color: 'purple'
 
 inputs:
+  version:
+    description: 'Bellwether npm version to install (defaults to action ref if semver)'
+    required: false
+    default: ''
   server-command:
     description: 'MCP server command to check (e.g., "npx @mcp/your-server")'
     required: true
@@ -121,7 +125,22 @@ runs:
 
     - name: Install Bellwether
       shell: bash
-      run: npm install -g @dotsetlabs/bellwether
+      run: |
+        VERSION_INPUT="${{ inputs.version }}"
+        if [ -n "$VERSION_INPUT" ]; then
+          VERSION="$VERSION_INPUT"
+        else
+          REF="${{ github.action_ref }}"
+          if [[ "$REF" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            VERSION="${REF#v}"
+          else
+            echo "::error::Unable to determine Bellwether npm version from action ref '${REF}'."
+            echo "::error::Use an exact semver action ref (e.g., v1.2.3) or set inputs.version."
+            exit 1
+          fi
+        fi
+        echo "Installing @dotsetlabs/bellwether@${VERSION}"
+        npm install -g @dotsetlabs/bellwether@"${VERSION}"
 
     - name: Initialize Config (if needed)
       shell: bash
@@ -209,7 +228,7 @@ runs:
 
         # Run check once with JSON output, then derive other formats
         echo "Running: bellwether check $CHECK_FLAGS --format json ${{ inputs.server-command }} ${{ inputs.server-args }}"
-        bellwether check $CHECK_FLAGS --format json ${{ inputs.server-command }} ${{ inputs.server-args }} > "$CHECK_REPORT_PATH" 2>&1
+        bellwether check $CHECK_FLAGS --format json ${{ inputs.server-command }} ${{ inputs.server-args }} > "$CHECK_REPORT_PATH"
         CHECK_EXIT=$?
 
         # Parse JSON output for metrics and display

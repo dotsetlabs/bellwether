@@ -2,7 +2,14 @@
  * Ollama LLM client implementation for local models.
  */
 
-import type { LLMClient, Message, CompletionOptions, ProviderInfo, StreamingOptions, StreamingResult } from './client.js';
+import type {
+  LLMClient,
+  Message,
+  CompletionOptions,
+  ProviderInfo,
+  StreamingOptions,
+  StreamingResult,
+} from './client.js';
 import { DEFAULT_MODELS, parseJSONResponse } from './client.js';
 import { withRetry, LLM_RETRY_OPTIONS } from '../errors/retry.js';
 import { LLMConnectionError, BellwetherError } from '../errors/index.js';
@@ -134,6 +141,7 @@ export class OllamaClient implements LLMClient {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(request),
+            signal: options?.signal,
           });
 
           if (!response.ok) {
@@ -141,7 +149,7 @@ export class OllamaClient implements LLMClient {
             throw new Error(`Ollama API error (${response.status}): ${errorText}`);
           }
 
-          const result = await response.json() as OllamaChatResponse;
+          const result = (await response.json()) as OllamaChatResponse;
 
           if (!result.message?.content) {
             throw new Error('No content in Ollama response');
@@ -261,6 +269,7 @@ export class OllamaClient implements LLMClient {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(request),
+            signal: options?.signal,
           });
 
           if (!response.ok) {
@@ -332,7 +341,13 @@ export class OllamaClient implements LLMClient {
                 }
               } catch (parseError) {
                 // Log parse error for debugging
-                this.logger.debug({ buffer, error: parseError instanceof Error ? parseError.message : String(parseError) }, 'Failed to parse final buffer chunk');
+                this.logger.debug(
+                  {
+                    buffer,
+                    error: parseError instanceof Error ? parseError.message : String(parseError),
+                  },
+                  'Failed to parse final buffer chunk'
+                );
               }
             }
           } finally {
@@ -410,7 +425,10 @@ export class OllamaClient implements LLMClient {
       });
       return response.ok;
     } catch (error) {
-      this.logger.debug({ error: error instanceof Error ? error.message : String(error) }, 'Ollama availability check failed');
+      this.logger.debug(
+        { error: error instanceof Error ? error.message : String(error) },
+        'Ollama availability check failed'
+      );
       return false;
     }
   }
@@ -428,10 +446,13 @@ export class OllamaClient implements LLMClient {
         return [];
       }
 
-      const result = await response.json() as { models?: Array<{ name: string }> };
-      return result.models?.map(m => m.name) ?? [];
+      const result = (await response.json()) as { models?: Array<{ name: string }> };
+      return result.models?.map((m) => m.name) ?? [];
     } catch (error) {
-      this.logger.debug({ error: error instanceof Error ? error.message : String(error) }, 'Failed to list Ollama models');
+      this.logger.debug(
+        { error: error instanceof Error ? error.message : String(error) },
+        'Failed to list Ollama models'
+      );
       return [];
     }
   }

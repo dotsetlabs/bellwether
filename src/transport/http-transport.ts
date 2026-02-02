@@ -82,13 +82,13 @@ export class HTTPTransport extends BaseTransport {
    * Unlike SSE transport, this method handles the response synchronously
    * and emits a 'message' event with the response.
    */
-  send(message: JSONRPCMessage): void {
+  send(message: JSONRPCMessage, signal?: AbortSignal): void {
     if (!this.connected) {
       this.emit('error', new Error('Transport not connected'));
       return;
     }
 
-    this.sendAsync(message).catch((error) => {
+    this.sendAsync(message, signal).catch((error) => {
       this.emit('error', error);
     });
   }
@@ -96,10 +96,21 @@ export class HTTPTransport extends BaseTransport {
   /**
    * Send a JSON-RPC message and wait for the response.
    */
-  async sendAsync(message: JSONRPCMessage): Promise<JSONRPCResponse | null> {
+  async sendAsync(message: JSONRPCMessage, signal?: AbortSignal): Promise<JSONRPCResponse | null> {
     this.log('Sending message', { message });
 
     this.abortController = new AbortController();
+    const controller = this.abortController;
+    let abortListener: (() => void) | undefined;
+
+    if (signal) {
+      if (signal.aborted) {
+        controller.abort();
+      } else {
+        abortListener = () => controller.abort();
+        signal.addEventListener('abort', abortListener, { once: true });
+      }
+    }
 
     const timeoutId = setTimeout(() => {
       this.abortController?.abort();
@@ -110,7 +121,7 @@ export class HTTPTransport extends BaseTransport {
         method: 'POST',
         headers: this.buildHeaders(),
         body: JSON.stringify(message),
-        signal: this.abortController.signal,
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
@@ -150,6 +161,10 @@ export class HTTPTransport extends BaseTransport {
         throw new Error('Request timeout');
       }
       throw error;
+    } finally {
+      if (signal && abortListener) {
+        signal.removeEventListener('abort', abortListener);
+      }
     }
   }
 
@@ -225,8 +240,14 @@ export class HTTPTransport extends BaseTransport {
               this.emit('message', message);
             } catch (error) {
               // Log streaming parse errors for visibility
-              const preview = data.length > DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW ? `${data.substring(0, DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW)}...` : data;
-              this.logger.warn({ preview, error: error instanceof Error ? error.message : String(error) }, 'Failed to parse SSE message');
+              const preview =
+                data.length > DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW
+                  ? `${data.substring(0, DISPLAY_LIMITS.TRANSPORT_DATA_PREVIEW)}...`
+                  : data;
+              this.logger.warn(
+                { preview, error: error instanceof Error ? error.message : String(error) },
+                'Failed to parse SSE message'
+              );
             }
           } else {
             // Try to parse as direct JSON
@@ -235,7 +256,9 @@ export class HTTPTransport extends BaseTransport {
               this.emit('message', message);
             } catch {
               // Not JSON - this is common for non-JSON lines in streams, log only in debug
-              this.log('Skipping non-JSON line', { preview: trimmedLine.substring(0, DISPLAY_LIMITS.RESPONSE_DATA_PREVIEW) });
+              this.log('Skipping non-JSON line', {
+                preview: trimmedLine.substring(0, DISPLAY_LIMITS.RESPONSE_DATA_PREVIEW),
+              });
             }
           }
         }

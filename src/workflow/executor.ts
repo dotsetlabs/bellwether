@@ -33,7 +33,10 @@ import { withTimeout, DEFAULT_TIMEOUTS, checkAborted } from '../utils/timeout.js
 /**
  * Default executor options (excluding callbacks and signal).
  */
-const DEFAULT_OPTIONS: Omit<Required<WorkflowExecutorOptions>, 'onProgress' | 'stateTracking' | 'timeouts' | 'signal'> & {
+const DEFAULT_OPTIONS: Omit<
+  Required<WorkflowExecutorOptions>,
+  'onProgress' | 'stateTracking' | 'timeouts' | 'signal'
+> & {
   timeouts: Required<WorkflowTimeoutConfig>;
 } = {
   continueOnError: false,
@@ -78,16 +81,10 @@ export class WorkflowExecutor {
     // Initialize state tracker if enabled and LLM is available
     // State tracking requires LLM for analysis
     if (this.options.stateTracking?.enabled && llm) {
-      this.stateTracker = new StateTracker(
-        client,
-        tools,
-        llm,
-        this.options.stateTracking,
-        {
-          snapshotTimeout: this.timeouts.stateSnapshot,
-          probeTimeout: this.timeouts.probeTool,
-        }
-      );
+      this.stateTracker = new StateTracker(client, tools, llm, this.options.stateTracking, {
+        snapshotTimeout: this.timeouts.stateSnapshot,
+        probeTimeout: this.timeouts.probeTool,
+      });
     }
   }
 
@@ -103,7 +100,7 @@ export class WorkflowExecutor {
   ): void {
     if (!this.onProgress) return;
 
-    const stepsFailed = this.stepResults.filter(r => !r.success).length;
+    const stepsFailed = this.stepResults.filter((r) => !r.success).length;
 
     this.onProgress({
       phase,
@@ -132,12 +129,15 @@ export class WorkflowExecutor {
     // Check if already aborted before starting
     checkAborted(signal, `Workflow '${workflow.id}'`);
 
-    this.logger.info({
-      workflowId: workflow.id,
-      workflowName: workflow.name,
-      stepCount: workflow.steps.length,
-      stateTrackingEnabled: !!this.stateTracker,
-    }, 'Starting workflow execution');
+    this.logger.info(
+      {
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        stepCount: workflow.steps.length,
+        stateTrackingEnabled: !!this.stateTracker,
+      },
+      'Starting workflow execution'
+    );
 
     let success = true;
     let failureReason: string | undefined;
@@ -165,19 +165,23 @@ export class WorkflowExecutor {
       checkAborted(signal, `Workflow step ${i + 1}/${workflow.steps.length}`);
 
       // Check if any dependency steps have failed (when requireSuccessfulDependencies is enabled)
-      const requireSuccessfulDeps = this.options.requireSuccessfulDependencies ?? DEFAULT_OPTIONS.requireSuccessfulDependencies;
+      const requireSuccessfulDeps =
+        this.options.requireSuccessfulDependencies ?? DEFAULT_OPTIONS.requireSuccessfulDependencies;
       if (requireSuccessfulDeps) {
         const failedDependencies = this.getFailedDependencies(step, i);
         if (failedDependencies.length > 0) {
-          const failedStepNames = failedDependencies.map((idx: number) =>
-            `step ${idx + 1} (${workflow.steps[idx]?.tool ?? 'unknown'})`
-          ).join(', ');
+          const failedStepNames = failedDependencies
+            .map((idx: number) => `step ${idx + 1} (${workflow.steps[idx]?.tool ?? 'unknown'})`)
+            .join(', ');
 
-          this.logger.debug({
-            stepIndex: i,
-            tool: step.tool,
-            failedDependencies,
-          }, 'Skipping step due to failed dependencies');
+          this.logger.debug(
+            {
+              stepIndex: i,
+              tool: step.tool,
+              failedDependencies,
+            },
+            'Skipping step due to failed dependencies'
+          );
 
           const skipResult: WorkflowStepResult = {
             step,
@@ -282,11 +286,14 @@ export class WorkflowExecutor {
         summary,
       };
 
-      this.logger.debug({
-        snapshotCount: snapshots.length,
-        changeCount: changes.length,
-        dependencyCount: dependencies.length,
-      }, 'State tracking complete');
+      this.logger.debug(
+        {
+          snapshotCount: snapshots.length,
+          changeCount: changes.length,
+          dependencyCount: dependencies.length,
+        },
+        'State tracking complete'
+      );
     }
 
     // Generate summary if requested
@@ -302,13 +309,16 @@ export class WorkflowExecutor {
     this.emitProgress(workflow, 'complete', workflow.steps.length, startTime);
 
     const durationMs = Date.now() - startTime;
-    this.logger.info({
-      workflowId: workflow.id,
-      success,
-      stepsCompleted: this.stepResults.length,
-      stepsFailed: this.stepResults.filter(r => !r.success).length,
-      durationMs,
-    }, 'Workflow execution complete');
+    this.logger.info(
+      {
+        workflowId: workflow.id,
+        success,
+        stepsCompleted: this.stepResults.length,
+        stepsFailed: this.stepResults.filter((r) => !r.success).length,
+        durationMs,
+      },
+      'Workflow execution complete'
+    );
     done();
 
     return {
@@ -335,7 +345,7 @@ export class WorkflowExecutor {
     const startTime = Date.now();
 
     // Verify tool exists
-    const tool = this.tools.find(t => t.name === step.tool);
+    const tool = this.tools.find((t) => t.name === step.tool);
     if (!tool) {
       return {
         step,
@@ -370,10 +380,12 @@ export class WorkflowExecutor {
 
     const stepTimeout = this.options.stepTimeout ?? DEFAULT_OPTIONS.stepTimeout;
     try {
+      const abortController = new AbortController();
       response = await withTimeout(
-        this.client.callTool(step.tool, resolvedArgs),
+        this.client.callTool(step.tool, resolvedArgs, { signal: abortController.signal }),
         stepTimeout,
-        `Tool call '${step.tool}'`
+        `Tool call '${step.tool}'`,
+        { abortController }
       );
 
       if (response.isError) {
@@ -388,7 +400,7 @@ export class WorkflowExecutor {
       ? this.runAssertions(step.assertions, response)
       : undefined;
 
-    const assertionsFailed = assertionResults?.some(r => !r.passed) ?? false;
+    const assertionsFailed = assertionResults?.some((r) => !r.passed) ?? false;
     const success = !error && !assertionsFailed;
 
     // Generate analysis if requested
@@ -438,14 +450,18 @@ export class WorkflowExecutor {
     // Parse the path expression
     const match = pathExpr.match(/^\$steps\[(\d+)\]\.(.+)$/);
     if (!match) {
-      throw new Error(`Invalid path expression: ${pathExpr}. Expected format: $steps[n].path.to.value`);
+      throw new Error(
+        `Invalid path expression: ${pathExpr}. Expected format: $steps[n].path.to.value`
+      );
     }
 
     const stepIndex = parseInt(match[1], 10);
     const propertyPath = match[2];
 
     if (stepIndex >= currentStepIndex) {
-      throw new Error(`Cannot reference step ${stepIndex} from step ${currentStepIndex} (can only reference earlier steps)`);
+      throw new Error(
+        `Cannot reference step ${stepIndex} from step ${currentStepIndex} (can only reference earlier steps)`
+      );
     }
 
     const stepResult = this.stepResults[stepIndex];
@@ -463,7 +479,7 @@ export class WorkflowExecutor {
     if (propertyPath.startsWith('result.') || propertyPath === 'result') {
       // Extract text content from the response
       const content = stepResult.response.content;
-      const textContent = content.find(c => c.type === 'text' && c.text !== undefined);
+      const textContent = content.find((c) => c.type === 'text' && c.text !== undefined);
       if (!textContent || textContent.text === undefined) {
         throw new Error(`Step ${stepIndex} response has no text content`);
       }
@@ -529,16 +545,13 @@ export class WorkflowExecutor {
     assertions: Assertion[],
     response: MCPToolCallResult | null
   ): AssertionResult[] {
-    return assertions.map(assertion => this.runAssertion(assertion, response));
+    return assertions.map((assertion) => this.runAssertion(assertion, response));
   }
 
   /**
    * Run a single assertion.
    */
-  private runAssertion(
-    assertion: Assertion,
-    response: MCPToolCallResult | null
-  ): AssertionResult {
+  private runAssertion(assertion: Assertion, response: MCPToolCallResult | null): AssertionResult {
     if (!response) {
       return {
         assertion,
@@ -551,7 +564,7 @@ export class WorkflowExecutor {
     let actualValue: unknown;
     try {
       // Parse the response content as JSON
-      const textContent = response.content.find(c => c.type === 'text' && c.text !== undefined);
+      const textContent = response.content.find((c) => c.type === 'text' && c.text !== undefined);
       if (!textContent || textContent.text === undefined) {
         throw new Error('No text content in response');
       }
@@ -601,7 +614,9 @@ export class WorkflowExecutor {
       assertion,
       passed,
       actualValue,
-      message: passed ? undefined : (assertion.message ?? `Assertion failed: ${assertion.condition}`),
+      message: passed
+        ? undefined
+        : (assertion.message ?? `Assertion failed: ${assertion.condition}`),
     };
   }
 
@@ -609,7 +624,7 @@ export class WorkflowExecutor {
    * Extract error message from a tool response.
    */
   private extractErrorMessage(response: MCPToolCallResult): string {
-    const textContent = response.content.find(c => c.type === 'text');
+    const textContent = response.content.find((c) => c.type === 'text');
     if (textContent && 'text' in textContent) {
       return String(textContent.text);
     }
@@ -735,7 +750,7 @@ export class WorkflowExecutor {
     if (!this.llm) {
       return success
         ? `Workflow "${workflow.name}" completed successfully with ${stepResults.length} steps.`
-        : `Workflow "${workflow.name}" failed at step ${stepResults.findIndex(r => !r.success) + 1}.`;
+        : `Workflow "${workflow.name}" failed at step ${stepResults.findIndex((r) => !r.success) + 1}.`;
     }
 
     const prompt = buildWorkflowSummaryPrompt({ workflow, stepResults, success });
@@ -745,7 +760,7 @@ export class WorkflowExecutor {
     } catch {
       return success
         ? `Workflow "${workflow.name}" completed successfully with ${stepResults.length} steps.`
-        : `Workflow "${workflow.name}" failed at step ${stepResults.findIndex(r => !r.success) + 1}.`;
+        : `Workflow "${workflow.name}" failed at step ${stepResults.findIndex((r) => !r.success) + 1}.`;
     }
   }
 }

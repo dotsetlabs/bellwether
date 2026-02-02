@@ -3,7 +3,14 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import type { LLMClient, Message, CompletionOptions, ProviderInfo, StreamingOptions, StreamingResult } from './client.js';
+import type {
+  LLMClient,
+  Message,
+  CompletionOptions,
+  ProviderInfo,
+  StreamingOptions,
+  StreamingResult,
+} from './client.js';
 import { DEFAULT_MODELS, parseJSONResponse } from './client.js';
 import { LLM_DEFAULTS } from '../constants.js';
 import { withRetry, LLM_RETRY_OPTIONS } from '../errors/retry.js';
@@ -22,6 +29,41 @@ import { getLogger } from '../logging/logger.js';
  */
 const PLACEHOLDER_CONTINUE = 'Continue.';
 const PLACEHOLDER_GREETING = 'Hello.';
+
+type ErrorWithDetails = {
+  status?: number;
+  statusCode?: number;
+  code?: string;
+  type?: string;
+  message?: string;
+  error?: {
+    code?: string;
+    type?: string;
+    message?: string;
+  };
+  headers?: { get?: (name: string) => string | null };
+  cause?: { message?: string };
+};
+
+function getErrorStatus(error: unknown): number | undefined {
+  const err = error as ErrorWithDetails;
+  return err.status ?? err.statusCode;
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  const err = error as ErrorWithDetails;
+  return err.code ?? err.error?.code;
+}
+
+function getErrorType(error: unknown): string | undefined {
+  const err = error as ErrorWithDetails;
+  return err.type ?? err.error?.type;
+}
+
+function getErrorMessage(error: unknown): string {
+  const err = error as ErrorWithDetails;
+  return err.error?.message ?? err.message ?? '';
+}
 
 export interface AnthropicClientOptions {
   /** API key (defaults to ANTHROPIC_API_KEY env var) */
@@ -77,8 +119,8 @@ export class AnthropicClient implements LLMClient {
         const systemPrompt = options?.systemPrompt;
 
         // Convert messages to Anthropic format
-        const anthropicMessages = messages.map(m => ({
-          role: m.role === 'assistant' ? 'assistant' as const : 'user' as const,
+        const anthropicMessages = messages.map((m) => ({
+          role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
           content: m.content,
         }));
 
@@ -100,50 +142,62 @@ export class AnthropicClient implements LLMClient {
         const normalizedMessages = this.normalizeMessageOrder(anthropicMessages);
 
         try {
-          const response = await this.client.messages.create({
-            model,
-            max_tokens: options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS,
-            system: system,
-            messages: normalizedMessages,
-          });
+          const response = await this.client.messages.create(
+            {
+              model,
+              max_tokens: options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS,
+              system: system,
+              messages: normalizedMessages,
+            },
+            { signal: options?.signal }
+          );
 
           // Track actual token usage from API response
           if (this.onUsage && response.usage) {
-            this.onUsage(
-              response.usage.input_tokens,
-              response.usage.output_tokens
-            );
+            this.onUsage(response.usage.input_tokens, response.usage.output_tokens);
           }
 
           // Check for content filtering refusal
           this.checkForRefusal(response, model);
 
           // Extract text content from response
-          const textBlocks = response.content.filter(block => block.type === 'text');
+          const textBlocks = response.content.filter((block) => block.type === 'text');
           if (textBlocks.length === 0) {
             throw new Error('No text content in Claude response');
           }
 
-          return textBlocks.map(block => block.text).join('');
+          return textBlocks.map((block) => block.text).join('');
         } catch (error) {
           // Don't re-process errors that are already typed LLM errors
-          if (error instanceof LLMRefusalError || error instanceof LLMAuthError ||
-              error instanceof LLMRateLimitError || error instanceof LLMQuotaError ||
-              error instanceof LLMConnectionError) {
+          if (
+            error instanceof LLMRefusalError ||
+            error instanceof LLMAuthError ||
+            error instanceof LLMRateLimitError ||
+            error instanceof LLMQuotaError ||
+            error instanceof LLMConnectionError
+          ) {
             throw error;
           }
 
           // Convert to typed errors for retry logic
           if (error instanceof Error) {
-            const message = error.message.toLowerCase();
+            const status = getErrorStatus(error);
+            const code = (getErrorCode(error) ?? '').toLowerCase();
+            const type = (getErrorType(error) ?? '').toLowerCase();
+            const message = getErrorMessage(error).toLowerCase();
 
-            if (message.includes('401') || message.includes('authentication')) {
+            if (status === 401 || status === 403 || message.includes('authentication')) {
               throw new LLMAuthError('anthropic', model);
             }
-            if (message.includes('429') || message.includes('rate limit')) {
+            if (
+              status === 429 ||
+              code.includes('rate_limit') ||
+              type.includes('rate_limit') ||
+              message.includes('rate limit')
+            ) {
               // Extract retry-after-ms header if available from Anthropic API error
               let retryAfterMs: number | undefined;
-              const apiError = error as { headers?: { get?: (name: string) => string | null } };
+              const apiError = error as ErrorWithDetails;
               if (apiError.headers?.get) {
                 // Anthropic uses retry-after-ms header (milliseconds)
                 const retryAfterMsHeader = apiError.headers.get('retry-after-ms');
@@ -168,7 +222,13 @@ export class AnthropicClient implements LLMClient {
               }
               throw new LLMRateLimitError('anthropic', retryAfterMs, model);
             }
-            if (message.includes('insufficient') || message.includes('credit')) {
+            if (
+              status === 402 ||
+              code.includes('insufficient') ||
+              type.includes('insufficient') ||
+              message.includes('insufficient') ||
+              message.includes('credit')
+            ) {
               throw new LLMQuotaError('anthropic', model);
             }
             if (message.includes('econnrefused') || message.includes('fetch failed')) {
@@ -213,9 +273,12 @@ export class AnthropicClient implements LLMClient {
     }
 
     // Check content for refusal indicators
-    const textBlocks = response.content.filter(block => block.type === 'text');
+    const textBlocks = response.content.filter((block) => block.type === 'text');
     if (textBlocks.length > 0) {
-      const fullText = textBlocks.map(block => block.text ?? '').join('').toLowerCase();
+      const fullText = textBlocks
+        .map((block) => block.text ?? '')
+        .join('')
+        .toLowerCase();
 
       // Check for common refusal patterns in Claude's responses
       const refusalPatterns = [
@@ -241,14 +304,13 @@ export class AnthropicClient implements LLMClient {
         if (fullText.includes(pattern)) {
           // Extract more context around the refusal
           const startIdx = Math.max(0, fullText.indexOf(pattern) - 20);
-          const endIdx = Math.min(fullText.length, fullText.indexOf(pattern) + pattern.length + 100);
+          const endIdx = Math.min(
+            fullText.length,
+            fullText.indexOf(pattern) + pattern.length + 100
+          );
           const context = fullText.slice(startIdx, endIdx).trim();
 
-          throw new LLMRefusalError(
-            'anthropic',
-            `Model declined: "${context}..."`,
-            model
-          );
+          throw new LLMRefusalError('anthropic', `Model declined: "${context}..."`, model);
         }
       }
     }
@@ -311,8 +373,8 @@ export class AnthropicClient implements LLMClient {
         const systemPrompt = options?.systemPrompt;
 
         // Convert messages to Anthropic format
-        const anthropicMessages = messages.map(m => ({
-          role: m.role === 'assistant' ? 'assistant' as const : 'user' as const,
+        const anthropicMessages = messages.map((m) => ({
+          role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
           content: m.content,
         }));
 
@@ -332,12 +394,15 @@ export class AnthropicClient implements LLMClient {
         const normalizedMessages = this.normalizeMessageOrder(anthropicMessages);
 
         try {
-          const stream = await this.client.messages.stream({
-            model,
-            max_tokens: options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS,
-            system: system,
-            messages: normalizedMessages,
-          });
+          const stream = await this.client.messages.stream(
+            {
+              model,
+              max_tokens: options?.maxTokens ?? LLM_DEFAULTS.MAX_TOKENS,
+              system: system,
+              messages: normalizedMessages,
+            },
+            { signal: options?.signal }
+          );
 
           let fullText = '';
 
@@ -356,10 +421,7 @@ export class AnthropicClient implements LLMClient {
 
           // Track actual token usage from API response
           if (this.onUsage && finalMessage.usage) {
-            this.onUsage(
-              finalMessage.usage.input_tokens,
-              finalMessage.usage.output_tokens
-            );
+            this.onUsage(finalMessage.usage.input_tokens, finalMessage.usage.output_tokens);
           }
 
           // Check for content filtering refusal
@@ -375,9 +437,13 @@ export class AnthropicClient implements LLMClient {
           options?.onError?.(error instanceof Error ? error : new Error(String(error)));
 
           // Don't re-process errors that are already typed LLM errors
-          if (error instanceof LLMRefusalError || error instanceof LLMAuthError ||
-              error instanceof LLMRateLimitError || error instanceof LLMQuotaError ||
-              error instanceof LLMConnectionError) {
+          if (
+            error instanceof LLMRefusalError ||
+            error instanceof LLMAuthError ||
+            error instanceof LLMRateLimitError ||
+            error instanceof LLMQuotaError ||
+            error instanceof LLMConnectionError
+          ) {
             throw error;
           }
 

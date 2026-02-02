@@ -9,7 +9,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 MAN_SECTION="1"
 MAN_DATE="$(date +%Y-%m-%d)"
-MAN_VERSION="$(node -p "require('$PROJECT_ROOT/package.json').version")")
+MAN_VERSION="$(node -p "require('$PROJECT_ROOT/package.json').version")"
 MAN_NAME="bellwether"
 MAN_TITLE="Bellwether MCP Testing Tool"
 
