@@ -113,8 +113,9 @@ export OPENAI_API_KEY=sk-your-key-here
 Use `bellwether auth` for the best experience. It stores your API key securely in the system keychain (macOS Keychain, Windows Credential Manager, or Linux Secret Service) and works across all your projects.
 :::
 
-:::note Config Required
-The CLI requires `bellwether.yaml` to exist before running commands like `bellwether auth`. Run `bellwether init` once in your project root.
+:::note Config File
+Most commands require `bellwether.yaml` (for example `check`, `explore`, `baseline`, `golden`, `contract`, `watch`).  
+`auth`, `discover`, and `registry` can run without a config file. Run `bellwether init` once in your project root for the rest.
 :::
 
 ### Checking Auth Status

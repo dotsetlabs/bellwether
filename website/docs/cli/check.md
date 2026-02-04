@@ -26,7 +26,7 @@ This is the recommended command for CI/CD pipelines because it's:
 - **Deterministic** - Same input produces identical output
 
 :::note Config Required
-All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `check`.
+`check` requires a config file. Run `bellwether init` once in your project.
 :::
 
 ## Arguments
@@ -140,7 +140,7 @@ When you intentionally change your server, you can accept drift as part of the c
 bellwether check --accept-drift --accept-reason "Added new delete_file tool"
 ```
 
-This updates the baseline and records acceptance metadata (who, when, why) for audit trail.
+This updates the baseline and records acceptance metadata (timestamp and reason, if provided).
 
 :::note
 The `--accepted-by` option is only available in `bellwether baseline accept`. The `--accept-drift` flag records the reason, but does not set an acceptor by default.
@@ -154,7 +154,9 @@ The `--accepted-by` option is only available in `bellwether baseline accept`. Th
 | `bellwether-check.json` | Machine-readable validation results (configurable via `output.files.checkReport`) |
 
 Output locations are controlled by `output.dir` (JSON) and `output.docsDir` (docs).
-Which files are written is controlled by `output.format` (`agents.md`, `json`, or `both`).
+Which files are written is controlled by `output.format` (`docs`, `json`, or `both`; legacy alias: `agents.md`).
+
+The JSON report embeds a `$schema` pointer and includes enriched fields such as `semanticInferences`, `schemaEvolution`, `errorAnalysisSummaries`, and `documentationScore` when available.
 
 ### CONTRACT.md Contents
 
@@ -185,7 +187,7 @@ server:
 output:
   dir: ".bellwether"      # JSON output directory
   docsDir: "."            # Documentation output (CONTRACT.md)
-  format: both            # agents.md, json, or both
+  format: both            # docs, json, or both (legacy: agents.md)
 
   # Example output settings for documentation
   examples:

@@ -3,32 +3,18 @@
  */
 
 import type { ToolProfile } from '../interview/types.js';
-import type {
-  ResponseFingerprint,
-  InferredSchema,
-  ErrorPattern,
-} from './response-fingerprint.js';
-import type {
-  BellwetherBaseline,
-  BaselineMode as CloudBaselineMode,
-  DriftAcceptance,
-  AcceptedDiff,
-} from './cloud-types.js';
+import type { ResponseFingerprint, InferredSchema, ErrorPattern } from './response-fingerprint.js';
+import type { BellwetherBaseline, DriftAcceptance, AcceptedDiff } from './baseline-format.js';
 
 export type { DriftAcceptance, AcceptedDiff };
+export type { BaselineMode } from './baseline-format.js';
 
 /**
  * Re-export ErrorPattern for use by other modules.
  */
 export type { ErrorPattern };
-import type {
-  SecurityFingerprint,
-  SecurityDiff,
-} from '../security/types.js';
-import type {
-  ResponseSchemaEvolution,
-  SchemaEvolutionDiff,
-} from './response-schema-tracker.js';
+import type { SecurityFingerprint, SecurityDiff } from '../security/types.js';
+import type { ResponseSchemaEvolution, SchemaEvolutionDiff } from './response-schema-tracker.js';
 import type {
   DocumentationScoreSummary,
   DocumentationScoreChange,
@@ -63,7 +49,11 @@ export type BehaviorAspect =
   | 'security'
   | 'performance'
   | 'schema'
-  | 'description';
+  | 'description'
+  | 'prompt'
+  | 'resource'
+  | 'server'
+  | 'capability';
 
 /**
  * A single behavioral assertion about a tool.
@@ -273,8 +263,14 @@ export interface ToolFingerprint {
   name: string;
   description: string;
   schemaHash: string;
-  /** Full input schema for the tool (preserved for cloud upload) */
+  /** Full input schema for the tool (preserved for export/analysis) */
   inputSchema?: Record<string, unknown>;
+  /** Hash of observed arguments schema (from actual calls) */
+  observedArgsSchemaHash?: string;
+  /** Consistency of observed argument schemas (0-1) */
+  observedArgsSchemaConsistency?: number;
+  /** Number of observed schema variations */
+  observedArgsSchemaVariations?: number;
   assertions: BehavioralAssertion[];
   securityNotes: string[];
   limitations: string[];
@@ -342,11 +338,6 @@ export interface SemanticInferenceRecord {
   /** Confidence level (0-1) */
   confidence: number;
 }
-
-/**
- * Server fingerprint for baseline comparison.
- */
-export type BaselineMode = CloudBaselineMode;
 
 /**
  * Baseline for an MCP server.

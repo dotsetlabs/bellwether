@@ -57,7 +57,7 @@ scenarios:
 output:
   dir: ".bellwether"
   docsDir: "."
-  format: both        # agents.md, json, or both
+  format: both        # docs, json, or both (legacy: agents.md)
   examples:
     full: true
     maxLength: 5000
@@ -66,7 +66,12 @@ output:
     checkReport: "bellwether-check.json"
     exploreReport: "bellwether-explore.json"
     contractDoc: "CONTRACT.md"
-    agentsDoc: "AGENTS.md"
+  agentsDoc: "AGENTS.md"
+
+:::note Migration Note
+If you have `output.format: agents.md` in an existing config, it still works.
+Bellwether now normalizes that to `docs`. Update your config to `docs` when convenient.
+:::
 
 baseline:
   path: "bellwether-baseline.json"
@@ -162,6 +167,8 @@ watch:
 cache:
   enabled: true
   dir: ".bellwether/cache"
+
+# Cache is persisted on disk. Remove the directory to fully clear cached entries.
 
 logging:
   level: info

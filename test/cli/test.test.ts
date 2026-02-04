@@ -82,11 +82,12 @@ describe('cli/interview', () => {
       const fullCommand = `${command} ${args.join(' ')}`.toLowerCase();
 
       // Check detection logic
-      const isFilesystem = fullCommand.includes('filesystem') || fullCommand.includes('file-system');
+      const isFilesystem =
+        fullCommand.includes('filesystem') || fullCommand.includes('file-system');
       expect(isFilesystem).toBe(true);
 
       // Extract paths
-      const paths = args.filter(arg => arg.startsWith('/') && !arg.startsWith('--'));
+      const paths = args.filter((arg) => arg.startsWith('/') && !arg.startsWith('--'));
       expect(paths).toEqual(['/home/user/docs', '/tmp/allowed']);
     });
 
@@ -117,19 +118,14 @@ describe('cli/interview', () => {
         '--flag',
       ];
 
-      const paths = args.filter(arg => arg.startsWith('/') && !arg.startsWith('--'));
+      const paths = args.filter((arg) => arg.startsWith('/') && !arg.startsWith('--'));
       expect(paths).toEqual(['/absolute/path', '/another/path']);
     });
 
     it('should ignore relative paths', () => {
-      const args = [
-        './relative/path',
-        '../parent/path',
-        'no/slash',
-        '/absolute/valid',
-      ];
+      const args = ['./relative/path', '../parent/path', 'no/slash', '/absolute/valid'];
 
-      const paths = args.filter(arg => arg.startsWith('/') && !arg.startsWith('--'));
+      const paths = args.filter((arg) => arg.startsWith('/') && !arg.startsWith('--'));
       expect(paths).toEqual(['/absolute/valid']);
     });
   });
@@ -295,7 +291,7 @@ This is a test server.
 
   describe('baseline format', () => {
     it('should create canonical baseline format', () => {
-      const cloudBaseline = {
+      const baseline = {
         version: '1.0.0',
         metadata: {
           mode: 'check',
@@ -340,10 +336,10 @@ This is a test server.
       };
 
       // Verify format
-      expect(cloudBaseline.version).toBe('1.0.0');
-      expect(cloudBaseline.metadata.mode).toBe('check');
-      expect(cloudBaseline.capabilities.tools).toHaveLength(1);
-      expect(cloudBaseline.toolProfiles).toHaveLength(1);
+      expect(baseline.version).toBe('1.0.0');
+      expect(baseline.metadata.mode).toBe('check');
+      expect(baseline.capabilities.tools).toHaveLength(1);
+      expect(baseline.toolProfiles).toHaveLength(1);
     });
   });
 
@@ -363,12 +359,35 @@ This is a test server.
 
       // Simulate progress updates
       progressCallback({ phase: 'starting', toolsCompleted: 0, totalTools: 3, questionsAsked: 0 });
-      progressCallback({ phase: 'interviewing', currentTool: 'tool1', toolsCompleted: 0, totalTools: 3, questionsAsked: 1 });
-      progressCallback({ phase: 'interviewing', currentTool: 'tool2', toolsCompleted: 1, totalTools: 3, questionsAsked: 3 });
-      progressCallback({ phase: 'synthesizing', toolsCompleted: 3, totalTools: 3, questionsAsked: 9 });
+      progressCallback({
+        phase: 'interviewing',
+        currentTool: 'tool1',
+        toolsCompleted: 0,
+        totalTools: 3,
+        questionsAsked: 1,
+      });
+      progressCallback({
+        phase: 'interviewing',
+        currentTool: 'tool2',
+        toolsCompleted: 1,
+        totalTools: 3,
+        questionsAsked: 3,
+      });
+      progressCallback({
+        phase: 'synthesizing',
+        toolsCompleted: 3,
+        totalTools: 3,
+        questionsAsked: 9,
+      });
       progressCallback({ phase: 'complete', toolsCompleted: 3, totalTools: 3, questionsAsked: 9 });
 
-      expect(phases).toEqual(['starting', 'interviewing', 'interviewing', 'synthesizing', 'complete']);
+      expect(phases).toEqual([
+        'starting',
+        'interviewing',
+        'interviewing',
+        'synthesizing',
+        'complete',
+      ]);
     });
 
     it('should track questions asked per tool', () => {
@@ -400,7 +419,8 @@ This is a test server.
       };
 
       const totalToolCalls = progress.totalPersonas * progress.totalTools;
-      const completedToolCalls = (progress.personasCompleted * progress.totalTools) + progress.toolsCompleted;
+      const completedToolCalls =
+        progress.personasCompleted * progress.totalTools + progress.toolsCompleted;
 
       expect(totalToolCalls).toBe(10);
       expect(completedToolCalls).toBe(2);
@@ -432,12 +452,13 @@ This is a test server.
       };
 
       const timeout = options.timeout ? parseInt(options.timeout, 10) : defaultTimeout;
-      const maxQuestions = options.maxQuestions ? parseInt(options.maxQuestions, 10) : defaultMaxQuestions;
+      const maxQuestions = options.maxQuestions
+        ? parseInt(options.maxQuestions, 10)
+        : defaultMaxQuestions;
 
       expect(timeout).toBe(60000);
       expect(maxQuestions).toBe(3);
     });
-
   });
 
   describe('error handling', () => {
@@ -519,13 +540,14 @@ This is a test server.
 
       if (!verbose) {
         const totalToolCalls = progress.totalTools * progress.totalPersonas;
-        const completedCalls = (progress.personasCompleted * progress.totalTools) + progress.toolsCompleted;
+        const completedCalls =
+          progress.personasCompleted * progress.totalTools + progress.toolsCompleted;
         const message = `\rInterviewing: ${completedCalls}/${totalToolCalls} tools, ${progress.questionsAsked} questions asked`;
         stdoutOutput.push(message);
       }
 
-      expect(stdoutOutput.some(o => o.includes('8/10 tools'))).toBe(true);
-      expect(stdoutOutput.some(o => o.includes('12 questions asked'))).toBe(true);
+      expect(stdoutOutput.some((o) => o.includes('8/10 tools'))).toBe(true);
+      expect(stdoutOutput.some((o) => o.includes('12 questions asked'))).toBe(true);
     });
   });
 
@@ -550,7 +572,8 @@ This is a test server.
       const failOnDrift = true;
       const diff = { severity: 'info' };
 
-      const shouldExit = failOnDrift && (diff.severity === 'breaking' || diff.severity === 'warning');
+      const shouldExit =
+        failOnDrift && (diff.severity === 'breaking' || diff.severity === 'warning');
       expect(shouldExit).toBe(false);
     });
 
@@ -666,7 +689,7 @@ describe('interview command integration scenarios', () => {
     workflow.discovered = true;
 
     // 3. Interview tools
-    const toolProfiles = discovery.tools.map(tool => ({
+    const toolProfiles = discovery.tools.map((tool) => ({
       name: tool.name,
       description: tool.description,
       interactions: [],
@@ -719,7 +742,7 @@ describe('interview command integration scenarios', () => {
         capabilities: ['tools'],
       },
       capabilities: {
-        tools: result.discovery.tools.map(t => ({
+        tools: result.discovery.tools.map((t) => ({
           name: t.name,
           description: 'Test tool',
           inputSchema: { type: 'object', properties: {} },
@@ -806,15 +829,15 @@ describe('interview command integration scenarios', () => {
     };
 
     // Compare baselines
-    const previous = new Set(previousBaseline.capabilities.tools.map(t => t.name));
-    const current = new Set(currentBaseline.capabilities.tools.map(t => t.name));
+    const previous = new Set(previousBaseline.capabilities.tools.map((t) => t.name));
+    const current = new Set(currentBaseline.capabilities.tools.map((t) => t.name));
 
-    const added = [...current].filter(t => !previous.has(t));
-    const removed = [...previous].filter(t => !current.has(t));
-    const modified = [...current].filter(t => {
+    const added = [...current].filter((t) => !previous.has(t));
+    const removed = [...previous].filter((t) => !current.has(t));
+    const modified = [...current].filter((t) => {
       if (!previous.has(t)) return false;
-      const prevTool = previousBaseline.capabilities.tools.find(p => p.name === t);
-      const currTool = currentBaseline.capabilities.tools.find(c => c.name === t);
+      const prevTool = previousBaseline.capabilities.tools.find((p) => p.name === t);
+      const currTool = currentBaseline.capabilities.tools.find((c) => c.name === t);
       return prevTool?.schemaHash !== currTool?.schemaHash;
     });
 
@@ -911,7 +934,9 @@ describe('interview command presets', () => {
 
       const finalQuestions = options.preset
         ? presetMaxQuestions
-        : (options.quick ? quickModeQuestions : defaultQuestions);
+        : options.quick
+          ? quickModeQuestions
+          : defaultQuestions;
 
       expect(finalQuestions).toBe(5);
     });

@@ -84,7 +84,7 @@ export function analyzeForIncremental(
   // If no baseline or force retest, test everything
   if (!baseline || forceRetest) {
     return {
-      toolsToTest: currentTools.map(t => t.name),
+      toolsToTest: currentTools.map((t) => t.name),
       toolsToSkip: [],
       cachedFingerprints: [],
       changeSummary: {
@@ -92,7 +92,7 @@ export function analyzeForIncremental(
         changedTools: 0,
         unchangedTools: 0,
         removedTools: 0,
-        newToolNames: baseline ? [] : currentTools.map(t => t.name),
+        newToolNames: baseline ? [] : currentTools.map((t) => t.name),
         changedToolNames: [],
         removedToolNames: [],
       },
@@ -108,8 +108,8 @@ export function analyzeForIncremental(
   const removedToolNames: string[] = [];
 
   // Build maps for comparison
-  const baselineToolMap = new Map(getToolFingerprints(baseline).map(t => [t.name, t]));
-  const currentToolSet = new Set(currentTools.map(t => t.name));
+  const baselineToolMap = new Map(getToolFingerprints(baseline).map((t) => [t.name, t]));
+  const currentToolSet = new Set(currentTools.map((t) => t.name));
 
   // Check current tools against baseline
   for (const tool of currentTools) {
@@ -130,7 +130,11 @@ export function analyzeForIncremental(
 
     // Check if schema changed
     const currentSchemaHash = computeSchemaHash(tool.inputSchema);
-    const baselineSchemaHash = baselineTool.schemaHash;
+    const baselineSchemaHash =
+      baselineTool.inputSchemaHashAtTest ??
+      (baselineTool.inputSchema
+        ? computeSchemaHash(baselineTool.inputSchema)
+        : baselineTool.schemaHash);
 
     if (currentSchemaHash !== baselineSchemaHash) {
       // Schema changed - needs retesting

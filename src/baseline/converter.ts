@@ -1,5 +1,5 @@
 /**
- * Cloud baseline builder.
+ * Baseline builder.
  *
  * ## Severity Type Mappings
  *
@@ -13,19 +13,19 @@
  * Used for error severity classification in error handling.
  * Values: 'low' | 'medium' | 'high' | 'critical'
  *
- * ### CloudAssertionSeverity (cloud/types.ts)
- * Used for cloud assertions and PersonaFinding severity levels.
+ * ### BaselineAssertionSeverity (baseline-format.ts)
+ * Used for baseline assertions and PersonaFinding severity levels.
  * Values: 'info' | 'low' | 'medium' | 'high' | 'critical'
  *
  * ### Conversion Mappings
  *
- * ChangeSeverity → CloudAssertionSeverity:
+ * ChangeSeverity → BaselineAssertionSeverity:
  * - 'none'     → 'info'     (no change, informational)
  * - 'info'     → 'low'      (minor changes)
  * - 'warning'  → 'medium'   (moderate changes)
  * - 'breaking' → 'critical' (breaking changes)
  *
- * CloudAssertionSeverity → ChangeSeverity (for display/filtering):
+ * BaselineAssertionSeverity → ChangeSeverity (for display/filtering):
  * - 'info'     → 'info'
  * - 'low'      → 'info'
  * - 'medium'   → 'warning'
@@ -42,28 +42,32 @@ import { buildSchemaEvolution } from './response-schema-tracker.js';
 import type {
   BaselineMetadata,
   BaselineMode,
-  CloudServerFingerprint,
+  BaselineServerFingerprint,
   ToolCapability,
   PromptCapability,
   PersonaInterview,
   PersonaFinding,
-  CloudToolProfile,
-  CloudAssertion,
-  CloudAssertionType,
-  CloudAssertionSeverity,
-} from './cloud-types.js';
-import { calculateMetrics, calculatePerformanceConfidence, type LatencySample } from './performance-tracker.js';
-import { computeConsensusSchemaHash } from './schema-compare.js';
+  BaselineToolProfile,
+  BaselineAssertion,
+  BaselineAssertionType,
+  BaselineAssertionSeverity,
+} from './baseline-format.js';
+import {
+  calculateMetrics,
+  calculatePerformanceConfidence,
+  type LatencySample,
+} from './performance-tracker.js';
+import { computeConsensusSchemaHash, computeSchemaHash } from './schema-compare.js';
 import { calculateBaselineHash } from './baseline-hash.js';
 import { getBaselineVersion } from './version.js';
 import { VERSION } from '../version.js';
 import { scoreDocumentation, toDocumentationScoreSummary } from './documentation-scorer.js';
 
 /**
- * Map ChangeSeverity to CloudAssertionSeverity.
- * Used when mapping CLI assertions to cloud severity levels.
+ * Map ChangeSeverity to BaselineAssertionSeverity.
+ * Used when mapping CLI assertions to baseline severity levels.
  */
-export const CHANGE_TO_CLOUD_SEVERITY: Record<ChangeSeverity, CloudAssertionSeverity> = {
+export const CHANGE_TO_BASELINE_SEVERITY: Record<ChangeSeverity, BaselineAssertionSeverity> = {
   none: 'info',
   info: 'low',
   warning: 'medium',
@@ -71,10 +75,10 @@ export const CHANGE_TO_CLOUD_SEVERITY: Record<ChangeSeverity, CloudAssertionSeve
 } as const;
 
 /**
- * Map CloudAssertionSeverity to ChangeSeverity.
- * Used when filtering or displaying cloud data locally.
+ * Map BaselineAssertionSeverity to ChangeSeverity.
+ * Used when filtering or displaying baseline data locally.
  */
-export const CLOUD_TO_CHANGE_SEVERITY: Record<CloudAssertionSeverity, ChangeSeverity> = {
+export const BASELINE_TO_CHANGE_SEVERITY: Record<BaselineAssertionSeverity, ChangeSeverity> = {
   info: 'info',
   low: 'info',
   medium: 'warning',
@@ -90,7 +94,7 @@ function hashString(input: string): string {
 }
 
 /**
- * Convert a local BehavioralAssertion to cloud CloudAssertion format.
+ * Convert a local BehavioralAssertion to baseline assertion format.
  *
  * Mapping:
  * - isPositive=true + security aspect → 'requires' (critical security requirement)
@@ -98,9 +102,9 @@ function hashString(input: string): string {
  * - isPositive=false + security aspect → 'warns' (security warning)
  * - isPositive=false + other aspect → 'notes' (limitation/note)
  */
-function convertAssertion(assertion: BehavioralAssertion): CloudAssertion {
+function convertAssertion(assertion: BehavioralAssertion): BaselineAssertion {
   // Determine assertion type based on isPositive and aspect
-  let type: CloudAssertionType;
+  let type: BaselineAssertionType;
   if (assertion.isPositive) {
     type = assertion.aspect === 'security' ? 'requires' : 'expects';
   } else {
@@ -108,7 +112,7 @@ function convertAssertion(assertion: BehavioralAssertion): CloudAssertion {
   }
 
   // Determine severity based on aspect and content
-  let severity: CloudAssertionSeverity = 'info';
+  let severity: BaselineAssertionSeverity = 'info';
   const lowerAssertion = assertion.assertion.toLowerCase();
 
   if (assertion.aspect === 'security') {
@@ -148,9 +152,9 @@ function convertAssertion(assertion: BehavioralAssertion): CloudAssertion {
 }
 
 /**
- * Convert an array of BehavioralAssertions to CloudAssertions.
+ * Convert an array of BehavioralAssertions to baseline assertions.
  */
-export function convertAssertions(assertions: BehavioralAssertion[]): CloudAssertion[] {
+export function convertAssertions(assertions: BehavioralAssertion[]): BaselineAssertion[] {
   return assertions.map(convertAssertion);
 }
 
@@ -158,16 +162,14 @@ export function convertAssertions(assertions: BehavioralAssertion[]): CloudAsser
  * Derive baseline mode from result metadata.
  * Returns 'check' for check mode results, 'explore' for explore mode results.
  * Note: Baselines should only be created from check mode results,
- * but explore uploads are still supported for documentation tracking.
+ * but explore mode baselines are still supported for documentation tracking.
  */
-function deriveCloudMode(resultModel?: string, baselineMode?: 'check'): BaselineMode {
+function deriveBaselineMode(resultModel?: string): BaselineMode {
   // Check mode results have model === 'check'
   if (resultModel === 'check') return 'check';
 
   // LLM model names indicate explore mode
   if (resultModel) return 'explore';
-
-  if (baselineMode === 'check') return 'check';
 
   // Default to check for legacy baselines without explicit mode
   return 'check';
@@ -199,17 +201,18 @@ function extractPersonas(result: InterviewResult | undefined, mode: BaselineMode
 /**
  * Build interview summaries from interview result.
  */
-function buildInterviews(result: InterviewResult | undefined, mode: BaselineMode): PersonaInterview[] {
+function buildInterviews(
+  result: InterviewResult | undefined,
+  mode: BaselineMode
+): PersonaInterview[] {
   if (mode === 'check') {
     return [];
   }
 
   if (!result?.metadata.personas) {
     // Create a default technical_writer interview
-    const totalQuestions = result?.toolProfiles.reduce(
-      (sum, p) => sum + p.interactions.length,
-      0
-    ) ?? 0;
+    const totalQuestions =
+      result?.toolProfiles.reduce((sum, p) => sum + p.interactions.length, 0) ?? 0;
 
     return [
       {
@@ -227,9 +230,7 @@ function buildInterviews(result: InterviewResult | undefined, mode: BaselineMode
       profile.interactions.filter((i) => i.personaId === persona.id)
     );
 
-    const toolsWithPersonaInteractions = new Set(
-      personaInteractions.map((i) => i.toolName)
-    );
+    const toolsWithPersonaInteractions = new Set(personaInteractions.map((i) => i.toolName));
 
     return {
       persona: persona.id,
@@ -291,9 +292,7 @@ function extractFindingsForPersona(
   const findings: PersonaFinding[] = [];
 
   for (const profile of toolProfiles) {
-    const personaFindings = profile.findingsByPersona?.find(
-      (f) => f.personaId === personaId
-    );
+    const personaFindings = profile.findingsByPersona?.find((f) => f.personaId === personaId);
 
     if (!personaFindings) continue;
 
@@ -334,9 +333,7 @@ function extractFindingsForPersona(
 /**
  * Classify severity based on note content.
  */
-function classifySeverity(
-  note: string
-): 'info' | 'low' | 'medium' | 'high' | 'critical' {
+function classifySeverity(note: string): 'info' | 'low' | 'medium' | 'high' | 'critical' {
   const lowerNote = note.toLowerCase();
 
   if (
@@ -367,11 +364,7 @@ function classifySeverity(
     return 'medium';
   }
 
-  if (
-    lowerNote.includes('low') ||
-    lowerNote.includes('minor') ||
-    lowerNote.includes('potential')
-  ) {
+  if (lowerNote.includes('low') || lowerNote.includes('minor') || lowerNote.includes('potential')) {
     return 'low';
   }
 
@@ -383,19 +376,20 @@ function classifySeverity(
  *
  * This is the preferred method when you have fresh interview results.
  */
-export function createCloudBaseline(
+export function createBaselineFromInterview(
   result: InterviewResult,
   serverCommand: string
 ): BehavioralBaseline {
   // Derive mode from result metadata
-  const mode = deriveCloudMode(result.metadata.model);
+  const mode = deriveBaselineMode(result.metadata.model);
 
   // Build metadata
   const metadata: BaselineMetadata = {
     mode,
-    generatedAt: result.metadata.endTime instanceof Date
-      ? result.metadata.endTime.toISOString()
-      : result.metadata.endTime,
+    generatedAt:
+      result.metadata.endTime instanceof Date
+        ? result.metadata.endTime.toISOString()
+        : result.metadata.endTime,
     cliVersion: VERSION,
     serverCommand,
     serverName: result.discovery.serverInfo.name,
@@ -405,7 +399,7 @@ export function createCloudBaseline(
   };
 
   // Build server fingerprint
-  const server: CloudServerFingerprint = {
+  const server: BaselineServerFingerprint = {
     name: result.discovery.serverInfo.name,
     version: result.discovery.serverInfo.version,
     protocolVersion: result.discovery.protocolVersion,
@@ -420,22 +414,24 @@ export function createCloudBaseline(
   }
 
   const tools: ToolCapability[] = result.toolProfiles.map((profile) => {
-    const interactions = profile.interactions.map(i => ({ args: i.question.args }));
-    const { hash: schemaHash } = computeConsensusSchemaHash(interactions);
+    const interactions = profile.interactions.map((i) => ({ args: i.question.args }));
+    const observedSchema = computeConsensusSchemaHash(interactions);
+    const declaredSchemaHash = computeSchemaHash(schemaMap.get(profile.name) ?? {});
     const responseData = profile.interactions
-      .filter(i => !i.mocked)
-      .map(i => ({
+      .filter((i) => !i.mocked)
+      .map((i) => ({
         response: i.response,
         error: i.error,
       }));
     const responseAnalysis = analyzeResponses(responseData);
-    const responseSchemaEvolution = responseAnalysis.schemas.length > 0
-      ? buildSchemaEvolution(responseAnalysis.schemas)
-      : undefined;
+    const responseSchemaEvolution =
+      responseAnalysis.schemas.length > 0
+        ? buildSchemaEvolution(responseAnalysis.schemas)
+        : undefined;
 
     const latencySamples: LatencySample[] = profile.interactions
-      .filter(i => i.toolExecutionMs !== undefined && !i.mocked)
-      .map(i => ({
+      .filter((i) => i.toolExecutionMs !== undefined && !i.mocked)
+      .map((i) => ({
         toolName: profile.name,
         durationMs: i.toolExecutionMs ?? 0,
         success: !i.error && !i.response?.isError,
@@ -465,37 +461,54 @@ export function createCloudBaseline(
       name: profile.name,
       description: profile.description ?? '',
       inputSchema: schemaMap.get(profile.name) ?? {},
-      schemaHash,
+      schemaHash: declaredSchemaHash,
+      observedArgsSchemaHash: observedSchema.hash,
+      observedArgsSchemaConsistency: observedSchema.consistency,
+      observedArgsSchemaVariations: observedSchema.variations,
       responseFingerprint: responseAnalysis.fingerprint,
       inferredOutputSchema: responseAnalysis.inferredSchema,
       responseSchemaEvolution,
-      errorPatterns: responseAnalysis.errorPatterns.length ? responseAnalysis.errorPatterns : undefined,
+      errorPatterns: responseAnalysis.errorPatterns.length
+        ? responseAnalysis.errorPatterns
+        : undefined,
       baselineP50Ms,
       baselineP95Ms,
       baselineP99Ms,
       baselineSuccessRate,
       performanceConfidence,
+      lastTestedAt: metadata.generatedAt,
+      inputSchemaHashAtTest: declaredSchemaHash,
     };
   });
 
   const prompts: PromptCapability[] | undefined =
     result.discovery.prompts.length > 0
       ? result.discovery.prompts.map((p) => ({
-        name: p.name,
-        description: p.description,
-        arguments: p.arguments?.map((a) => ({
-          name: a.name,
-          description: a.description,
-          required: a.required,
-        })),
-      }))
+          name: p.name,
+          description: p.description,
+          arguments: p.arguments?.map((a) => ({
+            name: a.name,
+            description: a.description,
+            required: a.required,
+          })),
+        }))
+      : undefined;
+
+  const resources =
+    result.discovery.resources && result.discovery.resources.length > 0
+      ? result.discovery.resources.map((r) => ({
+          uri: r.uri,
+          name: r.name,
+          description: r.description,
+          mimeType: r.mimeType,
+        }))
       : undefined;
 
   // Build interviews
   const interviews = buildInterviews(result, mode);
 
   // Build tool profiles (with converted assertions)
-  const toolProfiles: CloudToolProfile[] = result.toolProfiles.map((profile) => {
+  const toolProfiles: BaselineToolProfile[] = result.toolProfiles.map((profile) => {
     const matchingCapability = tools.find((tool) => tool.name === profile.name);
     return {
       name: profile.name,
@@ -521,14 +534,14 @@ export function createCloudBaseline(
     scoreDocumentation(result.discovery.tools)
   );
 
-  // Build assertions (convert to cloud format)
+  // Build assertions (convert to baseline format)
   const assertions = convertAssertions(extractAllAssertions(result));
 
   const baselineWithoutHash: Omit<BehavioralBaseline, 'hash'> = {
     version: getBaselineVersion(),
     metadata,
     server,
-    capabilities: { tools, prompts },
+    capabilities: { tools, prompts, resources },
     interviews,
     toolProfiles,
     workflows,

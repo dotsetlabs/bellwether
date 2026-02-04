@@ -1,5 +1,6 @@
 import { Ajv2020 as Ajv } from 'ajv/dist/2020.js';
 import { readFileSync } from 'fs';
+import { isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
 import type { InterviewResult } from '../interview/types.js';
 import { REPORT_SCHEMAS } from '../constants.js';
@@ -16,10 +17,11 @@ export interface JsonReportOptions {
 /**
  * Generate a JSON report of the interview.
  */
-export function generateJsonReport(result: InterviewResult, options: JsonReportOptions = {}): string {
-  const report = options.schemaUrl
-    ? { $schema: options.schemaUrl, ...result }
-    : { ...result };
+export function generateJsonReport(
+  result: InterviewResult,
+  options: JsonReportOptions = {}
+): string {
+  const report = options.schemaUrl ? { $schema: options.schemaUrl, ...result } : { ...result };
   const jsonReadyReport = JSON.parse(JSON.stringify(report));
 
   if (options.validate) {
@@ -32,7 +34,12 @@ export function generateJsonReport(result: InterviewResult, options: JsonReportO
 
 function resolveSchemaPath(schemaPath?: string): string {
   if (schemaPath) {
-    return schemaPath;
+    if (isAbsolute(schemaPath)) {
+      return schemaPath;
+    }
+
+    const base = new URL('../../', import.meta.url);
+    return fileURLToPath(new URL(schemaPath, base));
   }
 
   const url = new URL(`../../${REPORT_SCHEMAS.CHECK_REPORT_SCHEMA_FILE}`, import.meta.url);
@@ -56,6 +63,6 @@ function validateReportAgainstSchema(report: unknown, schemaPath: string): void 
 
   if (!validate(report)) {
     const errorText = ajv.errorsText(validate.errors, { separator: '\n' });
-    throw new Error(`Check report schema validation failed:\n${errorText}`);
+    throw new Error(`Report schema validation failed:\n${errorText}`);
   }
 }

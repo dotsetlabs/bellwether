@@ -1,0 +1,204 @@
+.TH "BELLWETHER" "1" "2026\-02\-04" "Bellwether 2.0.0" "User Commands"
+.SH NAME
+.PP
+bellwether \[em] MCP server testing and validation tool
+.SH SYNOPSIS
+.PP
+\f[B]bellwether\f[] [OPTIONS] COMMAND [ARGS...]
+.PP
+\f[B]bellwether\f[] \f[B]\-\-version\f[]
+.PP
+\f[B]bellwether\f[] \f[B]\-\-help\f[]
+.SH DESCRIPTION
+.PP
+Bellwether is an open\-source MCP (Model Context Protocol) testing tool
+that provides structural drift detection and behavioral documentation
+for MCP servers.
+.SH COMMANDS
+.TP
+.B \f[B]check\f[] [\f[I]options\f[]] [server\-command]
+Schema validation and drift detection (free, fast, deterministic)
+.RS
+.RE
+.TP
+.B \f[B]explore\f[] [\f[I]options\f[]] [server\-command]
+LLM\-powered behavioral exploration and documentation
+.RS
+.RE
+.TP
+.B \f[B]discover\f[] [\f[I]options\f[]] [server\-command]
+Discover MCP server capabilities (tools, prompts, resources)
+.RS
+.RE
+.TP
+.B \f[B]watch\f[] [\f[I]options\f[]]
+Watch for MCP server changes and auto\-check
+.RS
+.RE
+.TP
+.B \f[B]init\f[] [\f[I]options\f[]] [server\-command]
+Initialize a bellwether.yaml configuration file
+.RS
+.RE
+.TP
+.B \f[B]auth\f[] \f[I]subcommand\f[] [\f[I]options\f[]]
+Manage LLM provider API keys
+.RS
+.RE
+.TP
+.B \f[B]baseline\f[] \f[I]subcommand\f[] [\f[I]options\f[]]
+Manage baselines for drift detection
+.RS
+.RE
+.TP
+.B \f[B]golden\f[] \f[I]subcommand\f[] [\f[I]options\f[]]
+Manage golden outputs for validation
+.RS
+.RE
+.TP
+.B \f[B]registry\f[] [\f[I]options\f[]] \f[I]search\f[]
+Search the MCP Registry for servers
+.RS
+.RE
+.TP
+.B \f[B]contract\f[] \f[I]subcommand\f[] [\f[I]options\f[]]
+Validate MCP servers against contracts
+.RS
+.RE
+.TP
+.B \f[B]validate\-config\f[] [\f[I]options\f[]]
+Validate bellwether.yaml configuration
+.RS
+.RE
+.SH GLOBAL OPTIONS
+.TP
+.B \f[B]\-h\f[], \f[B]\-\-help\f[]
+Show help message and exit
+.RS
+.RE
+.TP
+.B \f[B]\-\-version\f[]
+Show version information and exit
+.RS
+.RE
+.TP
+.B \f[B]\-\-log\-level\f[] \f[I]LEVEL\f[]
+Set log level: debug, info, warn, error, silent
+.RS
+.RE
+.TP
+.B \f[B]\-\-log\-file\f[] \f[I]PATH\f[]
+Write logs to file instead of stderr
+.RS
+.RE
+.SH EXAMPLES
+.PP
+Initialize configuration:
+.IP
+.nf
+\f[C]
+bellwether\ init\ npx\ \@modelcontextprotocol/server\-filesystem
+\f[]
+.fi
+.PP
+Run drift detection:
+.IP
+.nf
+\f[C]
+bellwether\ check
+\f[]
+.fi
+.PP
+Save baseline:
+.IP
+.nf
+\f[C]
+bellwether\ baseline\ save
+\f[]
+.fi
+.PP
+Explore with LLM:
+.IP
+.nf
+\f[C]
+bellwether\ explore
+\f[]
+.fi
+.SH FILES
+.TP
+.B \f[I]bellwether.yaml\f[]
+Configuration file for the project
+.RS
+.RE
+.TP
+.B \f[I]bellwether\-baseline.json\f[]
+Saved baseline for drift detection
+.RS
+.RE
+.TP
+.B \f[I]CONTRACT.md\f[]
+Generated contract documentation
+.RS
+.RE
+.TP
+.B \f[I]AGENTS.md\f[]
+Generated behavioral documentation
+.RS
+.RE
+.SH ENVIRONMENT
+.TP
+.B \f[I]OPENAI_API_KEY\f[]
+API key for OpenAI (explore mode only)
+.RS
+.RE
+.TP
+.B \f[I]ANTHROPIC_API_KEY\f[]
+API key for Anthropic (explore mode only)
+.RS
+.RE
+.TP
+.B \f[I]OLLAMA_BASE_URL\f[]
+Ollama URL (default: http://localhost:11434)
+.RS
+.RE
+.SH EXIT STATUS
+.TP
+.B \f[B]0\f[]
+Success, no changes detected
+.RS
+.RE
+.TP
+.B \f[B]1\f[]
+Info\-level changes only
+.RS
+.RE
+.TP
+.B \f[B]2\f[]
+Warning\-level changes
+.RS
+.RE
+.TP
+.B \f[B]3\f[]
+Breaking changes detected
+.RS
+.RE
+.TP
+.B \f[B]4\f[]
+Runtime error
+.RS
+.RE
+.TP
+.B \f[B]5\f[]
+Low confidence metrics
+.RS
+.RE
+.SH SEE ALSO
+.PP
+Project homepage: <https://github.com/dotsetlabs/bellwether>
+.PP
+Documentation: <https://docs.bellwether.sh>
+.PP
+MCP Specification: <https://modelcontextprotocol.io>
+.SH AUTHORS
+.PP
+Dotset Labs LLC <hello@dotsetlabs.com>

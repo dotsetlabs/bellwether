@@ -19,8 +19,13 @@ import {
   checkBaselineVersionCompatibility,
 } from '../../src/baseline/comparator.js';
 import { BaselineVersionError } from '../../src/baseline/version.js';
-import type { BehavioralBaseline, ToolFingerprint, BehaviorChange, WorkflowSignature } from '../../src/baseline/types.js';
-import type { ToolCapability } from '../../src/baseline/cloud-types.js';
+import type {
+  BehavioralBaseline,
+  ToolFingerprint,
+  BehaviorChange,
+  WorkflowSignature,
+} from '../../src/baseline/types.js';
+import type { ToolCapability } from '../../src/baseline/baseline-format.js';
 
 /**
  * Helper to create a minimal valid baseline for testing.
@@ -187,11 +192,23 @@ describe('comparator', () => {
 
   describe('compareBaselines - schema change detection', () => {
     it('should detect schema changes when hash differs', () => {
+      const schemaV1 = {
+        type: 'object',
+        properties: {
+          value: { type: 'string' },
+        },
+      };
+      const schemaV2 = {
+        type: 'object',
+        properties: {
+          value: { type: 'integer' },
+        },
+      };
       const baseline1 = createTestBaseline({
-        tools: [{ name: 'test_tool', schemaHash: 'hash_v1' }],
+        tools: [{ name: 'test_tool', inputSchema: schemaV1 }],
       });
       const baseline2 = createTestBaseline({
-        tools: [{ name: 'test_tool', schemaHash: 'hash_v2' }],
+        tools: [{ name: 'test_tool', inputSchema: schemaV2 }],
       });
 
       const diff = compareBaselines(baseline1, baseline2);
@@ -201,11 +218,23 @@ describe('comparator', () => {
     });
 
     it('should classify schema changes as breaking by default', () => {
+      const schemaV1 = {
+        type: 'object',
+        properties: {
+          value: { type: 'string' },
+        },
+      };
+      const schemaV2 = {
+        type: 'object',
+        properties: {
+          value: { type: 'integer' },
+        },
+      };
       const baseline1 = createTestBaseline({
-        tools: [{ name: 'test_tool', schemaHash: 'hash_v1' }],
+        tools: [{ name: 'test_tool', inputSchema: schemaV1 }],
       });
       const baseline2 = createTestBaseline({
-        tools: [{ name: 'test_tool', schemaHash: 'hash_v2' }],
+        tools: [{ name: 'test_tool', inputSchema: schemaV2 }],
       });
 
       const diff = compareBaselines(baseline1, baseline2);
@@ -217,11 +246,23 @@ describe('comparator', () => {
     });
 
     it('should ignore schema changes when ignoreSchemaChanges is true', () => {
+      const schemaV1 = {
+        type: 'object',
+        properties: {
+          value: { type: 'string' },
+        },
+      };
+      const schemaV2 = {
+        type: 'object',
+        properties: {
+          value: { type: 'integer' },
+        },
+      };
       const baseline1 = createTestBaseline({
-        tools: [{ name: 'test_tool', schemaHash: 'hash_v1' }],
+        tools: [{ name: 'test_tool', inputSchema: schemaV1 }],
       });
       const baseline2 = createTestBaseline({
-        tools: [{ name: 'test_tool', schemaHash: 'hash_v2' }],
+        tools: [{ name: 'test_tool', inputSchema: schemaV2 }],
       });
 
       const diff = compareBaselines(baseline1, baseline2, { ignoreSchemaChanges: true });
@@ -365,16 +406,10 @@ describe('comparator', () => {
 
     it('should count breaking, warning, and info changes correctly', () => {
       const baseline1 = createTestBaseline({
-        tools: [
-          { name: 'removed_tool' },
-          { name: 'modified_tool', description: 'Original' },
-        ],
+        tools: [{ name: 'removed_tool' }, { name: 'modified_tool', description: 'Original' }],
       });
       const baseline2 = createTestBaseline({
-        tools: [
-          { name: 'modified_tool', description: 'Changed' },
-          { name: 'added_tool' },
-        ],
+        tools: [{ name: 'modified_tool', description: 'Changed' }, { name: 'added_tool' }],
       });
 
       const diff = compareBaselines(baseline1, baseline2);
@@ -465,40 +500,46 @@ describe('comparator', () => {
     it('should return true when diff has security aspect changes', () => {
       // Security changes require securityFingerprint data
       const baseline1 = createTestBaseline({
-        tools: [{
-          name: 'test_tool',
-          securityFingerprint: {
-            tested: true,
-            categoriesTested: ['sql_injection'],
-            riskScore: 0,
-            findings: [],
-            testedAt: new Date().toISOString(),
-            findingsHash: 'hash1',
+        tools: [
+          {
+            name: 'test_tool',
+            securityFingerprint: {
+              tested: true,
+              categoriesTested: ['sql_injection'],
+              riskScore: 0,
+              findings: [],
+              testedAt: new Date().toISOString(),
+              findingsHash: 'hash1',
+            },
           },
-        }],
+        ],
       });
       const baseline2 = createTestBaseline({
-        tools: [{
-          name: 'test_tool',
-          securityFingerprint: {
-            tested: true,
-            categoriesTested: ['sql_injection'],
-            riskScore: 50,
-            findings: [{
-              tool: 'test_tool',
-              category: 'sql_injection',
-              parameter: 'input',
-              riskLevel: 'high',
-              title: 'SQL Injection',
-              description: 'Possible SQL injection',
-              cweId: 'CWE-89',
-              evidence: 'test',
-              remediation: 'Use parameterized queries',
-            }],
-            testedAt: new Date().toISOString(),
-            findingsHash: 'hash2',
+        tools: [
+          {
+            name: 'test_tool',
+            securityFingerprint: {
+              tested: true,
+              categoriesTested: ['sql_injection'],
+              riskScore: 50,
+              findings: [
+                {
+                  tool: 'test_tool',
+                  category: 'sql_injection',
+                  parameter: 'input',
+                  riskLevel: 'high',
+                  title: 'SQL Injection',
+                  description: 'Possible SQL injection',
+                  cweId: 'CWE-89',
+                  evidence: 'test',
+                  remediation: 'Use parameterized queries',
+                },
+              ],
+              testedAt: new Date().toISOString(),
+              findingsHash: 'hash2',
+            },
           },
-        }],
+        ],
       });
 
       const diff = compareBaselines(baseline1, baseline2);
@@ -593,11 +634,23 @@ describe('comparator', () => {
     });
 
     it('should suppress warnings when configured', () => {
+      const schemaV1 = {
+        type: 'object',
+        properties: {
+          value: { type: 'string' },
+        },
+      };
+      const schemaV2 = {
+        type: 'object',
+        properties: {
+          value: { type: 'integer' },
+        },
+      };
       const baseline1 = createTestBaseline({
-        tools: [{ name: 'tool', schemaHash: 'v1' }],
+        tools: [{ name: 'tool', inputSchema: schemaV1 }],
       });
       const baseline2 = createTestBaseline({
-        tools: [{ name: 'tool', schemaHash: 'v2' }],
+        tools: [{ name: 'tool', inputSchema: schemaV2 }],
       });
 
       const diff = compareBaselines(baseline1, baseline2);
@@ -712,19 +765,35 @@ describe('comparator', () => {
     });
 
     it('should handle tools with same name but completely different content', () => {
+      const schemaV1 = {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+        },
+      };
+      const schemaV2 = {
+        type: 'object',
+        properties: {
+          count: { type: 'integer' },
+        },
+      };
       const baseline1 = createTestBaseline({
-        tools: [{
-          name: 'multi_change_tool',
-          description: 'Original',
-          schemaHash: 'hash_v1',
-        }],
+        tools: [
+          {
+            name: 'multi_change_tool',
+            description: 'Original',
+            inputSchema: schemaV1,
+          },
+        ],
       });
       const baseline2 = createTestBaseline({
-        tools: [{
-          name: 'multi_change_tool',
-          description: 'Completely rewritten',
-          schemaHash: 'hash_v2',
-        }],
+        tools: [
+          {
+            name: 'multi_change_tool',
+            description: 'Completely rewritten',
+            inputSchema: schemaV2,
+          },
+        ],
       });
 
       const diff = compareBaselines(baseline1, baseline2);

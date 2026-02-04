@@ -6,5 +6,5 @@
  */
 
 export * from './constants/core.js';
-export * from './constants/cloud.js';
+export * from './constants/registry.js';
 export * from './constants/testing.js';

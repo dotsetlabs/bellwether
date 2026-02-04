@@ -20,13 +20,13 @@ export type { ErrorTrend, ErrorTrendReport };
 
 /** HTTP status code categories for error classification */
 export type HttpStatusCategory =
-  | 'client_error_validation'  // 400
-  | 'client_error_auth'        // 401, 403
-  | 'client_error_not_found'   // 404
-  | 'client_error_conflict'    // 409
-  | 'client_error_rate_limit'  // 429
-  | 'server_error'             // 5xx
-  | 'validation_expected'      // Expected validation error (from intentional tests)
+  | 'client_error_validation' // 400
+  | 'client_error_auth' // 401, 403
+  | 'client_error_not_found' // 404
+  | 'client_error_conflict' // 409
+  | 'client_error_rate_limit' // 429
+  | 'server_error' // 5xx
+  | 'validation_expected' // Expected validation error (from intentional tests)
   | 'unknown';
 
 /** Severity level for error analysis */
@@ -87,7 +87,7 @@ export interface ErrorAnalysisSummary {
   /** Unique remediations suggested */
   remediations: string[];
   /** Counts by error category */
-  categoryCounts: Map<string, number>;
+  categoryCounts: Map<string, number> | Record<string, number>;
   /** Top root causes (most common) */
   topRootCauses: string[];
   /** Top remediations (most actionable) */
@@ -105,16 +105,16 @@ export interface ErrorAnalysisSummary {
  * @param context - Optional context about the test that generated the error
  * @returns Enhanced error analysis with root cause and remediation
  */
-export function analyzeError(
-  errorMessage: string,
-  context?: ErrorContext
-): EnhancedErrorAnalysis {
+export function analyzeError(errorMessage: string, context?: ErrorContext): EnhancedErrorAnalysis {
   const httpStatus = extractHttpStatus(errorMessage);
   let statusCategory = categorizeHttpStatus(httpStatus);
   const wasExpected = context?.wasExpected ?? context?.expectedOutcome === 'error';
 
   // If the error was expected (validation test), recategorize it
-  if (wasExpected && (statusCategory === 'client_error_validation' || statusCategory === 'unknown')) {
+  if (
+    wasExpected &&
+    (statusCategory === 'client_error_validation' || statusCategory === 'unknown')
+  ) {
     statusCategory = 'validation_expected';
   }
 
@@ -215,7 +215,9 @@ export function generateErrorSummary(
   }
 
   // Count transient and actionable errors
-  const transientErrors = analyses.filter((a) => a.transient).reduce((sum, a) => sum + a.pattern.count, 0);
+  const transientErrors = analyses
+    .filter((a) => a.transient)
+    .reduce((sum, a) => sum + a.pattern.count, 0);
   const actionableCount = analyses.filter(
     (a) => a.remediation && !a.remediation.includes('Review')
   ).length;
@@ -456,7 +458,9 @@ export function inferRootCause(message: string, category: HttpStatusCategory): s
     return 'Missing required parameter or field';
   }
   if (lower.includes('missing')) {
-    const fieldMatch = message.match(/missing\s+(?:required\s+)?(?:field|parameter|property)?\s*['"`]?(\w+)['"`]?/i);
+    const fieldMatch = message.match(
+      /missing\s+(?:required\s+)?(?:field|parameter|property)?\s*['"`]?(\w+)['"`]?/i
+    );
     if (fieldMatch) {
       return `Missing required field "${fieldMatch[1]}"`;
     }
@@ -471,7 +475,11 @@ export function inferRootCause(message: string, category: HttpStatusCategory): s
   if (lower.includes('invalid') || lower.includes('malformed')) {
     return 'Invalid input format or value';
   }
-  if (lower.includes('not found') || lower.includes('does not exist') || lower.includes("doesn't exist")) {
+  if (
+    lower.includes('not found') ||
+    lower.includes('does not exist') ||
+    lower.includes("doesn't exist")
+  ) {
     return 'Referenced resource does not exist';
   }
   if (lower.includes('already exists') || lower.includes('duplicate')) {
@@ -480,7 +488,11 @@ export function inferRootCause(message: string, category: HttpStatusCategory): s
   if (lower.includes('unauthorized') || lower.includes('authentication')) {
     return 'Authentication credentials missing or invalid';
   }
-  if (lower.includes('forbidden') || lower.includes('permission') || lower.includes('access denied')) {
+  if (
+    lower.includes('forbidden') ||
+    lower.includes('permission') ||
+    lower.includes('access denied')
+  ) {
     return 'Insufficient permissions for this operation';
   }
   if (lower.includes('rate') || lower.includes('throttl') || lower.includes('too many')) {
@@ -618,7 +630,9 @@ export function extractRelatedParameters(message: string): string[] {
   }
 
   // Match "parameter X" or "field X" patterns
-  const paramMatches = message.matchAll(/(?:parameter|field|property|argument|key)\s+['"`]?(\w+)['"`]?/gi);
+  const paramMatches = message.matchAll(
+    /(?:parameter|field|property|argument|key)\s+['"`]?(\w+)['"`]?/gi
+  );
   for (const match of paramMatches) {
     const param = match[1];
     if (!seen.has(param) && !isCommonWord(param)) {
@@ -645,15 +659,69 @@ export function extractRelatedParameters(message: string): string[] {
  */
 function isCommonWord(word: string): boolean {
   const commonWords = new Set([
-    'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
-    'could', 'should', 'may', 'might', 'must', 'shall', 'can',
-    'need', 'not', 'and', 'but', 'or', 'if', 'then', 'else',
-    'for', 'with', 'from', 'this', 'that', 'these', 'those',
-    'error', 'message', 'failed', 'invalid', 'missing', 'required',
-    'found', 'exist', 'exists', 'value', 'input', 'output', 'type',
-    'string', 'number', 'boolean', 'object', 'array', 'null', 'undefined',
-    'field', 'parameter', 'property', 'argument', 'key',
+    'the',
+    'is',
+    'are',
+    'was',
+    'were',
+    'be',
+    'been',
+    'being',
+    'have',
+    'has',
+    'had',
+    'do',
+    'does',
+    'did',
+    'will',
+    'would',
+    'could',
+    'should',
+    'may',
+    'might',
+    'must',
+    'shall',
+    'can',
+    'need',
+    'not',
+    'and',
+    'but',
+    'or',
+    'if',
+    'then',
+    'else',
+    'for',
+    'with',
+    'from',
+    'this',
+    'that',
+    'these',
+    'those',
+    'error',
+    'message',
+    'failed',
+    'invalid',
+    'missing',
+    'required',
+    'found',
+    'exist',
+    'exists',
+    'value',
+    'input',
+    'output',
+    'type',
+    'string',
+    'number',
+    'boolean',
+    'object',
+    'array',
+    'null',
+    'undefined',
+    'field',
+    'parameter',
+    'property',
+    'argument',
+    'key',
   ]);
   return commonWords.has(word.toLowerCase());
 }
@@ -678,9 +746,19 @@ export function isTransientError(category: HttpStatusCategory, message: string):
 
   // Check for transient keywords
   const transientKeywords = [
-    'timeout', 'timed out', 'temporarily', 'retry', 'unavailable',
-    'connection', 'network', 'service unavailable', 'too many requests',
-    'try again', 'overloaded', 'busy', 'maintenance',
+    'timeout',
+    'timed out',
+    'temporarily',
+    'retry',
+    'unavailable',
+    'connection',
+    'network',
+    'service unavailable',
+    'too many requests',
+    'try again',
+    'overloaded',
+    'busy',
+    'maintenance',
   ];
 
   return transientKeywords.some((keyword) => lower.includes(keyword));
@@ -795,7 +873,10 @@ function generateTrendSummary(
  * @param useColors - Whether to use ANSI colors
  * @returns Formatted string
  */
-export function formatEnhancedError(analysis: EnhancedErrorAnalysis, useColors: boolean = false): string {
+export function formatEnhancedError(
+  analysis: EnhancedErrorAnalysis,
+  useColors: boolean = false
+): string {
   const lines: string[] = [];
   const { yellow, cyan, dim } = useColors ? getColors() : getNoColors();
 
@@ -829,7 +910,10 @@ export function formatEnhancedError(analysis: EnhancedErrorAnalysis, useColors: 
  * @param useColors - Whether to use ANSI colors
  * @returns Formatted string
  */
-export function formatErrorTrendReport(report: ErrorTrendReport, useColors: boolean = false): string {
+export function formatErrorTrendReport(
+  report: ErrorTrendReport,
+  useColors: boolean = false
+): string {
   const lines: string[] = [];
   const { red, green, yellow, cyan, dim } = useColors ? getColors() : getNoColors();
 
@@ -866,8 +950,13 @@ export function formatErrorTrendReport(report: ErrorTrendReport, useColors: bool
   lines.push('  Trend details:');
   for (const trend of report.trends.filter((t) => t.trend !== 'stable')) {
     const arrow = getTrendArrow(trend.trend);
-    const changeText = trend.changePercent !== 0 ? ` (${trend.changePercent > 0 ? '+' : ''}${trend.changePercent}%)` : '';
-    lines.push(`    ${arrow} ${trend.category}: ${trend.previousCount} → ${trend.currentCount}${changeText}`);
+    const changeText =
+      trend.changePercent !== 0
+        ? ` (${trend.changePercent > 0 ? '+' : ''}${trend.changePercent}%)`
+        : '';
+    lines.push(
+      `    ${arrow} ${trend.category}: ${trend.previousCount} → ${trend.currentCount}${changeText}`
+    );
   }
 
   return lines.join('\n');

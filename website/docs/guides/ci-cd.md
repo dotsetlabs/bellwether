@@ -95,9 +95,9 @@ For a streamlined experience, use the official GitHub Action:
 
 ```yaml
 - name: Detect Behavioral Drift
-  uses: dotsetlabs/bellwether@v1.0.2
+  uses: dotsetlabs/bellwether@v2.0.0
   with:
-    version: '1.0.2'
+    version: '2.0.0'
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
     fail-on-severity: 'warning'
@@ -154,9 +154,9 @@ The action automatically uploads:
 
 ```yaml
 - name: Check and Save Baseline
-  uses: dotsetlabs/bellwether@v1.0.2
+  uses: dotsetlabs/bellwether@v2.0.0
   with:
-    version: '1.0.2'
+    version: '2.0.0'
     server-command: 'npx @mcp/your-server'
     save-baseline: 'true'
 
@@ -182,9 +182,9 @@ server:
 ```yaml
 # workflow
 - name: Test with Secrets
-  uses: dotsetlabs/bellwether@v1.0.2
+  uses: dotsetlabs/bellwether@v2.0.0
   with:
-    version: '1.0.2'
+    version: '2.0.0'
     server-command: 'npx @mcp/your-server'
   env:
     API_KEY: ${{ secrets.API_KEY }}
@@ -541,7 +541,8 @@ git commit -m "Update baseline for new feature X"
 ```
 
 :::tip Audit Trail
-Using `baseline accept` or `--accept-drift` creates an audit trail recording when, why, and who accepted the changes. This is valuable for compliance and team visibility.
+`baseline accept` records when, why, and who accepted changes.  
+`--accept-drift` records when and why only. Use `--accepted-by` with `baseline accept` if you need attribution.
 :::
 
 ### Comparing Versions

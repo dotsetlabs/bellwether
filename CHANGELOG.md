@@ -7,6 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-02-04
+
+### Breaking Changes
+
+- **Removed cloud-related baseline modules**: The following exports have been removed from the public API:
+  - `ai-compatibility-scorer.ts` - AI compatibility scoring
+  - `change-impact-analyzer.ts` - Change impact analysis (`analyzeToolChangeImpact`, `analyzeDiffImpact`, `isBreakingChange`, etc.)
+  - `deprecation-tracker.ts` - Deprecation tracking (`checkDeprecations`, `markAsDeprecated`, `getDeprecatedTools`, etc.)
+  - `health-scorer.ts` - Health scoring (`calculateHealthScore`, `formatHealthScore`, `HEALTH_SCORING`, etc.)
+  - `migration-generator.ts` - Migration guide generation (`generateMigrationGuide`, `formatMigrationGuideMarkdown`, etc.)
+  - `pr-comment-generator.ts` - PR comment generation (`generatePRComment`, `generateCompactPRComment`, etc.)
+  - `risk-scorer.ts` - Risk scoring (`calculateRiskScore`, `generateRiskScoreMarkdown`, etc.)
+  - `scenario-generator.ts` - Auto scenario generation (`generateToolScenarios`, `generateBaselineScenarios`, etc.)
+  - `schema-evolution.ts` - Schema evolution timeline (`buildServerTimeline`, `getSchemaChanges`, etc.)
+  - `test-pruner.ts` - Test pruning (`calculatePruningDecisions`, `prioritizeTools`, etc.)
+  - `cloud-types.ts` - Cloud type definitions
+  - `constants/cloud.ts` - Cloud constants
+- **Renamed baseline function**: `createCloudBaseline()` renamed to `createBaselineFromInterview()`
+- **Removed `PERFORMANCE` constant export** from `performance-tracker.ts`
+
+### Added
+
+- **Deterministic prompt testing**: New `prompt-test-generator.ts` for generating deterministic tests for MCP prompts without requiring LLM calls
+- **Deterministic resource testing**: New `resource-test-generator.ts` for generating deterministic tests for MCP resources
+- **Interview insights module**: New `insights.ts` module with `buildInterviewInsights()` for deriving semantic inferences, schema evolution, and error analysis
+- **Baseline format types**: New `baseline-format.ts` with enhanced types:
+  - `PersonaInterview` and `PersonaFinding` for structured interview results
+  - `ResourceCapability` and `PromptCapability` for resource/prompt discovery
+  - Enhanced `ToolCapability` with observed schema tracking and security fingerprints
+  - `ResponseSchemaEvolution` and `DocumentationScoreSummary` types
+- **Registry constants**: New `constants/registry.ts` for MCP Registry integration
+- **Man pages**: Added `man/bellwether.1` and `man/bellwether.1.md` for Unix manual pages
+- **Explore report schema**: New `schemas/bellwether-explore.schema.json` for JSON report validation
+- **JSON schema embedding**: JSON reports now include `$schema` pointer for IDE validation
+- **Expanded behavior aspects**: `BehaviorAspect` type now includes `prompt`, `resource`, `server`, `capability`
+
+### Changed
+
+- **Simplified baseline system**: Removed cloud-specific baseline logic in favor of a single, self-contained format
+- **Enhanced schema comparison**: Expanded `schema-compare.ts` with improved property-level diff detection
+- **Improved comparator**: Enhanced `comparator.ts` with better change detection and categorization
+- **SSE transport improvements**: Refactored `sse-transport.ts` for better reliability and error handling
+- **Response cache enhancements**: Improved `response-cache.ts` with better TTL management
+- **Interview system refinements**: Updated `interviewer.ts` and `schema-test-generator.ts` for deterministic test merging
+- **Stateful test runner**: Enhanced `stateful-test-runner.ts` with improved state management
+
+### Documentation
+
+- Updated all CLI documentation for consistency
+- Added JSON schema validation pointers to output format docs
+- Updated GitHub Action examples to v2.0.0
+- Improved baseline and CI/CD documentation
+- Enhanced configuration guide with new options
+
+### Internal
+
+- Removed ~13,600 lines of cloud-related code
+- Added ~2,600 lines of deterministic testing and baseline improvements
+- Consolidated test files, removing 12 test files for deleted modules
+- Added new tests for prompt/resource generators and enhanced schema comparison
+
+### Migration Guide
+
+If you were importing from the `@dotsetlabs/bellwether` library API:
+
+1. **Baseline functions**: Replace `createCloudBaseline()` with `createBaselineFromInterview()`
+
+2. **Removed exports**: The following modules are no longer available. If you depended on them, you'll need to implement alternatives:
+   - Health scoring, deprecation tracking, migration generation
+   - PR comment generation, risk scoring, scenario generation
+   - AI compatibility scoring, test pruning, schema evolution timeline
+
+3. **CLI users**: No changes required. The CLI interface remains fully compatible.
+
 ## [1.0.3] - 2026-02-02
 
 ### Added

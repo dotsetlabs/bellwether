@@ -6,40 +6,36 @@
  * - Baseline comparison and drift detection
  * - Tool capability tracking
  *
- * Originally part of cloud integration, now standalone for open-source use.
+ * Originally part of a hosted integration, now standalone for open-source use.
  */
 
 import type { WorkflowSignature } from './types.js';
-import type {
-  ResponseFingerprint,
-  InferredSchema,
-  ErrorPattern,
-} from './response-fingerprint.js';
+import type { ResponseFingerprint, InferredSchema, ErrorPattern } from './response-fingerprint.js';
 import type { SecurityFingerprint } from '../security/types.js';
 
 /**
  * Assertion type for baseline assertions.
  * Maps to: expects (positive), requires (critical), warns (negative), notes (informational)
  */
-export type CloudAssertionType = 'expects' | 'requires' | 'warns' | 'notes';
+export type BaselineAssertionType = 'expects' | 'requires' | 'warns' | 'notes';
 
 /**
  * Severity level for assertions.
  */
-export type CloudAssertionSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
+export type BaselineAssertionSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
 /**
  * Behavioral assertion in baseline format.
  */
-export interface CloudAssertion {
+export interface BaselineAssertion {
   /** Type of assertion */
-  type: CloudAssertionType;
+  type: BaselineAssertionType;
   /** The condition/assertion statement */
   condition: string;
   /** Tool this assertion relates to (optional) */
   tool?: string;
   /** Severity level (optional) */
-  severity?: CloudAssertionSeverity;
+  severity?: BaselineAssertionSeverity;
 }
 
 /**
@@ -74,7 +70,7 @@ export interface BaselineMetadata {
 /**
  * Server fingerprint in baseline format.
  */
-export interface CloudServerFingerprint {
+export interface BaselineServerFingerprint {
   /** Server name */
   name: string;
   /** Server version */
@@ -97,6 +93,12 @@ export interface ToolCapability {
   inputSchema: Record<string, unknown>;
   /** Hash of the schema for change detection */
   schemaHash: string;
+  /** Hash of observed arguments schema (from actual calls) */
+  observedArgsSchemaHash?: string;
+  /** Consistency of observed argument schemas (0-1) */
+  observedArgsSchemaConsistency?: number;
+  /** Number of observed schema variations */
+  observedArgsSchemaVariations?: number;
   // Response fingerprinting (check mode enhancement)
   /** Fingerprint of the tool's response structure */
   responseFingerprint?: ResponseFingerprint;
@@ -196,7 +198,7 @@ export interface PersonaFinding {
 /**
  * Tool behavioral profile in baseline format.
  */
-export interface CloudToolProfile {
+export interface BaselineToolProfile {
   /** Tool name */
   name: string;
   /** Tool description */
@@ -204,7 +206,7 @@ export interface CloudToolProfile {
   /** Hash of input schema */
   schemaHash: string;
   /** Behavioral assertions */
-  assertions: CloudAssertion[];
+  assertions: BaselineAssertion[];
   /** Security notes */
   securityNotes: string[];
   /** Known limitations */
@@ -279,7 +281,7 @@ export interface BellwetherBaseline {
   metadata: BaselineMetadata;
 
   /** Server fingerprint */
-  server: CloudServerFingerprint;
+  server: BaselineServerFingerprint;
 
   /** Discovered capabilities */
   capabilities: {
@@ -292,13 +294,13 @@ export interface BellwetherBaseline {
   interviews: PersonaInterview[];
 
   /** Tool behavioral profiles */
-  toolProfiles: CloudToolProfile[];
+  toolProfiles: BaselineToolProfile[];
 
   /** Workflow results (if workflows were tested) */
   workflows?: WorkflowSignature[];
 
   /** Overall behavioral assertions */
-  assertions: CloudAssertion[];
+  assertions: BaselineAssertion[];
 
   /** Summary of findings */
   summary: string;

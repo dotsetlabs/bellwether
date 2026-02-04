@@ -105,11 +105,16 @@ Requires LLM (Ollama for free local, or OpenAI/Anthropic). Generates `AGENTS.md`
 | `explore` | LLM behavioral testing |
 | `baseline save` | Save test results as baseline |
 | `baseline compare` | Compare against baseline |
+| `baseline show` | Display baseline contents |
 | `baseline accept` | Accept drift as intentional |
 | `baseline diff` | Compare two baselines |
 | `discover` | Show server capabilities |
 | `watch` | Continuous checking on file changes |
 | `registry` | Search MCP Registry |
+| `golden` | Golden output regression testing |
+| `contract` | Contract validation (generate/validate/show) |
+| `auth` | Manage LLM provider API keys |
+| `validate-config` | Validate bellwether.yaml without running tests |
 
 ## CI/CD Exit Codes
 
@@ -120,13 +125,14 @@ Requires LLM (Ollama for free local, or OpenAI/Anthropic). Generates `AGENTS.md`
 | `2` | Warning-level changes | Warn |
 | `3` | Breaking changes | Fail |
 | `4` | Runtime error | Fail |
+| `5` | Low confidence metrics | Warn or fail |
 
 ## GitHub Action
 
 ```yaml
-- uses: dotsetlabs/bellwether@v1.0.2
+- uses: dotsetlabs/bellwether@v2.0.0
   with:
-    version: '1.0.2'
+    version: '2.0.0'
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
     fail-on-severity: 'warning'

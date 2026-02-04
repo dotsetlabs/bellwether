@@ -96,3 +96,4 @@ Config file: `bellwether.yaml` (generated via `bellwether init`)
 | 2 | Warning-level changes |
 | 3 | Breaking changes |
 | 4 | Runtime error |
+| 5 | Low confidence metrics |

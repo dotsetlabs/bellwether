@@ -4,6 +4,8 @@
  */
 
 import { createHash } from 'crypto';
+import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'fs';
+import { join } from 'path';
 import { getLogger } from '../logging/logger.js';
 import { TIME_CONSTANTS, CACHE } from '../constants.js';
 
@@ -57,6 +59,8 @@ export interface CacheConfig {
   maxSizeBytes?: number;
   /** Whether to enable cache (default: true) */
   enabled?: boolean;
+  /** Optional cache directory for persistence */
+  dir?: string;
 }
 
 /**
@@ -71,6 +75,7 @@ export class ResponseCache {
     evictions: 0,
   };
   private totalSizeBytes = 0;
+  private cacheDir?: string;
 
   constructor(config: CacheConfig = {}) {
     this.config = {
@@ -78,7 +83,12 @@ export class ResponseCache {
       maxEntries: config.maxEntries ?? CACHE.MAX_ENTRIES,
       maxSizeBytes: config.maxSizeBytes ?? 50 * 1024 * 1024, // 50MB
       enabled: config.enabled ?? true,
+      dir: config.dir ?? '',
     };
+    this.cacheDir = this.config.enabled ? this.config.dir || undefined : undefined;
+    if (this.cacheDir) {
+      this.ensureCacheDir(this.cacheDir);
+    }
   }
 
   /**
@@ -101,6 +111,13 @@ export class ResponseCache {
 
     const entry = this.cache.get(key);
     if (!entry) {
+      const diskEntry = this.loadFromDisk<T>(key);
+      if (diskEntry) {
+        this.cache.set(key, diskEntry as CacheEntry<unknown>);
+        this.totalSizeBytes += this.estimateSize(diskEntry.value);
+        this.stats.hits++;
+        return diskEntry.value as T;
+      }
       this.stats.misses++;
       return undefined;
     }
@@ -156,6 +173,8 @@ export class ResponseCache {
 
     this.cache.set(key, entry as CacheEntry<unknown>);
     logger.debug({ key, ttlMs: ttl, description: options?.description }, 'Cache entry set');
+
+    this.saveToDisk(entry as CacheEntry<unknown>);
   }
 
   /**
@@ -187,8 +206,10 @@ export class ResponseCache {
     if (entry) {
       this.totalSizeBytes -= this.estimateSize(entry.value);
       this.cache.delete(key);
+      this.deleteFromDisk(key);
       return true;
     }
+    this.deleteFromDisk(key);
     return false;
   }
 
@@ -198,6 +219,15 @@ export class ResponseCache {
   clear(): void {
     this.cache.clear();
     this.totalSizeBytes = 0;
+    if (this.cacheDir && existsSync(this.cacheDir)) {
+      try {
+        for (const file of listCacheFiles(this.cacheDir)) {
+          unlinkSync(file);
+        }
+      } catch {
+        // Ignore disk cleanup errors
+      }
+    }
     logger.debug('Cache cleared');
   }
 
@@ -279,6 +309,89 @@ export class ResponseCache {
     } catch {
       return 1000; // Default estimate for non-serializable values
     }
+  }
+
+  private ensureCacheDir(dir: string): void {
+    try {
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+      }
+    } catch (error) {
+      logger.warn({ dir, error: String(error) }, 'Failed to create cache directory');
+      this.cacheDir = undefined;
+    }
+  }
+
+  private getCachePath(key: string): string | null {
+    if (!this.cacheDir) return null;
+    return join(this.cacheDir, `${key}.json`);
+  }
+
+  private saveToDisk(entry: CacheEntry<unknown>): void {
+    const path = this.getCachePath(entry.key);
+    if (!path) return;
+    try {
+      const serialized = JSON.stringify({
+        ...entry,
+        createdAt: entry.createdAt.toISOString(),
+        lastAccessedAt: entry.lastAccessedAt.toISOString(),
+        expiresAt: entry.expiresAt.toISOString(),
+      });
+      writeFileSync(path, serialized, 'utf-8');
+    } catch (error) {
+      logger.debug({ key: entry.key, error: String(error) }, 'Failed to persist cache entry');
+    }
+  }
+
+  private loadFromDisk<T>(key: string): CacheEntry<T> | null {
+    const path = this.getCachePath(key);
+    if (!path || !existsSync(path)) return null;
+    try {
+      const raw = readFileSync(path, 'utf-8');
+      const parsed = JSON.parse(raw) as CacheEntry<T> & {
+        createdAt: string;
+        lastAccessedAt: string;
+        expiresAt: string;
+      };
+      const entry: CacheEntry<T> = {
+        ...parsed,
+        createdAt: new Date(parsed.createdAt),
+        lastAccessedAt: new Date(parsed.lastAccessedAt),
+        expiresAt: new Date(parsed.expiresAt),
+      };
+      if (new Date() > entry.expiresAt) {
+        this.deleteFromDisk(key);
+        return null;
+      }
+      entry.hitCount = (entry.hitCount ?? 0) + 1;
+      entry.lastAccessedAt = new Date();
+      this.saveToDisk(entry as CacheEntry<unknown>);
+      return entry;
+    } catch (error) {
+      logger.debug({ key, error: String(error) }, 'Failed to load cache entry');
+      return null;
+    }
+  }
+
+  private deleteFromDisk(key: string): void {
+    const path = this.getCachePath(key);
+    if (!path || !existsSync(path)) return;
+    try {
+      unlinkSync(path);
+    } catch {
+      // Ignore delete errors
+    }
+  }
+}
+
+function listCacheFiles(dir: string): string[] {
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    return entries
+      .filter((entry: { isFile: () => boolean }) => entry.isFile())
+      .map((entry: { name: string }) => join(dir, entry.name));
+  } catch {
+    return [];
   }
 }
 

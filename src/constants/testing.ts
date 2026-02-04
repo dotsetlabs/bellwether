@@ -1,44 +1,4 @@
 /**
- * Change impact analysis configuration.
- * Used by change-impact-analyzer.ts for semantic breaking change detection.
- */
-export const CHANGE_IMPACT = {
-  /** Risk weights for different schema change types (0-100 scale) */
-  RISK_WEIGHTS: {
-    parameter_removed: 100,
-    parameter_required_added: 90,
-    parameter_type_changed: 85,
-    enum_value_removed: 80,
-    constraint_tightened: 60,
-    format_changed: 50,
-    constraint_added: 40,
-    default_changed: 30,
-    constraint_removed: 20,
-    parameter_required_removed: 15,
-    enum_value_added: 10,
-    parameter_added: 10,
-    description_changed: 5,
-    constraint_relaxed: 5,
-  },
-  /** Migration complexity thresholds (number of breaking changes) */
-  COMPLEXITY_THRESHOLDS: {
-    /** 0-1 breaking changes = trivial migration */
-    trivial: 1,
-    /** 2-3 breaking changes = simple migration */
-    simple: 3,
-    /** 4-6 breaking changes = moderate migration */
-    moderate: 6,
-    // 7+ breaking changes = complex migration
-  },
-  /** Risk score thresholds for severity classification */
-  SEVERITY_THRESHOLDS: {
-    info: 20,
-    warning: 50,
-    breaking: 70,
-  },
-} as const;
-
-/**
  * Check command configuration defaults.
  * Used by check.ts and incremental-checker.ts.
  */
@@ -59,7 +19,7 @@ export const CHECK = {
 
 export const PERFORMANCE_TRACKING = {
   /** Default regression threshold (10% = tool is 10% slower) */
-  DEFAULT_REGRESSION_THRESHOLD: 0.10,
+  DEFAULT_REGRESSION_THRESHOLD: 0.1,
   /** Warning threshold for minor regressions (5%) */
   WARNING_THRESHOLD: 0.05,
   /** Minimum samples required for reliable metrics */
@@ -130,39 +90,14 @@ export const PERFORMANCE_CONFIDENCE = {
     LOW_SAMPLES: (current: number, target: number) =>
       `Run with --samples ${target - current + current} for reliable baseline`,
     /** Message when variability is too high */
-    HIGH_VARIABILITY:
-      'High variability in response times; consider investigating causes',
+    HIGH_VARIABILITY: 'High variability in response times; consider investigating causes',
     /** Message when no samples collected */
     NO_SAMPLES: 'No performance samples collected',
   } as const,
 } as const;
 
-/**
- * Deprecation lifecycle configuration.
- * Used by deprecation-tracker.ts for tool deprecation management.
- */
-
-export const DEPRECATION = {
-  /** Default configuration values */
-  DEFAULTS: {
-    /** Warn when using deprecated tools */
-    warnOnUsage: true,
-    /** Fail when using tools past their removal date */
-    failOnExpired: true,
-    /** Default grace period in days after removal date */
-    gracePeriodDays: 90,
-  },
-  /** Days thresholds for warning levels */
-  THRESHOLDS: {
-    /** Warn about upcoming removal within this many days */
-    upcomingRemovalDays: 30,
-    /** Critical warning within this many days */
-    criticalRemovalDays: 7,
-  },
-} as const;
-
 export const SCHEMA_EVOLUTION = {
-  // Timeline tracking settings (schema-evolution.ts)
+  // Schema stability settings (response-schema-tracker.ts and docs)
   /** Default maximum versions to keep per tool */
   DEFAULT_MAX_VERSIONS_PER_TOOL: 50,
   /** Default limit for "most active tools" queries */
@@ -265,93 +200,6 @@ export const ERROR_ANALYSIS = {
   MAX_RELATED_PARAMETERS: 5,
 } as const;
 
-/**
- * Migration guide generation configuration.
- * Used by migration-generator.ts for auto-generating migration guides.
- */
-
-export const MIGRATION_GUIDE = {
-  /** Maximum code examples per migration step */
-  MAX_CODE_EXAMPLES_PER_STEP: 3,
-  /** Maximum steps in a migration guide */
-  MAX_MIGRATION_STEPS: 20,
-  /** Minimum changes required to generate a guide */
-  MIN_CHANGES_FOR_GUIDE: 1,
-  /** Effort estimation thresholds (number of breaking changes) */
-  EFFORT_THRESHOLDS: {
-    /** 0-1 breaking changes = trivial */
-    trivial: 1,
-    /** 2-3 breaking changes = minor */
-    minor: 3,
-    /** 4-6 breaking changes = moderate */
-    moderate: 6,
-    // 7+ breaking changes = major
-  },
-} as const;
-
-/**
- * Auto-generated test scenario configuration.
- * Used by scenario-generator.ts for generating test scenarios.
- */
-
-export const SCENARIO_GENERATION = {
-  /** Maximum happy path scenarios per tool */
-  MAX_HAPPY_PATH_SCENARIOS: 5,
-  /** Maximum edge case scenarios per tool */
-  MAX_EDGE_CASE_SCENARIOS: 10,
-  /** Maximum error case scenarios per tool */
-  MAX_ERROR_CASE_SCENARIOS: 5,
-  /** Maximum security test scenarios per tool */
-  MAX_SECURITY_SCENARIOS: 5,
-  /** Default minimum coverage percentage */
-  DEFAULT_MIN_COVERAGE: 80,
-  /** Common SQL injection payloads for testing */
-  SQL_INJECTION_PAYLOADS: [
-    "'; DROP TABLE users; --",
-    "1' OR '1'='1",
-    "1; SELECT * FROM users",
-  ] as readonly string[],
-  /** Common XSS payloads for testing */
-  XSS_PAYLOADS: [
-    '<script>alert("xss")</script>',
-    '"><img src=x onerror=alert(1)>',
-    "javascript:alert('xss')",
-  ] as readonly string[],
-  /** Common path traversal payloads for testing */
-  PATH_TRAVERSAL_PAYLOADS: [
-    '../../../etc/passwd',
-    '..\\..\\..\\windows\\system32\\config\\sam',
-    '/etc/passwd',
-  ] as readonly string[],
-  /** Categories of test scenarios */
-  CATEGORIES: ['happy_path', 'edge_cases', 'error_handling', 'security'] as readonly string[],
-} as const;
-
-/**
- * PR comment formatting configuration.
- * Used by pr-comment-generator.ts for generating GitHub PR comments.
- */
-
-export const PR_COMMENTS = {
-  /** Maximum tools to show in detailed section */
-  MAX_DETAILED_TOOLS: 10,
-  /** Maximum changes to show per tool */
-  MAX_CHANGES_PER_TOOL: 5,
-  /** Maximum workflows to show in affected section */
-  MAX_AFFECTED_WORKFLOWS: 5,
-  /** Maximum code examples in migration section */
-  MAX_MIGRATION_EXAMPLES: 3,
-  /** Truncation length for long values */
-  VALUE_TRUNCATE_LENGTH: 50,
-  /** Badge colors for different severity levels */
-  BADGE_COLORS: {
-    breaking: 'red',
-    warning: 'orange',
-    info: 'blue',
-    none: 'green',
-  } as const,
-} as const;
-
 // ==================== Schema Testing (Check Mode) ====================
 
 /**
@@ -367,7 +215,7 @@ export const SCHEMA_TESTING = {
   MAX_TESTS_PER_TOOL: 12,
   /** Minimum tests to generate even for simple tools */
   MIN_TESTS_PER_TOOL: 3,
-  
+
   /** Boundary test values for various types */
   BOUNDARY_VALUES: {
     /** Empty string for string boundary testing */
@@ -393,7 +241,7 @@ export const SCHEMA_TESTING = {
     /** Empty object */
     EMPTY_OBJECT: {} as Record<string, unknown>,
   },
-  
+
   /** Values for type coercion testing */
   TYPE_COERCION: {
     /** String that looks like a number */
@@ -409,13 +257,10 @@ export const SCHEMA_TESTING = {
     /** String "undefined" */
     UNDEFINED_STRING: 'undefined',
   },
-  
+
   /** Invalid enum value to use when testing enum violations */
-  INVALID_ENUM_VALUES: [
-    'INVALID_ENUM_VALUE_12345',
-    '__not_a_valid_option__',
-  ] as readonly string[],
-  
+  INVALID_ENUM_VALUES: ['INVALID_ENUM_VALUE_12345', '__not_a_valid_option__'] as readonly string[],
+
   /** Test names for different test categories (used in descriptions) */
   CATEGORY_DESCRIPTIONS: {
     HAPPY_PATH: 'Happy path test',
@@ -428,7 +273,7 @@ export const SCHEMA_TESTING = {
     ERROR_HANDLING: 'Error handling test',
     MISSING_REQUIRED: 'Missing required parameter test',
   } as const,
-  
+
   /** Array test configuration */
   ARRAY_TESTS: {
     /** Number of items for "many items" test */
@@ -453,9 +298,7 @@ export const OUTCOME_ASSESSMENT = {
    * Test categories that expect errors (validation tests).
    * Tools should reject these inputs - rejection counts as success.
    */
-  EXPECTS_ERROR_CATEGORIES: [
-    'error_handling',
-  ] as const,
+  EXPECTS_ERROR_CATEGORIES: ['error_handling'] as const,
 
   /**
    * Test descriptions that indicate error-expectation.
@@ -478,18 +321,13 @@ export const OUTCOME_ASSESSMENT = {
    * Categories where tests always expect success (happy path).
    * Errors on these tests indicate actual tool problems.
    */
-  EXPECTS_SUCCESS_CATEGORIES: [
-    'happy_path',
-  ] as const,
+  EXPECTS_SUCCESS_CATEGORIES: ['happy_path'] as const,
 
   /**
    * Categories where outcome is unpredictable (edge cases).
    * Either success or error is acceptable.
    */
-  EITHER_OUTCOME_CATEGORIES: [
-    'edge_case',
-    'boundary',
-  ] as const,
+  EITHER_OUTCOME_CATEGORIES: ['edge_case', 'boundary'] as const,
 
   /**
    * Reliability metrics calculation.
@@ -1058,7 +896,8 @@ export const EXTERNAL_DEPENDENCIES = {
       /** HTTP status codes typical of Plaid errors */
       statusCodes: [400, 401, 403] as readonly number[],
       /** Remediation suggestion for Plaid errors */
-      remediation: 'Configure Plaid sandbox credentials (PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV=sandbox)',
+      remediation:
+        'Configure Plaid sandbox credentials (PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV=sandbox)',
       /** Credential expectations for configuration checks */
       credentials: {
         requiredEnv: ['PLAID_CLIENT_ID', 'PLAID_SECRET'],
@@ -1072,13 +911,13 @@ export const EXTERNAL_DEPENDENCIES = {
       name: 'Stripe',
       /** Patterns in tool names/descriptions that indicate Stripe usage (high confidence = has 'stripe' in name) */
       toolPatterns: [
-        /stripe/i,                    // High confidence: explicit Stripe reference
-        /payment_intent/i,            // High confidence: Stripe-specific terminology
-        /setup_intent/i,              // High confidence: Stripe-specific terminology
-        /checkout_session/i,          // High confidence: Stripe-specific terminology
-        /stripe_customer/i,           // High confidence: prefixed with stripe
-        /stripe_charge/i,             // High confidence: prefixed with stripe
-        /stripe_subscription/i,       // High confidence: prefixed with stripe
+        /stripe/i, // High confidence: explicit Stripe reference
+        /payment_intent/i, // High confidence: Stripe-specific terminology
+        /setup_intent/i, // High confidence: Stripe-specific terminology
+        /checkout_session/i, // High confidence: Stripe-specific terminology
+        /stripe_customer/i, // High confidence: prefixed with stripe
+        /stripe_charge/i, // High confidence: prefixed with stripe
+        /stripe_subscription/i, // High confidence: prefixed with stripe
       ] as readonly RegExp[],
       /** Low confidence patterns - may match non-Stripe tools (removed: payment, charge, subscription) */
       errorPatterns: [
@@ -1121,7 +960,8 @@ export const EXTERNAL_DEPENDENCIES = {
         /CredentialsError/i,
       ] as readonly RegExp[],
       statusCodes: [403, 404, 400] as readonly number[],
-      remediation: 'Configure AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)',
+      remediation:
+        'Configure AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)',
       credentials: {
         requiredEnv: ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'],
         optionalEnv: ['AWS_REGION'],
@@ -1134,13 +974,13 @@ export const EXTERNAL_DEPENDENCIES = {
       name: 'OpenAI',
       /** Patterns in tool names that indicate OpenAI usage (removed generic: completion, embedding) */
       toolPatterns: [
-        /openai/i,                   // High confidence: explicit OpenAI reference
-        /gpt[-_]?[34]/i,             // High confidence: GPT model reference
-        /chatgpt/i,                  // High confidence: ChatGPT reference
-        /openai_completion/i,        // High confidence: prefixed with openai
-        /openai_embedding/i,         // High confidence: prefixed with openai
-        /dall[-_]?e/i,               // High confidence: OpenAI image model
-        /whisper/i,                  // High confidence: OpenAI audio model
+        /openai/i, // High confidence: explicit OpenAI reference
+        /gpt[-_]?[34]/i, // High confidence: GPT model reference
+        /chatgpt/i, // High confidence: ChatGPT reference
+        /openai_completion/i, // High confidence: prefixed with openai
+        /openai_embedding/i, // High confidence: prefixed with openai
+        /dall[-_]?e/i, // High confidence: OpenAI image model
+        /whisper/i, // High confidence: OpenAI audio model
       ] as readonly RegExp[],
       errorPatterns: [
         /openai\.com/i,
@@ -1162,10 +1002,7 @@ export const EXTERNAL_DEPENDENCIES = {
     },
     anthropic: {
       name: 'Anthropic',
-      toolPatterns: [
-        /anthropic/i,
-        /claude/i,
-      ] as readonly RegExp[],
+      toolPatterns: [/anthropic/i, /claude/i] as readonly RegExp[],
       errorPatterns: [
         /anthropic\.com/i,
         /invalid_api_key/i,
@@ -1184,11 +1021,7 @@ export const EXTERNAL_DEPENDENCIES = {
     },
     firebase: {
       name: 'Firebase',
-      toolPatterns: [
-        /firebase/i,
-        /firestore/i,
-        /realtime.*database/i,
-      ] as readonly RegExp[],
+      toolPatterns: [/firebase/i, /firestore/i, /realtime.*database/i] as readonly RegExp[],
       errorPatterns: [
         /firebase/i,
         /firestore/i,
@@ -1209,10 +1042,10 @@ export const EXTERNAL_DEPENDENCIES = {
       name: 'Twilio',
       /** Patterns in tool names that indicate Twilio usage (removed generic: sms) */
       toolPatterns: [
-        /twilio/i,                   // High confidence: explicit Twilio reference
-        /twilio_sms/i,               // High confidence: prefixed with twilio
-        /twilio_call/i,              // High confidence: prefixed with twilio
-        /twilio_message/i,           // High confidence: prefixed with twilio
+        /twilio/i, // High confidence: explicit Twilio reference
+        /twilio_sms/i, // High confidence: prefixed with twilio
+        /twilio_call/i, // High confidence: prefixed with twilio
+        /twilio_message/i, // High confidence: prefixed with twilio
       ] as readonly RegExp[],
       errorPatterns: [
         /twilio\.com/i,
@@ -1233,15 +1066,11 @@ export const EXTERNAL_DEPENDENCIES = {
       name: 'SendGrid',
       /** Patterns in tool names that indicate SendGrid usage (removed generic: email.*send) */
       toolPatterns: [
-        /sendgrid/i,                 // High confidence: explicit SendGrid reference
-        /sendgrid_email/i,           // High confidence: prefixed with sendgrid
-        /sendgrid_send/i,            // High confidence: prefixed with sendgrid
+        /sendgrid/i, // High confidence: explicit SendGrid reference
+        /sendgrid_email/i, // High confidence: prefixed with sendgrid
+        /sendgrid_send/i, // High confidence: prefixed with sendgrid
       ] as readonly RegExp[],
-      errorPatterns: [
-        /sendgrid\.com/i,
-        /api\.sendgrid/i,
-        /INVALID_API_KEY/i,
-      ] as readonly RegExp[],
+      errorPatterns: [/sendgrid\.com/i, /api\.sendgrid/i, /INVALID_API_KEY/i] as readonly RegExp[],
       statusCodes: [401, 403] as readonly number[],
       remediation: 'Configure SendGrid API key (SENDGRID_API_KEY)',
       credentials: {
@@ -1256,12 +1085,12 @@ export const EXTERNAL_DEPENDENCIES = {
       name: 'GitHub',
       /** Patterns in tool names that indicate GitHub usage (removed generic: repository, pull.*request) */
       toolPatterns: [
-        /github/i,                   // High confidence: explicit GitHub reference
-        /gh_/i,                      // High confidence: GitHub CLI prefix
-        /github_repo/i,              // High confidence: prefixed with github
-        /github_pr/i,                // High confidence: prefixed with github
-        /github_issue/i,             // High confidence: prefixed with github
-        /create_pull_request/i,      // High confidence: GitHub-specific action
+        /github/i, // High confidence: explicit GitHub reference
+        /gh_/i, // High confidence: GitHub CLI prefix
+        /github_repo/i, // High confidence: prefixed with github
+        /github_pr/i, // High confidence: prefixed with github
+        /github_issue/i, // High confidence: prefixed with github
+        /create_pull_request/i, // High confidence: GitHub-specific action
       ] as readonly RegExp[],
       errorPatterns: [
         /api\.github\.com/i,
@@ -1283,14 +1112,14 @@ export const EXTERNAL_DEPENDENCIES = {
       name: 'Database',
       /** Patterns in tool names that indicate database usage (removed generic: sql) */
       toolPatterns: [
-        /postgres/i,                 // High confidence: specific database
-        /postgresql/i,               // High confidence: specific database
-        /mysql/i,                    // High confidence: specific database
-        /mongodb/i,                  // High confidence: specific database
-        /redis/i,                    // High confidence: specific cache/database
-        /database_query/i,           // High confidence: explicit database action
-        /db_connect/i,               // High confidence: database connection
-        /execute_sql/i,              // High confidence: explicit SQL execution
+        /postgres/i, // High confidence: specific database
+        /postgresql/i, // High confidence: specific database
+        /mysql/i, // High confidence: specific database
+        /mongodb/i, // High confidence: specific database
+        /redis/i, // High confidence: specific cache/database
+        /database_query/i, // High confidence: explicit database action
+        /db_connect/i, // High confidence: database connection
+        /execute_sql/i, // High confidence: explicit SQL execution
       ] as readonly RegExp[],
       errorPatterns: [
         /ECONNREFUSED/i,
@@ -1444,8 +1273,8 @@ export const CONFIDENCE_INDICATORS = {
 export const DOCUMENTATION_SCORING = {
   /** Component weights for overall score (should sum to 1.0) */
   WEIGHTS: {
-    descriptionCoverage: 0.30,
-    descriptionQuality: 0.30,
+    descriptionCoverage: 0.3,
+    descriptionQuality: 0.3,
     parameterDocumentation: 0.25,
     exampleCoverage: 0.15,
   } as const,
@@ -1491,7 +1320,8 @@ export const DOCUMENTATION_SCORING = {
   IMPERATIVE_PATTERN: /^[A-Z][a-z]+s?\s/,
 
   /** Pattern to detect behavior/return value description */
-  BEHAVIOR_PATTERN: /returns?|provides?|gets?|creates?|deletes?|updates?|retrieves?|sends?|fetches?/i,
+  BEHAVIOR_PATTERN:
+    /returns?|provides?|gets?|creates?|deletes?|updates?|retrieves?|sends?|fetches?/i,
 
   /** Pattern to detect examples or specific details */
   EXAMPLES_PATTERN: /e\.g\.|example|such as|like|for instance/i,
@@ -1509,118 +1339,6 @@ export const DOCUMENTATION_SCORING = {
 
   /** Threshold for suggesting examples (tools without examples / total tools) */
   EXAMPLES_SUGGESTION_THRESHOLD: 0.5,
-} as const;
-
-// ==================== AI Agent Compatibility Scoring ====================
-
-/**
- * AI Agent Compatibility scoring configuration.
- * Used by ai-compatibility-scorer.ts for evaluating how well
- * an MCP server is designed for AI agent consumption.
- *
- * Scoring factors:
- * - Description clarity (20%): LLM understanding
- * - Parameter naming (15%): Semantic inference
- * - Error message quality (15%): Actionable errors
- * - Example completeness (20%): Non-truncated examples
- * - Workflow documentation (15%): Multi-step guidance
- * - Response predictability (15%): Schema stability
- */
-
-export const AI_COMPATIBILITY = {
-  /** Component weights for overall score (should sum to 1.0) */
-  WEIGHTS: {
-    descriptionClarity: 0.20,
-    parameterNaming: 0.15,
-    errorMessageQuality: 0.15,
-    exampleCompleteness: 0.20,
-    workflowDocumentation: 0.15,
-    responsePredictability: 0.15,
-  } as const,
-
-  /** Grade thresholds (minimum score for each grade) */
-  GRADE_THRESHOLDS: {
-    A: 90,
-    B: 80,
-    C: 70,
-    D: 60,
-    F: 0,
-  } as const,
-
-  /** Description quality scoring */
-  DESCRIPTION: {
-    /** Minimum acceptable description length */
-    MIN_LENGTH: 50,
-    /** Good description length */
-    GOOD_LENGTH: 100,
-    /** Pattern to detect action verb at start */
-    ACTION_VERB_PATTERN: /^(Get|Create|Update|Delete|List|Search|Find|Fetch|Send|Post|Retrieve|Query|Export|Import|Generate|Calculate|Validate|Check|Convert|Parse|Format|Transform|Add|Remove|Set|Clear|Reset|Initialize|Connect|Disconnect|Start|Stop|Enable|Disable|Sync|Refresh|Load|Save|Upload|Download|Process|Execute|Run|Call|Invoke|Register|Unregister|Subscribe|Unsubscribe|Publish)\s/i,
-    /** Pattern to detect purpose/behavior explanation */
-    PURPOSE_PATTERN: /returns?|provides?|retrieves?|generates?|creates?|enables?|allows?|performs?/i,
-    /** Pattern to detect input/output mentions */
-    IO_PATTERN: /takes?|accepts?|requires?|outputs?|returns?|produces?/i,
-    /** Points for various description qualities */
-    POINTS: {
-      /** Points for minimum length */
-      MIN_LENGTH: 20,
-      /** Points for good length */
-      GOOD_LENGTH: 30,
-      /** Points for action verb */
-      ACTION_VERB: 25,
-      /** Points for purpose explanation */
-      PURPOSE: 25,
-      /** Points for I/O mention */
-      IO_MENTION: 20,
-    } as const,
-  } as const,
-
-  /** Parameter naming quality scoring */
-  PARAMETER: {
-    /** Generic/bad parameter names to flag */
-    BAD_NAMES: ['data', 'value', 'input', 'output', 'param', 'arg', 'x', 'y', 'n', 'i', 'val', 'obj', 'item', 'thing', 'stuff'] as readonly string[],
-    /** Minimum acceptable parameter name length */
-    MIN_NAME_LENGTH: 2,
-  } as const,
-
-  /** Error message quality scoring */
-  ERROR: {
-    /** Minimum error message length for quality */
-    MIN_MESSAGE_LENGTH: 20,
-    /** Pattern to detect actionable error content */
-    ACTIONABLE_PATTERN: /try|use|provide|specify|check|ensure|make sure|should|must|need|require|expected|format|valid/i,
-    /** Pattern to detect remediation hints */
-    REMEDIATION_PATTERN: /example|e\.g\.|such as|instead|correct|fix|solution|hint/i,
-    /** Default score when no errors observed */
-    DEFAULT_SCORE: 70,
-  } as const,
-
-  /** Example completeness scoring */
-  EXAMPLE: {
-    /** Weight for coverage in score */
-    COVERAGE_WEIGHT: 0.6,
-    /** Weight for quality (non-truncated) in score */
-    QUALITY_WEIGHT: 0.4,
-  } as const,
-
-  /** Workflow documentation scoring */
-  WORKFLOW: {
-    /** Pattern to detect sequence hints */
-    SEQUENCE_PATTERN: /first|then|after|before|next|followed by|prior to|subsequently|finally|once|when/i,
-    /** Pattern to detect dependency hints */
-    DEPENDENCY_PATTERN: /requires?|needs?|depends? on|must have|expects?|assumes?|prerequisite/i,
-  } as const,
-
-  /** Response predictability scoring */
-  RESPONSE: {
-    /** Default score when no evolution data */
-    DEFAULT_SCORE: 80,
-  } as const,
-
-  /** Maximum recommendations to generate */
-  MAX_RECOMMENDATIONS: 5,
-
-  /** Score threshold below which to recommend improvements */
-  RECOMMENDATION_THRESHOLD: 80,
 } as const;
 
 // ==================== Contract Testing ====================
@@ -1684,102 +1402,6 @@ export const CONTRACT_TESTING = {
   } as const,
 } as const;
 
-// ==================== Regression Risk Scoring ====================
-
-/**
- * Regression risk scoring configuration.
- * Used by risk-scorer.ts for prioritizing fixes based on
- * weighted risk factors.
- */
-
-export const REGRESSION_RISK = {
-  /** Risk factor weights (should sum to 1.0) */
-  WEIGHTS: {
-    /** Weight for breaking change severity */
-    breakingChangeSeverity: 0.35,
-    /** Weight for affected tool importance */
-    toolImportance: 0.25,
-    /** Weight for error rate delta */
-    errorRateDelta: 0.15,
-    /** Weight for performance regression */
-    performanceRegression: 0.15,
-    /** Weight for security posture changes */
-    securityPosture: 0.10,
-  } as const,
-
-  /** Risk level thresholds (minimum score for each level) */
-  LEVEL_THRESHOLDS: {
-    critical: 80,
-    high: 60,
-    medium: 40,
-    low: 20,
-    info: 0,
-  } as const,
-
-  /** Breaking change severity scores */
-  BREAKING_SCORES: {
-    /** Score for removed tool */
-    toolRemoved: 100,
-    /** Score for removed required parameter */
-    requiredParamRemoved: 90,
-    /** Score for type change */
-    typeChanged: 80,
-    /** Score for removed enum value */
-    enumValueRemoved: 70,
-    /** Score for tightened constraint */
-    constraintTightened: 50,
-    /** Score for added required parameter */
-    requiredParamAdded: 40,
-  } as const,
-
-  /** Tool importance indicators (patterns in descriptions) */
-  IMPORTANCE_PATTERNS: {
-    /** Patterns indicating high-frequency tools */
-    highFrequency: [/primary|main|core|essential|critical|frequently/i],
-    /** Patterns indicating low-frequency tools */
-    lowFrequency: [/rarely|admin|debug|internal|deprecated/i],
-  } as const,
-
-  /** Error rate change thresholds */
-  ERROR_RATE: {
-    /** Threshold for significant increase (%) */
-    SIGNIFICANT_INCREASE: 10,
-    /** Threshold for critical increase (%) */
-    CRITICAL_INCREASE: 25,
-    /** Base score for error rate calculation */
-    BASE_SCORE: 50,
-  } as const,
-
-  /** Performance regression scoring */
-  PERFORMANCE: {
-    /** Threshold for minor regression (%) */
-    MINOR_REGRESSION: 10,
-    /** Threshold for major regression (%) */
-    MAJOR_REGRESSION: 25,
-    /** Threshold for critical regression (%) */
-    CRITICAL_REGRESSION: 50,
-    /** Scores for each threshold */
-    SCORES: {
-      minor: 30,
-      major: 60,
-      critical: 90,
-    } as const,
-  } as const,
-
-  /** Security change scoring */
-  SECURITY: {
-    /** Score for new vulnerability */
-    NEW_VULNERABILITY: 100,
-    /** Score for resolved vulnerability */
-    RESOLVED_VULNERABILITY: -20,
-    /** Score for severity increase */
-    SEVERITY_INCREASE: 50,
-  } as const,
-
-  /** Maximum recommendations to include */
-  MAX_RECOMMENDATIONS: 5,
-} as const;
-
 // ==================== Smart Value Generation ====================
 
 /**
@@ -1794,11 +1416,7 @@ export const SMART_VALUE_GENERATION = {
   /** Geographic coordinate patterns and defaults */
   COORDINATES: {
     /** Patterns that indicate latitude fields */
-    LATITUDE_PATTERNS: [
-      /^lat(itude)?$/i,
-      /_lat$/i,
-      /lat_/i,
-    ] as readonly RegExp[],
+    LATITUDE_PATTERNS: [/^lat(itude)?$/i, /_lat$/i, /lat_/i] as readonly RegExp[],
 
     /** Patterns that indicate longitude fields */
     LONGITUDE_PATTERNS: [
@@ -1859,18 +1477,10 @@ export const SMART_VALUE_GENERATION = {
   /** Enhanced ID field patterns and defaults */
   IDENTIFIERS: {
     /** Patterns that indicate UUID format */
-    UUID_PATTERNS: [
-      /uuid$/i,
-      /guid$/i,
-      /format.*uuid/i,
-    ] as readonly RegExp[],
+    UUID_PATTERNS: [/uuid$/i, /guid$/i, /format.*uuid/i] as readonly RegExp[],
 
     /** Patterns that indicate numeric IDs */
-    NUMERIC_ID_PATTERNS: [
-      /^\d+$/,
-      /numeric.*id/i,
-      /integer.*id/i,
-    ] as readonly RegExp[],
+    NUMERIC_ID_PATTERNS: [/^\d+$/, /numeric.*id/i, /integer.*id/i] as readonly RegExp[],
 
     /** Default ID values for different formats */
     DEFAULTS: {
@@ -1884,19 +1494,10 @@ export const SMART_VALUE_GENERATION = {
   /** Resource name patterns */
   RESOURCE_NAMES: {
     /** Patterns that indicate file names */
-    FILE_PATTERNS: [
-      /^file(name)?$/i,
-      /_file$/i,
-      /^filename$/i,
-    ] as readonly RegExp[],
+    FILE_PATTERNS: [/^file(name)?$/i, /_file$/i, /^filename$/i] as readonly RegExp[],
 
     /** Patterns that indicate directory/path */
-    PATH_PATTERNS: [
-      /^path$/i,
-      /^dir(ectory)?$/i,
-      /_path$/i,
-      /_dir$/i,
-    ] as readonly RegExp[],
+    PATH_PATTERNS: [/^path$/i, /^dir(ectory)?$/i, /_path$/i, /_dir$/i] as readonly RegExp[],
 
     /** Default values */
     DEFAULTS: {
@@ -1909,12 +1510,7 @@ export const SMART_VALUE_GENERATION = {
   /** Account/user patterns */
   ACCOUNT: {
     /** Patterns for account identifiers */
-    PATTERNS: [
-      /^account/i,
-      /^user/i,
-      /_account$/i,
-      /_user$/i,
-    ] as readonly RegExp[],
+    PATTERNS: [/^account/i, /^user/i, /_account$/i, /_user$/i] as readonly RegExp[],
 
     /** Default values */
     DEFAULTS: {
@@ -1935,12 +1531,7 @@ export const SMART_VALUE_GENERATION = {
     ] as readonly RegExp[],
 
     /** Patterns for offset/page fields */
-    OFFSET_PATTERNS: [
-      /^offset$/i,
-      /^skip$/i,
-      /^page$/i,
-      /^start$/i,
-    ] as readonly RegExp[],
+    OFFSET_PATTERNS: [/^offset$/i, /^skip$/i, /^page$/i, /^start$/i] as readonly RegExp[],
 
     /** Default values */
     DEFAULTS: {
@@ -1949,71 +1540,4 @@ export const SMART_VALUE_GENERATION = {
       page: 1,
     } as const,
   } as const,
-} as const;
-
-// ==================== Intelligent Test Pruning ====================
-
-/**
- * Intelligent test pruning configuration.
- * Used to skip unnecessary tests based on tool characteristics
- * and testing history.
- */
-
-export const TEST_PRUNING = {
-  /** Test categories that can be pruned */
-  CATEGORIES: {
-    boundary: 'boundary',
-    enum: 'enum',
-    optionalCombinations: 'optional_combinations',
-    errorHandling: 'error_handling',
-    happyPath: 'happy_path',
-    security: 'security',
-    semantic: 'semantic',
-  } as const,
-
-  /** Categories that should always run */
-  ALWAYS_RUN: ['happy_path', 'error_handling'] as readonly string[],
-
-  /** Tool prioritization weights */
-  PRIORITY_WEIGHTS: {
-    /** Weight for previous error history */
-    errorHistory: 0.30,
-    /** Weight for external dependencies */
-    externalDependency: 0.25,
-    /** Weight for schema complexity */
-    schemaComplexity: 0.20,
-    /** Weight for time since last test */
-    timeSinceLastTest: 0.15,
-    /** Weight for change frequency */
-    changeFrequency: 0.10,
-  } as const,
-
-  /** Schema complexity thresholds */
-  SCHEMA_COMPLEXITY: {
-    /** Number of parameters for "complex" classification */
-    HIGH_PARAM_COUNT: 10,
-    /** Number of nested levels for "complex" classification */
-    HIGH_NESTING_DEPTH: 3,
-    /** Number of required params for priority boost */
-    MANY_REQUIRED_PARAMS: 5,
-  } as const,
-
-  /** Historical success thresholds */
-  SUCCESS_HISTORY: {
-    /** Success rate threshold to reduce testing (%) */
-    HIGH_SUCCESS_THRESHOLD: 95,
-    /** Number of consecutive successes to consider stable */
-    STABLE_RUN_COUNT: 5,
-  } as const,
-
-  /** Time-based thresholds */
-  TIME_THRESHOLDS: {
-    /** Hours since last test to increase priority */
-    STALE_HOURS: 168, // 1 week
-    /** Hours since last test for maximum priority */
-    VERY_STALE_HOURS: 720, // 30 days
-  } as const,
-
-  /** Maximum tests to skip per tool (safety limit) */
-  MAX_SKIPPED_CATEGORIES_PER_TOOL: 3,
 } as const;

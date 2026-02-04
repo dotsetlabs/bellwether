@@ -25,17 +25,9 @@ function validateSecureUrl(url: string): void {
   }
 }
 
-// Type for event listener functions
-type SSEEventListener = (event: Event) => void;
-
-// Type for EventSource-like objects
-interface EventSourceLike {
-  onopen: ((event: Event) => void) | null;
-  onmessage: ((event: MessageEvent) => void) | null;
-  onerror: ((event: Event) => void) | null;
-  addEventListener(type: string, listener: SSEEventListener): void;
-  close(): void;
-  readyState: number;
+interface SSEEvent {
+  event: string;
+  data: string;
 }
 
 /**
@@ -57,6 +49,85 @@ export interface SSETransportConfig extends BaseTransportConfig {
 }
 
 /**
+ * Minimal SSE parser for streaming responses.
+ */
+class SSEParser {
+  private buffer = '';
+  private eventName = 'message';
+  private dataLines: string[] = [];
+
+  feed(chunk: string): SSEEvent[] {
+    const events: SSEEvent[] = [];
+    this.buffer += chunk;
+
+    let newlineIndex = this.buffer.indexOf('\n');
+    while (newlineIndex !== -1) {
+      const rawLine = this.buffer.slice(0, newlineIndex);
+      this.buffer = this.buffer.slice(newlineIndex + 1);
+      const line = rawLine.replace(/\r$/, '');
+
+      // Empty line signals end of event
+      if (line === '') {
+        if (this.dataLines.length > 0) {
+          events.push({
+            event: this.eventName || 'message',
+            data: this.dataLines.join('\n'),
+          });
+        }
+        this.eventName = 'message';
+        this.dataLines = [];
+        newlineIndex = this.buffer.indexOf('\n');
+        continue;
+      }
+
+      // Comment/heartbeat
+      if (line.startsWith(':')) {
+        newlineIndex = this.buffer.indexOf('\n');
+        continue;
+      }
+
+      if (line.startsWith('event:')) {
+        this.eventName = line.slice('event:'.length).trim() || 'message';
+      } else if (line.startsWith('data:')) {
+        this.dataLines.push(line.slice('data:'.length).trimStart());
+      }
+
+      newlineIndex = this.buffer.indexOf('\n');
+    }
+
+    return events;
+  }
+
+  flush(): SSEEvent[] {
+    const events: SSEEvent[] = [];
+
+    if (this.buffer.length > 0) {
+      const line = this.buffer.replace(/\r$/, '');
+      this.buffer = '';
+
+      if (line.startsWith(':')) {
+        // Ignore comments
+      } else if (line.startsWith('event:')) {
+        this.eventName = line.slice('event:'.length).trim() || 'message';
+      } else if (line.startsWith('data:')) {
+        this.dataLines.push(line.slice('data:'.length).trimStart());
+      }
+    }
+
+    if (this.dataLines.length > 0) {
+      events.push({
+        event: this.eventName || 'message',
+        data: this.dataLines.join('\n'),
+      });
+      this.eventName = 'message';
+      this.dataLines = [];
+    }
+
+    return events;
+  }
+}
+
+/**
  * SSETransport connects to MCP servers over HTTP using Server-Sent Events.
  *
  * This transport is used for remote MCP servers that expose an SSE endpoint.
@@ -68,7 +139,7 @@ export interface SSETransportConfig extends BaseTransportConfig {
  * - POST {baseUrl}/message - Endpoint for sending messages
  */
 export class SSETransport extends BaseTransport {
-  private eventSource: EventSourceLike | null = null;
+  private streamAbortController: AbortController | null = null;
   private abortController: AbortController | null = null;
   private connected = false;
   private reconnectAttempts = 0;
@@ -116,74 +187,43 @@ export class SSETransport extends BaseTransport {
     // Reset closing flag on fresh connection
     this.isClosing = false;
 
-    // EventSource is available in browsers natively and in Node.js 18+.
-    // We use globalThis to check availability at runtime, requiring `any` cast
-    // because TypeScript's lib.dom.d.ts doesn't type globalThis.EventSource.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const EventSourceImpl = (globalThis as any).EventSource as
-      | (new (url: string) => EventSourceLike)
-      | undefined;
-    if (!EventSourceImpl) {
-      throw new Error(
-        'EventSource is not available. ' +
-          'SSE transport requires Node.js 18+ or a browser environment. ' +
-          'For older Node.js versions, consider using streamable-http transport instead.'
-      );
+    const sseUrl = `${this.baseUrl}/sse`;
+    this.log('Connecting to SSE endpoint', { url: sseUrl });
+
+    // Build URL with sessionId as query param for compatibility
+    let url = sseUrl;
+    if (this.sessionId) {
+      const separator = url.includes('?') ? '&' : '?';
+      url = `${url}${separator}sessionId=${encodeURIComponent(this.sessionId)}`;
     }
 
-    return new Promise((resolve, reject) => {
-      const sseUrl = `${this.baseUrl}/sse`;
-      this.log('Connecting to SSE endpoint', { url: sseUrl });
+    this.streamAbortController = new AbortController();
 
-      try {
-        // Create EventSource - headers need to be passed via URL params or custom implementation
-        // Note: Standard EventSource doesn't support custom headers
-        // For authenticated endpoints, session ID should be passed via URL param
-        let url = sseUrl;
-        if (this.sessionId) {
-          const separator = url.includes('?') ? '&' : '?';
-          url = `${url}${separator}sessionId=${encodeURIComponent(this.sessionId)}`;
-        }
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'text/event-stream',
+        ...this.headers,
+      },
+      signal: this.streamAbortController.signal,
+    });
 
-        this.eventSource = new EventSourceImpl(url);
+    if (!response.ok) {
+      throw new Error(`Failed to connect to SSE endpoint: HTTP ${response.status}`);
+    }
 
-        this.eventSource.onopen = () => {
-          this.log('SSE connection opened');
-          this.connected = true;
-          this.reconnectAttempts = 0;
-          resolve();
-        };
+    if (!response.body) {
+      throw new Error('SSE response body is empty');
+    }
 
-        this.eventSource.onmessage = (event: MessageEvent) => {
-          this.handleSSEMessage(event);
-        };
+    this.connected = true;
+    this.reconnectAttempts = 0;
 
-        // Handle specific event types from MCP SSE protocol
-        this.eventSource.addEventListener('endpoint', (event: Event) => {
-          // Server tells us where to send messages
-          const messageEvent = event as MessageEvent;
-          this.messageEndpoint = messageEvent.data;
-          this.log('Received message endpoint', { endpoint: this.messageEndpoint ?? '' });
-        });
-
-        this.eventSource.addEventListener('message', (event: Event) => {
-          this.handleSSEMessage(event as MessageEvent);
-        });
-
-        this.eventSource.onerror = (error: Event) => {
-          this.log('SSE error', { type: error.type });
-
-          if (!this.connected) {
-            // Connection failed on initial connect
-            reject(new Error('Failed to connect to SSE endpoint'));
-            return;
-          }
-
-          // Handle reconnection for established connections
-          this.handleReconnect();
-        };
-      } catch (error) {
-        reject(error);
+    // Start streaming in background
+    this.readSSEStream(response).catch((error) => {
+      this.log('SSE stream error', { error: String(error) });
+      if (!this.isClosing) {
+        this.handleReconnect();
       }
     });
   }
@@ -191,12 +231,18 @@ export class SSETransport extends BaseTransport {
   /**
    * Handle an incoming SSE message.
    */
-  private handleSSEMessage(event: MessageEvent): void {
+  private handleSSEMessage(event: SSEEvent): void {
     try {
       const data = event.data;
 
       // Skip empty messages or heartbeats
       if (!data || data === ':') {
+        return;
+      }
+
+      if (event.event === 'endpoint') {
+        this.messageEndpoint = data;
+        this.log('Received message endpoint', { endpoint: this.messageEndpoint ?? '' });
         return;
       }
 
@@ -212,6 +258,54 @@ export class SSETransport extends BaseTransport {
   }
 
   /**
+   * Stream and parse SSE events from a fetch response.
+   */
+  private async readSSEStream(response: Response): Promise<void> {
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('SSE stream reader unavailable');
+    }
+
+    const decoder = new TextDecoder();
+    const parser = new SSEParser();
+
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (!value) {
+        continue;
+      }
+
+      const chunk = decoder.decode(value, { stream: true });
+      const events = parser.feed(chunk);
+      for (const event of events) {
+        this.handleSSEMessage(event);
+      }
+    }
+
+    const tail = decoder.decode();
+    if (tail) {
+      const tailEvents = parser.feed(tail);
+      for (const event of tailEvents) {
+        this.handleSSEMessage(event);
+      }
+    }
+
+    const flushed = parser.flush();
+    for (const event of flushed) {
+      this.handleSSEMessage(event);
+    }
+
+    // Stream ended
+    this.connected = false;
+    if (!this.isClosing) {
+      this.handleReconnect();
+    }
+  }
+
+  /**
    * Handle reconnection after a connection error.
    *
    * RELIABILITY IMPROVEMENTS:
@@ -219,7 +313,7 @@ export class SSETransport extends BaseTransport {
    * - Uses capped exponential backoff
    * - Clears reconnect timer on close
    * - Checks isClosing flag to prevent reconnection after close()
-   * - Explicitly closes EventSource on max attempts
+   * - Explicitly aborts SSE stream on max attempts
    */
   private handleReconnect(): void {
     // Don't reconnect if we're closing
@@ -233,14 +327,14 @@ export class SSETransport extends BaseTransport {
       this.log('Max reconnect attempts reached', { attempts: this.reconnectAttempts });
       this.connected = false;
 
-      // Explicitly close the EventSource to clean up resources
-      if (this.eventSource) {
+      // Explicitly abort the SSE stream to clean up resources
+      if (this.streamAbortController) {
         try {
-          this.eventSource.close();
+          this.streamAbortController.abort();
         } catch {
-          // Ignore close errors
+          // Ignore abort errors
         }
-        this.eventSource = null;
+        this.streamAbortController = null;
       }
 
       this.emit(
@@ -349,7 +443,7 @@ export class SSETransport extends BaseTransport {
    * Close the SSE connection.
    *
    * RELIABILITY: Properly cleans up all resources including:
-   * - EventSource connection
+   * - SSE stream connection
    * - Pending HTTP requests (via abort controller)
    * - Reconnection timer
    * - Sets isClosing flag to prevent reconnection attempts
@@ -367,14 +461,14 @@ export class SSETransport extends BaseTransport {
       this.reconnectTimer = null;
     }
 
-    // Close the EventSource connection
-    if (this.eventSource) {
+    // Abort SSE stream
+    if (this.streamAbortController) {
       try {
-        this.eventSource.close();
+        this.streamAbortController.abort();
       } catch {
-        // Ignore close errors
+        // Ignore abort errors
       }
-      this.eventSource = null;
+      this.streamAbortController = null;
     }
 
     // Abort any in-flight HTTP requests

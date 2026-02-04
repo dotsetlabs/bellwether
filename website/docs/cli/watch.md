@@ -20,7 +20,7 @@ Watch mode monitors your source files and automatically re-runs checks when chan
 Watch mode uses `bellwether check` under the hood—it's free, fast, and deterministic. It only runs schema validation (no LLM exploration).
 
 :::note Config Required
-All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `watch`.
+`watch` requires a config file. Run `bellwether init` once in your project.
 :::
 
 ## Arguments

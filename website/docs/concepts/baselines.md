@@ -230,7 +230,8 @@ git commit -m "Update baseline: added delete_file tool"
 
 ### Acceptance Metadata
 
-When using `baseline accept` or `--accept-drift`, the baseline records acceptance metadata:
+When using `baseline accept`, the baseline records acceptance metadata (including `acceptedBy`).  
+When using `--accept-drift`, Bellwether records `acceptedAt` and `reason` only.
 
 ```json
 {
@@ -251,7 +252,7 @@ When using `baseline accept` or `--accept-drift`, the baseline records acceptanc
 }
 ```
 
-This creates an audit trail of intentional changes.
+Use `baseline accept --accepted-by <name>` if you need a full audit trail of who approved the change.
 
 ## Baseline Format Versioning
 
@@ -276,6 +277,8 @@ When comparing baselines with incompatible versions, recreate the older baseline
 |:---------|:--------|
 | **Server Info** | Name, version, protocol version, capabilities |
 | **Tools** | Name, description, schema hash, security notes, limitations |
+| **Prompts** | Prompt names, descriptions, and argument metadata |
+| **Resources** | Resource URIs, names, descriptions, and mime types |
 | **Performance** | P50/P95 latency, success rate, confidence level per tool |
 | **Response Fingerprint** | Content type, size category, structure hash |
 | **Error Patterns** | Categorized errors with root cause and remediation |
@@ -299,6 +302,10 @@ When comparing baselines, Bellwether detects:
 | Removed | Tool `legacy_read` no longer exists |
 | Schema change | Parameter `path` now required |
 | Behavior change | Error message format changed |
+| Prompt change | Prompt argument added/removed or required flag changed |
+| Resource change | Resource added/removed or mime type changed |
+| Server change | Server metadata or protocol version changed |
+| Capability change | Server capabilities added/removed |
 | Security change | New vulnerability detected |
 | Performance regression | P50 latency increased by >10% |
 | Confidence change | Metrics reliability improved/degraded |

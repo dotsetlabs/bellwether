@@ -22,7 +22,7 @@ bellwether baseline accept
 The `baseline` command group manages baselines for detecting structural drift in your MCP server. Baselines capture the server's tool schemas at a point in time, enabling comparison against future checks.
 
 :::note Config Required
-All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `baseline`.
+`baseline` requires a config file. Run `bellwether init` once in your project.
 :::
 
 ## Subcommands

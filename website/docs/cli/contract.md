@@ -20,7 +20,7 @@ bellwether contract show [path]
 The `contract` command lets you capture an explicit contract file and validate your server against it. This is useful when you want a strict, versioned spec beyond baseline drift detection.
 
 :::note Config Required
-All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `contract`.
+`contract` requires a config file. Run `bellwether init` once in your project.
 :::
 
 ## Subcommands

@@ -93,9 +93,7 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
     lines.push(red('─── Performance Regressions ───'));
     for (const regression of diff.performanceReport.regressions) {
       const percentStr = (regression.regressionPercent * 100).toFixed(1);
-      const confidenceNote = regression.isReliable
-        ? ''
-        : ` ${yellow('(low confidence)')}`;
+      const confidenceNote = regression.isReliable ? '' : ` ${yellow('(low confidence)')}`;
       lines.push(
         `  ${red('!')} ${regression.toolName}: ` +
           `${regression.previousP50Ms.toFixed(0)}ms → ` +
@@ -105,9 +103,16 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
     lines.push('');
 
     // Show low confidence tools warning
-    if (diff.performanceReport.lowConfidenceTools && diff.performanceReport.lowConfidenceTools.length > 0) {
+    if (
+      diff.performanceReport.lowConfidenceTools &&
+      diff.performanceReport.lowConfidenceTools.length > 0
+    ) {
       lines.push(yellow('  Note: Some tools have low confidence metrics.'));
-      lines.push(yellow(`  Run with more samples for reliable baselines: ${diff.performanceReport.lowConfidenceTools.join(', ')}`));
+      lines.push(
+        yellow(
+          `  Run with more samples for reliable baselines: ${diff.performanceReport.lowConfidenceTools.join(', ')}`
+        )
+      );
       lines.push('');
     }
   } else if (diff.performanceReport?.improvementCount ?? 0 > 0) {
@@ -117,7 +122,10 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
   }
 
   // Performance confidence changes
-  if (diff.performanceReport?.confidenceChanges && diff.performanceReport.confidenceChanges.length > 0) {
+  if (
+    diff.performanceReport?.confidenceChanges &&
+    diff.performanceReport.confidenceChanges.length > 0
+  ) {
     lines.push(cyan('─── Confidence Changes ───'));
     for (const change of diff.performanceReport.confidenceChanges) {
       const icon = change.improved ? green('↑') : change.degraded ? yellow('↓') : '→';
@@ -138,9 +146,7 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
         lines.push(red('  New Findings:'));
         for (const finding of secReport.newFindings) {
           const riskColor = getRiskLevelColor(finding.riskLevel, useColors);
-          lines.push(
-            `    ${riskColor('●')} [${finding.riskLevel.toUpperCase()}] ${finding.title}`
-          );
+          lines.push(`    ${riskColor('●')} [${finding.riskLevel.toUpperCase()}] ${finding.title}`);
           lines.push(`      Tool: ${finding.tool}, Parameter: ${finding.parameter}`);
           lines.push(`      ${finding.cweId}: ${finding.description}`);
         }
@@ -185,7 +191,9 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
       lines.push('');
     } else if (schemaReport.stableCount > 0) {
       lines.push(green('─── Schema Stability ───'));
-      lines.push(`  ${green('✓')} ${schemaReport.stableCount} tool(s) with stable response schemas`);
+      lines.push(
+        `  ${green('✓')} ${schemaReport.stableCount} tool(s) with stable response schemas`
+      );
       lines.push('');
     }
   }
@@ -249,7 +257,10 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
   lines.push(`  Info: ${diff.infoCount}`);
   if (diff.performanceReport) {
     lines.push(`  Performance regressions: ${diff.performanceReport.regressionCount}`);
-    if (diff.performanceReport.lowConfidenceTools && diff.performanceReport.lowConfidenceTools.length > 0) {
+    if (
+      diff.performanceReport.lowConfidenceTools &&
+      diff.performanceReport.lowConfidenceTools.length > 0
+    ) {
       lines.push(`  Low confidence tools: ${diff.performanceReport.lowConfidenceTools.length}`);
     }
   }
@@ -258,7 +269,9 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
     lines.push(`  Resolved findings: ${diff.securityReport.resolvedFindings.length}`);
   }
   if (diff.schemaEvolutionReport) {
-    lines.push(`  Schema stability: ${diff.schemaEvolutionReport.stableCount} stable, ${diff.schemaEvolutionReport.unstableCount} unstable`);
+    lines.push(
+      `  Schema stability: ${diff.schemaEvolutionReport.stableCount} stable, ${diff.schemaEvolutionReport.unstableCount} unstable`
+    );
     if (diff.schemaEvolutionReport.structureChangedCount > 0) {
       lines.push(`  Schema structure changes: ${diff.schemaEvolutionReport.structureChangedCount}`);
     }
@@ -318,7 +331,10 @@ export function formatDiffCompact(diff: BehavioralDiff): string {
   if (diff.performanceReport?.regressionCount ?? 0 > 0) {
     parts.push(`perf_regressions=${diff.performanceReport?.regressionCount}`);
   }
-  if (diff.performanceReport?.lowConfidenceTools && diff.performanceReport.lowConfidenceTools.length > 0) {
+  if (
+    diff.performanceReport?.lowConfidenceTools &&
+    diff.performanceReport.lowConfidenceTools.length > 0
+  ) {
     parts.push(`low_confidence_tools=${diff.performanceReport.lowConfidenceTools.length}`);
   }
   if (diff.securityReport) {
@@ -380,8 +396,12 @@ export function formatDiffGitHubActions(diff: BehavioralDiff): string {
   }
 
   for (const change of diff.behaviorChanges) {
-    const level = change.severity === 'breaking' ? 'error' :
-                  change.severity === 'warning' ? 'warning' : 'notice';
+    const level =
+      change.severity === 'breaking'
+        ? 'error'
+        : change.severity === 'warning'
+          ? 'warning'
+          : 'notice';
     lines.push(`::${level}::${change.tool} - ${change.description}`);
   }
 
@@ -405,7 +425,10 @@ export function formatDiffGitHubActions(diff: BehavioralDiff): string {
   }
 
   // Low confidence warning
-  if (diff.performanceReport?.lowConfidenceTools && diff.performanceReport.lowConfidenceTools.length > 0) {
+  if (
+    diff.performanceReport?.lowConfidenceTools &&
+    diff.performanceReport.lowConfidenceTools.length > 0
+  ) {
     lines.push(
       `::notice::Low confidence metrics for ${diff.performanceReport.lowConfidenceTools.length} tool(s): ${diff.performanceReport.lowConfidenceTools.join(', ')}`
     );
@@ -414,12 +437,15 @@ export function formatDiffGitHubActions(diff: BehavioralDiff): string {
   // Security findings
   if (diff.securityReport) {
     for (const finding of diff.securityReport.newFindings) {
-      const level = finding.riskLevel === 'critical' || finding.riskLevel === 'high'
-        ? 'error'
-        : finding.riskLevel === 'medium'
-          ? 'warning'
-          : 'notice';
-      lines.push(`::${level}::Security [${finding.riskLevel.toUpperCase()}] ${finding.tool}: ${finding.title} (${finding.cweId})`);
+      const level =
+        finding.riskLevel === 'critical' || finding.riskLevel === 'high'
+          ? 'error'
+          : finding.riskLevel === 'medium'
+            ? 'warning'
+            : 'notice';
+      lines.push(
+        `::${level}::Security [${finding.riskLevel.toUpperCase()}] ${finding.tool}: ${finding.title} (${finding.cweId})`
+      );
     }
 
     if (diff.securityReport.degraded) {
@@ -435,9 +461,13 @@ export function formatDiffGitHubActions(diff: BehavioralDiff): string {
     }
 
     if (diff.schemaEvolutionReport.hasBreakingChanges) {
-      lines.push(`::error::Breaking schema changes detected in ${diff.schemaEvolutionReport.structureChangedCount} tool(s)`);
+      lines.push(
+        `::error::Breaking schema changes detected in ${diff.schemaEvolutionReport.structureChangedCount} tool(s)`
+      );
     } else if (diff.schemaEvolutionReport.unstableCount > 0) {
-      lines.push(`::warning::${diff.schemaEvolutionReport.unstableCount} tool(s) have unstable response schemas`);
+      lines.push(
+        `::warning::${diff.schemaEvolutionReport.unstableCount} tool(s) have unstable response schemas`
+      );
     }
   }
 
@@ -462,9 +492,13 @@ export function formatDiffGitHubActions(diff: BehavioralDiff): string {
   if (diff.documentationScoreReport) {
     const doc = diff.documentationScoreReport;
     if (doc.degraded) {
-      lines.push(`::warning::Documentation quality degraded: ${doc.previousScore} -> ${doc.currentScore} (${doc.currentGrade})`);
+      lines.push(
+        `::warning::Documentation quality degraded: ${doc.previousScore} -> ${doc.currentScore} (${doc.currentGrade})`
+      );
     } else if (doc.improved) {
-      lines.push(`::notice::Documentation quality improved: ${doc.previousScore} -> ${doc.currentScore} (${doc.currentGrade})`);
+      lines.push(
+        `::notice::Documentation quality improved: ${doc.previousScore} -> ${doc.currentScore} (${doc.currentGrade})`
+      );
     }
   }
 
@@ -501,7 +535,9 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
         toolDiff.schemaChanged ? 'Schema changed' : '',
         toolDiff.descriptionChanged ? 'Description changed' : '',
         `${toolDiff.changes.length} change(s)`,
-      ].filter(Boolean).join(', ');
+      ]
+        .filter(Boolean)
+        .join(', ');
       lines.push(`| ${toolDiff.tool} | ⚠️ Modified | ${details} |`);
     }
     lines.push('');
@@ -514,9 +550,11 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
     lines.push('|------|--------|----------|-------------|');
 
     for (const change of diff.behaviorChanges) {
-      const sevEmoji = change.severity === 'breaking' ? '🔴' :
-                       change.severity === 'warning' ? '🟡' : '🟢';
-      lines.push(`| ${change.tool} | ${change.aspect} | ${sevEmoji} ${change.severity} | ${change.description} |`);
+      const sevEmoji =
+        change.severity === 'breaking' ? '🔴' : change.severity === 'warning' ? '🟡' : '🟢';
+      lines.push(
+        `| ${change.tool} | ${change.aspect} | ${sevEmoji} ${change.severity} | ${change.description} |`
+      );
     }
     lines.push('');
   }
@@ -580,13 +618,19 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
 
         for (const issue of schemaReport.toolsWithIssues) {
           const statusIcon = issue.isBreaking ? '🔴' : issue.becameUnstable ? '🟡' : '🔵';
-          const status = issue.isBreaking ? 'Breaking' : issue.becameUnstable ? 'Unstable' : 'Changed';
+          const status = issue.isBreaking
+            ? 'Breaking'
+            : issue.becameUnstable
+              ? 'Unstable'
+              : 'Changed';
           lines.push(`| ${issue.toolName} | ${statusIcon} ${status} | ${issue.summary} |`);
         }
         lines.push('');
       }
 
-      lines.push(`**Stability:** ${schemaReport.stableCount} stable, ${schemaReport.unstableCount} unstable`);
+      lines.push(
+        `**Stability:** ${schemaReport.stableCount} stable, ${schemaReport.unstableCount} unstable`
+      );
       if (schemaReport.structureChangedCount > 0) {
         lines.push(`**Structure changes:** ${schemaReport.structureChangedCount} tool(s)`);
       }
@@ -606,16 +650,21 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
         lines.push('');
       }
 
-      if (et.newCategories.length > 0 || et.resolvedCategories.length > 0 ||
-          et.increasingCategories.length > 0 || et.decreasingCategories.length > 0) {
+      if (
+        et.newCategories.length > 0 ||
+        et.resolvedCategories.length > 0 ||
+        et.increasingCategories.length > 0 ||
+        et.decreasingCategories.length > 0
+      ) {
         lines.push('| Category | Trend | Previous | Current | Change |');
         lines.push('|----------|-------|----------|---------|--------|');
 
-        for (const trend of et.trends.filter(t => t.trend !== 'stable')) {
+        for (const trend of et.trends.filter((t) => t.trend !== 'stable')) {
           const trendEmoji = getTrendEmoji(trend.trend);
-          const changeStr = trend.changePercent !== 0
-            ? `${trend.changePercent > 0 ? '+' : ''}${trend.changePercent}%`
-            : '-';
+          const changeStr =
+            trend.changePercent !== 0
+              ? `${trend.changePercent > 0 ? '+' : ''}${trend.changePercent}%`
+              : '-';
           lines.push(
             `| ${trend.category} | ${trendEmoji} ${trend.trend} | ${trend.previousCount} | ${trend.currentCount} | ${changeStr} |`
           );
@@ -628,8 +677,11 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
   // Performance section
   if (diff.performanceReport) {
     const perfReport = diff.performanceReport;
-    if (perfReport.hasRegressions || perfReport.improvementCount > 0 ||
-        (perfReport.lowConfidenceTools && perfReport.lowConfidenceTools.length > 0)) {
+    if (
+      perfReport.hasRegressions ||
+      perfReport.improvementCount > 0 ||
+      (perfReport.lowConfidenceTools && perfReport.lowConfidenceTools.length > 0)
+    ) {
       lines.push('### Performance');
       lines.push('');
 
@@ -704,7 +756,10 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
   lines.push(`- Info: **${diff.infoCount}**`);
   if (diff.performanceReport) {
     lines.push(`- Performance regressions: **${diff.performanceReport.regressionCount}**`);
-    if (diff.performanceReport.lowConfidenceTools && diff.performanceReport.lowConfidenceTools.length > 0) {
+    if (
+      diff.performanceReport.lowConfidenceTools &&
+      diff.performanceReport.lowConfidenceTools.length > 0
+    ) {
       lines.push(`- Low confidence tools: **${diff.performanceReport.lowConfidenceTools.length}**`);
     }
   }
@@ -716,7 +771,9 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
     lines.push(`- Stable schemas: **${diff.schemaEvolutionReport.stableCount}**`);
     lines.push(`- Unstable schemas: **${diff.schemaEvolutionReport.unstableCount}**`);
     if (diff.schemaEvolutionReport.structureChangedCount > 0) {
-      lines.push(`- Schema structure changes: **${diff.schemaEvolutionReport.structureChangedCount}**`);
+      lines.push(
+        `- Schema structure changes: **${diff.schemaEvolutionReport.structureChangedCount}**`
+      );
     }
   }
   if (diff.errorTrendReport) {
@@ -777,9 +834,7 @@ function getTrendEmoji(trend: 'increasing' | 'decreasing' | 'stable' | 'new' | '
 export function formatDiffJUnit(diff: BehavioralDiff, suiteName: string = 'bellwether'): string {
   const timestamp = new Date().toISOString();
   const totalTests =
-    diff.toolsAdded.length +
-    diff.toolsRemoved.length +
-    diff.behaviorChanges.length;
+    diff.toolsAdded.length + diff.toolsRemoved.length + diff.behaviorChanges.length;
   const failures = diff.breakingCount;
   const errors = 0;
   const skipped = 0;
@@ -842,22 +897,31 @@ export function formatDiffJUnit(diff: BehavioralDiff, suiteName: string = 'bellw
       const confidenceNote = regression.isReliable ? '' : ' (low confidence)';
 
       lines.push(`    <testcase name="${name}" classname="drift.performance">`);
-      lines.push(`      <failure message="Performance regression: +${percentStr}%${confidenceNote}" type="regression">`);
+      lines.push(
+        `      <failure message="Performance regression: +${percentStr}%${confidenceNote}" type="regression">`
+      );
       lines.push(`Tool: ${escapeXml(regression.toolName)}`);
       lines.push(`Previous p50: ${regression.previousP50Ms.toFixed(0)}ms`);
       lines.push(`Current p50: ${regression.currentP50Ms.toFixed(0)}ms`);
       lines.push(`Regression: +${percentStr}%`);
-      lines.push(`Confidence: ${regression.currentConfidence ?? 'unknown'}${regression.isReliable ? '' : ' (unreliable)'}`);
+      lines.push(
+        `Confidence: ${regression.currentConfidence ?? 'unknown'}${regression.isReliable ? '' : ' (unreliable)'}`
+      );
       lines.push('      </failure>');
       lines.push('    </testcase>');
     }
 
     // Low confidence tools
-    if (diff.performanceReport.lowConfidenceTools && diff.performanceReport.lowConfidenceTools.length > 0) {
+    if (
+      diff.performanceReport.lowConfidenceTools &&
+      diff.performanceReport.lowConfidenceTools.length > 0
+    ) {
       for (const tool of diff.performanceReport.lowConfidenceTools) {
         const name = escapeXml(`confidence-${tool}`);
         lines.push(`    <testcase name="${name}" classname="drift.confidence">`);
-        lines.push(`      <system-err>[NOTICE] Low confidence metrics for ${escapeXml(tool)}. Run with more samples for reliable baselines.</system-err>`);
+        lines.push(
+          `      <system-err>[NOTICE] Low confidence metrics for ${escapeXml(tool)}. Run with more samples for reliable baselines.</system-err>`
+        );
         lines.push('    </testcase>');
       }
     }
@@ -871,7 +935,9 @@ export function formatDiffJUnit(diff: BehavioralDiff, suiteName: string = 'bellw
 
       lines.push(`    <testcase name="${name}" classname="drift.security">`);
       if (isFailure) {
-        lines.push(`      <failure message="${escapeXml(finding.title)}" type="${finding.riskLevel}">`);
+        lines.push(
+          `      <failure message="${escapeXml(finding.title)}" type="${finding.riskLevel}">`
+        );
         lines.push(`Tool: ${escapeXml(finding.tool)}`);
         lines.push(`Parameter: ${escapeXml(finding.parameter)}`);
         lines.push(`CWE: ${escapeXml(finding.cweId)}`);
@@ -879,7 +945,9 @@ export function formatDiffJUnit(diff: BehavioralDiff, suiteName: string = 'bellw
         lines.push(`Remediation: ${escapeXml(finding.remediation)}`);
         lines.push('      </failure>');
       } else {
-        lines.push(`      <system-err>[${finding.riskLevel.toUpperCase()}] ${escapeXml(finding.title)}</system-err>`);
+        lines.push(
+          `      <system-err>[${finding.riskLevel.toUpperCase()}] ${escapeXml(finding.title)}</system-err>`
+        );
       }
       lines.push('    </testcase>');
     }
@@ -888,7 +956,9 @@ export function formatDiffJUnit(diff: BehavioralDiff, suiteName: string = 'bellw
     for (const finding of diff.securityReport.resolvedFindings) {
       const name = escapeXml(`security-resolved-${finding.tool}-${finding.category}`);
       lines.push(`    <testcase name="${name}" classname="drift.security">`);
-      lines.push(`      <system-out>Resolved: ${escapeXml(finding.title)} (${escapeXml(finding.cweId)})</system-out>`);
+      lines.push(
+        `      <system-out>Resolved: ${escapeXml(finding.title)} (${escapeXml(finding.cweId)})</system-out>`
+      );
       lines.push('    </testcase>');
     }
   }
@@ -910,17 +980,26 @@ export function formatDiffJUnit(diff: BehavioralDiff, suiteName: string = 'bellw
         }
         lines.push('      </failure>');
       } else if (issue.becameUnstable) {
-        lines.push(`      <system-err>[WARNING] Schema became unstable: ${escapeXml(issue.summary)}</system-err>`);
+        lines.push(
+          `      <system-err>[WARNING] Schema became unstable: ${escapeXml(issue.summary)}</system-err>`
+        );
       } else {
-        lines.push(`      <system-out>[INFO] Schema changed: ${escapeXml(issue.summary)}</system-out>`);
+        lines.push(
+          `      <system-out>[INFO] Schema changed: ${escapeXml(issue.summary)}</system-out>`
+        );
       }
       lines.push('    </testcase>');
     }
 
     // Show stable schemas as passing tests
-    if (diff.schemaEvolutionReport.stableCount > 0 && diff.schemaEvolutionReport.toolsWithIssues.length === 0) {
+    if (
+      diff.schemaEvolutionReport.stableCount > 0 &&
+      diff.schemaEvolutionReport.toolsWithIssues.length === 0
+    ) {
       lines.push(`    <testcase name="schema-stability-check" classname="drift.schema">`);
-      lines.push(`      <system-out>${diff.schemaEvolutionReport.stableCount} tool(s) have stable response schemas</system-out>`);
+      lines.push(
+        `      <system-out>${diff.schemaEvolutionReport.stableCount} tool(s) have stable response schemas</system-out>`
+      );
       lines.push('    </testcase>');
     }
   }
@@ -933,7 +1012,9 @@ export function formatDiffJUnit(diff: BehavioralDiff, suiteName: string = 'bellw
     for (const category of et.newCategories) {
       const name = escapeXml(`error-trend-new-${category}`);
       lines.push(`    <testcase name="${name}" classname="drift.errors">`);
-      lines.push(`      <system-err>[WARNING] New error type detected: ${escapeXml(category)}</system-err>`);
+      lines.push(
+        `      <system-err>[WARNING] New error type detected: ${escapeXml(category)}</system-err>`
+      );
       lines.push('    </testcase>');
     }
 
@@ -941,16 +1022,20 @@ export function formatDiffJUnit(diff: BehavioralDiff, suiteName: string = 'bellw
     for (const category of et.resolvedCategories) {
       const name = escapeXml(`error-trend-resolved-${category}`);
       lines.push(`    <testcase name="${name}" classname="drift.errors">`);
-      lines.push(`      <system-out>Resolved: ${escapeXml(category)} error type no longer occurs</system-out>`);
+      lines.push(
+        `      <system-out>Resolved: ${escapeXml(category)} error type no longer occurs</system-out>`
+      );
       lines.push('    </testcase>');
     }
 
     // Increasing error types (warnings)
     for (const category of et.increasingCategories) {
-      const trend = et.trends.find(t => t.category === category);
+      const trend = et.trends.find((t) => t.category === category);
       const name = escapeXml(`error-trend-increasing-${category}`);
       lines.push(`    <testcase name="${name}" classname="drift.errors">`);
-      lines.push(`      <system-err>[WARNING] Error frequency increasing: ${escapeXml(category)}${trend ? ` (+${trend.changePercent}%)` : ''}</system-err>`);
+      lines.push(
+        `      <system-err>[WARNING] Error frequency increasing: ${escapeXml(category)}${trend ? ` (+${trend.changePercent}%)` : ''}</system-err>`
+      );
       lines.push('    </testcase>');
     }
 
@@ -973,17 +1058,23 @@ export function formatDiffJUnit(diff: BehavioralDiff, suiteName: string = 'bellw
 
     lines.push(`    <testcase name="${name}" classname="drift.documentation">`);
     if (doc.degraded) {
-      lines.push(`      <system-err>[WARNING] Documentation quality degraded: ${doc.previousScore} -> ${doc.currentScore} (${doc.currentGrade})</system-err>`);
+      lines.push(
+        `      <system-err>[WARNING] Documentation quality degraded: ${doc.previousScore} -> ${doc.currentScore} (${doc.currentGrade})</system-err>`
+      );
       if (doc.newIssues > 0) {
         lines.push(`      <system-err>New documentation issues: ${doc.newIssues}</system-err>`);
       }
     } else if (doc.improved) {
-      lines.push(`      <system-out>Documentation quality improved: ${doc.previousScore} -> ${doc.currentScore} (${doc.currentGrade})</system-out>`);
+      lines.push(
+        `      <system-out>Documentation quality improved: ${doc.previousScore} -> ${doc.currentScore} (${doc.currentGrade})</system-out>`
+      );
       if (doc.issuesFixed > 0) {
         lines.push(`      <system-out>Issues fixed: ${doc.issuesFixed}</system-out>`);
       }
     } else {
-      lines.push(`      <system-out>Documentation quality: ${doc.currentScore}/100 (${doc.currentGrade})</system-out>`);
+      lines.push(
+        `      <system-out>Documentation quality: ${doc.currentScore}/100 (${doc.currentGrade})</system-out>`
+      );
     }
     lines.push('    </testcase>');
   }
@@ -1014,7 +1105,7 @@ interface SarifResult {
  * Format diff as SARIF (Static Analysis Results Interchange Format) for GitHub Code Scanning.
  *
  * SARIF is the standard format for GitHub's code scanning feature and can be
- * uploaded to show drift detection results in pull request reviews.
+ * used to show drift detection results in pull request reviews.
  *
  * @see https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
  *
@@ -1467,11 +1558,13 @@ export function formatDiffSarif(
 
     // Increasing error types
     for (const category of et.increasingCategories) {
-      const trend = et.trends.find(t => t.category === category);
+      const trend = et.trends.find((t) => t.category === category);
       results.push({
         ruleId: 'BWH011',
         level: 'warning',
-        message: { text: `Error frequency increasing: ${category}${trend ? ` (+${trend.changePercent}%)` : ''}` },
+        message: {
+          text: `Error frequency increasing: ${category}${trend ? ` (+${trend.changePercent}%)` : ''}`,
+        },
         locations: [
           {
             physicalLocation: {
@@ -1621,10 +1714,7 @@ function getChangeIcon(change: BehaviorChange, useColors: boolean): string {
   }
 }
 
-function getSeverityColor(
-  severity: ChangeSeverity,
-  useColors: boolean
-): (s: string) => string {
+function getSeverityColor(severity: ChangeSeverity, useColors: boolean): (s: string) => string {
   const c = useColors ? colors : noColors;
 
   switch (severity) {
@@ -1654,10 +1744,7 @@ function groupChangesByTool(changes: BehaviorChange[]): Map<string, BehaviorChan
 /**
  * Get color function for risk level.
  */
-function getRiskLevelColor(
-  riskLevel: RiskLevel,
-  useColors: boolean
-): (s: string) => string {
+function getRiskLevelColor(riskLevel: RiskLevel, useColors: boolean): (s: string) => string {
   const c = useColors ? colors : noColors;
 
   switch (riskLevel) {
@@ -1722,10 +1809,7 @@ function formatSchemaEvolutionSummary(report: SchemaEvolutionReport): string {
  * Format a standalone security report for display.
  * Used when only security data is available (not a full diff).
  */
-export function formatSecurityReport(
-  report: SecurityDiff,
-  useColors: boolean = true
-): string {
+export function formatSecurityReport(report: SecurityDiff, useColors: boolean = true): string {
   const lines: string[] = [];
   const { red, green, bold, dim } = useColors ? colors : noColors;
 

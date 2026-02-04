@@ -72,6 +72,8 @@ bellwether check --fail-on-drift
 - **AGENTS.md** - Behavioral documentation from multi-persona exploration (generated when `output.format` includes docs; configurable via `output.files.agentsDoc`)
 - **bellwether-explore.json** - Detailed exploration results (generated when `output.format` includes `json`; configurable via `output.files.exploreReport`)
 
+Both JSON reports include a `$schema` pointer for validation against the published report schemas.
+
 ## Next Steps
 
 - [Installation](/installation) - Install and configure Bellwether

@@ -35,8 +35,19 @@ interface SchemaProperty {
   default?: unknown;
   items?: SchemaProperty;
   properties?: Record<string, SchemaProperty>;
+  patternProperties?: Record<string, SchemaProperty>;
+  dependentRequired?: Record<string, string[]>;
+  if?: SchemaProperty;
+  then?: SchemaProperty;
+  else?: SchemaProperty;
+  oneOf?: SchemaProperty[];
+  anyOf?: SchemaProperty[];
+  allOf?: SchemaProperty[];
   required?: string[];
   additionalProperties?: boolean | SchemaProperty;
+  $ref?: string;
+  minProperties?: number;
+  maxProperties?: number;
 }
 
 /**
@@ -45,8 +56,19 @@ interface SchemaProperty {
 interface InputSchema {
   type?: string;
   properties?: Record<string, SchemaProperty>;
+  patternProperties?: Record<string, SchemaProperty>;
+  dependentRequired?: Record<string, string[]>;
+  if?: SchemaProperty;
+  then?: SchemaProperty;
+  else?: SchemaProperty;
+  oneOf?: SchemaProperty[];
+  anyOf?: SchemaProperty[];
+  allOf?: SchemaProperty[];
   required?: string[];
   additionalProperties?: boolean | SchemaProperty;
+  $ref?: string;
+  minProperties?: number;
+  maxProperties?: number;
 }
 
 /**
@@ -94,7 +116,7 @@ export function computeSchemaHash(schema: InputSchema | undefined): string {
 
   // Create normalized representation for hashing with circular reference protection
   const seen = new WeakSet<object>();
-  const normalized = normalizeSchema(schema, 0, seen);
+  const normalized = normalizeSchema(schema, 0, seen, schema);
   const serialized = JSON.stringify(normalized);
 
   return createHash('sha256').update(serialized).digest('hex').slice(0, 16);
@@ -147,7 +169,8 @@ function checkCircularRef(obj: unknown, seen: WeakSet<object>): Record<string, u
 function normalizeSchema(
   schema: InputSchema | SchemaProperty,
   depth: number = 0,
-  seen: WeakSet<object> = new WeakSet()
+  seen: WeakSet<object> = new WeakSet(),
+  root: InputSchema | SchemaProperty = schema
 ): Record<string, unknown> {
   // Check depth limit
   const depthLimit = checkDepthLimit(depth);
@@ -158,6 +181,17 @@ function normalizeSchema(
   if (circularRef) return circularRef;
 
   const result: Record<string, unknown> = {};
+
+  // Handle $ref (resolve local refs to include referenced structure in hash)
+  if ((schema as SchemaProperty).$ref) {
+    const ref = (schema as SchemaProperty).$ref as string;
+    const resolved = resolveLocalRef(root, ref);
+    const refResult: Record<string, unknown> = { $ref: ref };
+    if (resolved && typeof resolved === 'object') {
+      refResult.$ref_resolved = normalizeSchema(resolved as SchemaProperty, depth + 1, seen, root);
+    }
+    return refResult;
+  }
 
   // Sort and normalize simple fields
   if (schema.type !== undefined) {
@@ -173,7 +207,16 @@ function normalizeSchema(
   }
 
   // Constraints - normalize numeric values to handle 1.0 vs 1
-  const constraintFields = ['minimum', 'maximum', 'minLength', 'maxLength', 'pattern', 'default'] as const;
+  const constraintFields = [
+    'minimum',
+    'maximum',
+    'minLength',
+    'maxLength',
+    'pattern',
+    'default',
+    'minProperties',
+    'maxProperties',
+  ] as const;
   for (const field of constraintFields) {
     const value = (schema as SchemaProperty)[field];
     if (value !== undefined) {
@@ -195,25 +238,69 @@ function normalizeSchema(
   if (schema.properties) {
     const props: Record<string, unknown> = {};
     // Normalize Unicode in property keys and sort
-    const sortedKeys = Object.keys(schema.properties)
-      .map(normalizeUnicodeKey)
-      .sort();
+    const sortedKeys = Object.keys(schema.properties).map(normalizeUnicodeKey).sort();
 
     for (const key of sortedKeys) {
       // Find the original key (may differ in Unicode representation)
       const originalKey = Object.keys(schema.properties).find(
-        k => normalizeUnicodeKey(k) === key
+        (k) => normalizeUnicodeKey(k) === key
       );
       if (originalKey) {
-        props[key] = normalizeSchema(schema.properties[originalKey], depth + 1, seen);
+        props[key] = normalizeSchema(schema.properties[originalKey], depth + 1, seen, root);
       }
     }
     result.properties = props;
   }
 
+  // Pattern properties - normalize keys and values
+  if ((schema as SchemaProperty).patternProperties) {
+    const patternProps = (schema as SchemaProperty).patternProperties ?? {};
+    const props: Record<string, unknown> = {};
+    const sortedKeys = Object.keys(patternProps).sort();
+    for (const key of sortedKeys) {
+      const prop = patternProps[key];
+      props[key] = normalizeSchema(prop, depth + 1, seen, root);
+    }
+    result.patternProperties = props;
+  }
+
+  // Dependent required - normalize keys and sort arrays
+  if ((schema as SchemaProperty).dependentRequired) {
+    const deps = (schema as SchemaProperty).dependentRequired ?? {};
+    const normalizedDeps: Record<string, unknown> = {};
+    const sortedKeys = Object.keys(deps).map(normalizeUnicodeKey).sort();
+    for (const key of sortedKeys) {
+      const values = deps[key] ?? [];
+      normalizedDeps[key] = [...values].map(normalizeUnicodeKey).sort();
+    }
+    result.dependentRequired = normalizedDeps;
+  }
+
+  // Conditional schemas (if/then/else)
+  if ((schema as SchemaProperty).if) {
+    result.if = normalizeSchema((schema as SchemaProperty).if!, depth + 1, seen, root);
+  }
+  if ((schema as SchemaProperty).then) {
+    result.then = normalizeSchema((schema as SchemaProperty).then!, depth + 1, seen, root);
+  }
+  if ((schema as SchemaProperty).else) {
+    result.else = normalizeSchema((schema as SchemaProperty).else!, depth + 1, seen, root);
+  }
+
+  // oneOf/anyOf/allOf variants
+  if ((schema as SchemaProperty).oneOf) {
+    result.oneOf = normalizeSchemaArray((schema as SchemaProperty).oneOf!, depth, seen, root);
+  }
+  if ((schema as SchemaProperty).anyOf) {
+    result.anyOf = normalizeSchemaArray((schema as SchemaProperty).anyOf!, depth, seen, root);
+  }
+  if ((schema as SchemaProperty).allOf) {
+    result.allOf = normalizeSchemaArray((schema as SchemaProperty).allOf!, depth, seen, root);
+  }
+
   // Items for arrays
   if ((schema as SchemaProperty).items) {
-    result.items = normalizeSchema((schema as SchemaProperty).items!, depth + 1, seen);
+    result.items = normalizeSchema((schema as SchemaProperty).items!, depth + 1, seen, root);
   }
 
   // Additional properties
@@ -221,11 +308,57 @@ function normalizeSchema(
     if (typeof schema.additionalProperties === 'boolean') {
       result.additionalProperties = schema.additionalProperties;
     } else {
-      result.additionalProperties = normalizeSchema(schema.additionalProperties, depth + 1, seen);
+      result.additionalProperties = normalizeSchema(
+        schema.additionalProperties,
+        depth + 1,
+        seen,
+        root
+      );
     }
   }
 
   return result;
+}
+
+/**
+ * Normalize a list of schemas (oneOf/anyOf/allOf) into a stable, sorted array.
+ */
+function normalizeSchemaArray(
+  variants: SchemaProperty[],
+  depth: number,
+  seen: WeakSet<object>,
+  root: InputSchema | SchemaProperty
+): unknown[] {
+  const normalized = variants.map((variant) => normalizeSchema(variant, depth + 1, seen, root));
+
+  // Sort by JSON string for stable hashing (order-insensitive for oneOf/anyOf/allOf)
+  return normalized.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+}
+
+/**
+ * Resolve a local JSON pointer reference (e.g., "#/properties/foo").
+ */
+function resolveLocalRef(
+  root: InputSchema | SchemaProperty,
+  ref: string
+): SchemaProperty | InputSchema | null {
+  if (!ref.startsWith('#/')) {
+    return null;
+  }
+
+  const pointer = ref.slice(2);
+  const parts = pointer.split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'));
+
+  let current: unknown = root;
+  for (const part of parts) {
+    if (current && typeof current === 'object' && part in (current as Record<string, unknown>)) {
+      current = (current as Record<string, unknown>)[part];
+    } else {
+      return null;
+    }
+  }
+
+  return (current as SchemaProperty) ?? null;
 }
 
 /**
@@ -373,8 +506,8 @@ function compareProperties(
     const prevSet = new Set((prev.enum ?? []).map(String));
     const currSet = new Set((curr.enum ?? []).map(String));
 
-    const removed = [...prevSet].filter(v => !currSet.has(v));
-    const added = [...currSet].filter(v => !prevSet.has(v));
+    const removed = [...prevSet].filter((v) => !currSet.has(v));
+    const added = [...currSet].filter((v) => !prevSet.has(v));
 
     changes.push({
       path,
@@ -392,6 +525,8 @@ function compareProperties(
   compareConstraint(prev, curr, path, 'minLength', changes);
   compareConstraint(prev, curr, path, 'maxLength', changes);
   compareConstraint(prev, curr, path, 'pattern', changes);
+  compareConstraint(prev, curr, path, 'minProperties', changes);
+  compareConstraint(prev, curr, path, 'maxProperties', changes);
 
   // Compare nested properties
   if (prev.properties || curr.properties) {
@@ -452,6 +587,23 @@ function compareProperties(
       });
     }
   }
+
+  // Compare patternProperties
+  comparePatternProperties(prev, curr, path, changes);
+
+  // Compare dependentRequired
+  compareDependentRequired(prev, curr, path, changes);
+
+  // Compare conditional schemas (if/then/else)
+  compareConditionalSchemas(prev, curr, path, changes);
+
+  // Compare compositional schemas (oneOf/anyOf/allOf)
+  compareSchemaVariants(prev, curr, path, changes, 'oneOf');
+  compareSchemaVariants(prev, curr, path, changes, 'anyOf');
+  compareSchemaVariants(prev, curr, path, changes, 'allOf');
+
+  // Compare additionalProperties
+  compareAdditionalProperties(prev, curr, path, changes);
 }
 
 /**
@@ -461,7 +613,14 @@ function compareConstraint(
   prev: SchemaProperty,
   curr: SchemaProperty,
   path: string,
-  field: 'minimum' | 'maximum' | 'minLength' | 'maxLength' | 'pattern',
+  field:
+    | 'minimum'
+    | 'maximum'
+    | 'minLength'
+    | 'maxLength'
+    | 'pattern'
+    | 'minProperties'
+    | 'maxProperties',
   changes: SchemaChange[]
 ): void {
   const prevValue = prev[field];
@@ -470,8 +629,10 @@ function compareConstraint(
   if (prevValue !== currValue) {
     // Determine if breaking
     let breaking = false;
-    const isMinConstraint = field === 'minimum' || field === 'minLength';
-    const isMaxConstraint = field === 'maximum' || field === 'maxLength';
+    const isMinConstraint =
+      field === 'minimum' || field === 'minLength' || field === 'minProperties';
+    const isMaxConstraint =
+      field === 'maximum' || field === 'maxLength' || field === 'maxProperties';
 
     if (isMinConstraint) {
       // Increasing minimum is breaking (more restrictive)
@@ -491,6 +652,196 @@ function compareConstraint(
       after: currValue,
       breaking,
       description: `Constraint "${field}" changed from ${prevValue ?? 'none'} to ${currValue ?? 'none'}`,
+    });
+  }
+}
+
+/**
+ * Compare patternProperties between two schemas.
+ */
+function comparePatternProperties(
+  prev: SchemaProperty,
+  curr: SchemaProperty,
+  path: string,
+  changes: SchemaChange[]
+): void {
+  const prevPatterns = prev.patternProperties ?? {};
+  const currPatterns = curr.patternProperties ?? {};
+
+  const prevKeys = new Set(Object.keys(prevPatterns));
+  const currKeys = new Set(Object.keys(currPatterns));
+
+  for (const key of currKeys) {
+    if (!prevKeys.has(key)) {
+      changes.push({
+        path: `${path}{${key}}`,
+        changeType: 'property_added',
+        before: undefined,
+        after: summarizeProperty(currPatterns[key]),
+        breaking: false,
+        description: `Pattern property "${key}" added`,
+      });
+    }
+  }
+
+  for (const key of prevKeys) {
+    if (!currKeys.has(key)) {
+      changes.push({
+        path: `${path}{${key}}`,
+        changeType: 'property_removed',
+        before: summarizeProperty(prevPatterns[key]),
+        after: undefined,
+        breaking: true,
+        description: `Pattern property "${key}" removed`,
+      });
+    }
+  }
+
+  for (const key of prevKeys) {
+    if (currKeys.has(key)) {
+      compareProperties(prevPatterns[key], currPatterns[key], `${path}{${key}}`, changes);
+    }
+  }
+}
+
+/**
+ * Compare dependentRequired constraints.
+ */
+function compareDependentRequired(
+  prev: SchemaProperty,
+  curr: SchemaProperty,
+  path: string,
+  changes: SchemaChange[]
+): void {
+  const prevDeps = prev.dependentRequired ?? {};
+  const currDeps = curr.dependentRequired ?? {};
+
+  const keys = new Set([...Object.keys(prevDeps), ...Object.keys(currDeps)]);
+  for (const key of keys) {
+    const prevReqs = prevDeps[key] ?? [];
+    const currReqs = currDeps[key] ?? [];
+
+    if (!arraysEqual(prevReqs, currReqs)) {
+      const added = currReqs.filter((req) => !prevReqs.includes(req));
+      const removed = prevReqs.filter((req) => !currReqs.includes(req));
+      const breaking = added.length > 0;
+      changes.push({
+        path: `${path}.dependentRequired.${key}`,
+        changeType: 'constraint_changed',
+        before: prevReqs,
+        after: currReqs,
+        breaking,
+        description: `Dependent required fields for "${key}" changed (${added.length} added, ${removed.length} removed)`,
+      });
+    }
+  }
+}
+
+/**
+ * Compare conditional schemas (if/then/else).
+ */
+function compareConditionalSchemas(
+  prev: SchemaProperty,
+  curr: SchemaProperty,
+  path: string,
+  changes: SchemaChange[]
+): void {
+  const prevIf = prev.if;
+  const currIf = curr.if;
+  const prevThen = prev.then;
+  const currThen = curr.then;
+  const prevElse = prev.else;
+  const currElse = curr.else;
+
+  if (prevIf || currIf || prevThen || currThen || prevElse || currElse) {
+    const prevSig = JSON.stringify(normalizeSchema(prev, 0, new WeakSet(), prev));
+    const currSig = JSON.stringify(normalizeSchema(curr, 0, new WeakSet(), curr));
+    if (prevSig !== currSig) {
+      const breaking = !!currIf && !prevIf;
+      changes.push({
+        path: `${path}.ifThenElse`,
+        changeType: 'constraint_changed',
+        before: prevIf ? 'conditional present' : 'none',
+        after: currIf ? 'conditional present' : 'none',
+        breaking,
+        description: 'Conditional schema (if/then/else) changed',
+      });
+    }
+  }
+}
+
+/**
+ * Compare oneOf/anyOf/allOf variants.
+ */
+function compareSchemaVariants(
+  prev: SchemaProperty,
+  curr: SchemaProperty,
+  path: string,
+  changes: SchemaChange[],
+  field: 'oneOf' | 'anyOf' | 'allOf'
+): void {
+  const prevVariants = prev[field] ?? [];
+  const currVariants = curr[field] ?? [];
+
+  if (prevVariants.length === 0 && currVariants.length === 0) {
+    return;
+  }
+
+  const prevNormalized = normalizeSchemaArray(prevVariants, 0, new WeakSet(), prev);
+  const currNormalized = normalizeSchemaArray(currVariants, 0, new WeakSet(), curr);
+
+  const prevSet = new Set(prevNormalized.map((v) => JSON.stringify(v)));
+  const currSet = new Set(currNormalized.map((v) => JSON.stringify(v)));
+
+  const removed = [...prevSet].filter((v) => !currSet.has(v));
+  const added = [...currSet].filter((v) => !prevSet.has(v));
+
+  if (removed.length > 0 || added.length > 0) {
+    changes.push({
+      path: `${path}.${field}`,
+      changeType: 'constraint_changed',
+      before: `variants:${prevVariants.length}`,
+      after: `variants:${currVariants.length}`,
+      breaking: removed.length > 0,
+      description: `${field} variants changed (${removed.length} removed, ${added.length} added)`,
+    });
+  }
+}
+
+/**
+ * Compare additionalProperties between schemas.
+ */
+function compareAdditionalProperties(
+  prev: SchemaProperty,
+  curr: SchemaProperty,
+  path: string,
+  changes: SchemaChange[]
+): void {
+  const prevAdditional = prev.additionalProperties;
+  const currAdditional = curr.additionalProperties;
+
+  if (prevAdditional === undefined && currAdditional === undefined) {
+    return;
+  }
+
+  const prevSig =
+    typeof prevAdditional === 'boolean'
+      ? String(prevAdditional)
+      : JSON.stringify(normalizeSchema(prevAdditional ?? {}, 0, new WeakSet(), prev));
+  const currSig =
+    typeof currAdditional === 'boolean'
+      ? String(currAdditional)
+      : JSON.stringify(normalizeSchema(currAdditional ?? {}, 0, new WeakSet(), curr));
+
+  if (prevSig !== currSig) {
+    const breaking = currAdditional === false || currAdditional === undefined;
+    changes.push({
+      path: `${path}.additionalProperties`,
+      changeType: 'constraint_changed',
+      before: prevAdditional ?? 'unspecified',
+      after: currAdditional ?? 'unspecified',
+      breaking,
+      description: 'additionalProperties constraint changed',
     });
   }
 }
@@ -573,7 +924,7 @@ function generateVisualDiff(
 
   // Format each path's changes
   for (const [path, pathChanges] of byPath) {
-    const marker = pathChanges.some(c => c.breaking) ? '!' : '~';
+    const marker = pathChanges.some((c) => c.breaking) ? '!' : '~';
     lines.push(`${marker} ${path}:`);
 
     for (const change of pathChanges) {
@@ -590,7 +941,7 @@ function generateVisualDiff(
   }
 
   // Summary
-  const breakingCount = changes.filter(c => c.breaking).length;
+  const breakingCount = changes.filter((c) => c.breaking).length;
   const nonBreakingCount = changes.length - breakingCount;
   lines.push('');
   lines.push(`Summary: ${breakingCount} breaking, ${nonBreakingCount} non-breaking change(s)`);
