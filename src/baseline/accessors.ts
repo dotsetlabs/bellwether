@@ -1,7 +1,7 @@
-import type { CloudToolProfile, ToolCapability } from './cloud-types.js';
+import type { BaselineToolProfile, ToolCapability } from './baseline-format.js';
 import type { BehavioralAssertion, BehavioralBaseline, ToolFingerprint } from './types.js';
 
-function buildAssertions(profile: CloudToolProfile): BehavioralAssertion[] {
+function buildAssertions(profile: BaselineToolProfile): BehavioralAssertion[] {
   const assertions: BehavioralAssertion[] = [];
 
   for (const note of profile.behavioralNotes ?? []) {
@@ -27,7 +27,8 @@ function buildAssertions(profile: CloudToolProfile): BehavioralAssertion[] {
       tool: profile.name,
       aspect: 'security',
       assertion: secNote,
-      isPositive: !secNote.toLowerCase().includes('risk') &&
+      isPositive:
+        !secNote.toLowerCase().includes('risk') &&
         !secNote.toLowerCase().includes('vulnerab') &&
         !secNote.toLowerCase().includes('dangerous'),
     });
@@ -48,11 +49,15 @@ export function getBaselineServerCommand(baseline: BehavioralBaseline): string {
   return baseline.metadata.serverCommand;
 }
 
-export function getBaselineMode(baseline: BehavioralBaseline): BehavioralBaseline['metadata']['mode'] {
+export function getBaselineMode(
+  baseline: BehavioralBaseline
+): BehavioralBaseline['metadata']['mode'] {
   return baseline.metadata.mode;
 }
 
-export function getBaselineWorkflows(baseline: BehavioralBaseline): BehavioralBaseline['workflows'] {
+export function getBaselineWorkflows(
+  baseline: BehavioralBaseline
+): BehavioralBaseline['workflows'] {
   return baseline.workflows;
 }
 
@@ -63,7 +68,8 @@ export function toToolCapability(tool: ToolFingerprint): ToolCapability {
     inputSchema: tool.inputSchema ?? {},
     schemaHash: tool.schemaHash,
     responseSchemaEvolution: tool.responseSchemaEvolution,
-    lastTestedAt: tool.lastTestedAt instanceof Date ? tool.lastTestedAt.toISOString() : tool.lastTestedAt,
+    lastTestedAt:
+      tool.lastTestedAt instanceof Date ? tool.lastTestedAt.toISOString() : tool.lastTestedAt,
     inputSchemaHashAtTest: tool.inputSchemaHashAtTest,
     responseFingerprint: tool.responseFingerprint,
     inferredOutputSchema: tool.inferredOutputSchema,
@@ -79,7 +85,7 @@ export function toToolCapability(tool: ToolFingerprint): ToolCapability {
 export function getToolFingerprints(baseline: BehavioralBaseline): ToolFingerprint[] {
   const capabilities = baseline.capabilities?.tools ?? [];
   const profiles = baseline.toolProfiles ?? [];
-  const profileMap = new Map<string, CloudToolProfile>(
+  const profileMap = new Map<string, BaselineToolProfile>(
     profiles.map((profile) => [profile.name, profile])
   );
 
@@ -91,9 +97,7 @@ export function getToolFingerprints(baseline: BehavioralBaseline): ToolFingerpri
     const description = tool.description || profile?.description || '';
     const schemaHash = tool.schemaHash || profile?.schemaHash || '';
 
-    const lastTestedAt = tool.lastTestedAt
-      ? new Date(tool.lastTestedAt)
-      : undefined;
+    const lastTestedAt = tool.lastTestedAt ? new Date(tool.lastTestedAt) : undefined;
 
     return {
       name: tool.name,
@@ -103,7 +107,8 @@ export function getToolFingerprints(baseline: BehavioralBaseline): ToolFingerpri
       assertions,
       securityNotes,
       limitations,
-      responseSchemaEvolution: tool.responseSchemaEvolution as ToolFingerprint['responseSchemaEvolution'],
+      responseSchemaEvolution:
+        tool.responseSchemaEvolution as ToolFingerprint['responseSchemaEvolution'],
       lastTestedAt,
       inputSchemaHashAtTest: tool.inputSchemaHashAtTest,
       responseFingerprint: tool.responseFingerprint,

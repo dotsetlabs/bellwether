@@ -1,43 +1,9 @@
-#!/bin/bash
-# Generate man page from an embedded template using pandoc
-# Usage: ./scripts/generate-manpage.sh
-
-set -e
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-
-MAN_SECTION="1"
-MAN_DATE="$(date +%Y-%m-%d)"
-MAN_VERSION="$(node -p "require('$PROJECT_ROOT/package.json').version")"
-MAN_NAME="bellwether"
-MAN_TITLE="Bellwether MCP Testing Tool"
-
-echo "Generating man page for $MAN_NAME v$MAN_VERSION..."
-
-# Check if pandoc is available
-if ! command -v pandoc &> /dev/null; then
-    echo "Warning: pandoc not found. Installing via npm..."
-    npm install -g pandoc-bin 2>/dev/null || {
-        echo "Error: Could not install pandoc. Please install manually:"
-        echo "  macOS: brew install pandoc"
-        echo "  Ubuntu/Debian: apt-get install pandoc"
-        echo "  Or visit: https://pandoc.org/installing.html"
-        exit 1
-    }
-fi
-
-# Create man page directory
-mkdir -p "$PROJECT_ROOT/man"
-
-# Generate man page from README
-cat > "$PROJECT_ROOT/man/$MAN_NAME.$MAN_SECTION.md" << 'EOF'
 ---
 title: BELLWETHER
 section: 1
 header: User Commands
-footer: Bellwether $MAN_VERSION
-date: $MAN_DATE
+footer: Bellwether 2.0.0
+date: 2026-02-04
 ---
 
 # NAME
@@ -180,20 +146,3 @@ MCP Specification: <https://modelcontextprotocol.io>
 # AUTHORS
 
 Dotset Labs LLC <hello@dotsetlabs.com>
-EOF
-
-# Substitute variables
-sed -i.bak "s/\$MAN_VERSION/$MAN_VERSION/g" "$PROJECT_ROOT/man/$MAN_NAME.$MAN_SECTION.md"
-sed -i.bak "s/\$MAN_DATE/$MAN_DATE/g" "$PROJECT_ROOT/man/$MAN_NAME.$MAN_SECTION.md"
-rm -f "$PROJECT_ROOT/man/$MAN_NAME.$MAN_SECTION.md.bak"
-
-# Convert to man page
-pandoc "$PROJECT_ROOT/man/$MAN_NAME.$MAN_SECTION.md" \
-    -s -t man \
-    -o "$PROJECT_ROOT/man/$MAN_NAME.$MAN_SECTION"
-
-echo "Man page generated: man/$MAN_NAME.$MAN_SECTION"
-echo ""
-echo "To install:"
-echo "  sudo cp man/$MAN_NAME.$MAN_SECTION /usr/local/share/man/man$MAN_SECTION/"
-echo "  sudo mandb  # Update man database"

@@ -1,6 +1,6 @@
 {
   "name": "@dotsetlabs/bellwether",
-  "version": "1.0.3",
+  "version": "2.0.0",
   "description": "The open-source MCP testing tool. Structural drift detection and behavioral documentation for Model Context Protocol servers.",
   "type": "module",
   "main": "dist/index.js",

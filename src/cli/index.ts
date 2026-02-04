@@ -128,6 +128,14 @@ Check MCP servers for drift. Explore behavior. Generate documentation.
 Commands:
   check    - Schema validation and drift detection (free, fast, deterministic)
   explore  - LLM-powered behavioral exploration and documentation
+  discover - Quick capability discovery (no tests)
+  registry - Search the MCP Registry
+  baseline - Manage baselines (save/compare/accept/diff/show)
+  golden   - Golden output regression testing
+  contract - Contract validation (generate/validate/show)
+  watch    - Continuous checking on file changes
+  auth     - Manage LLM provider API keys
+  validate-config - Validate bellwether.yaml without running tests
 
 For more information on a specific command, use:
   bellwether <command> --help`

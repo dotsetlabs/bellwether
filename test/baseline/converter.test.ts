@@ -1,16 +1,16 @@
 /**
  * Unit tests for baseline/converter.ts
  *
- * Tests the conversion of local interview results to cloud baseline format.
+ * Tests the conversion of local interview results to baseline format.
  * Following TDD principles - testing expected behavior based on rational assumptions.
  */
 
 import { describe, it, expect } from 'vitest';
 import {
-  CHANGE_TO_CLOUD_SEVERITY,
-  CLOUD_TO_CHANGE_SEVERITY,
+  CHANGE_TO_BASELINE_SEVERITY,
+  BASELINE_TO_CHANGE_SEVERITY,
   convertAssertions,
-  createCloudBaseline,
+  createBaselineFromInterview,
 } from '../../src/baseline/converter.js';
 import type { BehavioralAssertion } from '../../src/baseline/types.js';
 import type { InterviewResult, ToolProfile } from '../../src/interview/types.js';
@@ -76,57 +76,59 @@ function createTestInterviewResult(options: {
 
 describe('converter', () => {
   describe('severity mapping constants', () => {
-    describe('CHANGE_TO_CLOUD_SEVERITY', () => {
+    describe('CHANGE_TO_BASELINE_SEVERITY', () => {
       it('should map "none" to "info"', () => {
-        expect(CHANGE_TO_CLOUD_SEVERITY.none).toBe('info');
+        expect(CHANGE_TO_BASELINE_SEVERITY.none).toBe('info');
       });
 
       it('should map "info" to "low"', () => {
-        expect(CHANGE_TO_CLOUD_SEVERITY.info).toBe('low');
+        expect(CHANGE_TO_BASELINE_SEVERITY.info).toBe('low');
       });
 
       it('should map "warning" to "medium"', () => {
-        expect(CHANGE_TO_CLOUD_SEVERITY.warning).toBe('medium');
+        expect(CHANGE_TO_BASELINE_SEVERITY.warning).toBe('medium');
       });
 
       it('should map "breaking" to "critical"', () => {
-        expect(CHANGE_TO_CLOUD_SEVERITY.breaking).toBe('critical');
+        expect(CHANGE_TO_BASELINE_SEVERITY.breaking).toBe('critical');
       });
     });
 
-    describe('CLOUD_TO_CHANGE_SEVERITY', () => {
+    describe('BASELINE_TO_CHANGE_SEVERITY', () => {
       it('should map "info" to "info"', () => {
-        expect(CLOUD_TO_CHANGE_SEVERITY.info).toBe('info');
+        expect(BASELINE_TO_CHANGE_SEVERITY.info).toBe('info');
       });
 
       it('should map "low" to "info"', () => {
-        expect(CLOUD_TO_CHANGE_SEVERITY.low).toBe('info');
+        expect(BASELINE_TO_CHANGE_SEVERITY.low).toBe('info');
       });
 
       it('should map "medium" to "warning"', () => {
-        expect(CLOUD_TO_CHANGE_SEVERITY.medium).toBe('warning');
+        expect(BASELINE_TO_CHANGE_SEVERITY.medium).toBe('warning');
       });
 
       it('should map "high" to "warning"', () => {
         // Note: high maps to warning, not breaking
         // This is a lossy conversion - high and medium both become warning
-        expect(CLOUD_TO_CHANGE_SEVERITY.high).toBe('warning');
+        expect(BASELINE_TO_CHANGE_SEVERITY.high).toBe('warning');
       });
 
       it('should map "critical" to "breaking"', () => {
-        expect(CLOUD_TO_CHANGE_SEVERITY.critical).toBe('breaking');
+        expect(BASELINE_TO_CHANGE_SEVERITY.critical).toBe('breaking');
       });
     });
   });
 
   describe('convertAssertions', () => {
     it('should convert positive non-security assertions to "expects" type', () => {
-      const assertions: BehavioralAssertion[] = [{
-        tool: 'test_tool',
-        aspect: 'response_format',
-        assertion: 'Returns JSON response',
-        isPositive: true,
-      }];
+      const assertions: BehavioralAssertion[] = [
+        {
+          tool: 'test_tool',
+          aspect: 'response_format',
+          assertion: 'Returns JSON response',
+          isPositive: true,
+        },
+      ];
 
       const result = convertAssertions(assertions);
 
@@ -137,12 +139,14 @@ describe('converter', () => {
     });
 
     it('should convert positive security assertions to "requires" type', () => {
-      const assertions: BehavioralAssertion[] = [{
-        tool: 'auth_tool',
-        aspect: 'security',
-        assertion: 'Requires authentication',
-        isPositive: true,
-      }];
+      const assertions: BehavioralAssertion[] = [
+        {
+          tool: 'auth_tool',
+          aspect: 'security',
+          assertion: 'Requires authentication',
+          isPositive: true,
+        },
+      ];
 
       const result = convertAssertions(assertions);
 
@@ -150,12 +154,14 @@ describe('converter', () => {
     });
 
     it('should convert negative non-security assertions to "notes" type', () => {
-      const assertions: BehavioralAssertion[] = [{
-        tool: 'test_tool',
-        aspect: 'error_handling',
-        assertion: 'May timeout on large inputs',
-        isPositive: false,
-      }];
+      const assertions: BehavioralAssertion[] = [
+        {
+          tool: 'test_tool',
+          aspect: 'error_handling',
+          assertion: 'May timeout on large inputs',
+          isPositive: false,
+        },
+      ];
 
       const result = convertAssertions(assertions);
 
@@ -163,12 +169,14 @@ describe('converter', () => {
     });
 
     it('should convert negative security assertions to "warns" type', () => {
-      const assertions: BehavioralAssertion[] = [{
-        tool: 'file_tool',
-        aspect: 'security',
-        assertion: 'Vulnerable to path traversal',
-        isPositive: false,
-      }];
+      const assertions: BehavioralAssertion[] = [
+        {
+          tool: 'file_tool',
+          aspect: 'security',
+          assertion: 'Vulnerable to path traversal',
+          isPositive: false,
+        },
+      ];
 
       const result = convertAssertions(assertions);
 
@@ -177,12 +185,14 @@ describe('converter', () => {
 
     describe('severity classification', () => {
       it('should classify security assertions with "critical" keyword as critical', () => {
-        const assertions: BehavioralAssertion[] = [{
-          tool: 'tool',
-          aspect: 'security',
-          assertion: 'Critical vulnerability found',
-          isPositive: false,
-        }];
+        const assertions: BehavioralAssertion[] = [
+          {
+            tool: 'tool',
+            aspect: 'security',
+            assertion: 'Critical vulnerability found',
+            isPositive: false,
+          },
+        ];
 
         const result = convertAssertions(assertions);
 
@@ -190,12 +200,14 @@ describe('converter', () => {
       });
 
       it('should classify security assertions with "injection" keyword as critical', () => {
-        const assertions: BehavioralAssertion[] = [{
-          tool: 'tool',
-          aspect: 'security',
-          assertion: 'SQL injection possible',
-          isPositive: false,
-        }];
+        const assertions: BehavioralAssertion[] = [
+          {
+            tool: 'tool',
+            aspect: 'security',
+            assertion: 'SQL injection possible',
+            isPositive: false,
+          },
+        ];
 
         const result = convertAssertions(assertions);
 
@@ -203,12 +215,14 @@ describe('converter', () => {
       });
 
       it('should classify security assertions with "rce" keyword as critical', () => {
-        const assertions: BehavioralAssertion[] = [{
-          tool: 'tool',
-          aspect: 'security',
-          assertion: 'RCE vulnerability detected',
-          isPositive: false,
-        }];
+        const assertions: BehavioralAssertion[] = [
+          {
+            tool: 'tool',
+            aspect: 'security',
+            assertion: 'RCE vulnerability detected',
+            isPositive: false,
+          },
+        ];
 
         const result = convertAssertions(assertions);
 
@@ -216,12 +230,14 @@ describe('converter', () => {
       });
 
       it('should classify security assertions with "high" keyword as high', () => {
-        const assertions: BehavioralAssertion[] = [{
-          tool: 'tool',
-          aspect: 'security',
-          assertion: 'High risk vulnerability',
-          isPositive: false,
-        }];
+        const assertions: BehavioralAssertion[] = [
+          {
+            tool: 'tool',
+            aspect: 'security',
+            assertion: 'High risk vulnerability',
+            isPositive: false,
+          },
+        ];
 
         const result = convertAssertions(assertions);
 
@@ -229,12 +245,14 @@ describe('converter', () => {
       });
 
       it('should classify security assertions with "dangerous" keyword as high', () => {
-        const assertions: BehavioralAssertion[] = [{
-          tool: 'tool',
-          aspect: 'security',
-          assertion: 'Dangerous operation allowed',
-          isPositive: false,
-        }];
+        const assertions: BehavioralAssertion[] = [
+          {
+            tool: 'tool',
+            aspect: 'security',
+            assertion: 'Dangerous operation allowed',
+            isPositive: false,
+          },
+        ];
 
         const result = convertAssertions(assertions);
 
@@ -242,12 +260,14 @@ describe('converter', () => {
       });
 
       it('should classify security assertions with "medium" keyword as medium', () => {
-        const assertions: BehavioralAssertion[] = [{
-          tool: 'tool',
-          aspect: 'security',
-          assertion: 'Medium risk issue',
-          isPositive: false,
-        }];
+        const assertions: BehavioralAssertion[] = [
+          {
+            tool: 'tool',
+            aspect: 'security',
+            assertion: 'Medium risk issue',
+            isPositive: false,
+          },
+        ];
 
         const result = convertAssertions(assertions);
 
@@ -255,12 +275,14 @@ describe('converter', () => {
       });
 
       it('should classify security assertions with "leak" keyword as medium', () => {
-        const assertions: BehavioralAssertion[] = [{
-          tool: 'tool',
-          aspect: 'security',
-          assertion: 'Information leak possible',
-          isPositive: false,
-        }];
+        const assertions: BehavioralAssertion[] = [
+          {
+            tool: 'tool',
+            aspect: 'security',
+            assertion: 'Information leak possible',
+            isPositive: false,
+          },
+        ];
 
         const result = convertAssertions(assertions);
 
@@ -268,12 +290,14 @@ describe('converter', () => {
       });
 
       it('should classify generic security assertions as low', () => {
-        const assertions: BehavioralAssertion[] = [{
-          tool: 'tool',
-          aspect: 'security',
-          assertion: 'Security consideration noted',
-          isPositive: false,
-        }];
+        const assertions: BehavioralAssertion[] = [
+          {
+            tool: 'tool',
+            aspect: 'security',
+            assertion: 'Security consideration noted',
+            isPositive: false,
+          },
+        ];
 
         const result = convertAssertions(assertions);
 
@@ -281,31 +305,37 @@ describe('converter', () => {
       });
 
       it('should classify error_handling assertions based on isPositive', () => {
-        const positive: BehavioralAssertion[] = [{
-          tool: 'tool',
-          aspect: 'error_handling',
-          assertion: 'Handles errors gracefully',
-          isPositive: true,
-        }];
+        const positive: BehavioralAssertion[] = [
+          {
+            tool: 'tool',
+            aspect: 'error_handling',
+            assertion: 'Handles errors gracefully',
+            isPositive: true,
+          },
+        ];
 
-        const negative: BehavioralAssertion[] = [{
-          tool: 'tool',
-          aspect: 'error_handling',
-          assertion: 'May fail on edge cases',
-          isPositive: false,
-        }];
+        const negative: BehavioralAssertion[] = [
+          {
+            tool: 'tool',
+            aspect: 'error_handling',
+            assertion: 'May fail on edge cases',
+            isPositive: false,
+          },
+        ];
 
         expect(convertAssertions(positive)[0].severity).toBe('info');
         expect(convertAssertions(negative)[0].severity).toBe('low');
       });
 
       it('should classify performance assertions as medium', () => {
-        const assertions: BehavioralAssertion[] = [{
-          tool: 'tool',
-          aspect: 'performance',
-          assertion: 'Response time varies',
-          isPositive: true,
-        }];
+        const assertions: BehavioralAssertion[] = [
+          {
+            tool: 'tool',
+            aspect: 'performance',
+            assertion: 'Response time varies',
+            isPositive: true,
+          },
+        ];
 
         const result = convertAssertions(assertions);
 
@@ -335,10 +365,10 @@ describe('converter', () => {
     });
   });
 
-  describe('createCloudBaseline', () => {
+  describe('createBaselineFromInterview', () => {
     it('should create a baseline with correct version', () => {
       const result = createTestInterviewResult({ tools: [{ name: 'tool' }] });
-      const baseline = createCloudBaseline(result, 'npx test-server');
+      const baseline = createBaselineFromInterview(result, 'npx test-server');
 
       expect(baseline.version).toBeDefined();
       expect(typeof baseline.version).toBe('string');
@@ -349,7 +379,7 @@ describe('converter', () => {
         tools: [{ name: 'tool' }],
         model: 'check',
       });
-      const baseline = createCloudBaseline(result, 'npx test-server');
+      const baseline = createBaselineFromInterview(result, 'npx test-server');
 
       expect(baseline.metadata.mode).toBe('check');
     });
@@ -359,14 +389,14 @@ describe('converter', () => {
         tools: [{ name: 'tool' }],
         model: 'gpt-4',
       });
-      const baseline = createCloudBaseline(result, 'npx test-server');
+      const baseline = createBaselineFromInterview(result, 'npx test-server');
 
       expect(baseline.metadata.mode).toBe('explore');
     });
 
     it('should include server command in metadata', () => {
       const result = createTestInterviewResult({ tools: [{ name: 'tool' }] });
-      const baseline = createCloudBaseline(result, 'npx @mcp/server');
+      const baseline = createBaselineFromInterview(result, 'npx @mcp/server');
 
       expect(baseline.metadata.serverCommand).toBe('npx @mcp/server');
     });
@@ -376,7 +406,7 @@ describe('converter', () => {
         serverName: 'my-server',
         tools: [{ name: 'tool' }],
       });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       expect(baseline.server.name).toBe('my-server');
       expect(baseline.server.version).toBe('1.0.0');
@@ -391,7 +421,7 @@ describe('converter', () => {
           { name: 'tool_b', description: 'Tool B description' },
         ],
       });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       expect(baseline.capabilities.tools).toHaveLength(2);
       expect(baseline.capabilities.tools[0].name).toBe('tool_a');
@@ -403,7 +433,7 @@ describe('converter', () => {
       const result = createTestInterviewResult({
         tools: [{ name: 'tool' }],
       });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       expect(baseline.capabilities.tools[0].schemaHash).toBeDefined();
       expect(typeof baseline.capabilities.tools[0].schemaHash).toBe('string');
@@ -411,14 +441,16 @@ describe('converter', () => {
 
     it('should extract tool profiles with converted assertions', () => {
       const result = createTestInterviewResult({
-        tools: [{
-          name: 'test_tool',
-          behavioralNotes: ['Returns JSON'],
-          limitations: ['Max 1MB files'],
-          securityNotes: ['Requires auth'],
-        }],
+        tools: [
+          {
+            name: 'test_tool',
+            behavioralNotes: ['Returns JSON'],
+            limitations: ['Max 1MB files'],
+            securityNotes: ['Requires auth'],
+          },
+        ],
       });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       expect(baseline.toolProfiles).toHaveLength(1);
       expect(baseline.toolProfiles[0].behavioralNotes).toContain('Returns JSON');
@@ -432,7 +464,7 @@ describe('converter', () => {
         tools: [{ name: 'tool' }],
         limitations: ['Server has limited memory'],
       });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       const serverAssertions = baseline.assertions.filter((a) => a.tool === 'server');
       expect(serverAssertions.length).toBeGreaterThan(0);
@@ -441,7 +473,7 @@ describe('converter', () => {
 
     it('should calculate and include hash', () => {
       const result = createTestInterviewResult({ tools: [{ name: 'tool' }] });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       expect(baseline.hash).toBeDefined();
       expect(typeof baseline.hash).toBe('string');
@@ -450,7 +482,7 @@ describe('converter', () => {
 
     it('should include summary from interview result', () => {
       const result = createTestInterviewResult({ tools: [{ name: 'tool' }] });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       expect(baseline.summary).toBe('Test interview completed');
     });
@@ -460,7 +492,7 @@ describe('converter', () => {
         tools: [{ name: 'tool' }],
         model: 'check',
       });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       expect(baseline.metadata.personas).toEqual([]);
     });
@@ -470,14 +502,14 @@ describe('converter', () => {
         tools: [{ name: 'tool' }],
         model: 'check',
       });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       expect(baseline.metadata.model).toBe('none');
     });
 
     it('should include duration from metadata', () => {
       const result = createTestInterviewResult({ tools: [{ name: 'tool' }] });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       expect(baseline.metadata.durationMs).toBe(1000);
     });
@@ -486,7 +518,7 @@ describe('converter', () => {
       const result = createTestInterviewResult({
         tools: [{ name: 'tool', description: 'A well-documented tool' }],
       });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       expect(baseline.documentationScore).toBeDefined();
       expect(baseline.documentationScore?.grade).toBeDefined();
@@ -498,14 +530,14 @@ describe('converter', () => {
       const result = createTestInterviewResult({
         tools: [{ name: 'tool', description: '' }],
       });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       expect(baseline.capabilities.tools[0].description).toBe('');
     });
 
     it('should handle empty tool profiles', () => {
       const result = createTestInterviewResult({ tools: [] });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       expect(baseline.capabilities.tools).toHaveLength(0);
       expect(baseline.toolProfiles).toHaveLength(0);
@@ -513,14 +545,16 @@ describe('converter', () => {
 
     it('should handle tool with empty arrays', () => {
       const result = createTestInterviewResult({
-        tools: [{
-          name: 'tool',
-          behavioralNotes: [],
-          limitations: [],
-          securityNotes: [],
-        }],
+        tools: [
+          {
+            name: 'tool',
+            behavioralNotes: [],
+            limitations: [],
+            securityNotes: [],
+          },
+        ],
       });
-      const baseline = createCloudBaseline(result, 'npx test');
+      const baseline = createBaselineFromInterview(result, 'npx test');
 
       expect(baseline.toolProfiles[0].behavioralNotes).toHaveLength(0);
       expect(baseline.toolProfiles[0].limitations).toHaveLength(0);

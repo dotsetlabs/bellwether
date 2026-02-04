@@ -23,12 +23,14 @@ import type {
   VersionCompatibilityInfo,
   SeverityConfig,
 } from './types.js';
+import type {
+  BaselineServerFingerprint,
+  PromptCapability,
+  ResourceCapability,
+} from './baseline-format.js';
 import { createBaseline } from './saver.js';
 import { getToolFingerprints } from './accessors.js';
-import {
-  compareFingerprints,
-  compareErrorPatterns,
-} from './response-fingerprint.js';
+import { compareFingerprints, compareErrorPatterns } from './response-fingerprint.js';
 import { analyzeErrorTrends } from './error-analyzer.js';
 import type { ErrorTrendReport } from './types.js';
 import { compareSecurityFingerprints } from '../security/security-tester.js';
@@ -42,9 +44,14 @@ import {
   areVersionsCompatible,
   getCompatibilityWarning,
 } from './version.js';
-import { compareSchemas } from './schema-compare.js';
+import { compareSchemas, computeSchemaHash } from './schema-compare.js';
 import { PERFORMANCE_TRACKING } from '../constants.js';
-import type { PerformanceRegressionReport, PerformanceRegression, PerformanceConfidenceChange, DocumentationScoreChange } from './types.js';
+import type {
+  PerformanceRegressionReport,
+  PerformanceRegression,
+  PerformanceConfidenceChange,
+  DocumentationScoreChange,
+} from './types.js';
 import { hasReliableConfidence } from './performance-tracker.js';
 import { compareDocumentationScores, scoreDocumentation } from './documentation-scorer.js';
 
@@ -143,11 +150,19 @@ export function compareBaselines(
     }
   }
 
-  // Compare workflows
-  const workflowChanges = compareWorkflows(
-    previous.workflows || [],
-    current.workflows || []
+  // Compare prompts and resources
+  behaviorChanges.push(
+    ...comparePrompts(previous.capabilities.prompts, current.capabilities.prompts)
   );
+  behaviorChanges.push(
+    ...compareResources(previous.capabilities.resources, current.capabilities.resources)
+  );
+
+  // Compare server metadata and capabilities
+  behaviorChanges.push(...compareServerInfo(previous.server, current.server));
+
+  // Compare workflows
+  const workflowChanges = compareWorkflows(previous.workflows || [], current.workflows || []);
   behaviorChanges.push(...workflowChanges);
 
   const { severity, breakingCount, warningCount, infoCount } = calculateSeverity(
@@ -228,8 +243,11 @@ function compareTool(
   let securityChanged = false;
   let schemaEvolutionDiff: SchemaEvolutionDiff | undefined;
 
-  // Compare input schema with detailed diff
-  if (previous.schemaHash !== current.schemaHash && !options.ignoreSchemaChanges) {
+  // Compare input schema with detailed diff (declared schema hash)
+  const previousDeclaredHash = getDeclaredSchemaHash(previous);
+  const currentDeclaredHash = getDeclaredSchemaHash(current);
+
+  if (previousDeclaredHash !== currentDeclaredHash && !options.ignoreSchemaChanges) {
     schemaChanged = true;
 
     // Get detailed schema comparison if inputSchema is available on both
@@ -256,8 +274,8 @@ function compareTool(
       changes.push({
         tool: current.name,
         aspect: 'schema',
-        before: `Schema hash: ${previous.schemaHash}`,
-        after: `Schema hash: ${current.schemaHash}`,
+        before: `Schema hash: ${previousDeclaredHash}`,
+        after: `Schema hash: ${currentDeclaredHash}`,
         severity: 'breaking',
         description: `Schema for ${current.name} has changed`,
       });
@@ -302,10 +320,7 @@ function compareTool(
 
   // Compare error patterns (check mode enhancement)
   if (!options.ignoreErrorPatternChanges) {
-    const errorDiff = compareErrorPatterns(
-      previous.errorPatterns,
-      current.errorPatterns
-    );
+    const errorDiff = compareErrorPatterns(previous.errorPatterns, current.errorPatterns);
 
     if (errorDiff.behaviorChanged) {
       errorPatternsChanged = true;
@@ -411,11 +426,12 @@ function compareTool(
           aspect: 'security',
           before: 'no finding',
           after: `${finding.riskLevel}: ${finding.title}`,
-          severity: finding.riskLevel === 'critical' || finding.riskLevel === 'high'
-            ? 'breaking'
-            : finding.riskLevel === 'medium'
-              ? 'warning'
-              : 'info',
+          severity:
+            finding.riskLevel === 'critical' || finding.riskLevel === 'high'
+              ? 'breaking'
+              : finding.riskLevel === 'medium'
+                ? 'warning'
+                : 'info',
           description: `New security finding: ${finding.title} (${finding.cweId})`,
         });
       }
@@ -447,6 +463,271 @@ function compareTool(
   };
 }
 
+function comparePrompts(
+  previous: PromptCapability[] | undefined,
+  current: PromptCapability[] | undefined
+): BehaviorChange[] {
+  const changes: BehaviorChange[] = [];
+  const prevMap = new Map((previous ?? []).map((p) => [p.name, p]));
+  const currMap = new Map((current ?? []).map((p) => [p.name, p]));
+
+  for (const [name, currPrompt] of currMap) {
+    const prevPrompt = prevMap.get(name);
+    if (!prevPrompt) {
+      changes.push({
+        tool: `prompt:${name}`,
+        aspect: 'prompt',
+        before: 'absent',
+        after: 'present',
+        severity: 'info',
+        description: `Prompt "${name}" added`,
+      });
+      continue;
+    }
+
+    if (prevPrompt.description !== currPrompt.description) {
+      changes.push({
+        tool: `prompt:${name}`,
+        aspect: 'prompt',
+        before: prevPrompt.description ?? 'none',
+        after: currPrompt.description ?? 'none',
+        severity: 'info',
+        description: `Prompt "${name}" description changed`,
+      });
+    }
+
+    const prevArgs = prevPrompt.arguments ?? [];
+    const currArgs = currPrompt.arguments ?? [];
+    const prevArgMap = new Map(prevArgs.map((a) => [a.name, a]));
+    const currArgMap = new Map(currArgs.map((a) => [a.name, a]));
+
+    for (const [argName, currArg] of currArgMap) {
+      const prevArg = prevArgMap.get(argName);
+      if (!prevArg) {
+        changes.push({
+          tool: `prompt:${name}`,
+          aspect: 'prompt',
+          before: 'absent',
+          after: 'present',
+          severity: currArg.required ? 'breaking' : 'info',
+          description: `Prompt "${name}" argument "${argName}" added`,
+        });
+        continue;
+      }
+
+      if (prevArg.required !== currArg.required) {
+        changes.push({
+          tool: `prompt:${name}`,
+          aspect: 'prompt',
+          before: String(prevArg.required ?? false),
+          after: String(currArg.required ?? false),
+          severity: currArg.required ? 'breaking' : 'warning',
+          description: `Prompt "${name}" argument "${argName}" requirement changed`,
+        });
+      }
+
+      if (prevArg.description !== currArg.description) {
+        changes.push({
+          tool: `prompt:${name}`,
+          aspect: 'prompt',
+          before: prevArg.description ?? 'none',
+          after: currArg.description ?? 'none',
+          severity: 'info',
+          description: `Prompt "${name}" argument "${argName}" description changed`,
+        });
+      }
+    }
+
+    for (const [argName] of prevArgMap) {
+      if (!currArgMap.has(argName)) {
+        changes.push({
+          tool: `prompt:${name}`,
+          aspect: 'prompt',
+          before: 'present',
+          after: 'absent',
+          severity: 'breaking',
+          description: `Prompt "${name}" argument "${argName}" removed`,
+        });
+      }
+    }
+  }
+
+  for (const [name] of prevMap) {
+    if (!currMap.has(name)) {
+      changes.push({
+        tool: `prompt:${name}`,
+        aspect: 'prompt',
+        before: 'present',
+        after: 'absent',
+        severity: 'breaking',
+        description: `Prompt "${name}" removed`,
+      });
+    }
+  }
+
+  return changes;
+}
+
+function compareResources(
+  previous: ResourceCapability[] | undefined,
+  current: ResourceCapability[] | undefined
+): BehaviorChange[] {
+  const changes: BehaviorChange[] = [];
+  const prevMap = new Map((previous ?? []).map((r) => [r.uri, r]));
+  const currMap = new Map((current ?? []).map((r) => [r.uri, r]));
+
+  for (const [uri, currResource] of currMap) {
+    const prevResource = prevMap.get(uri);
+    if (!prevResource) {
+      changes.push({
+        tool: `resource:${currResource.name ?? uri}`,
+        aspect: 'resource',
+        before: 'absent',
+        after: 'present',
+        severity: 'info',
+        description: `Resource "${uri}" added`,
+      });
+      continue;
+    }
+
+    if (prevResource.name !== currResource.name) {
+      changes.push({
+        tool: `resource:${currResource.name ?? uri}`,
+        aspect: 'resource',
+        before: prevResource.name ?? 'none',
+        after: currResource.name ?? 'none',
+        severity: 'info',
+        description: `Resource "${uri}" name changed`,
+      });
+    }
+
+    if (prevResource.description !== currResource.description) {
+      changes.push({
+        tool: `resource:${currResource.name ?? uri}`,
+        aspect: 'resource',
+        before: prevResource.description ?? 'none',
+        after: currResource.description ?? 'none',
+        severity: 'info',
+        description: `Resource "${uri}" description changed`,
+      });
+    }
+
+    if (prevResource.mimeType !== currResource.mimeType) {
+      changes.push({
+        tool: `resource:${currResource.name ?? uri}`,
+        aspect: 'resource',
+        before: prevResource.mimeType ?? 'none',
+        after: currResource.mimeType ?? 'none',
+        severity: 'warning',
+        description: `Resource "${uri}" mime type changed`,
+      });
+    }
+  }
+
+  for (const [uri, prevResource] of prevMap) {
+    if (!currMap.has(uri)) {
+      changes.push({
+        tool: `resource:${prevResource.name ?? uri}`,
+        aspect: 'resource',
+        before: 'present',
+        after: 'absent',
+        severity: 'breaking',
+        description: `Resource "${uri}" removed`,
+      });
+    }
+  }
+
+  return changes;
+}
+
+function compareServerInfo(
+  previous: BaselineServerFingerprint,
+  current: BaselineServerFingerprint
+): BehaviorChange[] {
+  const changes: BehaviorChange[] = [];
+
+  if (previous.name !== current.name) {
+    changes.push({
+      tool: 'server',
+      aspect: 'server',
+      before: previous.name,
+      after: current.name,
+      severity: 'info',
+      description: 'Server name changed',
+    });
+  }
+
+  if (previous.version !== current.version) {
+    changes.push({
+      tool: 'server',
+      aspect: 'server',
+      before: previous.version,
+      after: current.version,
+      severity: 'info',
+      description: 'Server version changed',
+    });
+  }
+
+  if (previous.protocolVersion !== current.protocolVersion) {
+    const breaking = isMajorVersionChange(previous.protocolVersion, current.protocolVersion);
+    changes.push({
+      tool: 'server',
+      aspect: 'server',
+      before: previous.protocolVersion,
+      after: current.protocolVersion,
+      severity: breaking ? 'breaking' : 'warning',
+      description: 'Protocol version changed',
+    });
+  }
+
+  const prevCaps = new Set(previous.capabilities);
+  const currCaps = new Set(current.capabilities);
+
+  for (const cap of prevCaps) {
+    if (!currCaps.has(cap)) {
+      changes.push({
+        tool: 'server',
+        aspect: 'capability',
+        before: cap,
+        after: 'removed',
+        severity: 'breaking',
+        description: `Capability "${cap}" removed`,
+      });
+    }
+  }
+
+  for (const cap of currCaps) {
+    if (!prevCaps.has(cap)) {
+      changes.push({
+        tool: 'server',
+        aspect: 'capability',
+        before: 'absent',
+        after: cap,
+        severity: 'info',
+        description: `Capability "${cap}" added`,
+      });
+    }
+  }
+
+  return changes;
+}
+
+function isMajorVersionChange(previous: string, current: string): boolean {
+  const prevMajor = parseInt(previous.split('.')[0] ?? '0', 10);
+  const currMajor = parseInt(current.split('.')[0] ?? '0', 10);
+  if (Number.isNaN(prevMajor) || Number.isNaN(currMajor)) {
+    return previous !== current;
+  }
+  return prevMajor !== currMajor;
+}
+
+function getDeclaredSchemaHash(tool: ToolFingerprint): string {
+  if (tool.inputSchema && Object.keys(tool.inputSchema).length > 0) {
+    return computeSchemaHash(tool.inputSchema);
+  }
+  return tool.schemaHash;
+}
+
 /**
  * Format a schema change value for display in BehaviorChange.
  * Converts unknown values to human-readable strings.
@@ -458,8 +739,11 @@ function formatSchemaChangeValue(value: unknown): string {
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   if (Array.isArray(value)) {
     if (value.length === 0) return '[]';
-    if (value.length <= 3) return `[${value.map(v => formatSchemaChangeValue(v)).join(', ')}]`;
-    return `[${value.slice(0, 3).map(v => formatSchemaChangeValue(v)).join(', ')}, ...]`;
+    if (value.length <= 3) return `[${value.map((v) => formatSchemaChangeValue(v)).join(', ')}]`;
+    return `[${value
+      .slice(0, 3)
+      .map((v) => formatSchemaChangeValue(v))
+      .join(', ')}, ...]`;
   }
   // For objects, show a compact representation
   try {
@@ -647,15 +931,8 @@ export function applyAspectOverride(
  * Apply severity configuration to a diff result.
  * Returns a new diff with filtered/modified changes based on config.
  */
-export function applySeverityConfig(
-  diff: BehavioralDiff,
-  config: SeverityConfig
-): BehavioralDiff {
-  const {
-    minimumSeverity = 'none',
-    suppressWarnings = false,
-    aspectOverrides,
-  } = config;
+export function applySeverityConfig(diff: BehavioralDiff, config: SeverityConfig): BehavioralDiff {
+  const { minimumSeverity = 'none', suppressWarnings = false, aspectOverrides } = config;
 
   // Apply aspect overrides and filter by minimum severity
   const filteredChanges = diff.behaviorChanges
@@ -680,8 +957,7 @@ export function applySeverityConfig(
   const filteredToolsModified = diff.toolsModified.filter(
     (td) =>
       toolsWithChanges.has(td.tool) ||
-      (td.schemaChanged &&
-        (!aspectOverrides?.schema || aspectOverrides.schema !== 'none')) ||
+      (td.schemaChanged && (!aspectOverrides?.schema || aspectOverrides.schema !== 'none')) ||
       (td.descriptionChanged &&
         (!aspectOverrides?.description || aspectOverrides.description !== 'none'))
   );
@@ -847,12 +1123,10 @@ function comparePerformanceData(
     }
 
     // Calculate regression percentage
-    const regressionPercent =
-      prev.p50 > 0 ? (tool.baselineP50Ms - prev.p50) / prev.p50 : 0;
+    const regressionPercent = prev.p50 > 0 ? (tool.baselineP50Ms - prev.p50) / prev.p50 : 0;
 
     // Determine if the regression is reliable (based on confidence)
-    const isReliable =
-      currentConfidence !== undefined && hasReliableConfidence(currentConfidence);
+    const isReliable = currentConfidence !== undefined && hasReliableConfidence(currentConfidence);
 
     if (regressionPercent > threshold) {
       // Performance regression
@@ -1126,9 +1400,7 @@ function generateErrorTrendReport(
   const previousHasErrors = previousTools.some(
     (t) => t.errorPatterns && t.errorPatterns.length > 0
   );
-  const currentHasErrors = currentTools.some(
-    (t) => t.errorPatterns && t.errorPatterns.length > 0
-  );
+  const currentHasErrors = currentTools.some((t) => t.errorPatterns && t.errorPatterns.length > 0);
 
   if (!previousHasErrors && !currentHasErrors) {
     return undefined; // No error pattern data to compare

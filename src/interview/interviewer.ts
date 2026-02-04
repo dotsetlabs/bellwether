@@ -48,6 +48,8 @@ import {
   OUTCOME_ASSESSMENT,
 } from '../constants.js';
 import { generateSchemaTests } from './schema-test-generator.js';
+import { generatePromptTests } from './prompt-test-generator.js';
+import { generateResourceTests } from './resource-test-generator.js';
 import { WorkflowDiscoverer } from '../workflow/discovery.js';
 import { WorkflowExecutor } from '../workflow/executor.js';
 import type { Workflow, WorkflowResult } from '../workflow/types.js';
@@ -1042,6 +1044,9 @@ export class Interviewer {
 
         // Check for custom scenarios for this prompt
         const customScenarios = this.getScenariosForPrompt(prompt.name);
+        const deterministicQuestions = this.config.customScenariosOnly
+          ? []
+          : generatePromptTests(prompt, { maxTests: this.config.checkMode ? 3 : 2 });
 
         // Build questions list - custom scenarios + LLM-generated (unless customScenariosOnly)
         let questions: PromptQuestion[] = [];
@@ -1061,21 +1066,31 @@ export class Interviewer {
             args: s.args,
           }));
 
+          // Add deterministic prompt tests
+          if (deterministicQuestions.length > 0) {
+            questions = mergePromptQuestions(questions, deterministicQuestions);
+          }
+
           // If not custom-only mode and not fast CI mode, also generate LLM questions
           if (!this.config.customScenariosOnly && !this.config.checkMode && primaryOrchestrator) {
             const llmQuestions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
-            questions = [...questions, ...llmQuestions];
+            questions = mergePromptQuestions(questions, llmQuestions);
           }
         } else if (
           !this.config.customScenariosOnly &&
           !this.config.checkMode &&
           primaryOrchestrator
         ) {
-          // No custom scenarios - generate LLM questions as usual
-          questions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
+          // No custom scenarios - deterministic tests + LLM questions
+          questions = mergePromptQuestions(questions, deterministicQuestions);
+          const llmQuestions = await primaryOrchestrator.generatePromptQuestions(prompt, 2);
+          questions = mergePromptQuestions(questions, llmQuestions);
         } else if (this.config.checkMode) {
-          // Fast CI mode: use simple fallback question for prompt
-          questions = [{ description: 'Basic prompt test', args: {} }];
+          // Fast CI mode: use deterministic prompt tests
+          questions =
+            deterministicQuestions.length > 0
+              ? deterministicQuestions
+              : [{ description: 'Basic prompt test', args: {} }];
         }
         // If customScenariosOnly and no scenarios for this prompt, skip it
 
@@ -1184,12 +1199,16 @@ export class Interviewer {
         // Generate resource questions (skip LLM in fast CI mode)
         let questions: ResourceQuestion[];
         if (this.config.checkMode || !primaryOrchestrator) {
-          // Fast CI mode: use simple fallback question
-          questions = [
-            { description: 'Basic resource read test', category: 'happy_path' as const },
-          ];
+          // Fast CI mode: use deterministic resource tests
+          const deterministic = generateResourceTests(resource, { maxTests: 2 });
+          questions =
+            deterministic.length > 0
+              ? deterministic
+              : [{ description: 'Basic resource read test', category: 'happy_path' as const }];
         } else {
-          questions = await primaryOrchestrator.generateResourceQuestions(resource, 2);
+          const deterministic = generateResourceTests(resource, { maxTests: 2 });
+          const llmQuestions = await primaryOrchestrator.generateResourceQuestions(resource, 2);
+          questions = mergeResourceQuestions(deterministic, llmQuestions);
         }
 
         for (const question of questions) {
@@ -2665,6 +2684,38 @@ export class Interviewer {
 
     return { results, summary };
   }
+}
+
+function mergePromptQuestions(
+  base: PromptQuestion[],
+  additions: PromptQuestion[]
+): PromptQuestion[] {
+  const merged = [...base];
+  const signatures = new Set(base.map((q) => `${q.description}|${JSON.stringify(q.args)}`));
+  for (const q of additions) {
+    const sig = `${q.description}|${JSON.stringify(q.args)}`;
+    if (!signatures.has(sig)) {
+      merged.push(q);
+      signatures.add(sig);
+    }
+  }
+  return merged;
+}
+
+function mergeResourceQuestions(
+  base: ResourceQuestion[],
+  additions: ResourceQuestion[]
+): ResourceQuestion[] {
+  const merged = [...base];
+  const signatures = new Set(base.map((q) => `${q.description}|${q.category}`));
+  for (const q of additions) {
+    const sig = `${q.description}|${q.category}`;
+    if (!signatures.has(sig)) {
+      merged.push(q);
+      signatures.add(sig);
+    }
+  }
+  return merged;
 }
 
 function summarizeAssertions(interactions: ToolInteraction[]): AssertionSummary | undefined {

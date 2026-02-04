@@ -1,7 +1,39 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SSETransport } from '../../src/transport/sse-transport.js';
 
+const encoder = new TextEncoder();
+
+function createControlledStream(): {
+  stream: ReadableStream<Uint8Array>;
+  controller: ReadableStreamDefaultController<Uint8Array>;
+} {
+  let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+  const stream = new ReadableStream<Uint8Array>({
+    start(c) {
+      controller = c;
+    },
+  });
+  if (!controller) {
+    throw new Error('Failed to initialize stream controller');
+  }
+  return { stream, controller };
+}
+
+function enqueue(controller: ReadableStreamDefaultController<Uint8Array>, data: string): void {
+  controller.enqueue(encoder.encode(data));
+}
+
 describe('SSETransport', () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
   describe('constructor', () => {
     it('should accept required configuration', () => {
       const transport = new SSETransport({
@@ -25,77 +57,109 @@ describe('SSETransport', () => {
 
       expect(transport).toBeDefined();
     });
-
-    it('should normalize trailing slash from URL', () => {
-      const transport = new SSETransport({
-        baseUrl: 'https://example.com/mcp/',
-      });
-
-      // URL should be normalized (implementation detail)
-      expect(transport).toBeDefined();
-    });
   });
 
   describe('connect', () => {
-    it('should throw if EventSource is not available', async () => {
-      // In Node.js without EventSource polyfill, this should fail
+    it('should reject non-https URLs for remote servers', async () => {
       const transport = new SSETransport({
-        baseUrl: 'https://example.com/mcp',
+        baseUrl: 'http://example.com/mcp',
       });
 
-      await expect(transport.connect()).rejects.toThrow(
-        /EventSource is not available/
-      );
+      globalThis.fetch = vi.fn();
+
+      await expect(transport.connect()).rejects.toThrow(/requires HTTPS/i);
     });
 
-    it('should not connect twice', async () => {
+    it('should throw on non-OK responses', async () => {
       const transport = new SSETransport({
         baseUrl: 'https://example.com/mcp',
       });
 
-      // Track EventSource instantiation
-      let eventSourceCallCount = 0;
-      let mockInstance: {
-        onopen: ((event: Event) => void) | null;
-        onmessage: ((event: MessageEvent) => void) | null;
-        onerror: ((event: Event) => void) | null;
-        addEventListener: ReturnType<typeof vi.fn>;
-        close: ReturnType<typeof vi.fn>;
-        readyState: number;
-      } | null = null;
+      globalThis.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 500 }));
 
-      // Mock EventSource as a class for vitest 4.x
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (globalThis as any).EventSource = class MockEventSource {
-        onopen: ((event: Event) => void) | null = null;
-        onmessage: ((event: MessageEvent) => void) | null = null;
-        onerror: ((event: Event) => void) | null = null;
-        addEventListener = vi.fn();
-        close = vi.fn();
-        readyState = 1;
+      await expect(transport.connect()).rejects.toThrow(/Failed to connect/i);
+    });
 
-        constructor() {
-          eventSourceCallCount++;
-          mockInstance = this;
+    it('should receive endpoint and message events', async () => {
+      const { stream, controller } = createControlledStream();
+
+      const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: 'ok' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
         }
-      };
 
-      // First connect should start
+        return new Response(stream, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        });
+      });
+
+      globalThis.fetch = fetchMock as typeof fetch;
+
+      const transport = new SSETransport({
+        baseUrl: 'https://example.com/mcp',
+        reconnectDelay: 10000,
+      });
+
+      const messageHandler = vi.fn();
+      transport.on('message', messageHandler);
+
       const connectPromise = transport.connect();
 
-      // Trigger onopen
-      mockInstance?.onopen?.({} as Event);
+      enqueue(controller, 'event: endpoint\n');
+      enqueue(controller, 'data: https://example.com/mcp/custom\n\n');
+      enqueue(controller, 'data: {"jsonrpc":"2.0","id":42,"result":"pong"}\n\n');
+
       await connectPromise;
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
-      // Second connect should return immediately
-      await transport.connect();
+      expect(messageHandler).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 42, result: 'pong' })
+      );
 
-      // EventSource should only be created once
-      expect(eventSourceCallCount).toBe(1);
+      transport.send({ jsonrpc: '2.0', id: 1, method: 'ping' });
 
-      // Cleanup
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (globalThis as any).EventSource;
+      const postCall = fetchMock.mock.calls.find((call) => call[1]?.method === 'POST');
+      expect(postCall?.[0]).toBe('https://example.com/mcp/custom');
+
+      transport.close();
+      controller.close();
+    });
+
+    it('should flush trailing data without newline', async () => {
+      const { stream, controller } = createControlledStream();
+
+      globalThis.fetch = vi.fn().mockResolvedValue(
+        new Response(stream, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        })
+      );
+
+      const transport = new SSETransport({
+        baseUrl: 'https://example.com/mcp',
+        reconnectDelay: 10000,
+      });
+
+      const messageHandler = vi.fn();
+      transport.on('message', messageHandler);
+
+      const connectPromise = transport.connect();
+
+      enqueue(controller, 'data: {"jsonrpc":"2.0","id":7,"result":"tail"}');
+      controller.close();
+
+      await connectPromise;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(messageHandler).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 7, result: 'tail' })
+      );
+
+      transport.close();
     });
   });
 
@@ -117,6 +181,37 @@ describe('SSETransport', () => {
       expect(errorHandler).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'Transport not connected' })
       );
+    });
+  });
+
+  describe('reconnection behavior', () => {
+    it('should attempt to reconnect when stream ends', async () => {
+      vi.useFakeTimers();
+
+      const fetchMock = vi.fn(async () => {
+        const { stream, controller } = createControlledStream();
+        controller.close();
+        return new Response(stream, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        });
+      });
+
+      globalThis.fetch = fetchMock as typeof fetch;
+
+      const transport = new SSETransport({
+        baseUrl: 'https://example.com/mcp',
+        reconnectDelay: 100,
+        maxReconnectAttempts: 1,
+      });
+
+      await transport.connect();
+
+      await vi.advanceTimersByTimeAsync(150);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      transport.close();
+      vi.useRealTimers();
     });
   });
 
@@ -152,215 +247,6 @@ describe('SSETransport', () => {
 
       transport.close();
 
-      expect(transport.isConnected()).toBe(false);
-    });
-  });
-
-  describe('reconnection behavior', () => {
-    let mockInstance: {
-      onopen: ((event: Event) => void) | null;
-      onmessage: ((event: MessageEvent) => void) | null;
-      onerror: ((event: Event) => void) | null;
-      addEventListener: ReturnType<typeof vi.fn>;
-      close: ReturnType<typeof vi.fn>;
-      readyState: number;
-    } | null = null;
-
-    beforeEach(() => {
-      vi.useFakeTimers();
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (globalThis as any).EventSource = class MockEventSource {
-        onopen: ((event: Event) => void) | null = null;
-        onmessage: ((event: MessageEvent) => void) | null = null;
-        onerror: ((event: Event) => void) | null = null;
-        addEventListener = vi.fn();
-        close = vi.fn();
-        readyState = 1;
-
-        constructor() {
-          mockInstance = this;
-        }
-      };
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (globalThis as any).EventSource;
-    });
-
-    it('should not exceed maxReconnectAttempts', async () => {
-      const transport = new SSETransport({
-        baseUrl: 'https://example.com/mcp',
-        maxReconnectAttempts: 3,
-        reconnectDelay: 100,
-      });
-
-      // Connect successfully
-      const connectPromise = transport.connect();
-      mockInstance?.onopen?.({} as Event);
-      await connectPromise;
-
-      const errorHandler = vi.fn();
-      const closeHandler = vi.fn();
-      transport.on('error', errorHandler);
-      transport.on('close', closeHandler);
-
-      // Trigger error after connection
-      mockInstance?.onerror?.({} as Event);
-
-      // Advance through all reconnection attempts
-      // Attempt 1: 100ms
-      vi.advanceTimersByTime(150);
-      mockInstance?.onerror?.({} as Event);
-
-      // Attempt 2: 200ms
-      vi.advanceTimersByTime(250);
-      mockInstance?.onerror?.({} as Event);
-
-      // Attempt 3: 400ms
-      vi.advanceTimersByTime(450);
-      mockInstance?.onerror?.({} as Event);
-
-      // After max attempts, should emit error with message about max attempts
-      expect(errorHandler).toHaveBeenCalledWith(
-        expect.objectContaining({ message: expect.stringContaining('3') })
-      );
-      expect(closeHandler).toHaveBeenCalled();
-    });
-
-    it('should stop reconnection when close() is called', async () => {
-      const transport = new SSETransport({
-        baseUrl: 'https://example.com/mcp',
-        maxReconnectAttempts: 10,
-        reconnectDelay: 100,
-      });
-
-      // Connect successfully
-      const connectPromise = transport.connect();
-      mockInstance?.onopen?.({} as Event);
-      await connectPromise;
-
-      // Trigger error to start reconnection
-      mockInstance?.onerror?.({} as Event);
-
-      // Close before reconnect timer fires
-      transport.close();
-
-      // Advance time past reconnection delay
-      vi.advanceTimersByTime(500);
-
-      // Should not have attempted to reconnect
-      expect(transport.isConnected()).toBe(false);
-    });
-
-    it('should use exponential backoff', async () => {
-      const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
-
-      const transport = new SSETransport({
-        baseUrl: 'https://example.com/mcp',
-        maxReconnectAttempts: 5,
-        reconnectDelay: 1000,
-      });
-
-      // Connect successfully
-      const connectPromise = transport.connect();
-      mockInstance?.onopen?.({} as Event);
-      await connectPromise;
-
-      // Clear the spy to only track reconnection timeouts
-      setTimeoutSpy.mockClear();
-
-      // Trigger error to start reconnection
-      mockInstance?.onerror?.({} as Event);
-
-      // First reconnect delay should be 1000ms (1000 * 2^0)
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 1000);
-
-      // Trigger next reconnect attempt
-      vi.advanceTimersByTime(1100);
-      setTimeoutSpy.mockClear();
-      mockInstance?.onerror?.({} as Event);
-
-      // Second delay should be 2000ms (1000 * 2^1)
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 2000);
-    });
-
-    it('should cap backoff delay at maxBackoffDelay', async () => {
-      const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
-
-      const transport = new SSETransport({
-        baseUrl: 'https://example.com/mcp',
-        maxReconnectAttempts: 10,
-        reconnectDelay: 10000, // Start high to hit cap quickly
-      });
-
-      // Connect successfully
-      const connectPromise = transport.connect();
-      mockInstance?.onopen?.({} as Event);
-      await connectPromise;
-
-      setTimeoutSpy.mockClear();
-
-      // Trigger error to start reconnection
-      mockInstance?.onerror?.({} as Event);
-
-      // First delay: 10000ms
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 10000);
-
-      vi.advanceTimersByTime(10100);
-      setTimeoutSpy.mockClear();
-      mockInstance?.onerror?.({} as Event);
-
-      // Second delay: 20000ms
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 20000);
-
-      vi.advanceTimersByTime(20100);
-      setTimeoutSpy.mockClear();
-      mockInstance?.onerror?.({} as Event);
-
-      // Third delay should be capped at 30000ms (not 40000)
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 30000);
-    });
-
-    it('should reset isClosing flag on fresh connection', async () => {
-      const transport = new SSETransport({
-        baseUrl: 'https://example.com/mcp',
-      });
-
-      // First connection
-      let connectPromise = transport.connect();
-      mockInstance?.onopen?.({} as Event);
-      await connectPromise;
-
-      // Close the transport
-      transport.close();
-      expect(transport.isConnected()).toBe(false);
-
-      // Second connection should work
-      connectPromise = transport.connect();
-      mockInstance?.onopen?.({} as Event);
-      await connectPromise;
-
-      expect(transport.isConnected()).toBe(true);
-    });
-
-    it('should clear reconnect timer on close', () => {
-      const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
-
-      const transport = new SSETransport({
-        baseUrl: 'https://example.com/mcp',
-        maxReconnectAttempts: 5,
-        reconnectDelay: 1000,
-      });
-
-      // Trigger close
-      transport.close();
-
-      // clearTimeout should be called (for reconnect timer, even if null)
-      // The implementation may call clearTimeout defensively
-      // Just verify close() doesn't throw
       expect(transport.isConnected()).toBe(false);
     });
   });

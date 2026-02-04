@@ -2,11 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import {
-  loadConfig,
-  ConfigNotFoundError,
-  parseCommandString,
-} from '../../src/config/loader.js';
+import { loadConfig, ConfigNotFoundError, parseCommandString } from '../../src/config/loader.js';
 
 describe('config/loader', () => {
   let testDir: string;
@@ -54,9 +50,7 @@ explore:
     });
 
     it('should throw error for non-existent explicit path', () => {
-      expect(() => loadConfig('/nonexistent/path/config.yaml')).toThrow(
-        ConfigNotFoundError
-      );
+      expect(() => loadConfig('/nonexistent/path/config.yaml')).toThrow(ConfigNotFoundError);
     });
 
     it('should find bellwether.yaml in current directory', () => {
@@ -155,19 +149,25 @@ explore:
     });
 
     it('should handle output format variations', () => {
-      const formats = ['agents.md', 'json', 'both'] as const;
+      const formats = [
+        { input: 'agents.md', expected: 'docs' },
+        { input: 'docs', expected: 'docs' },
+        { input: 'markdown', expected: 'docs' },
+        { input: 'json', expected: 'json' },
+        { input: 'both', expected: 'both' },
+      ] as const;
 
-      for (const format of formats) {
+      for (const { input, expected } of formats) {
         writeFileSync(
           join(testDir, 'bellwether.yaml'),
           `
 output:
-  format: ${format}
+  format: ${input}
 `
         );
 
         const config = loadConfig();
-        expect(config.output.format).toBe(format);
+        expect(config.output.format).toBe(expected);
       }
     });
 

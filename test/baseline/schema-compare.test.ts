@@ -132,8 +132,8 @@ describe('compareSchemas', () => {
 
     const result = compareSchemas(prev, curr);
     expect(result.identical).toBe(false);
-    expect(result.changes.some(c => c.changeType === 'property_added')).toBe(true);
-    expect(result.changes.find(c => c.changeType === 'property_added')?.path).toBe('age');
+    expect(result.changes.some((c) => c.changeType === 'property_added')).toBe(true);
+    expect(result.changes.find((c) => c.changeType === 'property_added')?.path).toBe('age');
   });
 
   it('should detect property removal as breaking', () => {
@@ -154,7 +154,7 @@ describe('compareSchemas', () => {
 
     const result = compareSchemas(prev, curr);
     expect(result.identical).toBe(false);
-    const removal = result.changes.find(c => c.changeType === 'property_removed');
+    const removal = result.changes.find((c) => c.changeType === 'property_removed');
     expect(removal).toBeDefined();
     expect(removal?.breaking).toBe(true);
   });
@@ -176,7 +176,7 @@ describe('compareSchemas', () => {
 
     const result = compareSchemas(prev, curr);
     expect(result.identical).toBe(false);
-    const typeChange = result.changes.find(c => c.changeType === 'type_changed');
+    const typeChange = result.changes.find((c) => c.changeType === 'type_changed');
     expect(typeChange).toBeDefined();
     expect(typeChange?.breaking).toBe(true);
   });
@@ -198,7 +198,7 @@ describe('compareSchemas', () => {
 
     const result = compareSchemas(prev, curr);
     expect(result.identical).toBe(false);
-    const constraintChange = result.changes.find(c => c.changeType === 'constraint_changed');
+    const constraintChange = result.changes.find((c) => c.changeType === 'constraint_changed');
     expect(constraintChange).toBeDefined();
     // Increasing minimum is breaking
     expect(constraintChange?.breaking).toBe(true);
@@ -220,7 +220,7 @@ describe('compareSchemas', () => {
     };
 
     const result = compareSchemas(prev, curr);
-    const constraintChange = result.changes.find(c => c.changeType === 'constraint_changed');
+    const constraintChange = result.changes.find((c) => c.changeType === 'constraint_changed');
     expect(constraintChange?.breaking).toBe(true);
   });
 
@@ -245,7 +245,7 @@ describe('compareSchemas', () => {
 
     const result = compareSchemas(prev, curr);
     expect(result.identical).toBe(false);
-    const requiredChange = result.changes.find(c => c.changeType === 'required_changed');
+    const requiredChange = result.changes.find((c) => c.changeType === 'required_changed');
     expect(requiredChange).toBeDefined();
     expect(requiredChange?.breaking).toBe(true);
   });
@@ -266,7 +266,7 @@ describe('compareSchemas', () => {
     };
 
     const result = compareSchemas(prev, curr);
-    const enumChange = result.changes.find(c => c.changeType === 'enum_changed');
+    const enumChange = result.changes.find((c) => c.changeType === 'enum_changed');
     expect(enumChange).toBeDefined();
     // Adding enum values is not breaking
     expect(enumChange?.breaking).toBe(false);
@@ -288,7 +288,7 @@ describe('compareSchemas', () => {
     };
 
     const result = compareSchemas(prev, curr);
-    const enumChange = result.changes.find(c => c.changeType === 'enum_changed');
+    const enumChange = result.changes.find((c) => c.changeType === 'enum_changed');
     expect(enumChange?.breaking).toBe(true);
   });
 
@@ -340,7 +340,7 @@ describe('compareSchemas', () => {
     };
 
     const result = compareSchemas(prev, curr);
-    const change = result.changes.find(c => c.path === 'user.name');
+    const change = result.changes.find((c) => c.path === 'user.name');
     expect(change).toBeDefined();
   });
 
@@ -360,9 +360,173 @@ describe('compareSchemas', () => {
     };
 
     const result = compareSchemas(prev, curr);
-    const change = result.changes.find(c => c.path === 'items[]');
+    const change = result.changes.find((c) => c.path === 'items[]');
     expect(change).toBeDefined();
     expect(change?.changeType).toBe('type_changed');
+  });
+
+  it('should detect oneOf/anyOf variant changes', () => {
+    const prev = {
+      type: 'object',
+      properties: {
+        mode: { oneOf: [{ type: 'string' }, { type: 'integer' }] },
+      },
+    };
+
+    const curr = {
+      type: 'object',
+      properties: {
+        mode: { oneOf: [{ type: 'string' }, { type: 'number' }] },
+      },
+    };
+
+    const result = compareSchemas(prev, curr);
+    const variantChange = result.changes.find((c) => c.path === 'mode.oneOf');
+    expect(variantChange).toBeDefined();
+    expect(variantChange?.changeType).toBe('constraint_changed');
+  });
+
+  it('should detect patternProperties changes', () => {
+    const prev = {
+      type: 'object',
+      properties: {
+        metadata: {
+          type: 'object',
+          patternProperties: {
+            '^test': { type: 'string' },
+          },
+        },
+      },
+    };
+
+    const curr = {
+      type: 'object',
+      properties: {
+        metadata: {
+          type: 'object',
+          patternProperties: {
+            '^test': { type: 'string' },
+            '^x-': { type: 'integer' },
+          },
+        },
+      },
+    };
+
+    const result = compareSchemas(prev, curr);
+    const added = result.changes.find((c) => c.path === 'metadata{^x-}');
+    expect(added).toBeDefined();
+    expect(added?.changeType).toBe('property_added');
+  });
+
+  it('should detect dependentRequired changes', () => {
+    const prev = {
+      type: 'object',
+      properties: {
+        payload: {
+          type: 'object',
+          properties: {
+            token: { type: 'string' },
+            userId: { type: 'string' },
+          },
+          dependentRequired: {
+            token: ['userId'],
+          },
+        },
+      },
+    };
+
+    const curr = {
+      type: 'object',
+      properties: {
+        payload: {
+          type: 'object',
+          properties: {
+            token: { type: 'string' },
+            userId: { type: 'string' },
+            role: { type: 'string' },
+          },
+          dependentRequired: {
+            token: ['userId', 'role'],
+          },
+        },
+      },
+    };
+
+    const result = compareSchemas(prev, curr);
+    const dependentChange = result.changes.find(
+      (c) => c.path === 'payload.dependentRequired.token'
+    );
+    expect(dependentChange).toBeDefined();
+    expect(dependentChange?.changeType).toBe('constraint_changed');
+    expect(dependentChange?.breaking).toBe(true);
+  });
+
+  it('should detect conditional schema changes', () => {
+    const prev = {
+      type: 'object',
+      properties: {
+        config: {
+          type: 'object',
+          properties: {
+            mode: { type: 'string' },
+          },
+        },
+      },
+    };
+
+    const curr = {
+      type: 'object',
+      properties: {
+        config: {
+          type: 'object',
+          properties: {
+            mode: { type: 'string' },
+            value: { type: 'string' },
+          },
+          if: {
+            properties: {
+              mode: { const: 'advanced' },
+            },
+          },
+          then: {
+            required: ['value'],
+          },
+        },
+      },
+    };
+
+    const result = compareSchemas(prev, curr);
+    const conditionalChange = result.changes.find((c) => c.path === 'config.ifThenElse');
+    expect(conditionalChange).toBeDefined();
+    expect(conditionalChange?.changeType).toBe('constraint_changed');
+  });
+
+  it('should detect additionalProperties changes', () => {
+    const prev = {
+      type: 'object',
+      properties: {
+        config: {
+          type: 'object',
+          additionalProperties: true,
+        },
+      },
+    };
+
+    const curr = {
+      type: 'object',
+      properties: {
+        config: {
+          type: 'object',
+          additionalProperties: false,
+        },
+      },
+    };
+
+    const result = compareSchemas(prev, curr);
+    const change = result.changes.find((c) => c.path === 'config.additionalProperties');
+    expect(change).toBeDefined();
+    expect(change?.changeType).toBe('constraint_changed');
+    expect(change?.breaking).toBe(true);
   });
 });
 
@@ -375,9 +539,7 @@ describe('computeConsensusSchemaHash', () => {
   });
 
   it('should compute hash from single interaction', () => {
-    const interactions = [
-      { args: { name: 'test', count: 5 } },
-    ];
+    const interactions = [{ args: { name: 'test', count: 5 } }];
 
     const result = computeConsensusSchemaHash(interactions);
     expect(result.hash).not.toBe('empty');
@@ -420,18 +582,14 @@ describe('computeConsensusSchemaHash', () => {
   });
 
   it('should handle nested objects', () => {
-    const interactions = [
-      { args: { user: { name: 'test', age: 30 } } },
-    ];
+    const interactions = [{ args: { user: { name: 'test', age: 30 } } }];
 
     const result = computeConsensusSchemaHash(interactions);
     expect(result.hash).not.toBe('empty');
   });
 
   it('should handle arrays', () => {
-    const interactions = [
-      { args: { items: ['a', 'b', 'c'] } },
-    ];
+    const interactions = [{ args: { items: ['a', 'b', 'c'] } }];
 
     const result = computeConsensusSchemaHash(interactions);
     expect(result.hash).not.toBe('empty');

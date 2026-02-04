@@ -79,6 +79,7 @@ import {
 import * as output from '../output.js';
 import { extractServerContextFromArgs } from '../utils/server-context.js';
 import { configureLogger, type LogLevel } from '../../logging/logger.js';
+import { buildInterviewInsights } from '../../interview/insights.js';
 import {
   EXIT_CODES,
   SEVERITY_TO_EXIT_CODE,
@@ -257,7 +258,7 @@ export const checkCommand = new Command('check')
 
     // Initialize cache
     resetGlobalCache();
-    const cache = getGlobalCache({ enabled: cacheEnabled });
+    const cache = getGlobalCache({ enabled: cacheEnabled, dir: config.cache.dir });
     if (cacheEnabled && verbose) {
       output.info('Response caching enabled');
     }
@@ -523,6 +524,8 @@ export const checkCommand = new Command('check')
 
       output.info('Checking schemas...\n');
       const result = await interviewer.interview(mcpClient, discovery, progressCallback);
+      const insights = buildInterviewInsights(result);
+      const enrichedResult = { ...result, ...insights };
 
       progressBar.stop();
       if (!verbose) {
@@ -611,7 +614,7 @@ export const checkCommand = new Command('check')
         }
       }
 
-      const checkSummary = buildCheckSummary(result);
+      const checkSummary = buildCheckSummary(enrichedResult);
       output.newline();
       output.lines(...checkSummary.lines);
       if (checkSummary.nextSteps.length > 0) {
@@ -825,13 +828,27 @@ export const checkCommand = new Command('check')
 
       // Generate documentation (after security testing so findings can be included)
       output.info('Generating documentation...');
-      const writeDocs = outputFormat === 'both' || outputFormat === 'agents.md';
+      const writeDocs = outputFormat === 'both' || outputFormat === 'docs';
       const writeJson = outputFormat === 'both' || outputFormat === 'json';
 
       if (writeDocs) {
-        const contractMd = generateContractMd(result, {
+        const semanticMap = insights.semanticInferences
+          ? new Map(Object.entries(insights.semanticInferences))
+          : undefined;
+        const schemaEvolutionMap = insights.schemaEvolution
+          ? new Map(Object.entries(insights.schemaEvolution))
+          : undefined;
+        const errorAnalysisMap = insights.errorAnalysisSummaries
+          ? new Map(Object.entries(insights.errorAnalysisSummaries))
+          : undefined;
+
+        const contractMd = generateContractMd(enrichedResult, {
           securityFingerprints: securityEnabled ? securityFingerprints : undefined,
           workflowResults: workflowResults.length > 0 ? workflowResults : undefined,
+          semanticInferences: semanticMap,
+          schemaEvolution: schemaEvolutionMap,
+          errorAnalysisSummaries: errorAnalysisMap,
+          documentationScore: insights.documentationScore,
           exampleLength,
           fullExamples,
           maxExamplesPerTool,
@@ -847,11 +864,12 @@ export const checkCommand = new Command('check')
       if (writeJson) {
         // Add workflow results to the result object for the JSON report
         const resultWithWorkflows =
-          workflowResults.length > 0 ? { ...result, workflowResults } : result;
+          workflowResults.length > 0 ? { ...enrichedResult, workflowResults } : enrichedResult;
         let jsonReport: string;
         try {
           jsonReport = generateJsonReport(resultWithWorkflows, {
             schemaUrl: REPORT_SCHEMAS.CHECK_REPORT_SCHEMA_URL,
+            schemaPath: REPORT_SCHEMAS.CHECK_REPORT_SCHEMA_FILE,
             validate: true,
           });
         } catch (error) {
@@ -864,7 +882,7 @@ export const checkCommand = new Command('check')
       }
 
       // Create baseline from results
-      let currentBaseline = createBaseline(result, fullServerCommand);
+      let currentBaseline = createBaseline(enrichedResult, fullServerCommand);
 
       // Attach security fingerprints to tool fingerprints if security testing was run
       if (securityEnabled && securityFingerprints.size > 0) {

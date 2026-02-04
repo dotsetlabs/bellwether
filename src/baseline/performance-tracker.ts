@@ -141,9 +141,6 @@ export interface LatencySample {
   outcomeCorrect?: boolean;
 }
 
-// Re-export centralized constant for backwards compatibility
-export { PERFORMANCE_TRACKING as PERFORMANCE } from '../constants.js';
-
 /**
  * Calculate statistical confidence for performance metrics.
  *
@@ -186,21 +183,21 @@ export function calculatePerformanceConfidence(
 
   // Categorize samples by expected outcome
   // Happy path tests: expectedOutcome === 'success' or undefined (backward compat)
-  const happyPathSamples = samples.filter(s =>
-    s.expectedOutcome === 'success' || s.expectedOutcome === undefined
+  const happyPathSamples = samples.filter(
+    (s) => s.expectedOutcome === 'success' || s.expectedOutcome === undefined
   );
 
   // Validation tests: expectedOutcome === 'error'
-  const validationTestSamples = samples.filter(s => s.expectedOutcome === 'error');
+  const validationTestSamples = samples.filter((s) => s.expectedOutcome === 'error');
 
   // Count validation samples that correctly rejected (error as expected = success)
-  const validationSuccesses = validationTestSamples.filter(s =>
-    !s.success && (s.outcomeCorrect === undefined || s.outcomeCorrect === true)
+  const validationSuccesses = validationTestSamples.filter(
+    (s) => !s.success && (s.outcomeCorrect === undefined || s.outcomeCorrect === true)
   ).length;
 
   // For confidence, only use happy path samples that succeeded
-  const successfulHappyPath = happyPathSamples.filter(s => s.success);
-  const allDurations = successfulHappyPath.map(s => s.durationMs);
+  const successfulHappyPath = happyPathSamples.filter((s) => s.success);
+  const allDurations = successfulHappyPath.map((s) => s.durationMs);
 
   // Handle all failures case
   if (allDurations.length === 0) {
@@ -219,13 +216,13 @@ export function calculatePerformanceConfidence(
   // For variance calculation, exclude the first sample (cold start warmup)
   // This prevents JIT compilation, connection setup, and cache warming from
   // inflating the coefficient of variation and lowering confidence scores.
-  const durationsForVariance = excludeWarmup && allDurations.length > 1
-    ? allDurations.slice(1)
-    : allDurations;
+  const durationsForVariance =
+    excludeWarmup && allDurations.length > 1 ? allDurations.slice(1) : allDurations;
 
   // Calculate variance using post-warmup samples only
-  const meanForVariance = durationsForVariance.reduce((sum, d) => sum + d, 0) / durationsForVariance.length;
-  const squaredDiffs = durationsForVariance.map(d => Math.pow(d - meanForVariance, 2));
+  const meanForVariance =
+    durationsForVariance.reduce((sum, d) => sum + d, 0) / durationsForVariance.length;
+  const squaredDiffs = durationsForVariance.map((d) => Math.pow(d - meanForVariance, 2));
   const variance = squaredDiffs.reduce((sum, d) => sum + d, 0) / durationsForVariance.length;
   const standardDeviation = Math.sqrt(variance);
 
@@ -377,8 +374,8 @@ export function calculateMetrics(samples: LatencySample[]): ToolPerformanceMetri
   }
 
   const toolName = samples[0].toolName;
-  const successfulSamples = samples.filter(s => s.success);
-  const durations = successfulSamples.map(s => s.durationMs).sort((a, b) => a - b);
+  const successfulSamples = samples.filter((s) => s.success);
+  const durations = successfulSamples.map((s) => s.durationMs).sort((a, b) => a - b);
 
   if (durations.length === 0) {
     // All calls failed
@@ -408,7 +405,7 @@ export function calculateMetrics(samples: LatencySample[]): ToolPerformanceMetri
   const maxMs = durations[durations.length - 1];
 
   // Calculate standard deviation
-  const squaredDiffs = durations.map(d => Math.pow(d - avgMs, 2));
+  const squaredDiffs = durations.map((d) => Math.pow(d - avgMs, 2));
   const avgSquaredDiff = squaredDiffs.reduce((sum, d) => sum + d, 0) / squaredDiffs.length;
   const stdDevMs = Math.sqrt(avgSquaredDiff);
 
@@ -543,8 +540,8 @@ export function comparePerformance(
   // Check for regression
   const maxRegression = baseline.maxAllowedRegression ?? regressionThreshold;
   const hasRegression =
-    p50Regression !== null && p50Regression > maxRegression ||
-    p95Regression !== null && p95Regression > maxRegression;
+    (p50Regression !== null && p50Regression > maxRegression) ||
+    (p95Regression !== null && p95Regression > maxRegression);
 
   // Determine severity
   const severity = determinePerformanceSeverity(p50Regression, p95Regression, maxRegression);
@@ -620,10 +617,7 @@ function determinePerformanceSeverity(
   threshold: number
 ): ChangeSeverity {
   // Check if any significant regression
-  const maxRegression = Math.max(
-    p50Regression ?? 0,
-    p95Regression ?? 0
-  );
+  const maxRegression = Math.max(p50Regression ?? 0, p95Regression ?? 0);
 
   if (maxRegression > threshold) {
     return 'breaking';
@@ -728,7 +722,12 @@ export function generatePerformanceReport(
   }, 'none');
 
   // Generate summary
-  let summary = generateReportSummary(regressionCount, improvementCount, stableCount, comparisons.length);
+  let summary = generateReportSummary(
+    regressionCount,
+    improvementCount,
+    stableCount,
+    comparisons.length
+  );
 
   // Add confidence summary if there are low confidence tools
   if (lowConfidenceCount > 0) {
@@ -803,10 +802,7 @@ export function formatMetrics(metrics: ToolPerformanceMetrics): string {
  * Format performance comparison for display.
  */
 export function formatComparison(comparison: PerformanceComparison): string {
-  const lines = [
-    `Tool: ${comparison.toolName}`,
-    `  Trend: ${comparison.trend.toUpperCase()}`,
-  ];
+  const lines = [`Tool: ${comparison.toolName}`, `  Trend: ${comparison.trend.toUpperCase()}`];
 
   if (comparison.p50RegressionPercent !== null) {
     const sign = comparison.p50RegressionPercent >= 0 ? '+' : '';

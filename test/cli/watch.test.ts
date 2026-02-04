@@ -5,7 +5,7 @@
  * Full integration tests would require mocking the MCP client and file system watchers.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -16,13 +16,15 @@ describe('watch command', () => {
   let consoleOutput: string[];
   let consoleErrors: string[];
   let originalExit: typeof process.exit;
-  let exitSpy: MockInstance;
   let originalSetInterval: typeof setInterval;
   let originalClearInterval: typeof clearInterval;
   let mockIntervalId: NodeJS.Timeout;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `bellwether-watch-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(
+      tmpdir(),
+      `bellwether-watch-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
     mkdirSync(testDir, { recursive: true });
     originalCwd = process.cwd();
     process.chdir(testDir);
@@ -43,14 +45,17 @@ describe('watch command', () => {
     });
 
     originalExit = process.exit;
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: number) => {
+    vi.spyOn(process, 'exit').mockImplementation((code?: number) => {
       throw new Error(`Process exit: ${code}`);
     });
 
     // Mock setInterval/clearInterval to prevent actual timing
     originalSetInterval = global.setInterval;
     originalClearInterval = global.clearInterval;
-    mockIntervalId = { ref: () => mockIntervalId, unref: () => mockIntervalId } as unknown as NodeJS.Timeout;
+    mockIntervalId = {
+      ref: () => mockIntervalId,
+      unref: () => mockIntervalId,
+    } as unknown as NodeJS.Timeout;
     vi.spyOn(global, 'setInterval').mockReturnValue(mockIntervalId);
     vi.spyOn(global, 'clearInterval').mockImplementation(() => {});
 
@@ -111,7 +116,7 @@ describe('watch command', () => {
         output: {
           dir: '.',
           docsDir: '.',
-          format: 'agents.md',
+          format: 'docs',
           files: {
             checkReport: 'bellwether-check.json',
             exploreReport: 'bellwether-explore.json',
@@ -138,10 +143,16 @@ describe('watch command', () => {
         cache: { enabled: true, dir: '.bellwether/cache' },
         logging: { level: 'info', verbose: false },
         scenarios: { only: false },
-        workflows: { discover: false, trackState: false, autoGenerate: true, stepTimeout: 5000, timeouts: {} },
+        workflows: {
+          discover: false,
+          trackState: false,
+          autoGenerate: true,
+          stepTimeout: 5000,
+          timeouts: {},
+        },
       }),
       ConfigNotFoundError: class ConfigNotFoundError extends Error {
-        constructor(searchedPaths?: string[]) {
+        constructor(_searchedPaths?: string[]) {
           super('No bellwether config file found.');
           this.name = 'ConfigNotFoundError';
         }
@@ -156,7 +167,11 @@ describe('watch command', () => {
       const mockPersona = { name: 'technical_writer', systemPrompt: 'test', questionGuidance: '' };
       return {
         DEFAULT_PERSONA: mockPersona,
-        securityTesterPersona: { name: 'security_tester', systemPrompt: 'test', questionGuidance: '' },
+        securityTesterPersona: {
+          name: 'security_tester',
+          systemPrompt: 'test',
+          questionGuidance: '',
+        },
         qaEngineerPersona: { name: 'qa_engineer', systemPrompt: 'test', questionGuidance: '' },
         noviceUserPersona: { name: 'novice_user', systemPrompt: 'test', questionGuidance: '' },
         parsePersonas: vi.fn().mockReturnValue([mockPersona]),
@@ -214,35 +229,35 @@ describe('watch command', () => {
 
     it('should have config option', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
-      const configOpt = watchCommand.options.find(o => o.long === '--config');
+      const configOpt = watchCommand.options.find((o) => o.long === '--config');
       expect(configOpt).toBeDefined();
     });
 
     it('should not have watch-path option (uses config)', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
       // watch-path was removed - now reads from config.watch.path
-      const watchPathOpt = watchCommand.options.find(o => o.long === '--watch-path');
+      const watchPathOpt = watchCommand.options.find((o) => o.long === '--watch-path');
       expect(watchPathOpt).toBeUndefined();
     });
 
     it('should not have interval option (uses config)', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
       // interval was removed - now reads from config.watch.interval
-      const intervalOpt = watchCommand.options.find(o => o.long === '--interval');
+      const intervalOpt = watchCommand.options.find((o) => o.long === '--interval');
       expect(intervalOpt).toBeUndefined();
     });
 
     it('should not have baseline option (uses config)', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
       // baseline was removed - now reads from config.baseline.savePath
-      const baselineOpt = watchCommand.options.find(o => o.long === '--baseline');
+      const baselineOpt = watchCommand.options.find((o) => o.long === '--baseline');
       expect(baselineOpt).toBeUndefined();
     });
 
     it('should not have on-change option (uses config)', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
       // on-change was removed - now reads from config.watch.onDrift
-      const onChangeOpt = watchCommand.options.find(o => o.long === '--on-change');
+      const onChangeOpt = watchCommand.options.find((o) => o.long === '--on-change');
       expect(onChangeOpt).toBeUndefined();
     });
   });
@@ -252,41 +267,41 @@ describe('watch command', () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
 
       // Run command but don't wait (it runs indefinitely)
-      const promise = watchCommand.parseAsync(['node', 'test', 'echo', 'hello']);
+      void watchCommand.parseAsync(['node', 'test', 'echo', 'hello']);
 
       // Give it a moment to start
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
-      expect(consoleOutput.some(line => line.includes('Watch Mode'))).toBe(true);
+      expect(consoleOutput.some((line) => line.includes('Watch Mode'))).toBe(true);
     });
 
     it('should show server command in output', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
 
-      const promise = watchCommand.parseAsync(['node', 'test', 'node', 'server.js']);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      void watchCommand.parseAsync(['node', 'test', 'node', 'server.js']);
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
-      expect(consoleOutput.some(line => line.includes('node server.js'))).toBe(true);
+      expect(consoleOutput.some((line) => line.includes('node server.js'))).toBe(true);
     });
 
     it('should show watch path from config', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
 
-      const promise = watchCommand.parseAsync(['node', 'test', 'echo']);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      void watchCommand.parseAsync(['node', 'test', 'echo']);
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Watch path comes from config.watch.path (default '.')
-      expect(consoleOutput.some(line => line.includes('Watching:'))).toBe(true);
+      expect(consoleOutput.some((line) => line.includes('Watching:'))).toBe(true);
     });
 
     it('should show poll interval from config', async () => {
       const { watchCommand } = await import('../../src/cli/commands/watch.js');
 
-      const promise = watchCommand.parseAsync(['node', 'test', 'echo']);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      void watchCommand.parseAsync(['node', 'test', 'echo']);
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Interval comes from config.watch.interval (default 5000ms)
-      expect(consoleOutput.some(line => line.includes('5000ms'))).toBe(true);
+      expect(consoleOutput.some((line) => line.includes('5000ms'))).toBe(true);
     });
   });
 });
@@ -295,7 +310,10 @@ describe('watch file change detection', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `bellwether-watch-files-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(
+      tmpdir(),
+      `bellwether-watch-files-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
     mkdirSync(testDir, { recursive: true });
   });
 
@@ -309,7 +327,7 @@ describe('watch file change detection', () => {
 
   it('should detect supported file extensions', () => {
     const extensions = ['.ts', '.js', '.json', '.py', '.go'];
-    const testFiles = extensions.map(ext => `test${ext}`);
+    const testFiles = extensions.map((ext) => `test${ext}`);
 
     // Create test files
     for (const file of testFiles) {

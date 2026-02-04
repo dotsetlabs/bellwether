@@ -17,8 +17,8 @@ bellwether auth [subcommand] [options]
 
 The `auth` command manages API keys for LLM providers (OpenAI, Anthropic). It provides secure storage via the system keychain (macOS Keychain, Windows Credential Manager, or Linux Secret Service) with automatic fallback to encrypted file storage.
 
-:::note Config Required
-All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `auth`.
+:::note Config Optional
+`auth` does not require a config file. You can run it from anywhere.
 :::
 
 ## Subcommands

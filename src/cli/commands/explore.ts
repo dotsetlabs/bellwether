@@ -17,7 +17,12 @@ import { Interviewer } from '../../interview/interviewer.js';
 import type { WorkflowConfig, InterviewStreamingCallbacks } from '../../interview/types.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
 import { generateAgentsMd, generateJsonReport } from '../../docs/generator.js';
-import { loadConfig, ConfigNotFoundError, parseCommandString, type BellwetherConfig } from '../../config/loader.js';
+import {
+  loadConfig,
+  ConfigNotFoundError,
+  parseCommandString,
+  type BellwetherConfig,
+} from '../../config/loader.js';
 import { validateConfigForExplore } from '../../config/validator.js';
 import {
   CostTracker,
@@ -28,18 +33,32 @@ import {
   formatOptimizationSuggestions,
 } from '../../cost/index.js';
 import { getMetricsCollector, resetMetricsCollector } from '../../metrics/collector.js';
-import { EXIT_CODES, WORKFLOW, PATHS } from '../../constants.js';
+import { EXIT_CODES, WORKFLOW, PATHS, REPORT_SCHEMAS } from '../../constants.js';
 import { FallbackLLMClient } from '../../llm/fallback.js';
 import { getGlobalCache, resetGlobalCache } from '../../cache/response-cache.js';
 import { InterviewProgressBar, formatExploreBanner } from '../utils/progress.js';
 import { parsePersonas } from '../../persona/builtins.js';
-import { loadScenariosFromFile, tryLoadDefaultScenarios, DEFAULT_SCENARIOS_FILE } from '../../scenarios/index.js';
-import { loadWorkflowsFromFile, tryLoadDefaultWorkflows, DEFAULT_WORKFLOWS_FILE } from '../../workflow/loader.js';
+import {
+  loadScenariosFromFile,
+  tryLoadDefaultScenarios,
+  DEFAULT_SCENARIOS_FILE,
+} from '../../scenarios/index.js';
+import {
+  loadWorkflowsFromFile,
+  tryLoadDefaultWorkflows,
+  DEFAULT_WORKFLOWS_FILE,
+} from '../../workflow/loader.js';
 import * as output from '../output.js';
 import { StreamingDisplay } from '../output.js';
-import { suppressLogs, restoreLogLevel, configureLogger, type LogLevel } from '../../logging/logger.js';
+import {
+  suppressLogs,
+  restoreLogLevel,
+  configureLogger,
+  type LogLevel,
+} from '../../logging/logger.js';
 import { extractServerContextFromArgs } from '../utils/server-context.js';
 import { isCI } from '../utils/env.js';
+import { buildInterviewInsights } from '../../interview/insights.js';
 
 /**
  * Wrapper to parse personas with warning output.
@@ -118,9 +137,10 @@ export const exploreCommand = new Command('explore')
     const model = config.llm.model || undefined;
 
     // Display startup banner
-    const serverIdentifier = transport === 'stdio'
-      ? `${serverCommand} ${args.join(' ')}`.trim()
-      : (remoteUrl ?? 'unknown');
+    const serverIdentifier =
+      transport === 'stdio'
+        ? `${serverCommand} ${args.join(' ')}`.trim()
+        : (remoteUrl ?? 'unknown');
 
     const banner = formatExploreBanner({
       serverCommand: serverIdentifier,
@@ -144,7 +164,7 @@ export const exploreCommand = new Command('explore')
 
     // Initialize cache
     resetGlobalCache();
-    const cache = getGlobalCache({ enabled: cacheEnabled });
+    const cache = getGlobalCache({ enabled: cacheEnabled, dir: config.cache.dir });
     if (cacheEnabled && verbose) {
       output.info('Response caching enabled');
     }
@@ -160,17 +180,31 @@ export const exploreCommand = new Command('explore')
     let llmClient: LLMClient;
     const onUsageCallback = (inputTokens: number, outputTokens: number) => {
       costTracker.addUsage(inputTokens, outputTokens);
-      metricsCollector.recordTokenUsage(provider, model || 'default', inputTokens, outputTokens, 'llm_call');
+      metricsCollector.recordTokenUsage(
+        provider,
+        model || 'default',
+        inputTokens,
+        outputTokens,
+        'llm_call'
+      );
     };
 
     try {
       llmClient = new FallbackLLMClient({
-        providers: [{ provider, model, baseUrl: provider === 'ollama' ? config.llm.ollama.baseUrl : undefined }],
+        providers: [
+          {
+            provider,
+            model,
+            baseUrl: provider === 'ollama' ? config.llm.ollama.baseUrl : undefined,
+          },
+        ],
         useOllamaFallback: true,
         onUsage: onUsageCallback,
       });
     } catch (error) {
-      output.error(`Failed to initialize LLM client: ${error instanceof Error ? error.message : String(error)}`);
+      output.error(
+        `Failed to initialize LLM client: ${error instanceof Error ? error.message : String(error)}`
+      );
       output.error(`\nProvider: ${provider}`);
       output.error('Make sure the appropriate API key environment variable is set:');
       output.error('  - OpenAI: OPENAI_API_KEY');
@@ -195,11 +229,14 @@ export const exploreCommand = new Command('explore')
       output.info('Discovering capabilities...');
       const discovery = await discover(
         mcpClient,
-        transport === 'stdio' ? serverCommand : remoteUrl ?? serverCommand,
+        transport === 'stdio' ? serverCommand : (remoteUrl ?? serverCommand),
         transport === 'stdio' ? args : []
       );
       const resourceCount = discovery.resources?.length ?? 0;
-      const discoveryParts = [`${discovery.tools.length} tools`, `${discovery.prompts.length} prompts`];
+      const discoveryParts = [
+        `${discovery.tools.length} tools`,
+        `${discovery.prompts.length} prompts`,
+      ];
       if (resourceCount > 0) {
         discoveryParts.push(`${resourceCount} resources`);
       }
@@ -220,7 +257,12 @@ export const exploreCommand = new Command('explore')
 
       // Show cost/time estimate (unless in CI)
       if (!isCI()) {
-        const costEstimate = estimateInterviewCost(model || 'default', discovery.tools.length, maxQuestions, selectedPersonas.length);
+        const costEstimate = estimateInterviewCost(
+          model || 'default',
+          discovery.tools.length,
+          maxQuestions,
+          selectedPersonas.length
+        );
         const timeEstimate = estimateInterviewTime(
           discovery.tools.length,
           maxQuestions,
@@ -234,7 +276,9 @@ export const exploreCommand = new Command('explore')
         output.info(formatCostAndTimeEstimate(costEstimate, timeEstimate));
 
         // Show optimization suggestions
-        const hasScenariosFile = !!(config.scenarios.path || existsSync(join(outputDir, DEFAULT_SCENARIOS_FILE)));
+        const hasScenariosFile = !!(
+          config.scenarios.path || existsSync(join(outputDir, DEFAULT_SCENARIOS_FILE))
+        );
         const suggestions = suggestOptimizations({
           estimatedCost: costEstimate.costUSD,
           toolCount: discovery.tools.length,
@@ -256,16 +300,22 @@ export const exploreCommand = new Command('explore')
       if (config.scenarios.path) {
         try {
           customScenarios = loadScenariosFromFile(config.scenarios.path);
-          output.info(`Loaded ${customScenarios.toolScenarios.length} tool scenarios from ${config.scenarios.path}`);
+          output.info(
+            `Loaded ${customScenarios.toolScenarios.length} tool scenarios from ${config.scenarios.path}`
+          );
         } catch (error) {
-          output.error(`Failed to load scenarios: ${error instanceof Error ? error.message : error}`);
+          output.error(
+            `Failed to load scenarios: ${error instanceof Error ? error.message : error}`
+          );
           process.exit(EXIT_CODES.ERROR);
         }
       } else {
         const defaultScenarios = tryLoadDefaultScenarios(outputDir);
         if (defaultScenarios) {
           customScenarios = defaultScenarios;
-          output.info(`Auto-loaded ${customScenarios.toolScenarios.length} scenarios from ${DEFAULT_SCENARIOS_FILE}`);
+          output.info(
+            `Auto-loaded ${customScenarios.toolScenarios.length} scenarios from ${DEFAULT_SCENARIOS_FILE}`
+          );
         }
       }
 
@@ -287,7 +337,9 @@ export const exploreCommand = new Command('explore')
             workflowConfig.workflowsFile = config.workflows.path;
             output.info(`Loaded ${workflows.length} workflow(s) from ${config.workflows.path}`);
           } catch (error) {
-            output.error(`Failed to load workflows: ${error instanceof Error ? error.message : error}`);
+            output.error(
+              `Failed to load workflows: ${error instanceof Error ? error.message : error}`
+            );
             process.exit(EXIT_CODES.ERROR);
           }
         }
@@ -303,7 +355,9 @@ export const exploreCommand = new Command('explore')
             workflows: defaultWorkflows,
             workflowsFile: `${outputDir}/${DEFAULT_WORKFLOWS_FILE}`,
           };
-          output.info(`Auto-loaded ${defaultWorkflows.length} workflow(s) from ${DEFAULT_WORKFLOWS_FILE}`);
+          output.info(
+            `Auto-loaded ${defaultWorkflows.length} workflow(s) from ${DEFAULT_WORKFLOWS_FILE}`
+          );
         }
       }
 
@@ -323,13 +377,17 @@ export const exploreCommand = new Command('explore')
             let prefix = '';
             switch (opType) {
               case 'generate-questions':
-                prefix = context ? `\n  Generating questions for ${context}... ` : '\n  Generating questions... ';
+                prefix = context
+                  ? `\n  Generating questions for ${context}... `
+                  : '\n  Generating questions... ';
                 break;
               case 'analyze':
                 prefix = context ? `\n  Analyzing ${context}... ` : '\n  Analyzing... ';
                 break;
               case 'synthesize-tool':
-                prefix = context ? `\n  Synthesizing profile for ${context}... ` : '\n  Synthesizing profile... ';
+                prefix = context
+                  ? `\n  Synthesizing profile for ${context}... `
+                  : '\n  Synthesizing profile... ';
                 break;
               case 'synthesize-overall':
                 prefix = '\n  Synthesizing overall findings... ';
@@ -375,7 +433,9 @@ export const exploreCommand = new Command('explore')
       if (transport === 'stdio') {
         const serverContext = extractServerContextFromArgs(serverCommand, args);
         if (serverContext.allowedDirectories && serverContext.allowedDirectories.length > 0) {
-          output.info(`Detected allowed directories: ${serverContext.allowedDirectories.join(', ')}`);
+          output.info(
+            `Detected allowed directories: ${serverContext.allowedDirectories.join(', ')}`
+          );
         }
         interviewer.setServerContext(serverContext);
       }
@@ -388,10 +448,17 @@ export const exploreCommand = new Command('explore')
           switch (progress.phase) {
             case 'starting':
               output.info('Starting exploration...');
-              progressBar.start(progress.totalTools, progress.totalPersonas, progress.totalPrompts ?? 0, progress.totalResources ?? 0);
+              progressBar.start(
+                progress.totalTools,
+                progress.totalPersonas,
+                progress.totalPrompts ?? 0,
+                progress.totalResources ?? 0
+              );
               break;
             case 'interviewing':
-              output.info(`[${progress.currentPersona}] Exploring: ${progress.currentTool} (${progress.toolsCompleted + 1}/${progress.totalTools})`);
+              output.info(
+                `[${progress.currentPersona}] Exploring: ${progress.currentTool} (${progress.toolsCompleted + 1}/${progress.totalTools})`
+              );
               break;
             case 'synthesizing':
               output.info('Synthesizing findings...');
@@ -402,8 +469,15 @@ export const exploreCommand = new Command('explore')
           }
         } else {
           if (progress.phase === 'starting') {
-            progressBar.start(progress.totalTools, progress.totalPersonas, progress.totalPrompts ?? 0, progress.totalResources ?? 0);
-          } else if (['interviewing', 'prompts', 'resources', 'workflows'].includes(progress.phase)) {
+            progressBar.start(
+              progress.totalTools,
+              progress.totalPersonas,
+              progress.totalPrompts ?? 0,
+              progress.totalResources ?? 0
+            );
+          } else if (
+            ['interviewing', 'prompts', 'resources', 'workflows'].includes(progress.phase)
+          ) {
             progressBar.update(progress);
           } else if (progress.phase === 'complete' || progress.phase === 'synthesizing') {
             progressBar.stop();
@@ -413,6 +487,8 @@ export const exploreCommand = new Command('explore')
 
       output.info('Starting exploration...\n');
       const result = await interviewer.interview(mcpClient, discovery, progressCallback);
+      const insights = buildInterviewInsights(result);
+      const enrichedResult = { ...result, ...insights };
 
       progressBar.stop();
       if (!verbose) {
@@ -426,18 +502,22 @@ export const exploreCommand = new Command('explore')
         mkdirSync(docsDir, { recursive: true });
       }
 
-      const writeDocs = outputFormat === 'both' || outputFormat === 'agents.md';
+      const writeDocs = outputFormat === 'both' || outputFormat === 'docs';
       const writeJson = outputFormat === 'both' || outputFormat === 'json';
 
       if (writeDocs) {
-        const agentsMd = generateAgentsMd(result);
+        const agentsMd = generateAgentsMd(enrichedResult);
         const agentsMdPath = join(docsDir, config.output.files.agentsDoc);
         writeFileSync(agentsMdPath, agentsMd);
         output.info(`Written: ${agentsMdPath}`);
       }
 
       if (writeJson) {
-        const jsonReport = generateJsonReport(result);
+        const jsonReport = generateJsonReport(enrichedResult, {
+          schemaUrl: REPORT_SCHEMAS.EXPLORE_REPORT_SCHEMA_URL,
+          schemaPath: REPORT_SCHEMAS.EXPLORE_REPORT_SCHEMA_FILE,
+          validate: true,
+        });
         const jsonPath = join(outputDir, config.output.files.exploreReport);
         writeFileSync(jsonPath, jsonReport);
         output.info(`Written: ${jsonPath}`);
@@ -461,7 +541,9 @@ export const exploreCommand = new Command('explore')
         const passed = result.scenarioResults.filter((r) => r.passed).length;
         const failed = result.scenarioResults.length - passed;
         const statusIcon = failed === 0 ? '\u2713' : '\u2717';
-        output.info(`\nCustom scenarios: ${passed}/${result.scenarioResults.length} passed ${statusIcon}`);
+        output.info(
+          `\nCustom scenarios: ${passed}/${result.scenarioResults.length} passed ${statusIcon}`
+        );
 
         if (failed > 0) {
           output.info('\nFailed scenarios:');
@@ -481,7 +563,9 @@ export const exploreCommand = new Command('explore')
         const successful = result.workflowResults.filter((wr) => wr.success).length;
         const failed = result.workflowResults.length - successful;
         const statusIcon = failed === 0 ? '\u2713' : '\u2717';
-        output.info(`\nWorkflows: ${successful}/${result.workflowResults.length} passed ${statusIcon}`);
+        output.info(
+          `\nWorkflows: ${successful}/${result.workflowResults.length} passed ${statusIcon}`
+        );
 
         if (failed > 0) {
           output.info('\nFailed workflows:');
@@ -492,7 +576,9 @@ export const exploreCommand = new Command('explore')
       }
 
       // Note about baselines
-      output.info('\nTip: For drift detection, use "bellwether check" to create and compare baselines.');
+      output.info(
+        '\nTip: For drift detection, use "bellwether check" to create and compare baselines.'
+      );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       output.error('\n--- Exploration Failed ---');

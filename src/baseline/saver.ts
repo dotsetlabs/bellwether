@@ -5,24 +5,15 @@
 import { readFileSync, writeFileSync, existsSync, statSync } from 'fs';
 import { z } from 'zod';
 import type { InterviewResult } from '../interview/types.js';
-import type {
-  BehavioralBaseline,
-  BehavioralDiff,
-  DriftAcceptance,
-  AcceptedDiff,
-} from './types.js';
-import {
-  getBaselineVersion,
-  parseVersion,
-  formatVersion,
-} from './version.js';
-import { createCloudBaseline } from './converter.js';
+import type { BehavioralBaseline, BehavioralDiff, DriftAcceptance, AcceptedDiff } from './types.js';
+import { getBaselineVersion, parseVersion, formatVersion } from './version.js';
+import { createBaselineFromInterview } from './converter.js';
 import { calculateBaselineHash } from './baseline-hash.js';
 import type { InferredSchema } from './response-fingerprint.js';
 import { PAYLOAD_LIMITS } from '../constants.js';
 import { getLogger } from '../logging/logger.js';
 
-const cloudAssertionSchema = z.object({
+const baselineAssertionSchema = z.object({
   type: z.enum(['expects', 'requires', 'warns', 'notes']),
   condition: z.string(),
   tool: z.string().optional(),
@@ -34,7 +25,16 @@ const cloudAssertionSchema = z.object({
  */
 const responseFingerprintSchema = z.object({
   structureHash: z.string(),
-  contentType: z.enum(['text', 'object', 'array', 'primitive', 'empty', 'error', 'mixed', 'binary']),
+  contentType: z.enum([
+    'text',
+    'object',
+    'array',
+    'primitive',
+    'empty',
+    'error',
+    'mixed',
+    'binary',
+  ]),
   fields: z.array(z.string()).optional(),
   arrayItemStructure: z.string().optional(),
   size: z.enum(['tiny', 'small', 'medium', 'large']),
@@ -89,6 +89,9 @@ const toolCapabilitySchema = z.object({
   description: z.string(),
   inputSchema: z.record(z.unknown()),
   schemaHash: z.string(),
+  observedArgsSchemaHash: z.string().optional(),
+  observedArgsSchemaConsistency: z.number().min(0).max(1).optional(),
+  observedArgsSchemaVariations: z.number().int().min(0).optional(),
   responseFingerprint: responseFingerprintSchema.optional(),
   inferredOutputSchema: inferredSchemaSchema.optional(),
   errorPatterns: z.array(errorPatternSchema).optional(),
@@ -163,21 +166,48 @@ const baselineSchema = z.object({
   server: serverFingerprintSchema,
   capabilities: z.object({
     tools: z.array(toolCapabilitySchema),
-    resources: z.array(z.record(z.unknown())).optional(),
-    prompts: z.array(z.record(z.unknown())).optional(),
+    resources: z
+      .array(
+        z.object({
+          uri: z.string(),
+          name: z.string(),
+          description: z.string().optional(),
+          mimeType: z.string().optional(),
+        })
+      )
+      .optional(),
+    prompts: z
+      .array(
+        z.object({
+          name: z.string(),
+          description: z.string().optional(),
+          arguments: z
+            .array(
+              z.object({
+                name: z.string(),
+                description: z.string().optional(),
+                required: z.boolean().optional(),
+              })
+            )
+            .optional(),
+        })
+      )
+      .optional(),
   }),
   interviews: z.array(z.record(z.unknown())),
-  toolProfiles: z.array(z.object({
-    name: z.string(),
-    description: z.string().optional(),
-    schemaHash: z.string().optional(),
-    assertions: z.array(cloudAssertionSchema),
-    securityNotes: z.array(z.string()).optional(),
-    limitations: z.array(z.string()).optional(),
-    behavioralNotes: z.array(z.string()).optional(),
-  })),
+  toolProfiles: z.array(
+    z.object({
+      name: z.string(),
+      description: z.string().optional(),
+      schemaHash: z.string().optional(),
+      assertions: z.array(baselineAssertionSchema),
+      securityNotes: z.array(z.string()).optional(),
+      limitations: z.array(z.string()).optional(),
+      behavioralNotes: z.array(z.string()).optional(),
+    })
+  ),
   workflows: z.array(workflowSignatureSchema).optional(),
-  assertions: z.array(cloudAssertionSchema),
+  assertions: z.array(baselineAssertionSchema),
   summary: z.string(),
   hash: z.string(),
   acceptance: driftAcceptanceSchema.optional(),
@@ -202,11 +232,8 @@ export interface LoadBaselineOptions {
  * Baselines can only be created from check mode results.
  * Explore mode results are for documentation only.
  */
-export function createBaseline(
-  result: InterviewResult,
-  serverCommand: string
-): BehavioralBaseline {
-  return createCloudBaseline(result, serverCommand);
+export function createBaseline(result: InterviewResult, serverCommand: string): BehavioralBaseline {
+  return createBaselineFromInterview(result, serverCommand);
 }
 
 /**
@@ -225,10 +252,7 @@ export function saveBaseline(baseline: BehavioralBaseline, path: string): void {
  * @param options - Load options
  * @returns Loaded baseline
  */
-export function loadBaseline(
-  path: string,
-  options: LoadBaselineOptions = {}
-): BehavioralBaseline {
+export function loadBaseline(path: string, options: LoadBaselineOptions = {}): BehavioralBaseline {
   const { skipIntegrityCheck = false } = options;
 
   if (!existsSync(path)) {
@@ -275,8 +299,8 @@ export function loadBaseline(
   if (baselineVersion.major !== currentVersion.major) {
     getLogger('baseline').warn(
       `Baseline uses CLI version ${formatVersion(baselineVersion.raw)}. ` +
-      `Current CLI version is ${formatVersion(currentVersion.raw)}. ` +
-      `Recreate the baseline with this CLI version for best results.`
+        `Current CLI version is ${formatVersion(currentVersion.raw)}. ` +
+        `Recreate the baseline with this CLI version for best results.`
     );
   }
 
@@ -363,7 +387,7 @@ export function acceptDrift(
   const acceptedDiff: AcceptedDiff = {
     toolsAdded: [...diff.toolsAdded],
     toolsRemoved: [...diff.toolsRemoved],
-    toolsModified: diff.toolsModified.map(t => t.tool),
+    toolsModified: diff.toolsModified.map((t) => t.tool),
     severity: diff.severity,
     breakingCount: diff.breakingCount,
     warningCount: diff.warningCount,

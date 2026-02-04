@@ -34,7 +34,7 @@ function getPackageVersion(): string {
     return packageJson.version;
   } catch {
     // Fallback version - should match package.json
-    return '1.0.3';
+    return '2.0.0';
   }
 }
 

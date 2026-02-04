@@ -20,7 +20,7 @@ _bellwether_completions() {
             opts="--config --fail-on-drift --accept-drift --accept-reason --format --min-severity --fail-on-severity --help"
             ;;
         explore)
-            opts="--config --preset --help"
+            opts="--config --help"
             ;;
         init)
             opts="--force --preset --provider --yes --help"
@@ -29,19 +29,25 @@ _bellwether_completions() {
             opts="save compare show diff accept --help"
             ;;
         auth)
-            opts="add remove status --help"
+            opts="add remove status clear --help"
             ;;
         discover)
-            opts="--config --json --timeout --transport --url --sessionId --help"
+            opts="--config --json --timeout --transport --url --session-id --help"
             ;;
         watch)
             opts="--config --help"
             ;;
         registry)
-            opts="--limit --json --help"
+            opts="--config --limit --json --help"
+            ;;
+        golden)
+            opts="save compare list delete --help"
             ;;
         contract)
             opts="validate generate show --help"
+            ;;
+        validate-config)
+            opts="--config --help"
             ;;
         *)
             opts=""

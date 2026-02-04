@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://unpkg.com/@dotsetlabs/bellwether/schemas/bellwether-check.schema.json",
-  "title": "Bellwether Check Report",
+  "$id": "https://unpkg.com/@dotsetlabs/bellwether/schemas/bellwether-explore.schema.json",
+  "title": "Bellwether Explore Report",
   "type": "object",
   "required": [
     "$schema",

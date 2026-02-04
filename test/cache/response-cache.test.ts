@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { existsSync, mkdtempSync, rmSync, readdirSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import {
   ResponseCache,
   ToolResponseCache,
@@ -98,7 +101,6 @@ describe('ResponseCache', () => {
       expect(cache.has('key1')).toBe(true);
       expect(cache.get('key1')).toBe('value');
     });
-
   });
 
   describe('statistics', () => {
@@ -168,6 +170,39 @@ describe('ResponseCache', () => {
       disabledCache.set('key1', 'value');
       expect(disabledCache.get('key1')).toBeUndefined();
       expect(disabledCache.has('key1')).toBe(false);
+    });
+
+    it('should not create cache directory when disabled', () => {
+      const dir = join(tmpdir(), `bellwether-cache-disabled-${Date.now()}`);
+      const disabledCache = new ResponseCache({ enabled: false, dir });
+      disabledCache.set('key1', 'value');
+      expect(existsSync(dir)).toBe(false);
+    });
+  });
+
+  describe('disk persistence', () => {
+    it('should persist and reload entries from disk', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'bellwether-cache-'));
+      const cacheWithDisk = new ResponseCache({ dir });
+      cacheWithDisk.set('key1', { data: 'persist' });
+
+      const newCache = new ResponseCache({ dir });
+      const value = newCache.get<{ data: string }>('key1');
+      expect(value).toEqual({ data: 'persist' });
+
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('should remove persisted entries on clear', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'bellwether-cache-'));
+      const cacheWithDisk = new ResponseCache({ dir });
+      cacheWithDisk.set('key1', 'value');
+
+      cacheWithDisk.clear();
+      const files = existsSync(dir) ? readdirSync(dir) : [];
+      expect(files.length).toBe(0);
+
+      rmSync(dir, { recursive: true, force: true });
     });
   });
 });

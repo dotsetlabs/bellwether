@@ -161,9 +161,7 @@ export function analyzeResponses(
   const successfulResponses = responses.filter(
     (r) => r.response && !r.response.isError && !r.error
   );
-  const errorResponses = responses.filter(
-    (r) => r.error || r.response?.isError
-  );
+  const errorResponses = responses.filter((r) => r.error || r.response?.isError);
 
   // Analyze successful responses
   const structures: string[] = [];
@@ -190,8 +188,7 @@ export function analyzeResponses(
   const fingerprint = buildFingerprint(successfulResponses, structures);
 
   // Merge inferred schemas
-  const inferredSchema =
-    inferredSchemas.length > 0 ? mergeSchemas(inferredSchemas) : undefined;
+  const inferredSchema = inferredSchemas.length > 0 ? mergeSchemas(inferredSchemas) : undefined;
 
   // Check consistency
   const uniqueStructures = new Set(structures);
@@ -226,7 +223,11 @@ function extractResponseContent(response: MCPToolCallResult): unknown {
         return item.text;
       }
     }
-    return item;
+    const decoded = decodeDataContent(item.data, item.mimeType);
+    if (decoded !== null) {
+      return decoded;
+    }
+    return summarizeBinaryItem(item);
   }
 
   // Multiple content items - return as array
@@ -238,8 +239,45 @@ function extractResponseContent(response: MCPToolCallResult): unknown {
         return item.text;
       }
     }
-    return item;
+    const decoded = decodeDataContent(item.data, item.mimeType);
+    if (decoded !== null) {
+      return decoded;
+    }
+    return summarizeBinaryItem(item);
   });
+}
+
+function decodeDataContent(data?: string, mimeType?: string): unknown | null {
+  if (!data || typeof data !== 'string') return null;
+  const mime = (mimeType ?? '').toLowerCase();
+  if (mime.includes('json') || mime.startsWith('text/')) {
+    try {
+      const decoded = Buffer.from(data, 'base64').toString('utf8');
+      try {
+        return JSON.parse(decoded);
+      } catch {
+        return decoded;
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function summarizeBinaryItem(item: {
+  type?: string;
+  mimeType?: string;
+  data?: string;
+  uri?: string;
+}): Record<string, unknown> {
+  const size = item.data ? Buffer.byteLength(item.data, 'utf8') : 0;
+  return {
+    type: item.type ?? 'unknown',
+    mimeType: item.mimeType,
+    uri: item.uri,
+    size,
+  };
 }
 
 /**
@@ -317,9 +355,7 @@ function extractStructure(value: unknown, depth: number = 0): unknown {
 
     // Check if all items have the same structure
     const firstStructure = JSON.stringify(itemStructures[0]);
-    const isHomogeneous = itemStructures.every(
-      (s) => JSON.stringify(s) === firstStructure
-    );
+    const isHomogeneous = itemStructures.every((s) => JSON.stringify(s) === firstStructure);
 
     return {
       type: 'array',
@@ -636,9 +672,7 @@ function mergeSchemas(schemas: InferredSchema[]): InferredSchema {
 
   // Mixed types - return union-like
   if (types.has('null') || types.has('undefined')) {
-    const nonNullSchemas = schemas.filter(
-      (s) => s.type !== 'null' && s.type !== 'undefined'
-    );
+    const nonNullSchemas = schemas.filter((s) => s.type !== 'null' && s.type !== 'undefined');
     if (nonNullSchemas.length > 0) {
       const merged = mergeSchemas(nonNullSchemas);
       merged.nullable = true;

@@ -137,7 +137,7 @@ server:
 output:
   dir: ".bellwether"    # JSON output directory
   docsDir: "."          # Documentation (CONTRACT.md, AGENTS.md)
-  format: both          # agents.md, json, or both
+  format: both          # docs, json, or both (legacy: agents.md)
 
   # Example output settings
   examples:

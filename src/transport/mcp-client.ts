@@ -37,7 +37,7 @@ const FILTERED_ENV_VARS = new Set([
   'COHERE_API_KEY',
   'HUGGINGFACE_API_KEY',
   'REPLICATE_API_TOKEN',
-  // Cloud provider credentials
+  // Provider credentials
   'AWS_SECRET_ACCESS_KEY',
   'AWS_SESSION_TOKEN',
   'AZURE_CLIENT_SECRET',

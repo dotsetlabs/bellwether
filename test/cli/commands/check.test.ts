@@ -415,13 +415,25 @@ describe('check command integration', () => {
       const result = await interviewer.interview(client, discovery);
       const baseline = createBaseline(result, `${TSX_PATH} ${TSX_ARGS.join(' ')}`);
 
-      // Modify a tool's schema hash to simulate schema change
+      // Modify a tool's input schema to simulate schema change
       const modifiedBaseline = {
         ...baseline,
         capabilities: {
           ...baseline.capabilities,
           tools: baseline.capabilities.tools.map((tool, idx) =>
-            idx === 0 ? { ...tool, schemaHash: 'changed-hash-12345' } : tool
+            idx === 0
+              ? {
+                  ...tool,
+                  inputSchema: {
+                    ...(tool.inputSchema ?? {}),
+                    properties: {
+                      ...((((tool.inputSchema ?? {}) as Record<string, unknown>)
+                        .properties as Record<string, unknown>) ?? {}),
+                      __test_added: { type: 'string' },
+                    },
+                  },
+                }
+              : tool
           ),
         },
       };

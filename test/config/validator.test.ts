@@ -16,7 +16,6 @@ import {
   baselineConfigSchema,
   outputConfigSchema,
   getConfigWarnings,
-  type BellwetherConfig,
 } from '../../src/config/validator.js';
 
 // Mock fs
@@ -159,19 +158,23 @@ describe('validateConfig', () => {
     });
 
     it('should reject timeout below minimum', () => {
-      expect(() => validateConfig({
-        server: {
-          timeout: 100, // Too low
-        },
-      })).toThrow();
+      expect(() =>
+        validateConfig({
+          server: {
+            timeout: 100, // Too low
+          },
+        })
+      ).toThrow();
     });
 
     it('should reject timeout above maximum', () => {
-      expect(() => validateConfig({
-        server: {
-          timeout: 10000000, // Too high
-        },
-      })).toThrow();
+      expect(() =>
+        validateConfig({
+          server: {
+            timeout: 10000000, // Too high
+          },
+        })
+      ).toThrow();
     });
 
     it('should accept environment variables', () => {
@@ -199,7 +202,7 @@ describe('validateConfig', () => {
       });
 
       const warnings = getConfigWarnings(config);
-      expect(warnings.some(w => w.includes('minSamples'))).toBe(true);
+      expect(warnings.some((w) => w.includes('minSamples'))).toBe(true);
     });
   });
 
@@ -214,9 +217,11 @@ describe('validateConfig', () => {
     });
 
     it('should reject invalid provider', () => {
-      expect(() => validateConfig({
-        llm: { provider: 'invalid-provider' },
-      })).toThrow();
+      expect(() =>
+        validateConfig({
+          llm: { provider: 'invalid-provider' },
+        })
+      ).toThrow();
     });
 
     it('should accept custom model', () => {
@@ -244,14 +249,16 @@ describe('validateConfig', () => {
     });
 
     it('should reject invalid Ollama baseUrl', () => {
-      expect(() => validateConfig({
-        llm: {
-          provider: 'ollama',
-          ollama: {
-            baseUrl: 'not-a-url',
+      expect(() =>
+        validateConfig({
+          llm: {
+            provider: 'ollama',
+            ollama: {
+              baseUrl: 'not-a-url',
+            },
           },
-        },
-      })).toThrow();
+        })
+      ).toThrow();
     });
 
     it('should accept custom API key env vars', () => {
@@ -278,25 +285,31 @@ describe('validateConfig', () => {
     });
 
     it('should reject invalid persona', () => {
-      expect(() => validateConfig({
-        explore: {
-          personas: ['invalid_persona'],
-        },
-      })).toThrow();
+      expect(() =>
+        validateConfig({
+          explore: {
+            personas: ['invalid_persona'],
+          },
+        })
+      ).toThrow();
     });
 
     it('should validate maxQuestionsPerTool bounds', () => {
-      expect(() => validateConfig({
-        explore: {
-          maxQuestionsPerTool: 0, // Too low
-        },
-      })).toThrow();
+      expect(() =>
+        validateConfig({
+          explore: {
+            maxQuestionsPerTool: 0, // Too low
+          },
+        })
+      ).toThrow();
 
-      expect(() => validateConfig({
-        explore: {
-          maxQuestionsPerTool: 100, // Too high
-        },
-      })).toThrow();
+      expect(() =>
+        validateConfig({
+          explore: {
+            maxQuestionsPerTool: 100, // Too high
+          },
+        })
+      ).toThrow();
     });
 
     it('should accept valid maxQuestionsPerTool', () => {
@@ -338,18 +351,28 @@ describe('validateConfig', () => {
 
   describe('output configuration', () => {
     it('should accept valid output formats', () => {
-      for (const format of ['agents.md', 'json', 'both']) {
+      const formats = [
+        { input: 'agents.md', expected: 'docs' },
+        { input: 'docs', expected: 'docs' },
+        { input: 'markdown', expected: 'docs' },
+        { input: 'json', expected: 'json' },
+        { input: 'both', expected: 'both' },
+      ];
+
+      for (const { input, expected } of formats) {
         const config = validateConfig({
-          output: { format },
+          output: { format: input },
         });
-        expect(config.output.format).toBe(format);
+        expect(config.output.format).toBe(expected);
       }
     });
 
     it('should reject invalid output format', () => {
-      expect(() => validateConfig({
-        output: { format: 'invalid' },
-      })).toThrow();
+      expect(() =>
+        validateConfig({
+          output: { format: 'invalid' },
+        })
+      ).toThrow();
     });
 
     it('should accept custom directories', () => {
@@ -376,9 +399,11 @@ describe('validateConfig', () => {
     });
 
     it('should reject invalid log level', () => {
-      expect(() => validateConfig({
-        logging: { level: 'invalid' },
-      })).toThrow();
+      expect(() =>
+        validateConfig({
+          logging: { level: 'invalid' },
+        })
+      ).toThrow();
     });
   });
 

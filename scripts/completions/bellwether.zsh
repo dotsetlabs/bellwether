@@ -29,8 +29,7 @@ _bellwether() {
         explore)
             _arguments \
                 '-c[Config file path]:config:_files -g "*.yaml"' \
-                '--config[Config file path]:config:_files -g "*.yaml"' \
-                '--preset[Configuration preset]:preset:(ci security thorough local)'
+                '--config[Config file path]:config:_files -g "*.yaml"'
             ;;
         init)
             _arguments \
@@ -46,6 +45,40 @@ _bellwether() {
             ;;
         auth)
             _arguments '1: :_auth_subcommands'
+            ;;
+        discover)
+            _arguments \
+                '-c[Config file path]:config:_files -g "*.yaml"' \
+                '--config[Config file path]:config:_files -g "*.yaml"' \
+                '--json[Output as JSON]' \
+                '--timeout[Connection timeout (ms)]:timeout:' \
+                '--transport[Transport type]:transport:(stdio sse streamable-http)' \
+                '--url[Remote MCP server URL]:url:' \
+                '--session-id[Session ID for remote authentication]:session-id:'
+            ;;
+        registry)
+            _arguments \
+                '-c[Config file path]:config:_files -g "*.yaml"' \
+                '--config[Config file path]:config:_files -g "*.yaml"' \
+                '-l[Limit results]:limit:' \
+                '--limit[Limit results]:limit:' \
+                '--json[Output as JSON]'
+            ;;
+        contract)
+            _arguments '1: :_contract_subcommands'
+            ;;
+        golden)
+            _arguments '1: :_golden_subcommands'
+            ;;
+        validate-config)
+            _arguments \
+                '-c[Config file path]:config:_files -g "*.yaml"' \
+                '--config[Config file path]:config:_files -g "*.yaml"'
+            ;;
+        watch)
+            _arguments \
+                '-c[Config file path]:config:_files -g "*.yaml"' \
+                '--config[Config file path]:config:_files -g "*.yaml"'
             ;;
         *)
             _files
@@ -87,8 +120,28 @@ _auth_subcommands() {
         'add:Add API key'
         'remove:Remove API key'
         'status:Show auth status'
+        'clear:Remove all stored API keys'
     )
     _describe -t commands 'auth subcommands' subcommands
+}
+
+_golden_subcommands() {
+    local subcommands=(
+        'save:Capture golden output'
+        'compare:Compare against saved goldens'
+        'list:List saved golden outputs'
+        'delete:Delete a golden output'
+    )
+    _describe -t commands 'golden subcommands' subcommands
+}
+
+_contract_subcommands() {
+    local subcommands=(
+        'validate:Validate against contract'
+        'generate:Generate contract from server'
+        'show:Display contract file'
+    )
+    _describe -t commands 'contract subcommands' subcommands
 }
 
 compdef _bellwether bellwether

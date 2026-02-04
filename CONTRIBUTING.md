@@ -18,7 +18,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 ```bash
 # Clone the repository
 git clone https://github.com/dotsetlabs/bellwether
-cd bellwether/cli
+cd bellwether
 
 # Install dependencies
 npm install
@@ -72,7 +72,7 @@ Looking for a place to start? Check out issues labeled [`good first issue`](http
 ## Architecture Overview
 
 ```
-cli/src/
+src/
 ├── cli/           # CLI commands and entry point
 ├── baseline/      # Drift detection and baseline management
 ├── discovery/     # MCP server capability discovery

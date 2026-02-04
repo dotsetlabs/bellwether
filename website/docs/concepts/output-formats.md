@@ -120,10 +120,17 @@ output:
     exploreReport: "bellwether-explore.json"
 ```
 
+Each JSON report embeds a `$schema` pointer for validation. The schemas live in the repo under `schemas/` and are published for tooling:
+- [`schemas/bellwether-check.schema.json`](https://unpkg.com/@dotsetlabs/bellwether/schemas/bellwether-check.schema.json)
+- [`schemas/bellwether-explore.schema.json`](https://unpkg.com/@dotsetlabs/bellwether/schemas/bellwether-explore.schema.json)
+
 ### Example Output
+
+The example below is abbreviated for readability. Refer to the schema for the full structure.
 
 ```json
 {
+  "$schema": "https://unpkg.com/@dotsetlabs/bellwether/schemas/bellwether-explore.schema.json",
   "version": 1,
   "timestamp": "2026-01-12T10:30:00Z",
   "server": {
@@ -183,6 +190,10 @@ output:
 The JSON report includes:
 - `tools` and `prompts` arrays with their respective interview results
 - `scenarioResults` array with custom scenario test results (if scenarios were run)
+- `semanticInferences` with inferred parameter types (check mode)
+- `schemaEvolution` tracking response schema stability (check mode)
+- `errorAnalysisSummaries` with root causes and remediation hints (check mode)
+- `documentationScore` with quality grading and suggestions (check mode)
 
 ## Baseline Format
 
@@ -254,7 +265,8 @@ Baseline format versions follow the CLI package version; baselines are compatibl
 
 ## Multiple Formats
 
-Documentation and JSON reports are written based on `output.format`. Control their locations in `bellwether.yaml`:
+Documentation and JSON reports are written based on `output.format` (`docs`, `json`, or `both`; legacy alias: `agents.md`).  
+Control their locations in `bellwether.yaml`:
 
 ```yaml
 output:

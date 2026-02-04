@@ -103,20 +103,10 @@ export const TRANSPORT_ERRORS = {
   ] as readonly RegExp[],
 
   /** Patterns indicating timeout */
-  TIMEOUT_PATTERNS: [
-    /timeout/i,
-    /timed out/i,
-    /ETIMEDOUT/i,
-    /deadline/i,
-  ] as readonly RegExp[],
+  TIMEOUT_PATTERNS: [/timeout/i, /timed out/i, /ETIMEDOUT/i, /deadline/i] as readonly RegExp[],
 
   /** Patterns indicating shutdown errors */
-  SHUTDOWN_PATTERNS: [
-    /shutdown/i,
-    /SIGTERM/i,
-    /SIGKILL/i,
-    /exit.*signal/i,
-  ] as readonly RegExp[],
+  SHUTDOWN_PATTERNS: [/shutdown/i, /SIGTERM/i, /SIGKILL/i, /exit.*signal/i] as readonly RegExp[],
 
   /** Maximum transport errors to collect before stopping */
   MAX_ERRORS_TO_COLLECT: 50,
@@ -454,7 +444,7 @@ export const PERCENTILES = {
 
 export const COST_THRESHOLDS = {
   /** Cost threshold ($) for prompting confirmation in interactive mode */
-  CONFIRMATION_THRESHOLD: 0.10,
+  CONFIRMATION_THRESHOLD: 0.1,
   /** Cost threshold ($) for suggesting --ci flag */
   SUGGEST_CI_THRESHOLD: 0.05,
   /** Cost threshold ($) for suggesting --scenarios-only */
@@ -610,12 +600,7 @@ export const PATHS = {
   /** Mock data directory for testing */
   MOCK_DATA_DIR: 'mock-data',
   /** Possible config file names (in order of preference) */
-  CONFIG_FILENAMES: [
-    'bellwether.yaml',
-    'bellwether.yml',
-    '.bellwether.yaml',
-    '.bellwether.yml',
-  ],
+  CONFIG_FILENAMES: ['bellwether.yaml', 'bellwether.yml', '.bellwether.yaml', '.bellwether.yml'],
   /** Default config file name (first in CONFIG_FILENAMES) */
   DEFAULT_CONFIG_FILENAME: 'bellwether.yaml',
   /** Default baseline output file */
@@ -645,7 +630,13 @@ export const REPORT_SCHEMAS = {
   /** Local schema path for bellwether-check.json */
   CHECK_REPORT_SCHEMA_FILE: 'schemas/bellwether-check.schema.json',
   /** Public schema URL for consumers */
-  CHECK_REPORT_SCHEMA_URL: 'https://unpkg.com/@dotsetlabs/bellwether/schemas/bellwether-check.schema.json',
+  CHECK_REPORT_SCHEMA_URL:
+    'https://unpkg.com/@dotsetlabs/bellwether/schemas/bellwether-check.schema.json',
+  /** Local schema path for bellwether-explore.json */
+  EXPLORE_REPORT_SCHEMA_FILE: 'schemas/bellwether-explore.schema.json',
+  /** Public schema URL for consumers */
+  EXPLORE_REPORT_SCHEMA_URL:
+    'https://unpkg.com/@dotsetlabs/bellwether/schemas/bellwether-explore.schema.json',
 } as const;
 
 // ==================== Patterns ====================

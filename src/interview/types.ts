@@ -5,12 +5,12 @@ import type {
   MCPResourceReadResult,
 } from '../transport/types.js';
 import type { InferredSchema } from '../baseline/response-fingerprint.js';
+import type { ResponseSchemaEvolution } from '../baseline/response-schema-tracker.js';
+import type { ErrorAnalysisSummary } from '../baseline/error-analyzer.js';
+import type { DocumentationScore } from '../baseline/documentation-scorer.js';
+import type { SemanticInference } from '../validation/semantic-types.js';
 import type { Persona, QuestionCategory } from '../persona/types.js';
-import type {
-  Workflow,
-  WorkflowResult,
-  WorkflowTimeoutConfig,
-} from '../workflow/types.js';
+import type { Workflow, WorkflowResult, WorkflowTimeoutConfig } from '../workflow/types.js';
 import type { LoadedScenarios, ScenarioResult } from '../scenarios/types.js';
 import type { ToolResponseCache } from '../cache/response-cache.js';
 
@@ -423,6 +423,14 @@ export interface InterviewResult {
   limitations: string[];
   /** Overall recommendations */
   recommendations: string[];
+  /** Semantic type inferences by tool */
+  semanticInferences?: Record<string, SemanticInference[]>;
+  /** Response schema evolution by tool */
+  schemaEvolution?: Record<string, ResponseSchemaEvolution>;
+  /** Enhanced error analysis summaries by tool */
+  errorAnalysisSummaries?: Record<string, ErrorAnalysisSummary>;
+  /** Documentation quality score */
+  documentationScore?: DocumentationScore;
   /** Interview metadata */
   metadata: InterviewMetadata;
 }

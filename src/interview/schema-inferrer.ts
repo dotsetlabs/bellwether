@@ -1,6 +1,9 @@
 import { createHash } from 'crypto';
 import type { MCPToolCallResult } from '../transport/types.js';
-import { inferSchemaFromValue, computeInferredSchemaHash } from '../baseline/response-fingerprint.js';
+import {
+  inferSchemaFromValue,
+  computeInferredSchemaHash,
+} from '../baseline/response-fingerprint.js';
 import type { ResponseSchema } from './types.js';
 
 /**
@@ -31,7 +34,11 @@ export function inferResponseSchema(response: MCPToolCallResult): ResponseSchema
   }
 
   const markdownStructure = detectMarkdownStructure(textContent);
-  if (markdownStructure.hasHeaders || markdownStructure.hasTables || markdownStructure.hasCodeBlocks) {
+  if (
+    markdownStructure.hasHeaders ||
+    markdownStructure.hasTables ||
+    markdownStructure.hasCodeBlocks
+  ) {
     return {
       inferredType: 'markdown',
       markdownStructure,
@@ -51,11 +58,17 @@ export function extractTextContent(response: MCPToolCallResult): string | null {
   }
 
   const textBlocks = response.content
-    .filter((c) => c.type === 'text' && typeof c.text === 'string')
+    .filter((c) => typeof c.text === 'string')
     .map((c) => c.text as string);
 
   if (textBlocks.length === 0) {
-    return null;
+    const decodedBlocks = response.content
+      .map((c) => decodeDataBlock(c.data, c.mimeType))
+      .filter((v): v is string => typeof v === 'string');
+    if (decodedBlocks.length === 0) {
+      return null;
+    }
+    return decodedBlocks.join('\n');
   }
 
   return textBlocks.join('\n');
@@ -69,7 +82,11 @@ function tryParseJson(text: string): { success: true; value: unknown } | { succe
   }
 }
 
-function detectMarkdownStructure(text: string): { hasHeaders: boolean; hasTables: boolean; hasCodeBlocks: boolean } {
+function detectMarkdownStructure(text: string): {
+  hasHeaders: boolean;
+  hasTables: boolean;
+  hasCodeBlocks: boolean;
+} {
   return {
     hasHeaders: /^#{1,6}\s+/m.test(text),
     hasTables: /^\|.+\|\s*$/m.test(text),
@@ -79,4 +96,17 @@ function detectMarkdownStructure(text: string): { hasHeaders: boolean; hasTables
 
 function hashString(value: string): string {
   return createHash('sha256').update(value).digest('hex');
+}
+
+function decodeDataBlock(data?: string, mimeType?: string): string | null {
+  if (!data || typeof data !== 'string') return null;
+  const mime = (mimeType ?? '').toLowerCase();
+  if (!mime.includes('json') && !mime.startsWith('text/')) {
+    return null;
+  }
+  try {
+    return Buffer.from(data, 'base64').toString('utf8');
+  } catch {
+    return null;
+  }
 }

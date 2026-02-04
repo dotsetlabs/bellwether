@@ -21,7 +21,7 @@ bellwether golden delete --tool <name>
 Golden outputs capture the exact response from a tool and let you compare future responses for drift. This is useful for deterministic regression testing when you want to validate output stability beyond schema changes.
 
 :::note Config Required
-All CLI commands (except `init`) require a config file. Run `bellwether init` once before using `golden`.
+`golden` requires a config file. Run `bellwether init` once in your project.
 :::
 
 ## Subcommands
