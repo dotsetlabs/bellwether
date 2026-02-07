@@ -75,6 +75,15 @@ jobs:
 | Parameter renamed | `path` to `file_path` | Breaking |
 | Description changed | Tool help text updated | Warning |
 | Performance regression | Latency increased >10% | Warning |
+| Tool annotations changed | `readOnlyHint` flipped to `false` | Warning |
+| Output schema changed | Return type structure modified | Warning |
+| Entity title changed | Tool/prompt/resource title updated | Info |
+| Task support changed | Execution mode switched to `async` | Warning |
+| Server instructions changed | Server-level instructions updated | Info |
+| Prompt added/removed | Prompt template appears or disappears | Breaking |
+| Resource changed | Resource URI or MIME type modified | Warning |
+
+Comparisons are **protocol-version-aware** — version-specific fields (annotations, titles, output schemas, etc.) are only compared when both baselines support the relevant MCP protocol version.
 
 ## Commands
 

@@ -275,10 +275,10 @@ When comparing baselines with incompatible versions, recreate the older baseline
 
 | Category | Content |
 |:---------|:--------|
-| **Server Info** | Name, version, protocol version, capabilities |
-| **Tools** | Name, description, schema hash, security notes, limitations |
-| **Prompts** | Prompt names, descriptions, and argument metadata |
-| **Resources** | Resource URIs, names, descriptions, and mime types |
+| **Server Info** | Name, version, protocol version, capabilities, instructions |
+| **Tools** | Name, description, schema hash, title, annotations, output schema, execution/task support, security notes, limitations |
+| **Prompts** | Prompt names, descriptions, titles, and argument metadata |
+| **Resources** | Resource URIs, names, descriptions, titles, and mime types |
 | **Performance** | P50/P95 latency, success rate, confidence level per tool |
 | **Response Fingerprint** | Content type, size category, structure hash |
 | **Error Patterns** | Categorized errors with root cause and remediation |
@@ -293,6 +293,8 @@ When comparing baselines with incompatible versions, recreate the older baseline
 | **Incremental** | Schema hash and test timestamp for incremental checking |
 
 ## Baseline Comparison
+
+Comparisons are **protocol-version-aware** — version-specific fields (annotations, titles, output schemas, execution/task support, server instructions) are only compared when both baselines support the relevant MCP protocol version. This prevents false positives when upgrading servers across protocol versions.
 
 When comparing baselines, Bellwether detects:
 

@@ -73,22 +73,44 @@ Looking for a place to start? Check out issues labeled [`good first issue`](http
 
 ```
 src/
-├── cli/           # CLI commands and entry point
-├── baseline/      # Drift detection and baseline management
-├── discovery/     # MCP server capability discovery
-├── interview/     # Tool testing orchestration
-├── llm/           # LLM provider abstraction
-├── persona/       # Built-in test personas
-├── transport/     # MCP communication (stdio, SSE, HTTP)
-├── docs/          # Documentation generators
-└── utils/         # Shared utilities
+├── auth/           # Credential storage & keychain integration
+├── baseline/       # Drift detection, baseline management, comparator
+├── cache/          # Response caching with TTL
+├── cli/            # CLI commands, output formatting, utilities
+│   ├── commands/   # Individual CLI commands (12 total)
+│   ├── output/     # Terminal reporter
+│   └── utils/      # CLI utilities (env, progress, server-context)
+├── config/         # Configuration loading, validation, templates
+├── constants/      # Constants grouped by feature (core, testing, registry)
+├── contract/       # Contract-as-code validation
+├── cost/           # LLM cost tracking
+├── discovery/      # MCP server capability discovery
+├── docs/           # Documentation generators (AGENTS.md, CONTRACT.md, JSON reports)
+├── errors/         # Error types & retry logic
+├── interview/      # Tool testing orchestration & execution
+├── llm/            # Multi-provider LLM abstraction (OpenAI, Anthropic, Ollama)
+├── logging/        # Pino-based structured logging
+├── metrics/        # Metrics collection
+├── persona/        # Built-in test personas
+├── prompts/        # LLM prompt templates
+├── protocol/       # MCP protocol version feature flags
+├── registry/       # MCP Registry client
+├── scenarios/      # YAML test scenario loading & evaluation
+├── security/       # Security testing payloads & execution
+├── transport/      # MCP communication (stdio, SSE, HTTP)
+├── utils/          # Shared utilities (concurrency, formatting, sanitization)
+├── validation/     # Semantic type validation & testing
+└── workflow/       # Workflow discovery, execution, & state tracking
 ```
 
 Key concepts:
-- **Check mode**: Deterministic schema validation (no LLM)
-- **Explore mode**: LLM-powered behavioral testing
-- **Baselines**: Snapshots for drift detection
-- **Personas**: Different testing perspectives
+- **Check mode**: Deterministic schema validation (no LLM) — generates `CONTRACT.md`
+- **Explore mode**: LLM-powered behavioral testing — generates `AGENTS.md`
+- **Baselines**: Snapshots for drift detection stored in git
+- **Personas**: Different testing perspectives (edge-case, security, QA, novice)
+- **Protocol version gating**: `src/protocol/version-registry.ts` maps MCP versions to feature flags; the comparator uses shared feature flags to only compare fields both versions support
+- **Security testing**: Payload-based testing for SQL injection, XSS, path traversal, command injection, SSRF, error disclosure
+- **Workflows**: Multi-step tool sequences with state tracking and assertions
 
 ## Code Style
 
