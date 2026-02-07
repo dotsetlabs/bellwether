@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-02-07
+
 ### Added
 
 - **MCP protocol version gating**: New `src/protocol/` module with version-to-feature-flag mapping
@@ -44,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added execution/task support comparison gated by `tasks` flag
   - Added server instructions comparison gated by `serverInstructions` flag
   - Gated resource template `title` in converter by `entityTitles` flag
+- **Clean JSON output from baseline commands** (`7aab450`):
+  - `baseline compare --format json` no longer appends summary text after JSON object
+  - `baseline diff --format json` no longer prepends header or appends summary text around JSON object
+  - JSON output is now machine-parseable without text contamination
 
 ## [2.0.0] - 2026-02-04
 
