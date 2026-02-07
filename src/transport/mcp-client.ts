@@ -11,10 +11,12 @@ import type {
   MCPTool,
   MCPPrompt,
   MCPResource,
+  MCPResourceTemplate,
   MCPToolCallResult,
   MCPToolsListResult,
   MCPPromptsListResult,
   MCPResourcesListResult,
+  MCPResourceTemplatesListResult,
   MCPResourceReadResult,
   MCPPromptGetResult,
   MCPServerCapabilities,
@@ -23,6 +25,11 @@ import type { TransportErrorRecord, TransportErrorCategory } from '../discovery/
 import { getLogger, startTiming } from '../logging/logger.js';
 import { TIMEOUTS, MCP, TRANSPORT_ERRORS } from '../constants.js';
 import { VERSION } from '../version.js';
+import {
+  getFeatureFlags,
+  isKnownProtocolVersion,
+  type MCPFeatureFlags,
+} from '../protocol/index.js';
 
 /**
  * Environment variables to filter out when spawning MCP server processes.
@@ -145,6 +152,7 @@ export class MCPClient {
   private requestId = 0;
   private pendingRequests = new Map<string | number, PendingRequest>();
   private serverCapabilities: MCPServerCapabilities | null = null;
+  private serverInstructions: string | undefined;
   private timeout: number;
   private startupDelay: number;
   private serverReady = false;
@@ -162,6 +170,8 @@ export class MCPClient {
   private transportErrors: TransportErrorRecord[] = [];
   /** Connection state for diagnostic error messages */
   private connectionState: ConnectionState = { attempted: false };
+  /** Protocol version negotiated with the server during initialization */
+  private negotiatedProtocolVersion: string | null = null;
 
   constructor(options?: MCPClientOptions) {
     this.timeout = options?.timeout ?? DEFAULT_TIMEOUT;
@@ -590,12 +600,27 @@ export class MCPClient {
       });
 
       this.serverCapabilities = result.capabilities;
+      this.serverInstructions = result.instructions;
+      this.negotiatedProtocolVersion = result.protocolVersion;
+
+      // Warn if server returned an unknown protocol version
+      if (result.protocolVersion && !isKnownProtocolVersion(result.protocolVersion)) {
+        this.logger.warn(
+          { protocolVersion: result.protocolVersion },
+          'Server returned unknown protocol version'
+        );
+      }
+
+      // Update HTTP transport with negotiated version for subsequent requests
+      if (this.transport instanceof HTTPTransport && result.protocolVersion) {
+        (this.transport as HTTPTransport).setNegotiatedVersion(result.protocolVersion);
+      }
 
       // Send initialized notification
       this.sendNotification('notifications/initialized', {});
 
       this.logger.info(
-        { capabilities: result.capabilities },
+        { capabilities: result.capabilities, protocolVersion: result.protocolVersion },
         'MCP server initialized successfully'
       );
       return result;
@@ -631,26 +656,78 @@ export class MCPClient {
 
   /**
    * List all tools available on the server.
+   * Handles pagination via nextCursor per MCP 2025-11-25 spec.
    */
   async listTools(options?: { signal?: AbortSignal }): Promise<MCPTool[]> {
-    const result = await this.sendRequest<MCPToolsListResult>('tools/list', {}, options);
-    return result.tools;
+    const allTools: MCPTool[] = [];
+    let cursor: string | undefined;
+    do {
+      const params: Record<string, unknown> = {};
+      if (cursor) params.cursor = cursor;
+      const result = await this.sendRequest<MCPToolsListResult>('tools/list', params, options);
+      allTools.push(...result.tools);
+      cursor = result.nextCursor;
+    } while (cursor);
+    return allTools;
   }
 
   /**
    * List all prompts available on the server.
+   * Handles pagination via nextCursor per MCP 2025-11-25 spec.
    */
   async listPrompts(options?: { signal?: AbortSignal }): Promise<MCPPrompt[]> {
-    const result = await this.sendRequest<MCPPromptsListResult>('prompts/list', {}, options);
-    return result.prompts;
+    const allPrompts: MCPPrompt[] = [];
+    let cursor: string | undefined;
+    do {
+      const params: Record<string, unknown> = {};
+      if (cursor) params.cursor = cursor;
+      const result = await this.sendRequest<MCPPromptsListResult>('prompts/list', params, options);
+      allPrompts.push(...result.prompts);
+      cursor = result.nextCursor;
+    } while (cursor);
+    return allPrompts;
   }
 
   /**
    * List all resources available on the server.
+   * Handles pagination via nextCursor per MCP 2025-11-25 spec.
    */
   async listResources(options?: { signal?: AbortSignal }): Promise<MCPResource[]> {
-    const result = await this.sendRequest<MCPResourcesListResult>('resources/list', {}, options);
-    return result.resources;
+    const allResources: MCPResource[] = [];
+    let cursor: string | undefined;
+    do {
+      const params: Record<string, unknown> = {};
+      if (cursor) params.cursor = cursor;
+      const result = await this.sendRequest<MCPResourcesListResult>(
+        'resources/list',
+        params,
+        options
+      );
+      allResources.push(...result.resources);
+      cursor = result.nextCursor;
+    } while (cursor);
+    return allResources;
+  }
+
+  /**
+   * List all resource templates available on the server.
+   * Handles pagination via nextCursor per MCP 2025-11-25 spec.
+   */
+  async listResourceTemplates(options?: { signal?: AbortSignal }): Promise<MCPResourceTemplate[]> {
+    const allTemplates: MCPResourceTemplate[] = [];
+    let cursor: string | undefined;
+    do {
+      const params: Record<string, unknown> = {};
+      if (cursor) params.cursor = cursor;
+      const result = await this.sendRequest<MCPResourceTemplatesListResult>(
+        'resources/templates/list',
+        params,
+        options
+      );
+      allTemplates.push(...result.resourceTemplates);
+      cursor = result.nextCursor;
+    } while (cursor);
+    return allTemplates;
   }
 
   /**
@@ -734,6 +811,30 @@ export class MCPClient {
    */
   getCapabilities(): MCPServerCapabilities | null {
     return this.serverCapabilities;
+  }
+
+  /**
+   * Get server instructions from initialization.
+   */
+  getInstructions(): string | undefined {
+    return this.serverInstructions;
+  }
+
+  /**
+   * Get the protocol version negotiated with the server during initialization.
+   * Returns null if initialization hasn't completed yet.
+   */
+  getNegotiatedProtocolVersion(): string | null {
+    return this.negotiatedProtocolVersion;
+  }
+
+  /**
+   * Get feature flags based on the negotiated protocol version.
+   * Returns null if initialization hasn't completed yet.
+   */
+  getFeatureFlags(): MCPFeatureFlags | null {
+    if (!this.negotiatedProtocolVersion) return null;
+    return getFeatureFlags(this.negotiatedProtocolVersion);
   }
 
   /**
@@ -979,6 +1080,8 @@ export class MCPClient {
     this.transport = null;
     this.process = null;
     this.serverCapabilities = null;
+    this.serverInstructions = undefined;
+    this.negotiatedProtocolVersion = null;
     this.serverReady = false;
   }
 }

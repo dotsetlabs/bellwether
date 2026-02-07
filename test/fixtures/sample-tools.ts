@@ -130,11 +130,7 @@ export const minimalTool: MCPTool = {
 /**
  * Standard tool set for most tests.
  */
-export const standardToolSet: MCPTool[] = [
-  weatherTool,
-  calculatorTool,
-  readFileTool,
-];
+export const standardToolSet: MCPTool[] = [weatherTool, calculatorTool, readFileTool];
 
 /**
  * Full tool set including edge cases.
@@ -203,11 +199,42 @@ export const mockCapabilities = {
 };
 
 /**
+ * A tool with annotations and output schema (MCP 2025-11-25).
+ */
+export const annotatedTool: MCPTool = {
+  name: 'delete_file',
+  description: 'Delete a file from the filesystem',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      path: {
+        type: 'string',
+        description: 'Path to the file to delete',
+      },
+    },
+    required: ['path'],
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      deleted: { type: 'boolean' },
+      path: { type: 'string' },
+    },
+  },
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+};
+
+/**
  * Create a mock initialization result.
  */
 export function createMockInitResult() {
   return {
-    protocolVersion: '2024-11-05',
+    protocolVersion: '2025-11-25',
     capabilities: mockCapabilities,
     serverInfo: mockServerInfo,
   };

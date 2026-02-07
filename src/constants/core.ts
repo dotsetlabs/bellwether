@@ -42,7 +42,7 @@ export const LLM_DEFAULTS = {
 
 export const MCP = {
   /** Current MCP protocol version */
-  PROTOCOL_VERSION: '2024-11-05',
+  PROTOCOL_VERSION: '2025-11-25',
   /** JSON-RPC version used by MCP */
   JSONRPC_VERSION: '2.0',
 } as const;

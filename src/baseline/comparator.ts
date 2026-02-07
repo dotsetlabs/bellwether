@@ -27,6 +27,7 @@ import type {
   BaselineServerFingerprint,
   PromptCapability,
   ResourceCapability,
+  ResourceTemplateCapability,
 } from './baseline-format.js';
 import { createBaseline } from './saver.js';
 import { getToolFingerprints } from './accessors.js';
@@ -46,6 +47,7 @@ import {
 } from './version.js';
 import { compareSchemas, computeSchemaHash } from './schema-compare.js';
 import { PERFORMANCE_TRACKING } from '../constants.js';
+import { getSharedFeatureFlags, type MCPFeatureFlags } from '../protocol/index.js';
 import type {
   PerformanceRegressionReport,
   PerformanceRegression,
@@ -104,6 +106,12 @@ export function compareBaselines(
     );
   }
 
+  // Compute shared feature flags from both baselines' protocol versions
+  const sharedFeatures = getSharedFeatureFlags(
+    previous.server.protocolVersion,
+    current.server.protocolVersion
+  );
+
   const previousTools = getToolFingerprints(previous);
   const currentTools = getToolFingerprints(current);
   const previousToolMap = new Map(previousTools.map((t) => [t.name, t]));
@@ -136,7 +144,7 @@ export function compareBaselines(
       continue;
     }
 
-    const toolDiff = compareTool(previousTool, currentTool, options);
+    const toolDiff = compareTool(previousTool, currentTool, options, sharedFeatures);
 
     if (
       toolDiff.changes.length > 0 ||
@@ -150,16 +158,27 @@ export function compareBaselines(
     }
   }
 
-  // Compare prompts and resources
+  // Compare prompts, resources, and resource templates
   behaviorChanges.push(
-    ...comparePrompts(previous.capabilities.prompts, current.capabilities.prompts)
+    ...comparePrompts(previous.capabilities.prompts, current.capabilities.prompts, sharedFeatures)
   );
   behaviorChanges.push(
-    ...compareResources(previous.capabilities.resources, current.capabilities.resources)
+    ...compareResources(
+      previous.capabilities.resources,
+      current.capabilities.resources,
+      sharedFeatures
+    )
+  );
+  behaviorChanges.push(
+    ...compareResourceTemplates(
+      previous.capabilities.resourceTemplates,
+      current.capabilities.resourceTemplates,
+      sharedFeatures
+    )
   );
 
   // Compare server metadata and capabilities
-  behaviorChanges.push(...compareServerInfo(previous.server, current.server));
+  behaviorChanges.push(...compareServerInfo(previous.server, current.server, sharedFeatures));
 
   // Compare workflows
   const workflowChanges = compareWorkflows(previous.workflows || [], current.workflows || []);
@@ -232,7 +251,8 @@ export function compareBaselines(
 function compareTool(
   previous: ToolFingerprint,
   current: ToolFingerprint,
-  options: CompareOptions
+  options: CompareOptions,
+  features: MCPFeatureFlags
 ): ToolDiff {
   const changes: BehaviorChange[] = [];
   let schemaChanged = false;
@@ -450,6 +470,122 @@ function compareTool(
     }
   }
 
+  // Compare tool title — only when both versions support entity titles
+  if (features.entityTitles) {
+    if (
+      previous.title !== current.title &&
+      (previous.title !== undefined || current.title !== undefined)
+    ) {
+      changes.push({
+        tool: current.name,
+        aspect: 'tool_annotations',
+        before: previous.title ?? 'none',
+        after: current.title ?? 'none',
+        severity: 'info',
+        description: `Tool "${current.name}" title changed`,
+      });
+    }
+  }
+
+  // Compare tool annotations — only when both versions support them
+  if (features.toolAnnotations) {
+    // Compare annotations
+    const prevAnno = previous.annotations;
+    const currAnno = current.annotations;
+
+    if (prevAnno || currAnno) {
+      if (prevAnno?.readOnlyHint !== currAnno?.readOnlyHint) {
+        // readOnlyHint changing (e.g., tool becoming non-read-only) is breaking
+        changes.push({
+          tool: current.name,
+          aspect: 'tool_annotations',
+          before: String(prevAnno?.readOnlyHint ?? 'unset'),
+          after: String(currAnno?.readOnlyHint ?? 'unset'),
+          severity: 'breaking',
+          description: `Tool "${current.name}" readOnlyHint changed`,
+        });
+      }
+      if (prevAnno?.destructiveHint !== currAnno?.destructiveHint) {
+        changes.push({
+          tool: current.name,
+          aspect: 'tool_annotations',
+          before: String(prevAnno?.destructiveHint ?? 'unset'),
+          after: String(currAnno?.destructiveHint ?? 'unset'),
+          severity: 'warning',
+          description: `Tool "${current.name}" destructiveHint changed`,
+        });
+      }
+      if (prevAnno?.idempotentHint !== currAnno?.idempotentHint) {
+        changes.push({
+          tool: current.name,
+          aspect: 'tool_annotations',
+          before: String(prevAnno?.idempotentHint ?? 'unset'),
+          after: String(currAnno?.idempotentHint ?? 'unset'),
+          severity: 'warning',
+          description: `Tool "${current.name}" idempotentHint changed`,
+        });
+      }
+      if (prevAnno?.openWorldHint !== currAnno?.openWorldHint) {
+        changes.push({
+          tool: current.name,
+          aspect: 'tool_annotations',
+          before: String(prevAnno?.openWorldHint ?? 'unset'),
+          after: String(currAnno?.openWorldHint ?? 'unset'),
+          severity: 'info',
+          description: `Tool "${current.name}" openWorldHint changed`,
+        });
+      }
+    }
+  }
+
+  // Compare output schema — only when both versions support structured output
+  if (features.structuredOutput && previous.outputSchemaHash !== current.outputSchemaHash) {
+    if (!previous.outputSchemaHash && current.outputSchemaHash) {
+      changes.push({
+        tool: current.name,
+        aspect: 'output_schema',
+        before: 'none',
+        after: `outputSchema: ${current.outputSchemaHash}`,
+        severity: 'warning',
+        description: `Tool "${current.name}" outputSchema added`,
+      });
+    } else if (previous.outputSchemaHash && !current.outputSchemaHash) {
+      changes.push({
+        tool: current.name,
+        aspect: 'output_schema',
+        before: `outputSchema: ${previous.outputSchemaHash}`,
+        after: 'none',
+        severity: 'warning',
+        description: `Tool "${current.name}" outputSchema removed`,
+      });
+    } else {
+      changes.push({
+        tool: current.name,
+        aspect: 'output_schema',
+        before: `outputSchema: ${previous.outputSchemaHash}`,
+        after: `outputSchema: ${current.outputSchemaHash}`,
+        severity: 'breaking',
+        description: `Tool "${current.name}" outputSchema changed`,
+      });
+    }
+  }
+
+  // Compare execution/task support — only when both versions support tasks
+  if (features.tasks) {
+    const prevExec = previous.execution?.taskSupport;
+    const currExec = current.execution?.taskSupport;
+    if (prevExec !== currExec && (prevExec !== undefined || currExec !== undefined)) {
+      changes.push({
+        tool: current.name,
+        aspect: 'tool_annotations',
+        before: prevExec ?? 'none',
+        after: currExec ?? 'none',
+        severity: 'warning',
+        description: `Tool "${current.name}" task support changed`,
+      });
+    }
+  }
+
   return {
     tool: current.name,
     changes,
@@ -465,7 +601,8 @@ function compareTool(
 
 function comparePrompts(
   previous: PromptCapability[] | undefined,
-  current: PromptCapability[] | undefined
+  current: PromptCapability[] | undefined,
+  features?: MCPFeatureFlags
 ): BehaviorChange[] {
   const changes: BehaviorChange[] = [];
   const prevMap = new Map((previous ?? []).map((p) => [p.name, p]));
@@ -493,6 +630,21 @@ function comparePrompts(
         after: currPrompt.description ?? 'none',
         severity: 'info',
         description: `Prompt "${name}" description changed`,
+      });
+    }
+
+    if (
+      features?.entityTitles &&
+      prevPrompt.title !== currPrompt.title &&
+      (prevPrompt.title !== undefined || currPrompt.title !== undefined)
+    ) {
+      changes.push({
+        tool: `prompt:${name}`,
+        aspect: 'prompt',
+        before: prevPrompt.title ?? 'none',
+        after: currPrompt.title ?? 'none',
+        severity: 'info',
+        description: `Prompt "${name}" title changed`,
       });
     }
 
@@ -570,7 +722,8 @@ function comparePrompts(
 
 function compareResources(
   previous: ResourceCapability[] | undefined,
-  current: ResourceCapability[] | undefined
+  current: ResourceCapability[] | undefined,
+  features?: MCPFeatureFlags
 ): BehaviorChange[] {
   const changes: BehaviorChange[] = [];
   const prevMap = new Map((previous ?? []).map((r) => [r.uri, r]));
@@ -622,6 +775,52 @@ function compareResources(
         description: `Resource "${uri}" mime type changed`,
       });
     }
+
+    // Compare resource title — only when both versions support entity titles
+    if (
+      features?.entityTitles &&
+      prevResource.title !== currResource.title &&
+      (prevResource.title !== undefined || currResource.title !== undefined)
+    ) {
+      changes.push({
+        tool: `resource:${currResource.name ?? uri}`,
+        aspect: 'resource',
+        before: prevResource.title ?? 'none',
+        after: currResource.title ?? 'none',
+        severity: 'info',
+        description: `Resource "${uri}" title changed`,
+      });
+    }
+
+    // Compare resource annotations — only when both versions support them
+    if (features?.resourceAnnotations) {
+      const prevAudience = prevResource.annotations?.audience?.join(',');
+      const currAudience = currResource.annotations?.audience?.join(',');
+      if (prevAudience !== currAudience && (prevAudience || currAudience)) {
+        changes.push({
+          tool: `resource:${currResource.name ?? uri}`,
+          aspect: 'resource_annotations',
+          before: prevAudience ?? 'none',
+          after: currAudience ?? 'none',
+          severity: 'warning',
+          description: `Resource "${uri}" audience annotation changed`,
+        });
+      }
+
+      if (
+        prevResource.size !== currResource.size &&
+        (prevResource.size !== undefined || currResource.size !== undefined)
+      ) {
+        changes.push({
+          tool: `resource:${currResource.name ?? uri}`,
+          aspect: 'resource_annotations',
+          before: prevResource.size !== undefined ? String(prevResource.size) : 'unknown',
+          after: currResource.size !== undefined ? String(currResource.size) : 'unknown',
+          severity: 'info',
+          description: `Resource "${uri}" size changed`,
+        });
+      }
+    }
   }
 
   for (const [uri, prevResource] of prevMap) {
@@ -640,9 +839,87 @@ function compareResources(
   return changes;
 }
 
+function compareResourceTemplates(
+  previous: ResourceTemplateCapability[] | undefined,
+  current: ResourceTemplateCapability[] | undefined,
+  features?: MCPFeatureFlags
+): BehaviorChange[] {
+  const changes: BehaviorChange[] = [];
+  const prevMap = new Map((previous ?? []).map((t) => [t.uriTemplate, t]));
+  const currMap = new Map((current ?? []).map((t) => [t.uriTemplate, t]));
+
+  for (const [uriTemplate, currTemplate] of currMap) {
+    const prevTemplate = prevMap.get(uriTemplate);
+    if (!prevTemplate) {
+      changes.push({
+        tool: `resource_template:${currTemplate.name ?? uriTemplate}`,
+        aspect: 'resource_template',
+        before: 'absent',
+        after: 'present',
+        severity: 'info',
+        description: `Resource template "${uriTemplate}" added`,
+      });
+      continue;
+    }
+
+    if (prevTemplate.description !== currTemplate.description) {
+      changes.push({
+        tool: `resource_template:${currTemplate.name ?? uriTemplate}`,
+        aspect: 'resource_template',
+        before: prevTemplate.description ?? 'none',
+        after: currTemplate.description ?? 'none',
+        severity: 'info',
+        description: `Resource template "${uriTemplate}" description changed`,
+      });
+    }
+
+    if (prevTemplate.mimeType !== currTemplate.mimeType) {
+      changes.push({
+        tool: `resource_template:${currTemplate.name ?? uriTemplate}`,
+        aspect: 'resource_template',
+        before: prevTemplate.mimeType ?? 'none',
+        after: currTemplate.mimeType ?? 'none',
+        severity: 'info',
+        description: `Resource template "${uriTemplate}" mime type changed`,
+      });
+    }
+
+    if (
+      features?.entityTitles &&
+      prevTemplate.title !== currTemplate.title &&
+      (prevTemplate.title !== undefined || currTemplate.title !== undefined)
+    ) {
+      changes.push({
+        tool: `resource_template:${currTemplate.name ?? uriTemplate}`,
+        aspect: 'resource_template',
+        before: prevTemplate.title ?? 'none',
+        after: currTemplate.title ?? 'none',
+        severity: 'info',
+        description: `Resource template "${uriTemplate}" title changed`,
+      });
+    }
+  }
+
+  for (const [uriTemplate, prevTemplate] of prevMap) {
+    if (!currMap.has(uriTemplate)) {
+      changes.push({
+        tool: `resource_template:${prevTemplate.name ?? uriTemplate}`,
+        aspect: 'resource_template',
+        before: 'present',
+        after: 'absent',
+        severity: 'breaking',
+        description: `Resource template "${uriTemplate}" removed`,
+      });
+    }
+  }
+
+  return changes;
+}
+
 function compareServerInfo(
   previous: BaselineServerFingerprint,
-  current: BaselineServerFingerprint
+  current: BaselineServerFingerprint,
+  features?: MCPFeatureFlags
 ): BehaviorChange[] {
   const changes: BehaviorChange[] = [];
 
@@ -669,15 +946,34 @@ function compareServerInfo(
   }
 
   if (previous.protocolVersion !== current.protocolVersion) {
-    const breaking = isMajorVersionChange(previous.protocolVersion, current.protocolVersion);
+    // Protocol version change is always warning severity.
+    // The version registry handles feature gating — the version change itself
+    // is informational drift, not a breaking change.
     changes.push({
       tool: 'server',
       aspect: 'server',
       before: previous.protocolVersion,
       after: current.protocolVersion,
-      severity: breaking ? 'breaking' : 'warning',
-      description: 'Protocol version changed',
+      severity: 'warning',
+      description: `Protocol version changed from ${previous.protocolVersion} to ${current.protocolVersion}`,
     });
+  }
+
+  // Compare server instructions — only when both versions support them
+  if (features?.serverInstructions) {
+    if (
+      previous.instructions !== current.instructions &&
+      (previous.instructions !== undefined || current.instructions !== undefined)
+    ) {
+      changes.push({
+        tool: 'server',
+        aspect: 'server',
+        before: previous.instructions ? `"${previous.instructions.slice(0, 50)}..."` : 'none',
+        after: current.instructions ? `"${current.instructions.slice(0, 50)}..."` : 'none',
+        severity: 'info',
+        description: 'Server instructions changed',
+      });
+    }
   }
 
   const prevCaps = new Set(previous.capabilities);
@@ -685,6 +981,9 @@ function compareServerInfo(
 
   for (const cap of prevCaps) {
     if (!currCaps.has(cap)) {
+      // Skip capabilities that are version-gated and not in the shared feature set
+      if (cap === 'completions' && !features?.completions) continue;
+      if (cap === 'tasks' && !features?.tasks) continue;
       changes.push({
         tool: 'server',
         aspect: 'capability',
@@ -710,15 +1009,6 @@ function compareServerInfo(
   }
 
   return changes;
-}
-
-function isMajorVersionChange(previous: string, current: string): boolean {
-  const prevMajor = parseInt(previous.split('.')[0] ?? '0', 10);
-  const currMajor = parseInt(current.split('.')[0] ?? '0', 10);
-  if (Number.isNaN(prevMajor) || Number.isNaN(currMajor)) {
-    return previous !== current;
-  }
-  return prevMajor !== currMajor;
 }
 
 function getDeclaredSchemaHash(tool: ToolFingerprint): string {

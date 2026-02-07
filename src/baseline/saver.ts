@@ -84,11 +84,26 @@ const performanceConfidenceSchema = z.object({
 /**
  * Zod schema for tool fingerprint validation.
  */
+const toolAnnotationsSchema = z
+  .object({
+    title: z.string().optional(),
+    readOnlyHint: z.boolean().optional(),
+    destructiveHint: z.boolean().optional(),
+    idempotentHint: z.boolean().optional(),
+    openWorldHint: z.boolean().optional(),
+  })
+  .optional();
+
 const toolCapabilitySchema = z.object({
   name: z.string(),
   description: z.string(),
   inputSchema: z.record(z.unknown()),
   schemaHash: z.string(),
+  title: z.string().optional(),
+  outputSchema: z.record(z.unknown()).optional(),
+  outputSchemaHash: z.string().optional(),
+  annotations: toolAnnotationsSchema,
+  execution: z.object({ taskSupport: z.string().optional() }).optional(),
   observedArgsSchemaHash: z.string().optional(),
   observedArgsSchemaConsistency: z.number().min(0).max(1).optional(),
   observedArgsSchemaVariations: z.number().int().min(0).optional(),
@@ -114,6 +129,7 @@ const serverFingerprintSchema = z.object({
   version: z.string(),
   protocolVersion: z.string(),
   capabilities: z.array(z.string()),
+  instructions: z.string().optional(),
 });
 
 const workflowSignatureSchema = z.object({
@@ -173,6 +189,26 @@ const baselineSchema = z.object({
           name: z.string(),
           description: z.string().optional(),
           mimeType: z.string().optional(),
+          title: z.string().optional(),
+          annotations: z
+            .object({
+              audience: z.array(z.string()).optional(),
+              priority: z.number().optional(),
+              lastModified: z.string().optional(),
+            })
+            .optional(),
+          size: z.number().optional(),
+        })
+      )
+      .optional(),
+    resourceTemplates: z
+      .array(
+        z.object({
+          uriTemplate: z.string(),
+          name: z.string(),
+          title: z.string().optional(),
+          description: z.string().optional(),
+          mimeType: z.string().optional(),
         })
       )
       .optional(),
@@ -181,6 +217,7 @@ const baselineSchema = z.object({
         z.object({
           name: z.string(),
           description: z.string().optional(),
+          title: z.string().optional(),
           arguments: z
             .array(
               z.object({

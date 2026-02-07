@@ -76,9 +76,15 @@ export function toToolCapability(tool: ToolFingerprint): ToolCapability {
     errorPatterns: tool.errorPatterns,
     baselineP50Ms: tool.baselineP50Ms,
     baselineP95Ms: tool.baselineP95Ms,
+    baselineP99Ms: tool.baselineP99Ms,
     baselineSuccessRate: tool.baselineSuccessRate,
     performanceConfidence: tool.performanceConfidence,
     securityFingerprint: tool.securityFingerprint,
+    title: tool.title,
+    outputSchema: tool.outputSchema,
+    outputSchemaHash: tool.outputSchemaHash,
+    annotations: tool.annotations,
+    execution: tool.execution,
   };
 }
 
@@ -119,6 +125,12 @@ export function getToolFingerprints(baseline: BehavioralBaseline): ToolFingerpri
       baselineSuccessRate: tool.baselineSuccessRate,
       performanceConfidence: tool.performanceConfidence,
       securityFingerprint: tool.securityFingerprint,
+      title: tool.title,
+      outputSchema: tool.outputSchema,
+      outputSchemaHash: tool.outputSchemaHash,
+      annotations: tool.annotations,
+      execution: tool.execution,
+      baselineP99Ms: tool.baselineP99Ms,
     };
   });
 

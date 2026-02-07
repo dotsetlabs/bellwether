@@ -46,8 +46,10 @@ import {
   CONFIDENCE_INDICATORS,
   DISPLAY_LIMITS,
   ISSUE_CLASSIFICATION,
+  MCP,
 } from '../constants.js';
 import type { PerformanceConfidence, ConfidenceLevel } from '../baseline/types.js';
+import { getFeatureFlags } from '../protocol/index.js';
 
 /**
  * Options for CONTRACT.md generation.
@@ -287,12 +289,23 @@ export function generateContractMd(result: InterviewResult, options?: ContractMd
   // Overview
   lines.push('## Overview');
   lines.push('');
+  const features = getFeatureFlags(discovery.protocolVersion);
+
   lines.push(`**Server Version:** ${discovery.serverInfo.version}`);
   lines.push(`**Protocol Version:** ${discovery.protocolVersion}`);
+  if (discovery.protocolVersion !== MCP.PROTOCOL_VERSION) {
+    lines.push(`*(Server protocol; bellwether supports up to ${MCP.PROTOCOL_VERSION})*`);
+  }
   lines.push('');
 
   const performanceMetrics = calculatePerformanceMetrics(toolProfiles);
   const performanceByTool = new Map(performanceMetrics.map((metric) => [metric.toolName, metric]));
+
+  // Server instructions
+  if (discovery.instructions) {
+    lines.push(`**Server Instructions:** ${discovery.instructions}`);
+    lines.push('');
+  }
 
   // Capabilities summary
   lines.push('## Capabilities');
@@ -305,6 +318,15 @@ export function generateContractMd(result: InterviewResult, options?: ContractMd
   }
   if (discovery.capabilities.resources) {
     lines.push(`- **Resources:** ${(discovery.resources ?? []).length} available`);
+  }
+  if (discovery.resourceTemplates && discovery.resourceTemplates.length > 0) {
+    lines.push(`- **Resource Templates:** ${discovery.resourceTemplates.length} available`);
+  }
+  if (discovery.capabilities.completions && features.completions) {
+    lines.push('- **Completions:** Supported');
+  }
+  if (discovery.capabilities.tasks && features.tasks) {
+    lines.push('- **Tasks:** Supported');
   }
   if (discovery.capabilities.logging) {
     lines.push('- **Logging:** Supported');
@@ -501,11 +523,34 @@ export function generateContractMd(result: InterviewResult, options?: ContractMd
         }
       }
 
+      // Show tool annotations (behavioral hints) — version-gated
+      if (features.toolAnnotations && tool.annotations) {
+        const hints: string[] = [];
+        if (tool.annotations.readOnlyHint) hints.push('read-only');
+        if (tool.annotations.destructiveHint) hints.push('destructive');
+        if (tool.annotations.idempotentHint) hints.push('idempotent');
+        if (tool.annotations.openWorldHint) hints.push('open-world');
+        if (hints.length > 0) {
+          lines.push(`**Behavioral Hints:** ${hints.join(', ')}`);
+          lines.push('');
+        }
+      }
+
       if (tool.inputSchema) {
         lines.push('**Input Schema:**');
         const schemaJson = validateJsonForCodeBlock(tool.inputSchema);
         lines.push('```json');
         lines.push(schemaJson.content);
+        lines.push('```');
+        lines.push('');
+      }
+
+      // Show output schema if present — version-gated
+      if (features.structuredOutput && tool.outputSchema) {
+        lines.push('**Output Schema:**');
+        const outputSchemaJson = validateJsonForCodeBlock(tool.outputSchema);
+        lines.push('```json');
+        lines.push(outputSchemaJson.content);
         lines.push('```');
         lines.push('');
       }
@@ -560,6 +605,25 @@ export function generateContractMd(result: InterviewResult, options?: ContractMd
       lines.push('');
       if (resource.description) {
         lines.push(resource.description);
+        lines.push('');
+      }
+    }
+  }
+
+  // Resource Templates section
+  if (discovery.resourceTemplates && discovery.resourceTemplates.length > 0) {
+    lines.push('## Resource Templates');
+    lines.push('');
+    for (const template of discovery.resourceTemplates) {
+      lines.push(`### ${template.name}`);
+      lines.push('');
+      lines.push(`**URI Template:** \`${template.uriTemplate}\``);
+      if (template.mimeType) {
+        lines.push(`**MIME Type:** ${template.mimeType}`);
+      }
+      lines.push('');
+      if (template.description) {
+        lines.push(template.description);
         lines.push('');
       }
     }

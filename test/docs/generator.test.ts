@@ -22,11 +22,12 @@ describe('docs', () => {
 
     mockDiscovery = {
       serverInfo: mockServerInfo,
-      protocolVersion: '2024-11-05',
+      protocolVersion: '2025-11-25',
       capabilities: { tools: {}, prompts: {} },
       tools: [weatherTool, calculatorTool],
       prompts: samplePrompts,
       resources: [],
+      resourceTemplates: [],
       timestamp: now,
       serverCommand: 'npx test-server',
       serverArgs: ['--port', '3000'],
@@ -85,7 +86,7 @@ describe('docs', () => {
       const md = generateAgentsMd(mockResult);
 
       expect(md).toContain('**Server Version:** 1.0.0');
-      expect(md).toContain('**Protocol Version:** 2024-11-05');
+      expect(md).toContain('**Protocol Version:** 2025-11-25');
     });
 
     it('should include capabilities section', () => {
@@ -418,8 +419,16 @@ describe('docs', () => {
             expectedOutcome: 'Weather data',
           },
           steps: [
-            { step: { tool: 'get_location', description: 'Get location' }, success: true, analysis: 'OK' },
-            { step: { tool: 'get_weather', description: 'Get weather' }, success: true, analysis: 'OK' },
+            {
+              step: { tool: 'get_location', description: 'Get location' },
+              success: true,
+              analysis: 'OK',
+            },
+            {
+              step: { tool: 'get_weather', description: 'Get weather' },
+              success: true,
+              analysis: 'OK',
+            },
           ],
           success: true,
           summary: 'Workflow completed',
@@ -470,7 +479,9 @@ describe('docs', () => {
             steps: [{ tool: 'test', description: 'Test step' }],
             expectedOutcome: '',
           },
-          steps: [{ step: { tool: 'test', description: 'Test step' }, success: false, error: 'Failed' }],
+          steps: [
+            { step: { tool: 'test', description: 'Test step' }, success: false, error: 'Failed' },
+          ],
           success: false,
           failureReason: 'Step failed',
         },
@@ -484,7 +495,13 @@ describe('docs', () => {
 
     it('should include Behavioral Matrix when multiple personas used', () => {
       mockResult.metadata.personas = [
-        { id: 'tech', name: 'Technical Writer', questionsAsked: 5, toolCallCount: 10, errorCount: 0 },
+        {
+          id: 'tech',
+          name: 'Technical Writer',
+          questionsAsked: 5,
+          toolCallCount: 10,
+          errorCount: 0,
+        },
         { id: 'sec', name: 'Security Tester', questionsAsked: 3, toolCallCount: 8, errorCount: 1 },
       ];
 
@@ -513,7 +530,13 @@ describe('docs', () => {
 
     it('should not include Behavioral Matrix with single persona', () => {
       mockResult.metadata.personas = [
-        { id: 'tech', name: 'Technical Writer', questionsAsked: 5, toolCallCount: 10, errorCount: 0 },
+        {
+          id: 'tech',
+          name: 'Technical Writer',
+          questionsAsked: 5,
+          toolCallCount: 10,
+          errorCount: 0,
+        },
       ];
 
       const md = generateAgentsMd(mockResult);
@@ -539,9 +562,7 @@ describe('docs', () => {
             { step: { tool: 'tool_b', description: 'Step B' }, success: true },
           ],
           success: true,
-          dataFlow: [
-            { fromStep: 0, toStep: 1, sourcePath: 'result.id', targetParam: 'id' },
-          ],
+          dataFlow: [{ fromStep: 0, toStep: 1, sourcePath: 'result.id', targetParam: 'id' }],
         },
       ];
 
@@ -562,7 +583,10 @@ describe('docs', () => {
         {
           toolName: 'get_weather',
           question: { description: 'Test', category: 'happy_path', args: { path: '/etc/passwd' } },
-          response: { content: [{ type: 'text', text: 'Access denied - path outside allowed directories' }], isError: true },
+          response: {
+            content: [{ type: 'text', text: 'Access denied - path outside allowed directories' }],
+            isError: true,
+          },
           error: null,
           analysis: 'Access denied',
           durationMs: 100,
@@ -570,7 +594,10 @@ describe('docs', () => {
         {
           toolName: 'get_weather',
           question: { description: 'Test 2', category: 'happy_path', args: { path: '/root' } },
-          response: { content: [{ type: 'text', text: 'Cannot read files outside predefined directories' }], isError: true },
+          response: {
+            content: [{ type: 'text', text: 'Cannot read files outside predefined directories' }],
+            isError: true,
+          },
           error: null,
           analysis: 'Denied',
           durationMs: 100,

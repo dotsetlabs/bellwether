@@ -89,7 +89,9 @@ import {
   WORKFLOW,
   REPORT_SCHEMAS,
   PERCENTAGE_CONVERSION,
+  MCP,
 } from '../../constants.js';
+import { getFeatureFlags, getExcludedFeatureNames } from '../../protocol/index.js';
 
 export const checkCommand = new Command('check')
   .description('Check MCP server schema and detect drift (free, fast, deterministic)')
@@ -295,6 +297,7 @@ export const checkCommand = new Command('check')
         transport === 'stdio' ? args : []
       );
       const resourceCount = discovery.resources?.length ?? 0;
+      const resourceTemplateCount = discovery.resourceTemplates?.length ?? 0;
       const discoveryParts = [
         `${discovery.tools.length} tools`,
         `${discovery.prompts.length} prompts`,
@@ -302,7 +305,35 @@ export const checkCommand = new Command('check')
       if (resourceCount > 0) {
         discoveryParts.push(`${resourceCount} resources`);
       }
+      if (resourceTemplateCount > 0) {
+        discoveryParts.push(`${resourceTemplateCount} resource templates`);
+      }
       output.info(`Found ${discoveryParts.join(', ')}\n`);
+
+      // Show server instructions if provided
+      if (discovery.instructions) {
+        output.info(`Server instructions: ${discovery.instructions}\n`);
+      }
+
+      // Show protocol version context
+      const features = getFeatureFlags(discovery.protocolVersion);
+      if (discovery.protocolVersion !== MCP.PROTOCOL_VERSION) {
+        output.info(
+          `Protocol Version: ${discovery.protocolVersion} (bellwether supports up to ${MCP.PROTOCOL_VERSION})`
+        );
+        const excluded = getExcludedFeatureNames(discovery.protocolVersion);
+        if (excluded.length > 0) {
+          output.info(`  Version-gated features excluded: ${excluded.join(', ')}`);
+        }
+      }
+
+      // Show new capabilities (completions, tasks) — gated by protocol version
+      if (discovery.capabilities.completions && features.completions) {
+        output.info('Server supports: Completions (autocomplete)');
+      }
+      if (discovery.capabilities.tasks && features.tasks) {
+        output.info('Server supports: Tasks');
+      }
 
       // Output discovery warnings (Issue D: anomaly detection)
       if (discovery.warnings && discovery.warnings.length > 0) {

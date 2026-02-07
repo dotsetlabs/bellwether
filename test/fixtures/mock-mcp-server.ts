@@ -66,7 +66,7 @@ const rl = readline.createInterface({
 function sendResponse(response: JSONRPCResponse): void {
   const json = JSON.stringify(response);
   // Use newline-delimited JSON format
-  process.stdout.write(json + '\n');
+  process.stdout.write(`${json}\n`);
 }
 
 function handleRequest(request: JSONRPCRequest): void {
@@ -91,7 +91,7 @@ function handleRequest(request: JSONRPCRequest): void {
               jsonrpc: '2.0',
               id: request.id,
               result: {
-                protocolVersion: '2024-11-05',
+                protocolVersion: process.env.MOCK_PROTOCOL_VERSION ?? '2025-11-25',
                 capabilities: mockCapabilities,
                 serverInfo: mockServerInfo,
               },
@@ -112,6 +112,22 @@ function handleRequest(request: JSONRPCRequest): void {
             jsonrpc: '2.0',
             id: request.id,
             result: { prompts },
+          };
+          break;
+
+        case 'resources/list':
+          response = {
+            jsonrpc: '2.0',
+            id: request.id,
+            result: { resources: [] },
+          };
+          break;
+
+        case 'resources/templates/list':
+          response = {
+            jsonrpc: '2.0',
+            id: request.id,
+            result: { resourceTemplates: [] },
           };
           break;
 
@@ -156,7 +172,7 @@ function handleToolCall(request: JSONRPCRequest): JSONRPCResponse {
   }
 
   // Find the tool definition
-  const tool = tools.find(t => t.name === toolName);
+  const tool = tools.find((t) => t.name === toolName);
   if (!tool) {
     return {
       jsonrpc: '2.0',
@@ -196,7 +212,7 @@ function handleToolCall(request: JSONRPCRequest): JSONRPCResponse {
       }
       break;
 
-    case 'read_file':
+    case 'read_file': {
       const path = String(args.path ?? '');
       if (path.includes('..') || path.startsWith('/etc')) {
         result = createMockToolResult('Access denied', true);
@@ -206,8 +222,9 @@ function handleToolCall(request: JSONRPCRequest): JSONRPCResponse {
         result = createMockToolResult(`Contents of ${path}: mock file content`);
       }
       break;
+    }
 
-    case 'query_database':
+    case 'query_database': {
       const query = String(args.query ?? '').toLowerCase();
       if (query.includes('drop') || query.includes('delete')) {
         result = createMockToolResult('Write operations not allowed', true);
@@ -220,6 +237,7 @@ function handleToolCall(request: JSONRPCRequest): JSONRPCResponse {
         );
       }
       break;
+    }
 
     case 'get_timestamp':
       result = createMockToolResult(JSON.stringify({ timestamp: Date.now() }));

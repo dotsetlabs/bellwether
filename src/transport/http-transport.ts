@@ -1,6 +1,6 @@
 import type { JSONRPCMessage, JSONRPCResponse } from './types.js';
 import { BaseTransport, type BaseTransportConfig } from './base-transport.js';
-import { TIMEOUTS, DISPLAY_LIMITS } from '../constants.js';
+import { TIMEOUTS, DISPLAY_LIMITS, MCP } from '../constants.js';
 
 /**
  * Configuration for HTTP Transport.
@@ -36,6 +36,8 @@ export class HTTPTransport extends BaseTransport {
   private sessionId?: string;
   private readonly customHeaders: Record<string, string>;
   private readonly timeout: number;
+  /** Protocol version negotiated with the server (set after initialization) */
+  private negotiatedVersion?: string;
 
   constructor(config: HTTPTransportConfig) {
     super(config);
@@ -46,13 +48,18 @@ export class HTTPTransport extends BaseTransport {
   }
 
   /**
-   * Build request headers, including session ID if available.
+   * Build request headers, including session ID and protocol version.
+   * Per MCP 2025-11-25 streamable-http spec:
+   * - MCP-Protocol-Version must be included on all requests after initialization
+   * - Mcp-Session-Id must be included if we have one from initialization
    */
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       // MCP streamable-http spec requires accepting both JSON and SSE
       Accept: 'application/json, text/event-stream',
+      // MCP spec: Include protocol version on all HTTP requests
+      'MCP-Protocol-Version': this.negotiatedVersion ?? MCP.PROTOCOL_VERSION,
       ...this.customHeaders,
     };
 
@@ -74,6 +81,14 @@ export class HTTPTransport extends BaseTransport {
     // Optionally, we could do a health check here
     // For now, just mark as connected
     this.connected = true;
+  }
+
+  /**
+   * Set the negotiated protocol version to use in subsequent request headers.
+   * Called by MCPClient after successful initialization.
+   */
+  setNegotiatedVersion(version: string): void {
+    this.negotiatedVersion = version;
   }
 
   /**
@@ -127,6 +142,11 @@ export class HTTPTransport extends BaseTransport {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        // MCP 2025-11-25: 404 means session expired, clear session ID
+        if (response.status === 404 && this.sessionId) {
+          this.log('Session expired (404), clearing session ID');
+          this.sessionId = undefined;
+        }
         const errorText = await response.text().catch(() => 'Unknown error');
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
