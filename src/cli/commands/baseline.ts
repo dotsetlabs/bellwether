@@ -268,38 +268,49 @@ baselineCommand
       throw error;
     }
 
-    // Show version compatibility warning if applicable
-    if (diff.versionCompatibility?.warning) {
-      output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
-      output.newline();
-    }
-
     // Format and output
     switch (format) {
       case 'json':
         output.info(formatDiffJson(diff));
         break;
       case 'markdown':
+        // Show version compatibility warning if applicable
+        if (diff.versionCompatibility?.warning) {
+          output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+          output.newline();
+        }
         output.info(formatDiffMarkdown(diff));
         break;
       case 'compact':
+        // Show version compatibility warning if applicable
+        if (diff.versionCompatibility?.warning) {
+          output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+          output.newline();
+        }
         output.info(formatDiffCompact(diff));
         break;
-      default:
+      default: {
+        // Show version compatibility warning if applicable
+        if (diff.versionCompatibility?.warning) {
+          output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+          output.newline();
+        }
         output.info('--- Drift Report ---');
         output.info(formatDiffText(diff));
-    }
 
-    // Show summary
-    const totalChanges =
-      diff.toolsAdded.length + diff.toolsRemoved.length + diff.toolsModified.length;
-    output.newline();
-    output.info(`Changes: ${totalChanges} tools affected`);
-    output.info(`Severity: ${diff.severity}`);
-    if (diff.versionCompatibility) {
-      output.info(
-        `Format versions: ${diff.versionCompatibility.sourceVersion} -> ${diff.versionCompatibility.targetVersion}`
-      );
+        // Show summary (text format only)
+        const totalChanges =
+          diff.toolsAdded.length + diff.toolsRemoved.length + diff.toolsModified.length;
+        output.newline();
+        output.info(`Changes: ${totalChanges} tools affected`);
+        output.info(`Severity: ${diff.severity}`);
+        if (diff.versionCompatibility) {
+          output.info(
+            `Format versions: ${diff.versionCompatibility.sourceVersion} -> ${diff.versionCompatibility.targetVersion}`
+          );
+        }
+        break;
+      }
     }
 
     // Exit with error if drift detected and --fail-on-drift
@@ -505,46 +516,68 @@ baselineCommand
       throw error;
     }
 
-    // Header
-    output.info(`Comparing baselines:`);
-    output.info(
-      `  Old: ${basename(path1)} (${getBaselineGeneratedAt(baseline1).toISOString().split('T')[0]}) [${baseline1.version}]`
-    );
-    output.info(
-      `  New: ${basename(path2)} (${getBaselineGeneratedAt(baseline2).toISOString().split('T')[0]}) [${baseline2.version}]`
-    );
-    output.newline();
-
-    // Show version compatibility warning if applicable
-    if (diff.versionCompatibility?.warning) {
-      output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
-      output.newline();
-    }
-
     // Format and output
     switch (format) {
       case 'json':
         output.info(formatDiffJson(diff));
         break;
       case 'markdown':
+        output.info(`Comparing baselines:`);
+        output.info(
+          `  Old: ${basename(path1)} (${getBaselineGeneratedAt(baseline1).toISOString().split('T')[0]}) [${baseline1.version}]`
+        );
+        output.info(
+          `  New: ${basename(path2)} (${getBaselineGeneratedAt(baseline2).toISOString().split('T')[0]}) [${baseline2.version}]`
+        );
+        output.newline();
+        if (diff.versionCompatibility?.warning) {
+          output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+          output.newline();
+        }
         output.info(formatDiffMarkdown(diff));
         break;
       case 'compact':
+        output.info(`Comparing baselines:`);
+        output.info(
+          `  Old: ${basename(path1)} (${getBaselineGeneratedAt(baseline1).toISOString().split('T')[0]}) [${baseline1.version}]`
+        );
+        output.info(
+          `  New: ${basename(path2)} (${getBaselineGeneratedAt(baseline2).toISOString().split('T')[0]}) [${baseline2.version}]`
+        );
+        output.newline();
+        if (diff.versionCompatibility?.warning) {
+          output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+          output.newline();
+        }
         output.info(formatDiffCompact(diff));
         break;
-      default:
+      default: {
+        output.info(`Comparing baselines:`);
+        output.info(
+          `  Old: ${basename(path1)} (${getBaselineGeneratedAt(baseline1).toISOString().split('T')[0]}) [${baseline1.version}]`
+        );
+        output.info(
+          `  New: ${basename(path2)} (${getBaselineGeneratedAt(baseline2).toISOString().split('T')[0]}) [${baseline2.version}]`
+        );
+        output.newline();
+        if (diff.versionCompatibility?.warning) {
+          output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+          output.newline();
+        }
         output.info(formatDiffText(diff));
-    }
 
-    // Summary
-    output.newline();
-    output.info(`Severity: ${diff.severity}`);
-    output.info(`Tools added: ${diff.toolsAdded.length}`);
-    output.info(`Tools removed: ${diff.toolsRemoved.length}`);
-    output.info(`Tools modified: ${diff.toolsModified.length}`);
-    if (diff.versionCompatibility) {
-      output.info(
-        `Format versions: ${diff.versionCompatibility.sourceVersion} -> ${diff.versionCompatibility.targetVersion}`
-      );
+        // Summary (text format only)
+        output.newline();
+        output.info(`Severity: ${diff.severity}`);
+        output.info(`Tools added: ${diff.toolsAdded.length}`);
+        output.info(`Tools removed: ${diff.toolsRemoved.length}`);
+        output.info(`Tools modified: ${diff.toolsModified.length}`);
+        if (diff.versionCompatibility) {
+          output.info(
+            `Format versions: ${diff.versionCompatibility.sourceVersion} -> ${diff.versionCompatibility.targetVersion}`
+          );
+        }
+        break;
+      }
     }
   });
