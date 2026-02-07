@@ -44,6 +44,15 @@ bellwether check --fail-on-drift  # Override baseline.failOnDrift
 - Parameter changes (name, type, required status)
 - Description changes
 - Schema hash changes
+- Tool annotation changes (readOnlyHint, destructiveHint, etc.)
+- Entity title changes (tool, prompt, resource, resource template)
+- Output schema changes
+- Execution/task support changes
+- Server instruction changes
+- Prompt added/removed/modified
+- Resource and resource template changes
+- Performance regression (P50/P95 latency, success rate)
+- Security vulnerability detection (when enabled)
 
 ### When to Use Check
 

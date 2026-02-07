@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-02-07
+
+### Added
+
+- **MCP protocol version gating**: New `src/protocol/` module with version-to-feature-flag mapping
+  - Supports MCP protocol versions: `2024-11-05`, `2025-03-26`, `2025-06-18`, `2025-11-25`
+  - `MCPFeatureFlags` interface with 9 feature flags (`toolAnnotations`, `entityTitles`, `completions`, `resourceAnnotations`, `structuredOutput`, `serverInstructions`, `httpVersionHeader`, `tasks`, `icons`)
+  - `getSharedFeatureFlags(v1, v2)` computes AND-intersection for cross-version baseline comparison
+  - All version-specific fields in baselines are now gated by protocol version during conversion and comparison
+- **Version-gated drift detection**: Comparator now detects changes in version-specific fields
+  - Tool annotations (readOnlyHint, destructiveHint, idempotentHint, openWorldHint)
+  - Entity titles (tool, prompt, resource, and resource template titles)
+  - Output schema and structured output changes
+  - Execution/task support changes
+  - Server instructions changes
+- **MCPClient protocol version tracking**: Client stores negotiated protocol version after `initialize()`, exposes via getters
+- **Mock server protocol version support**: Mock MCP server now supports `MOCK_PROTOCOL_VERSION` env var for testing
+
+### Fixed
+
+- **20 production-blocking bugs across all layers** (`4717ca1`):
+  - Transport: HTTP transport URL construction, SSE error event handling, MCP client error propagation
+  - Discovery: ResourceTemplate type handling, discovery error handling
+  - Baseline: Converter version-gated field handling, saver hash calculation, comparator severity logic
+  - CLI: Check command exit code handling, explore command cleanup, baseline command error paths
+  - Config: Environment variable expansion edge cases
+  - Docs: Contract and agents generator error handling
+- **Protocol version gating gaps causing false negatives and data loss** (`dce73ed`):
+  - Fixed tool title comparison using wrong feature flag (`toolAnnotations` instead of `entityTitles`)
+  - Fixed tool title comparison condition (AND → OR) to detect added/removed titles
+  - Added missing `execution` and `baselineP99Ms` fields to `ToolFingerprint` type
+  - Added missing fields (`title`, `outputSchema`, `outputSchemaHash`, `annotations`, `execution`, `baselineP99Ms`) to `toToolCapability()` accessor — prevents data loss during incremental check merges
+  - Added `execution` and `baselineP99Ms` mapping to `getToolFingerprints()` accessor
+  - Added prompt title comparison gated by `entityTitles` flag
+  - Added resource title comparison gated by `entityTitles` flag
+  - Added resource template title comparison gated by `entityTitles` flag
+  - Added execution/task support comparison gated by `tasks` flag
+  - Added server instructions comparison gated by `serverInstructions` flag
+  - Gated resource template `title` in converter by `entityTitles` flag
+- **Clean JSON output from baseline commands** (`7aab450`):
+  - `baseline compare --format json` no longer appends summary text after JSON object
+  - `baseline diff --format json` no longer prepends header or appends summary text around JSON object
+  - JSON output is now machine-parseable without text contamination
+
 ## [2.0.0] - 2026-02-04
 
 ### Breaking Changes

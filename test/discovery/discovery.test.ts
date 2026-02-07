@@ -16,7 +16,7 @@ import {
  * Create a mock MCP client for testing.
  */
 function createMockClient(config?: {
-  tools?: typeof weatherTool[];
+  tools?: (typeof weatherTool)[];
   prompts?: typeof samplePrompts;
   capabilities?: typeof mockCapabilities;
   throwOnListTools?: boolean;
@@ -27,6 +27,7 @@ function createMockClient(config?: {
     message: string;
     likelyServerBug: boolean;
   }>;
+  instructions?: string;
 }): MCPClient {
   const tools = config?.tools ?? [weatherTool, calculatorTool];
   const prompts = config?.prompts ?? samplePrompts;
@@ -35,9 +36,10 @@ function createMockClient(config?: {
 
   return {
     initialize: vi.fn().mockResolvedValue({
-      protocolVersion: '2024-11-05',
+      protocolVersion: '2025-11-25',
       capabilities,
       serverInfo: mockServerInfo,
+      instructions: config?.instructions,
     }),
     listTools: config?.throwOnListTools
       ? vi.fn().mockRejectedValue(new Error('List tools failed'))
@@ -45,7 +47,10 @@ function createMockClient(config?: {
     listPrompts: config?.throwOnListPrompts
       ? vi.fn().mockRejectedValue(new Error('List prompts failed'))
       : vi.fn().mockResolvedValue(prompts),
+    listResources: vi.fn().mockResolvedValue([]),
+    listResourceTemplates: vi.fn().mockResolvedValue([]),
     getTransportErrors: vi.fn().mockReturnValue(transportErrors),
+    getInstructions: vi.fn().mockReturnValue(config?.instructions),
   } as unknown as MCPClient;
 }
 
@@ -58,7 +63,7 @@ describe('discovery', () => {
 
       expect(result.serverInfo.name).toBe('test-server');
       expect(result.serverInfo.version).toBe('1.0.0');
-      expect(result.protocolVersion).toBe('2024-11-05');
+      expect(result.protocolVersion).toBe('2025-11-25');
       expect(result.serverCommand).toBe('test-cmd');
       expect(result.serverArgs).toEqual(['--arg']);
       expect(result.timestamp).toBeInstanceOf(Date);
@@ -73,8 +78,8 @@ describe('discovery', () => {
       const result = await discover(client, 'cmd', []);
 
       expect(result.tools).toHaveLength(2);
-      expect(result.tools.map(t => t.name)).toContain('get_weather');
-      expect(result.tools.map(t => t.name)).toContain('calculate');
+      expect(result.tools.map((t) => t.name)).toContain('get_weather');
+      expect(result.tools.map((t) => t.name)).toContain('calculate');
     });
 
     it('should not list tools when capability is missing', async () => {
@@ -97,7 +102,7 @@ describe('discovery', () => {
       const result = await discover(client, 'cmd', []);
 
       expect(result.prompts).toHaveLength(2);
-      expect(result.prompts.map(p => p.name)).toContain('summarize');
+      expect(result.prompts.map((p) => p.name)).toContain('summarize');
     });
 
     it('should not list prompts when capability is missing', async () => {
@@ -187,11 +192,12 @@ describe('discovery', () => {
     beforeEach(() => {
       mockResult = {
         serverInfo: mockServerInfo,
-        protocolVersion: '2024-11-05',
+        protocolVersion: '2025-11-25',
         capabilities: { tools: {}, prompts: {} },
         tools: [weatherTool, calculatorTool],
         prompts: samplePrompts,
         resources: [],
+        resourceTemplates: [],
         timestamp: new Date(),
         serverCommand: 'test-server',
         serverArgs: [],
@@ -202,7 +208,7 @@ describe('discovery', () => {
       const summary = summarizeDiscovery(mockResult);
 
       expect(summary).toContain('test-server v1.0.0');
-      expect(summary).toContain('Protocol Version: 2024-11-05');
+      expect(summary).toContain('Protocol Version: 2025-11-25');
     });
 
     it('should list tool count in capabilities', () => {

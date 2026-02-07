@@ -396,11 +396,12 @@ export class SSETransport extends BaseTransport {
 
     this.log('Sending message', { endpoint, message });
 
-    // Create a new abort controller for this request
-    this.abortController = new AbortController();
+    // Create a local abort controller for this request to avoid overwriting
+    // the instance controller and leaking previous controllers
+    const requestController = new AbortController();
 
     const timeoutId = setTimeout(() => {
-      this.abortController?.abort();
+      requestController.abort();
     }, this.timeout);
 
     fetch(endpoint, {
@@ -410,7 +411,7 @@ export class SSETransport extends BaseTransport {
         ...this.headers,
       },
       body: JSON.stringify(message),
-      signal: this.abortController.signal,
+      signal: requestController.signal,
     })
       .then(async (response) => {
         clearTimeout(timeoutId);

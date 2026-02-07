@@ -942,7 +942,7 @@ export function compareFingerprints(
         : 'Response now empty (was returning data)',
       before: String(previous.isEmpty),
       after: String(current.isEmpty),
-      breaking: !current.isEmpty, // Becoming empty is breaking
+      breaking: current.isEmpty, // Becoming empty is breaking (losing data)
     });
   }
 

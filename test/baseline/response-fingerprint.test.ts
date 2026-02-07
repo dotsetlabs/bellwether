@@ -89,9 +89,7 @@ describe('analyzeResponses', () => {
     });
 
     it('should handle empty responses', () => {
-      const responses = [
-        { response: createEmptyResponse(), error: null },
-      ];
+      const responses = [{ response: createEmptyResponse(), error: null }];
 
       const analysis = analyzeResponses(responses);
 
@@ -142,7 +140,10 @@ describe('analyzeResponses', () => {
     it('should handle mixed successful and error responses', () => {
       const responses = [
         { response: createJsonResponse({ result: 'ok' }), error: null },
-        { response: createTextResponse('Error: something failed', true), error: 'Error: something failed' },
+        {
+          response: createTextResponse('Error: something failed', true),
+          error: 'Error: something failed',
+        },
         { response: createJsonResponse({ result: 'ok' }), error: null },
       ];
 
@@ -156,36 +157,28 @@ describe('analyzeResponses', () => {
 
   describe('response size classification', () => {
     it('should classify tiny responses', () => {
-      const responses = [
-        { response: createTextResponse('OK'), error: null },
-      ];
+      const responses = [{ response: createTextResponse('OK'), error: null }];
 
       const analysis = analyzeResponses(responses);
       expect(analysis.fingerprint.size).toBe('tiny');
     });
 
     it('should classify small responses', () => {
-      const responses = [
-        { response: createTextResponse('x'.repeat(500)), error: null },
-      ];
+      const responses = [{ response: createTextResponse('x'.repeat(500)), error: null }];
 
       const analysis = analyzeResponses(responses);
       expect(analysis.fingerprint.size).toBe('small');
     });
 
     it('should classify medium responses', () => {
-      const responses = [
-        { response: createTextResponse('x'.repeat(5000)), error: null },
-      ];
+      const responses = [{ response: createTextResponse('x'.repeat(5000)), error: null }];
 
       const analysis = analyzeResponses(responses);
       expect(analysis.fingerprint.size).toBe('medium');
     });
 
     it('should classify large responses', () => {
-      const responses = [
-        { response: createTextResponse('x'.repeat(15000)), error: null },
-      ];
+      const responses = [{ response: createTextResponse('x'.repeat(15000)), error: null }];
 
       const analysis = analyzeResponses(responses);
       expect(analysis.fingerprint.size).toBe('large');
@@ -213,7 +206,10 @@ describe('analyzeResponses', () => {
 
     it('should detect UUID strings', () => {
       const responses = [
-        { response: createJsonResponse({ id: '550e8400-e29b-41d4-a716-446655440000' }), error: null },
+        {
+          response: createJsonResponse({ id: '550e8400-e29b-41d4-a716-446655440000' }),
+          error: null,
+        },
       ];
 
       const analysis = analyzeResponses(responses);
@@ -251,7 +247,7 @@ describe('analyzeResponses', () => {
 
       const analysis = analyzeResponses(responses);
 
-      const notFoundPatterns = analysis.errorPatterns.filter(p => p.category === 'not_found');
+      const notFoundPatterns = analysis.errorPatterns.filter((p) => p.category === 'not_found');
       expect(notFoundPatterns.length).toBeGreaterThan(0);
     });
 
@@ -263,36 +259,38 @@ describe('analyzeResponses', () => {
 
       const analysis = analyzeResponses(responses);
 
-      const permissionPatterns = analysis.errorPatterns.filter(p => p.category === 'permission');
+      const permissionPatterns = analysis.errorPatterns.filter((p) => p.category === 'permission');
       expect(permissionPatterns.length).toBeGreaterThan(0);
     });
 
     it('should extract timeout error patterns', () => {
-      const responses = [
-        { response: null, error: 'Operation timed out after 30s' },
-      ];
+      const responses = [{ response: null, error: 'Operation timed out after 30s' }];
 
       const analysis = analyzeResponses(responses);
 
-      const timeoutPatterns = analysis.errorPatterns.filter(p => p.category === 'timeout');
+      const timeoutPatterns = analysis.errorPatterns.filter((p) => p.category === 'timeout');
       expect(timeoutPatterns.length).toBe(1);
     });
 
     it('should extract internal error patterns', () => {
-      const responses = [
-        { response: null, error: 'Internal server error occurred' },
-      ];
+      const responses = [{ response: null, error: 'Internal server error occurred' }];
 
       const analysis = analyzeResponses(responses);
 
-      const internalPatterns = analysis.errorPatterns.filter(p => p.category === 'internal');
+      const internalPatterns = analysis.errorPatterns.filter((p) => p.category === 'internal');
       expect(internalPatterns.length).toBe(1);
     });
 
     it('should normalize error patterns by stripping specific values', () => {
       const responses = [
-        { response: null, error: 'User 550e8400-e29b-41d4-a716-446655440000 not found at /api/users/123' },
-        { response: null, error: 'User 12345678-1234-1234-1234-123456789012 not found at /api/users/456' },
+        {
+          response: null,
+          error: 'User 550e8400-e29b-41d4-a716-446655440000 not found at /api/users/123',
+        },
+        {
+          response: null,
+          error: 'User 12345678-1234-1234-1234-123456789012 not found at /api/users/456',
+        },
       ];
 
       const analysis = analyzeResponses(responses);
@@ -344,9 +342,7 @@ describe('analyzeResponses', () => {
         },
       };
 
-      const responses = [
-        { response: createJsonResponse(deepObject), error: null },
-      ];
+      const responses = [{ response: createJsonResponse(deepObject), error: null }];
 
       const analysis = analyzeResponses(responses);
 
@@ -361,9 +357,7 @@ describe('analyzeResponses', () => {
         deepObject = { nested: deepObject };
       }
 
-      const responses = [
-        { response: createJsonResponse(deepObject), error: null },
-      ];
+      const responses = [{ response: createJsonResponse(deepObject), error: null }];
 
       // Should not throw
       expect(() => analyzeResponses(responses)).not.toThrow();
@@ -482,10 +476,12 @@ describe('compareFingerprints', () => {
     const diff = compareFingerprints(baseFingerprint, modified);
 
     expect(diff.identical).toBe(false);
-    expect(diff.changes).toContainEqual(expect.objectContaining({
-      aspect: 'structure',
-      breaking: true,
-    }));
+    expect(diff.changes).toContainEqual(
+      expect.objectContaining({
+        aspect: 'structure',
+        breaking: true,
+      })
+    );
     expect(diff.significance).toBe('high');
   });
 
@@ -494,10 +490,12 @@ describe('compareFingerprints', () => {
     const diff = compareFingerprints(baseFingerprint, modified);
 
     expect(diff.identical).toBe(false);
-    expect(diff.changes).toContainEqual(expect.objectContaining({
-      aspect: 'content_type',
-      breaking: true,
-    }));
+    expect(diff.changes).toContainEqual(
+      expect.objectContaining({
+        aspect: 'content_type',
+        breaking: true,
+      })
+    );
   });
 
   it('should detect added fields (non-breaking)', () => {
@@ -505,8 +503,8 @@ describe('compareFingerprints', () => {
     const diff = compareFingerprints(baseFingerprint, modified);
 
     expect(diff.identical).toBe(false);
-    const addedFieldChange = diff.changes.find(c =>
-      c.aspect === 'fields' && c.description.includes('added')
+    const addedFieldChange = diff.changes.find(
+      (c) => c.aspect === 'fields' && c.description.includes('added')
     );
     expect(addedFieldChange).toBeDefined();
     expect(addedFieldChange?.breaking).toBe(false);
@@ -517,34 +515,36 @@ describe('compareFingerprints', () => {
     const diff = compareFingerprints(baseFingerprint, modified);
 
     expect(diff.identical).toBe(false);
-    const removedFieldChange = diff.changes.find(c =>
-      c.aspect === 'fields' && c.description.includes('removed')
+    const removedFieldChange = diff.changes.find(
+      (c) => c.aspect === 'fields' && c.description.includes('removed')
     );
     expect(removedFieldChange).toBeDefined();
     expect(removedFieldChange?.breaking).toBe(true);
   });
 
-  it('should detect emptiness changes (becoming empty is not breaking)', () => {
+  it('should detect emptiness changes (becoming empty IS breaking)', () => {
     // baseFingerprint has isEmpty: false, modified has isEmpty: true
-    // When current isEmpty is true, breaking = !true = false
+    // When response goes from returning data to empty, that's breaking (consumers lose data)
     const modified = { ...baseFingerprint, isEmpty: true };
     const diff = compareFingerprints(baseFingerprint, modified);
 
     expect(diff.identical).toBe(false);
-    expect(diff.changes).toContainEqual(expect.objectContaining({
-      aspect: 'emptiness',
-      breaking: false,  // becoming empty is NOT breaking per the source logic
-    }));
+    expect(diff.changes).toContainEqual(
+      expect.objectContaining({
+        aspect: 'emptiness',
+        breaking: true, // becoming empty IS breaking (losing data)
+      })
+    );
   });
 
-  it('should detect emptiness changes (becoming non-empty is breaking)', () => {
+  it('should detect emptiness changes (becoming non-empty is not breaking)', () => {
     // empty has isEmpty: true, baseFingerprint has isEmpty: false
-    // When current isEmpty is false, breaking = !false = true
+    // When response goes from empty to returning data, that's not breaking
     const empty = { ...baseFingerprint, isEmpty: true };
     const diff = compareFingerprints(empty, baseFingerprint);
 
-    const emptinessChange = diff.changes.find(c => c.aspect === 'emptiness');
-    expect(emptinessChange?.breaking).toBe(true);  // becoming non-empty IS breaking
+    const emptinessChange = diff.changes.find((c) => c.aspect === 'emptiness');
+    expect(emptinessChange?.breaking).toBe(false); // becoming non-empty is NOT breaking
   });
 
   it('should detect array item structure changes', () => {
@@ -556,10 +556,12 @@ describe('compareFingerprints', () => {
     const modified = { ...arrayFp, arrayItemStructure: 'struct456' };
     const diff = compareFingerprints(arrayFp, modified);
 
-    expect(diff.changes).toContainEqual(expect.objectContaining({
-      aspect: 'array_items',
-      breaking: true,
-    }));
+    expect(diff.changes).toContainEqual(
+      expect.objectContaining({
+        aspect: 'array_items',
+        breaking: true,
+      })
+    );
   });
 
   it('should handle missing previous fingerprint', () => {
@@ -700,27 +702,21 @@ describe('computeInferredSchemaHash', () => {
 
 describe('edge cases and error handling', () => {
   it('should handle primitive JSON values', () => {
-    const responses = [
-      { response: createJsonResponse(42), error: null },
-    ];
+    const responses = [{ response: createJsonResponse(42), error: null }];
 
     const analysis = analyzeResponses(responses);
     expect(analysis.fingerprint.contentType).toBe('primitive');
   });
 
   it('should handle boolean JSON values', () => {
-    const responses = [
-      { response: createJsonResponse(true), error: null },
-    ];
+    const responses = [{ response: createJsonResponse(true), error: null }];
 
     const analysis = analyzeResponses(responses);
     expect(analysis.fingerprint.contentType).toBe('primitive');
   });
 
   it('should handle empty string responses', () => {
-    const responses = [
-      { response: createTextResponse(''), error: null },
-    ];
+    const responses = [{ response: createTextResponse(''), error: null }];
 
     const analysis = analyzeResponses(responses);
     expect(analysis.fingerprint.isEmpty).toBe(true);
@@ -728,27 +724,21 @@ describe('edge cases and error handling', () => {
   });
 
   it('should handle whitespace-only string responses', () => {
-    const responses = [
-      { response: createTextResponse('   \n\t  '), error: null },
-    ];
+    const responses = [{ response: createTextResponse('   \n\t  '), error: null }];
 
     const analysis = analyzeResponses(responses);
     expect(analysis.fingerprint.isEmpty).toBe(true);
   });
 
   it('should handle empty object responses', () => {
-    const responses = [
-      { response: createJsonResponse({}), error: null },
-    ];
+    const responses = [{ response: createJsonResponse({}), error: null }];
 
     const analysis = analyzeResponses(responses);
     expect(analysis.fingerprint.isEmpty).toBe(true);
   });
 
   it('should handle empty array responses', () => {
-    const responses = [
-      { response: createJsonResponse([]), error: null },
-    ];
+    const responses = [{ response: createJsonResponse([]), error: null }];
 
     const analysis = analyzeResponses(responses);
     expect(analysis.fingerprint.isEmpty).toBe(true);
@@ -764,9 +754,7 @@ describe('edge cases and error handling', () => {
   });
 
   it('should handle malformed JSON in text content', () => {
-    const responses = [
-      { response: createTextResponse('{ invalid json }'), error: null },
-    ];
+    const responses = [{ response: createTextResponse('{ invalid json }'), error: null }];
 
     // Should not throw, should treat as plain text
     const analysis = analyzeResponses(responses);
@@ -774,9 +762,7 @@ describe('edge cases and error handling', () => {
   });
 
   it('should handle arrays with mixed item types', () => {
-    const responses = [
-      { response: createJsonResponse([1, 'two', { three: 3 }]), error: null },
-    ];
+    const responses = [{ response: createJsonResponse([1, 'two', { three: 3 }]), error: null }];
 
     const analysis = analyzeResponses(responses);
     expect(analysis.fingerprint.contentType).toBe('array');

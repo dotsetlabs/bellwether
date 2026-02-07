@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, rmSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import {
@@ -22,7 +22,6 @@ import {
 } from '../../src/baseline/saver.js';
 import { compareBaselines } from '../../src/baseline/comparator.js';
 import type { InterviewResult, ToolProfile } from '../../src/interview/types.js';
-import type { BehavioralBaseline } from '../../src/baseline/types.js';
 import { PAYLOAD_LIMITS } from '../../src/constants.js';
 
 /**
@@ -63,6 +62,7 @@ function createTestInterviewResult(options: {
       tools: discoveryTools,
       prompts: [],
       resources: [],
+      resourceTemplates: [],
       timestamp: new Date(),
       serverCommand: 'npx test-server',
       serverArgs: [],
@@ -86,7 +86,10 @@ describe('saver', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `bellwether-saver-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(
+      tmpdir(),
+      `bellwether-saver-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
     mkdirSync(testDir, { recursive: true });
   });
 
@@ -114,11 +117,7 @@ describe('saver', () => {
 
     it('should include all tool profiles', () => {
       const result = createTestInterviewResult({
-        tools: [
-          { name: 'tool_a' },
-          { name: 'tool_b' },
-          { name: 'tool_c' },
-        ],
+        tools: [{ name: 'tool_a' }, { name: 'tool_b' }, { name: 'tool_c' }],
       });
 
       const baseline = createBaseline(result, 'npx test');
@@ -187,7 +186,7 @@ describe('saver', () => {
     it('should throw for file exceeding size limit', () => {
       const path = join(testDir, 'huge.json');
       // Create content that exceeds the limit
-      const hugeContent = '{"data":"' + 'x'.repeat(PAYLOAD_LIMITS.MAX_BASELINE_SIZE + 1000) + '"}';
+      const hugeContent = `{"data":"${'x'.repeat(PAYLOAD_LIMITS.MAX_BASELINE_SIZE + 1000)}"}`;
       writeFileSync(path, hugeContent);
 
       expect(() => loadBaseline(path)).toThrow('too large');
@@ -196,10 +195,13 @@ describe('saver', () => {
     it('should throw for schema validation errors', () => {
       const path = join(testDir, 'bad-schema.json');
       // Valid JSON but invalid baseline schema
-      writeFileSync(path, JSON.stringify({
-        version: '1.0.0',
-        // Missing required fields
-      }));
+      writeFileSync(
+        path,
+        JSON.stringify({
+          version: '1.0.0',
+          // Missing required fields
+        })
+      );
 
       expect(() => loadBaseline(path)).toThrow('Invalid baseline format');
     });
@@ -211,7 +213,7 @@ describe('saver', () => {
 
       // Save and then tamper
       saveBaseline(baseline, path);
-      const content = JSON.parse(require('fs').readFileSync(path, 'utf-8'));
+      const content = JSON.parse(readFileSync(path, 'utf-8'));
       content.server.name = 'tampered-name';
       writeFileSync(path, JSON.stringify(content, null, 2));
 
@@ -225,7 +227,7 @@ describe('saver', () => {
 
       // Save and then tamper
       saveBaseline(baseline, path);
-      const content = JSON.parse(require('fs').readFileSync(path, 'utf-8'));
+      const content = JSON.parse(readFileSync(path, 'utf-8'));
       content.server.name = 'tampered-name';
       writeFileSync(path, JSON.stringify(content, null, 2));
 
@@ -269,7 +271,8 @@ describe('saver', () => {
       const baseline = createBaseline(result, 'npx test');
 
       // Remove hash
-      const { hash: _, ...baselineWithoutHash } = baseline;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { hash: _hash, ...baselineWithoutHash } = baseline;
 
       const recalculated = recalculateBaselineHash(baselineWithoutHash);
 
@@ -280,7 +283,8 @@ describe('saver', () => {
     it('should produce same hash for same content', () => {
       const result = createTestInterviewResult({ tools: [{ name: 'tool' }] });
       const baseline = createBaseline(result, 'npx test');
-      const { hash: _, ...baselineWithoutHash } = baseline;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { hash: _hash, ...baselineWithoutHash } = baseline;
 
       const first = recalculateBaselineHash(baselineWithoutHash);
       const second = recalculateBaselineHash(baselineWithoutHash);

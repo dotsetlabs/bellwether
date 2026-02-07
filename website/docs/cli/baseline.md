@@ -271,8 +271,11 @@ A baseline file captures:
 
 | Component | Description |
 |:----------|:------------|
-| **Server Info** | Name, version, protocol version, capabilities |
-| **Tools** | Name, description, schema hash |
+| **Server Info** | Name, version, protocol version, capabilities, instructions |
+| **Tools** | Name, description, schema hash, title, annotations, output schema, execution/task support |
+| **Prompts** | Prompt names, descriptions, titles, arguments |
+| **Resources** | Resource URIs, names, descriptions, titles, MIME types |
+| **Performance** | P50/P95 latency, success rate, confidence level per tool |
 | **Security Notes** | Security observations per tool |
 | **Limitations** | Known limitations per tool |
 | **Hash** | SHA-256 hash for detecting file tampering |
@@ -329,6 +332,8 @@ A baseline file captures:
 
 ## Drift Detection
 
+Comparisons are **protocol-version-aware** — version-specific fields are only compared when both baselines support the relevant MCP protocol version.
+
 When comparing baselines, Bellwether detects:
 
 | Change Type | Severity | Description |
@@ -337,6 +342,14 @@ When comparing baselines, Bellwether detects:
 | Tool removed | Breaking | Existing tool disappeared |
 | Schema changed | Warning/Breaking | Tool parameters changed |
 | Description changed | Info | Tool help text updated |
+| Annotation changed | Warning | Tool annotations (readOnlyHint, destructiveHint, etc.) changed |
+| Title changed | Info | Tool/prompt/resource/resource template title changed |
+| Output schema changed | Warning | Structured output schema modified |
+| Task support changed | Warning | Execution/task support configuration changed |
+| Server instructions changed | Info | Server-level instructions updated |
+| Prompt added/removed | Breaking/Info | Prompt template appeared or disappeared |
+| Resource changed | Warning | Resource URI, name, or MIME type modified |
+| Performance regression | Warning | P50/P95 latency increased beyond threshold |
 
 ### Severity Levels
 

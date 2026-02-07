@@ -25,7 +25,30 @@ import type {
   BehaviorChange,
   WorkflowSignature,
 } from '../../src/baseline/types.js';
-import type { ToolCapability } from '../../src/baseline/baseline-format.js';
+import type {
+  ToolCapability,
+  ResourceTemplateCapability,
+  PromptCapability,
+  ResourceCapability,
+} from '../../src/baseline/baseline-format.js';
+
+/**
+ * Extended tool options for test helper, combining ToolFingerprint fields
+ * with ToolCapability-specific fields (annotations, outputSchemaHash, title).
+ */
+interface TestToolOptions extends Partial<ToolFingerprint> {
+  annotations?: {
+    title?: string;
+    readOnlyHint?: boolean;
+    destructiveHint?: boolean;
+    idempotentHint?: boolean;
+    openWorldHint?: boolean;
+  };
+  outputSchema?: Record<string, unknown>;
+  outputSchemaHash?: string;
+  title?: string;
+  execution?: { taskSupport?: string };
+}
 
 /**
  * Helper to create a minimal valid baseline for testing.
@@ -34,8 +57,14 @@ import type { ToolCapability } from '../../src/baseline/baseline-format.js';
 function createTestBaseline(options: {
   version?: string;
   serverName?: string;
-  tools?: Partial<ToolFingerprint>[];
+  protocolVersion?: string;
+  capabilities?: string[];
+  tools?: TestToolOptions[];
   workflows?: Array<{ id: string; name: string; succeeded: boolean; toolSequence?: string[] }>;
+  resourceTemplates?: ResourceTemplateCapability[];
+  prompts?: PromptCapability[];
+  resources?: ResourceCapability[];
+  serverInstructions?: string;
 }): BehavioralBaseline {
   const tools = (options.tools || []).map((t) => ({
     name: t.name || 'test_tool',
@@ -52,6 +81,12 @@ function createTestBaseline(options: {
     baselineP50Ms: t.baselineP50Ms,
     baselineP95Ms: t.baselineP95Ms,
     performanceConfidence: t.performanceConfidence,
+    annotations: t.annotations,
+    outputSchema: t.outputSchema,
+    outputSchemaHash: t.outputSchemaHash,
+    title: t.title,
+    execution: t.execution,
+    baselineP99Ms: t.baselineP99Ms,
   })) as ToolCapability[];
 
   const workflows: WorkflowSignature[] | undefined = options.workflows?.map((w) => ({
@@ -75,13 +110,15 @@ function createTestBaseline(options: {
     server: {
       name: options.serverName || 'test-server',
       version: '1.0.0',
-      protocolVersion: '0.1.0',
-      capabilities: ['tools'],
+      protocolVersion: options.protocolVersion || '2025-11-25',
+      capabilities: options.capabilities || ['tools'],
+      instructions: options.serverInstructions,
     },
     capabilities: {
       tools,
-      prompts: [],
-      resources: [],
+      prompts: options.prompts || [],
+      resources: options.resources || [],
+      resourceTemplates: options.resourceTemplates,
     },
     interviews: [],
     toolProfiles: [],
@@ -764,6 +801,21 @@ describe('comparator', () => {
       expect(diff.behaviorChanges.filter((c) => c.aspect === 'error_handling')).toHaveLength(0);
     });
 
+    it('should handle baselines with resourceTemplates', () => {
+      const baseline1 = createTestBaseline({
+        tools: [],
+        resourceTemplates: [{ uriTemplate: '/items/{id}', name: 'item', description: 'Get item' }],
+      });
+      const baseline2 = createTestBaseline({
+        tools: [],
+        resourceTemplates: [{ uriTemplate: '/items/{id}', name: 'item', description: 'Get item' }],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      expect(diff.severity).toBe('none');
+    });
+
     it('should handle tools with same name but completely different content', () => {
       const schemaV1 = {
         type: 'object',
@@ -801,6 +853,836 @@ describe('comparator', () => {
       expect(diff.toolsModified).toHaveLength(1);
       expect(diff.toolsModified[0].schemaChanged).toBe(true);
       expect(diff.toolsModified[0].descriptionChanged).toBe(true);
+    });
+  });
+
+  describe('compareBaselines - tool annotations drift detection', () => {
+    it('should detect readOnlyHint change as breaking', () => {
+      const baseline1 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            annotations: { readOnlyHint: true },
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            annotations: { readOnlyHint: false },
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const annotationChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'tool_annotations' && c.description.includes('readOnlyHint')
+      );
+      expect(annotationChange).toBeDefined();
+      expect(annotationChange?.severity).toBe('breaking');
+    });
+
+    it('should detect destructiveHint change as warning', () => {
+      const baseline1 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            annotations: { destructiveHint: false },
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            annotations: { destructiveHint: true },
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const annotationChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'tool_annotations' && c.description.includes('destructiveHint')
+      );
+      expect(annotationChange).toBeDefined();
+      expect(annotationChange?.severity).toBe('warning');
+    });
+
+    it('should detect idempotentHint change as warning', () => {
+      const baseline1 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            annotations: { idempotentHint: true },
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            annotations: { idempotentHint: false },
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const annotationChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'tool_annotations' && c.description.includes('idempotentHint')
+      );
+      expect(annotationChange).toBeDefined();
+      expect(annotationChange?.severity).toBe('warning');
+    });
+
+    it('should detect openWorldHint change as info', () => {
+      const baseline1 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            annotations: { openWorldHint: false },
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            annotations: { openWorldHint: true },
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const annotationChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'tool_annotations' && c.description.includes('openWorldHint')
+      );
+      expect(annotationChange).toBeDefined();
+      expect(annotationChange?.severity).toBe('info');
+    });
+
+    it('should detect tool title change as info', () => {
+      const baseline1 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            title: 'Old Title',
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            title: 'New Title',
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const titleChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'tool_annotations' && c.description.includes('title')
+      );
+      expect(titleChange).toBeDefined();
+      expect(titleChange?.severity).toBe('info');
+    });
+
+    it('should not report unchanged annotations', () => {
+      const baseline1 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            annotations: { readOnlyHint: true, destructiveHint: false },
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            annotations: { readOnlyHint: true, destructiveHint: false },
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const annotationChanges = diff.behaviorChanges.filter((c) => c.aspect === 'tool_annotations');
+      expect(annotationChanges).toHaveLength(0);
+    });
+  });
+
+  describe('compareBaselines - output schema drift detection', () => {
+    it('should detect outputSchema change as breaking', () => {
+      const baseline1 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            outputSchemaHash: 'hash-v1',
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            outputSchemaHash: 'hash-v2',
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const schemaChange = diff.behaviorChanges.find((c) => c.aspect === 'output_schema');
+      expect(schemaChange).toBeDefined();
+      expect(schemaChange?.severity).toBe('breaking');
+    });
+
+    it('should detect outputSchema added as warning', () => {
+      const baseline1 = createTestBaseline({
+        tools: [{ name: 'tool' }],
+      });
+      const baseline2 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            outputSchemaHash: 'hash-v1',
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const schemaChange = diff.behaviorChanges.find((c) => c.aspect === 'output_schema');
+      expect(schemaChange).toBeDefined();
+      expect(schemaChange?.severity).toBe('warning');
+    });
+
+    it('should detect outputSchema removed as warning', () => {
+      const baseline1 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            outputSchemaHash: 'hash-v1',
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        tools: [{ name: 'tool' }],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const schemaChange = diff.behaviorChanges.find((c) => c.aspect === 'output_schema');
+      expect(schemaChange).toBeDefined();
+      expect(schemaChange?.severity).toBe('warning');
+    });
+
+    it('should not report unchanged outputSchema', () => {
+      const baseline1 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            outputSchemaHash: 'same-hash',
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+            outputSchemaHash: 'same-hash',
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const schemaChanges = diff.behaviorChanges.filter((c) => c.aspect === 'output_schema');
+      expect(schemaChanges).toHaveLength(0);
+    });
+  });
+
+  describe('compareBaselines - resource template drift detection', () => {
+    it('should detect resource template removed as breaking', () => {
+      const baseline1 = createTestBaseline({
+        tools: [],
+        resourceTemplates: [{ uriTemplate: '/items/{id}', name: 'item', description: 'Get item' }],
+      });
+      const baseline2 = createTestBaseline({
+        tools: [],
+        resourceTemplates: [],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const templateChange = diff.behaviorChanges.find((c) => c.aspect === 'resource_template');
+      expect(templateChange).toBeDefined();
+      expect(templateChange?.severity).toBe('breaking');
+    });
+
+    it('should detect resource template added as info', () => {
+      const baseline1 = createTestBaseline({
+        tools: [],
+        resourceTemplates: [],
+      });
+      const baseline2 = createTestBaseline({
+        tools: [],
+        resourceTemplates: [{ uriTemplate: '/items/{id}', name: 'item', description: 'Get item' }],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const templateChange = diff.behaviorChanges.find((c) => c.aspect === 'resource_template');
+      expect(templateChange).toBeDefined();
+      expect(templateChange?.severity).toBe('info');
+    });
+
+    it('should not report unchanged resource templates', () => {
+      const templates: ResourceTemplateCapability[] = [
+        { uriTemplate: '/items/{id}', name: 'item', description: 'Get item' },
+      ];
+      const baseline1 = createTestBaseline({
+        tools: [],
+        resourceTemplates: templates,
+      });
+      const baseline2 = createTestBaseline({
+        tools: [],
+        resourceTemplates: templates,
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const templateChanges = diff.behaviorChanges.filter((c) => c.aspect === 'resource_template');
+      expect(templateChanges).toHaveLength(0);
+    });
+  });
+
+  describe('version-gated comparison', () => {
+    it('should compare annotations when both baselines are on 2025-11-25', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [
+          {
+            name: 'tool1',
+            annotations: { readOnlyHint: true },
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [
+          {
+            name: 'tool1',
+            annotations: { readOnlyHint: false },
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const annotationChanges = diff.behaviorChanges.filter((c) => c.aspect === 'tool_annotations');
+      expect(annotationChanges.length).toBeGreaterThan(0);
+    });
+
+    it('should NOT compare annotations when one baseline is on 2024-11-05', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2024-11-05',
+        tools: [
+          {
+            name: 'tool1',
+            annotations: { readOnlyHint: true },
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [
+          {
+            name: 'tool1',
+            annotations: { readOnlyHint: false },
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const annotationChanges = diff.behaviorChanges.filter((c) => c.aspect === 'tool_annotations');
+      expect(annotationChanges).toHaveLength(0);
+    });
+
+    it('should NOT compare outputSchema when one baseline is on 2025-03-26', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2025-03-26',
+        tools: [
+          {
+            name: 'tool1',
+            outputSchemaHash: 'abc123',
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-06-18',
+        tools: [
+          {
+            name: 'tool1',
+            outputSchemaHash: 'def456',
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const outputSchemaChanges = diff.behaviorChanges.filter((c) => c.aspect === 'output_schema');
+      expect(outputSchemaChanges).toHaveLength(0);
+    });
+
+    it('should compare outputSchema when both baselines support structured output', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2025-06-18',
+        tools: [
+          {
+            name: 'tool1',
+            outputSchemaHash: 'abc123',
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [
+          {
+            name: 'tool1',
+            outputSchemaHash: 'def456',
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const outputSchemaChanges = diff.behaviorChanges.filter((c) => c.aspect === 'output_schema');
+      expect(outputSchemaChanges.length).toBeGreaterThan(0);
+    });
+
+    it('should compare annotations when both baselines are on 2025-03-26+', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2025-03-26',
+        tools: [
+          {
+            name: 'tool1',
+            annotations: { destructiveHint: true },
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-06-18',
+        tools: [
+          {
+            name: 'tool1',
+            annotations: { destructiveHint: false },
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const annotationChanges = diff.behaviorChanges.filter((c) => c.aspect === 'tool_annotations');
+      expect(annotationChanges.length).toBeGreaterThan(0);
+    });
+
+    it('should still flag protocol version change as warning', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2024-11-05',
+        tools: [{ name: 'tool1' }],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [{ name: 'tool1' }],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const versionChanges = diff.behaviorChanges.filter(
+        (c) => c.aspect === 'server' && c.description.includes('Protocol version changed')
+      );
+      expect(versionChanges).toHaveLength(1);
+      expect(versionChanges[0].severity).toBe('warning');
+    });
+
+    it('should NOT flag version-gated capability removal when versions differ', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        capabilities: ['tools', 'tasks'],
+        tools: [{ name: 'tool1' }],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2024-11-05',
+        capabilities: ['tools'],
+        tools: [{ name: 'tool1' }],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const capabilityRemovals = diff.behaviorChanges.filter(
+        (c) => c.aspect === 'capability' && c.after === 'removed' && c.before === 'tasks'
+      );
+      // 'tasks' capability removal should be skipped because 2024-11-05 doesn't support tasks
+      expect(capabilityRemovals).toHaveLength(0);
+    });
+
+    it('should NOT flag resource annotation changes when one version is 2024-11-05', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2024-11-05',
+        tools: [],
+      });
+      // Add resource with annotations to previous
+      baseline1.capabilities.resources = [
+        {
+          uri: 'test://resource',
+          name: 'test',
+          annotations: { audience: ['user'] },
+          size: 100,
+        },
+      ];
+
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [],
+      });
+      baseline2.capabilities.resources = [
+        {
+          uri: 'test://resource',
+          name: 'test',
+          annotations: { audience: ['admin'] },
+          size: 200,
+        },
+      ];
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const annotationChanges = diff.behaviorChanges.filter(
+        (c) => c.aspect === 'resource_annotations'
+      );
+      expect(annotationChanges).toHaveLength(0);
+    });
+  });
+
+  describe('version-gated prompt title comparison', () => {
+    it('should detect prompt title change when both baselines on 2025-11-25', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [],
+        prompts: [{ name: 'my_prompt', description: 'A prompt', title: 'Old Title' }],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [],
+        prompts: [{ name: 'my_prompt', description: 'A prompt', title: 'New Title' }],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const titleChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'prompt' && c.description.includes('title')
+      );
+      expect(titleChange).toBeDefined();
+      expect(titleChange?.severity).toBe('info');
+      expect(titleChange?.before).toBe('Old Title');
+      expect(titleChange?.after).toBe('New Title');
+    });
+
+    it('should NOT detect prompt title change when one baseline on 2024-11-05', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2024-11-05',
+        tools: [],
+        prompts: [{ name: 'my_prompt', description: 'A prompt', title: 'Old Title' }],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [],
+        prompts: [{ name: 'my_prompt', description: 'A prompt', title: 'New Title' }],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const titleChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'prompt' && c.description.includes('title')
+      );
+      expect(titleChange).toBeUndefined();
+    });
+  });
+
+  describe('version-gated resource template title comparison', () => {
+    it('should detect resource template title change when both on 2025-11-25', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [],
+        resourceTemplates: [
+          { uriTemplate: '/items/{id}', name: 'item', title: 'Old Title', description: 'Get item' },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [],
+        resourceTemplates: [
+          { uriTemplate: '/items/{id}', name: 'item', title: 'New Title', description: 'Get item' },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const titleChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'resource_template' && c.description.includes('title')
+      );
+      expect(titleChange).toBeDefined();
+      expect(titleChange?.severity).toBe('info');
+    });
+
+    it('should NOT detect resource template title change when one on 2024-11-05', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2024-11-05',
+        tools: [],
+        resourceTemplates: [
+          { uriTemplate: '/items/{id}', name: 'item', title: 'Old Title', description: 'Get item' },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [],
+        resourceTemplates: [
+          { uriTemplate: '/items/{id}', name: 'item', title: 'New Title', description: 'Get item' },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const titleChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'resource_template' && c.description.includes('title')
+      );
+      expect(titleChange).toBeUndefined();
+    });
+  });
+
+  describe('version-gated resource title comparison', () => {
+    it('should detect resource title change when both on 2025-11-25', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [],
+        resources: [{ uri: 'test://res', name: 'res', title: 'Old Title' }],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [],
+        resources: [{ uri: 'test://res', name: 'res', title: 'New Title' }],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const titleChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'resource' && c.description.includes('title')
+      );
+      expect(titleChange).toBeDefined();
+      expect(titleChange?.severity).toBe('info');
+    });
+
+    it('should NOT detect resource title change when one on 2024-11-05', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2024-11-05',
+        tools: [],
+        resources: [{ uri: 'test://res', name: 'res', title: 'Old Title' }],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [],
+        resources: [{ uri: 'test://res', name: 'res', title: 'New Title' }],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const titleChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'resource' && c.description.includes('title')
+      );
+      expect(titleChange).toBeUndefined();
+    });
+  });
+
+  describe('version-gated execution/task support comparison', () => {
+    it('should detect execution taskSupport change when both on 2025-11-25', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [
+          {
+            name: 'tool',
+            execution: { taskSupport: 'sync' },
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [
+          {
+            name: 'tool',
+            execution: { taskSupport: 'async' },
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const execChange = diff.behaviorChanges.find((c) => c.description.includes('task support'));
+      expect(execChange).toBeDefined();
+      expect(execChange?.severity).toBe('warning');
+      expect(execChange?.before).toBe('sync');
+      expect(execChange?.after).toBe('async');
+    });
+
+    it('should NOT detect execution change when one on 2024-11-05', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2024-11-05',
+        tools: [
+          {
+            name: 'tool',
+            execution: { taskSupport: 'sync' },
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [
+          {
+            name: 'tool',
+            execution: { taskSupport: 'async' },
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const execChange = diff.behaviorChanges.find((c) => c.description.includes('task support'));
+      expect(execChange).toBeUndefined();
+    });
+  });
+
+  describe('version-gated server instructions comparison', () => {
+    it('should detect server instructions change when both on 2025-06-18+', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2025-06-18',
+        tools: [],
+        serverInstructions: 'Old instructions for the server',
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [],
+        serverInstructions: 'New instructions for the server',
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const instrChange = diff.behaviorChanges.find((c) =>
+        c.description.includes('Server instructions changed')
+      );
+      expect(instrChange).toBeDefined();
+      expect(instrChange?.severity).toBe('info');
+    });
+
+    it('should NOT detect server instructions change when one on 2024-11-05', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2024-11-05',
+        tools: [],
+        serverInstructions: 'Old instructions',
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [],
+        serverInstructions: 'New instructions',
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const instrChange = diff.behaviorChanges.find((c) =>
+        c.description.includes('Server instructions changed')
+      );
+      expect(instrChange).toBeUndefined();
+    });
+  });
+
+  describe('tool title uses entityTitles flag', () => {
+    it('should detect tool title change with entityTitles=true independently from annotations', () => {
+      // 2025-03-26 has entityTitles=true AND toolAnnotations=true
+      // Verify title comparison uses entityTitles, not toolAnnotations
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2025-03-26',
+        tools: [
+          {
+            name: 'tool',
+            title: 'Old Tool Title',
+            // No annotations
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-03-26',
+        tools: [
+          {
+            name: 'tool',
+            title: 'New Tool Title',
+            // No annotations
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const titleChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'tool_annotations' && c.description.includes('title changed')
+      );
+      expect(titleChange).toBeDefined();
+      expect(titleChange?.severity).toBe('info');
+      expect(titleChange?.before).toBe('Old Tool Title');
+      expect(titleChange?.after).toBe('New Tool Title');
+    });
+
+    it('should detect title added (undefined -> value)', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [
+          {
+            name: 'tool',
+            // No title
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [
+          {
+            name: 'tool',
+            title: 'New Title',
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const titleChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'tool_annotations' && c.description.includes('title changed')
+      );
+      expect(titleChange).toBeDefined();
+      expect(titleChange?.before).toBe('none');
+      expect(titleChange?.after).toBe('New Title');
+    });
+
+    it('should detect title removed (value -> undefined)', () => {
+      const baseline1 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [
+          {
+            name: 'tool',
+            title: 'Old Title',
+          },
+        ],
+      });
+      const baseline2 = createTestBaseline({
+        protocolVersion: '2025-11-25',
+        tools: [
+          {
+            name: 'tool',
+            // No title
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const titleChange = diff.behaviorChanges.find(
+        (c) => c.aspect === 'tool_annotations' && c.description.includes('title changed')
+      );
+      expect(titleChange).toBeDefined();
+      expect(titleChange?.before).toBe('Old Title');
+      expect(titleChange?.after).toBe('none');
     });
   });
 });

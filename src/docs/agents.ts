@@ -1,14 +1,24 @@
 import type { InterviewResult, ToolProfile, InterviewMetadata } from '../interview/types.js';
 import type { MCPTool } from '../transport/types.js';
-import { formatDateISO, formatDuration, escapeTableCell, mermaidLabel, validateJsonForCodeBlock } from '../utils/index.js';
-import { DISPLAY_LIMITS, MATH_FACTORS } from '../constants.js';
+import {
+  formatDateISO,
+  formatDuration,
+  escapeTableCell,
+  mermaidLabel,
+  validateJsonForCodeBlock,
+} from '../utils/index.js';
+import { DISPLAY_LIMITS, MATH_FACTORS, MCP } from '../constants.js';
 import { calculatePerformanceMetrics, extractParameters, looksLikeError } from './shared.js';
+import { getFeatureFlags } from '../protocol/index.js';
 
 /**
  * Detect configuration issues based on error patterns.
  * Returns a warning message if issues detected, null otherwise.
  */
-function detectConfigurationIssues(profiles: ToolProfile[], metadata: InterviewMetadata): string | null {
+function detectConfigurationIssues(
+  profiles: ToolProfile[],
+  metadata: InterviewMetadata
+): string | null {
   if (metadata.toolCallCount === 0) return null;
 
   const errorRate = metadata.errorCount / metadata.toolCallCount;
@@ -21,16 +31,21 @@ function detectConfigurationIssues(profiles: ToolProfile[], metadata: InterviewM
   for (const profile of profiles) {
     for (const interaction of profile.interactions) {
       // Get response text content
-      const textContent = interaction.response?.content?.find(c => c.type === 'text');
+      const textContent = interaction.response?.content?.find((c) => c.type === 'text');
       const responseText = textContent && 'text' in textContent ? String(textContent.text) : '';
       const errorText = interaction.error || '';
       const combined = errorText + responseText;
 
       // Count as error if flagged as error OR if content looks like an error
-      const isError = interaction.error || interaction.response?.isError || looksLikeError(responseText);
+      const isError =
+        interaction.error || interaction.response?.isError || looksLikeError(responseText);
       if (isError) {
         totalErrors++;
-        if (/access denied|outside.*(allowed|predefined)|not allowed|permission denied|cannot.*(access|read|write|create|list).*outside|restricted to.*(predefined|allowed)/i.test(combined)) {
+        if (
+          /access denied|outside.*(allowed|predefined)|not allowed|permission denied|cannot.*(access|read|write|create|list).*outside|restricted to.*(predefined|allowed)/i.test(
+            combined
+          )
+        ) {
           accessErrors++;
         }
       }
@@ -39,8 +54,10 @@ function detectConfigurationIssues(profiles: ToolProfile[], metadata: InterviewM
 
   // If we found access-related errors, show warning
   if (totalErrors > 0 && accessErrors / totalErrors > 0.5) {
-    return 'Most tool calls failed with access-related errors. The server may not have been configured with allowed directories. ' +
-      'For filesystem servers, try: `bellwether check npx @modelcontextprotocol/server-filesystem /path/to/allowed/dir`';
+    return (
+      'Most tool calls failed with access-related errors. The server may not have been configured with allowed directories. ' +
+      'For filesystem servers, try: `bellwether check npx @modelcontextprotocol/server-filesystem /path/to/allowed/dir`'
+    );
   }
 
   // Also check synthesized limitations for access patterns (fallback)
@@ -49,16 +66,26 @@ function detectConfigurationIssues(profiles: ToolProfile[], metadata: InterviewM
   for (const profile of profiles) {
     for (const limitation of profile.limitations) {
       totalLimitations++;
-      if (/outside.*(allowed|predefined)|restricted|access.*(denied|control)|cannot.*(access|read|write)/i.test(limitation)) {
+      if (
+        /outside.*(allowed|predefined)|restricted|access.*(denied|control)|cannot.*(access|read|write)/i.test(
+          limitation
+        )
+      ) {
         accessRelatedLimitations++;
       }
     }
   }
 
   // If most tools have access-related limitations and high error rate, show warning
-  if (totalLimitations > 0 && accessRelatedLimitations / totalLimitations > 0.5 && errorRate > 0.8) {
-    return 'Most tool calls failed, likely due to missing allowed directories configuration. ' +
-      'For filesystem servers, try: `bellwether check npx @modelcontextprotocol/server-filesystem /path/to/allowed/dir`';
+  if (
+    totalLimitations > 0 &&
+    accessRelatedLimitations / totalLimitations > 0.5 &&
+    errorRate > 0.8
+  ) {
+    return (
+      'Most tool calls failed, likely due to missing allowed directories configuration. ' +
+      'For filesystem servers, try: `bellwether check npx @modelcontextprotocol/server-filesystem /path/to/allowed/dir`'
+    );
   }
 
   return null;
@@ -71,7 +98,9 @@ export function generateAgentsMd(result: InterviewResult): string {
   // Header
   lines.push(`# ${discovery.serverInfo.name}`);
   lines.push('');
-  lines.push(`> Generated by [Bellwether](https://github.com/dotsetlabs/bellwether) on ${formatDateISO(metadata.startTime)}`);
+  lines.push(
+    `> Generated by [Bellwether](https://github.com/dotsetlabs/bellwether) on ${formatDateISO(metadata.startTime)}`
+  );
   lines.push('');
 
   // Check for configuration issues (high error rate with access-related errors)
@@ -88,15 +117,28 @@ export function generateAgentsMd(result: InterviewResult): string {
   lines.push('');
   lines.push(summary);
   lines.push('');
+  const features = getFeatureFlags(discovery.protocolVersion);
+
   lines.push(`**Server Version:** ${discovery.serverInfo.version}`);
   lines.push(`**Protocol Version:** ${discovery.protocolVersion}`);
+  if (discovery.protocolVersion !== MCP.PROTOCOL_VERSION) {
+    lines.push(`*(Server protocol; bellwether supports up to ${MCP.PROTOCOL_VERSION})*`);
+  }
 
   // Show personas used
   if (metadata.personas && metadata.personas.length > 0) {
-    const personaNames = metadata.personas.map(p => p.name).join(', ');
+    const personaNames = metadata.personas.map((p) => p.name).join(', ');
     lines.push(`**Interview Personas:** ${personaNames}`);
   }
   lines.push('');
+
+  // Server instructions
+  if (discovery.instructions) {
+    lines.push('## Server Instructions');
+    lines.push('');
+    lines.push(discovery.instructions);
+    lines.push('');
+  }
 
   // Capabilities summary
   lines.push('## Capabilities');
@@ -110,13 +152,23 @@ export function generateAgentsMd(result: InterviewResult): string {
   if (discovery.capabilities.resources) {
     lines.push(`- **Resources:** ${(discovery.resources ?? []).length} available`);
   }
+  if (discovery.resourceTemplates && discovery.resourceTemplates.length > 0) {
+    lines.push(`- **Resource Templates:** ${discovery.resourceTemplates.length} available`);
+  }
+  if (discovery.capabilities.completions && features.completions) {
+    lines.push('- **Completions:** Supported');
+  }
+  if (discovery.capabilities.tasks && features.tasks) {
+    lines.push('- **Tasks:** Supported');
+  }
   if (discovery.capabilities.logging) {
     lines.push('- **Logging:** Supported');
   }
   lines.push('');
 
   // Extract common constraints across all tools
-  const { common: commonConstraints, byTool: toolSpecificConstraints } = extractCommonConstraints(toolProfiles);
+  const { common: commonConstraints, byTool: toolSpecificConstraints } =
+    extractCommonConstraints(toolProfiles);
 
   // Quick Reference section
   if (toolProfiles.length > 0) {
@@ -152,13 +204,37 @@ export function generateAgentsMd(result: InterviewResult): string {
       lines.push('');
 
       // Find the original tool to get schema
-      const tool = discovery.tools.find(t => t.name === profile.name);
+      const tool = discovery.tools.find((t) => t.name === profile.name);
+
+      // Show tool annotations (behavioral hints) — version-gated
+      if (features.toolAnnotations && tool?.annotations) {
+        const hints: string[] = [];
+        if (tool.annotations.readOnlyHint) hints.push('read-only');
+        if (tool.annotations.destructiveHint) hints.push('destructive');
+        if (tool.annotations.idempotentHint) hints.push('idempotent');
+        if (tool.annotations.openWorldHint) hints.push('open-world');
+        if (hints.length > 0) {
+          lines.push(`**Behavioral Hints:** ${hints.join(', ')}`);
+          lines.push('');
+        }
+      }
+
       if (tool?.inputSchema) {
         lines.push('**Input Schema:**');
         // Validate JSON and escape for code block
         const schemaJson = validateJsonForCodeBlock(tool.inputSchema);
         lines.push('```json');
         lines.push(schemaJson.content);
+        lines.push('```');
+        lines.push('');
+      }
+
+      // Show output schema if present — version-gated
+      if (features.structuredOutput && tool?.outputSchema) {
+        lines.push('**Output Schema:**');
+        const outputSchemaJson = validateJsonForCodeBlock(tool.outputSchema);
+        lines.push('```json');
+        lines.push(outputSchemaJson.content);
         lines.push('```');
         lines.push('');
       }
@@ -237,7 +313,7 @@ export function generateAgentsMd(result: InterviewResult): string {
 
   // Common Workflows section (summarized view of successful workflows)
   if (result.workflowResults && result.workflowResults.length > 0) {
-    const successfulWorkflows = result.workflowResults.filter(wr => wr.success);
+    const successfulWorkflows = result.workflowResults.filter((wr) => wr.success);
     if (successfulWorkflows.length > 0) {
       lines.push('## Common Workflows');
       lines.push('');
@@ -245,7 +321,7 @@ export function generateAgentsMd(result: InterviewResult): string {
       lines.push('');
 
       for (const wr of successfulWorkflows) {
-        const toolSequence = wr.workflow.steps.map(s => `\`${s.tool}\``).join(' → ');
+        const toolSequence = wr.workflow.steps.map((s) => `\`${s.tool}\``).join(' → ');
         lines.push(`### ${wr.workflow.name}`);
         lines.push('');
         lines.push(wr.workflow.description);
@@ -300,7 +376,9 @@ export function generateAgentsMd(result: InterviewResult): string {
       for (let i = 0; i < workflowResult.steps.length; i++) {
         const stepResult = workflowResult.steps[i];
         const stepIcon = stepResult.success ? '✓' : '✗';
-        lines.push(`${i + 1}. ${stepIcon} **${stepResult.step.tool}**: ${stepResult.step.description}`);
+        lines.push(
+          `${i + 1}. ${stepIcon} **${stepResult.step.tool}**: ${stepResult.step.description}`
+        );
         if (stepResult.analysis) {
           lines.push(`   - ${stepResult.analysis}`);
         }
@@ -340,7 +418,9 @@ export function generateAgentsMd(result: InterviewResult): string {
   if (result.promptProfiles && result.promptProfiles.length > 0) {
     lines.push('## Prompts');
     lines.push('');
-    lines.push('Prompts are reusable templates that generate structured messages for LLM interactions.');
+    lines.push(
+      'Prompts are reusable templates that generate structured messages for LLM interactions.'
+    );
     lines.push('');
 
     for (const profile of result.promptProfiles) {
@@ -361,9 +441,11 @@ export function generateAgentsMd(result: InterviewResult): string {
       if (profile.exampleOutput) {
         lines.push('**Example Output:**');
         lines.push('```');
-        lines.push(profile.exampleOutput.length > DISPLAY_LIMITS.DOCS_EXAMPLE_LENGTH
-          ? `${profile.exampleOutput.substring(0, DISPLAY_LIMITS.DOCS_EXAMPLE_LENGTH)}...`
-          : profile.exampleOutput);
+        lines.push(
+          profile.exampleOutput.length > DISPLAY_LIMITS.DOCS_EXAMPLE_LENGTH
+            ? `${profile.exampleOutput.substring(0, DISPLAY_LIMITS.DOCS_EXAMPLE_LENGTH)}...`
+            : profile.exampleOutput
+        );
         lines.push('```');
         lines.push('');
       }
@@ -469,6 +551,27 @@ export function generateAgentsMd(result: InterviewResult): string {
     }
   }
 
+  // Resource Templates section
+  if (discovery.resourceTemplates && discovery.resourceTemplates.length > 0) {
+    lines.push('## Resource Templates');
+    lines.push('');
+    lines.push('Resource templates define URI patterns for dynamically-generated resources.');
+    lines.push('');
+    for (const template of discovery.resourceTemplates) {
+      lines.push(`### ${template.name}`);
+      lines.push('');
+      lines.push(`**URI Template:** \`${template.uriTemplate}\``);
+      if (template.mimeType) {
+        lines.push(`**MIME Type:** ${template.mimeType}`);
+      }
+      lines.push('');
+      if (template.description) {
+        lines.push(template.description);
+        lines.push('');
+      }
+    }
+  }
+
   // Overall limitations
   if (limitations.length > 0) {
     lines.push('## Known Limitations');
@@ -520,7 +623,9 @@ export function generateAgentsMd(result: InterviewResult): string {
       lines.push('');
       lines.push('**Persona Breakdown:**');
       for (const persona of metadata.personas) {
-        lines.push(`- ${persona.name}: ${persona.questionsAsked} questions, ${persona.toolCallCount} calls`);
+        lines.push(
+          `- ${persona.name}: ${persona.questionsAsked} questions, ${persona.toolCallCount} calls`
+        );
       }
     } else {
       statsLine += '.*';
@@ -544,10 +649,12 @@ function generateQuickReference(tools: MCPTool[], profiles: ToolProfile[]): stri
 
   for (const tool of tools) {
     const params = extractParameters(tool.inputSchema);
-    const profile = profiles.find(p => p.name === tool.name);
+    const profile = profiles.find((p) => p.name === tool.name);
     const returnType = inferReturnTypeDetailed(profile);
     // Escape table cell content to prevent broken tables
-    lines.push(`| \`${escapeTableCell(tool.name)}\` | ${escapeTableCell(params)} | ${escapeTableCell(returnType)} |`);
+    lines.push(
+      `| \`${escapeTableCell(tool.name)}\` | ${escapeTableCell(params)} | ${escapeTableCell(returnType)} |`
+    );
   }
 
   lines.push('');
@@ -555,7 +662,7 @@ function generateQuickReference(tools: MCPTool[], profiles: ToolProfile[]): stri
   // Only add example section if we have at least one successful example
   const successfulExamples: Array<{ tool: MCPTool; example: string }> = [];
   for (const tool of tools) {
-    const profile = profiles.find(p => p.name === tool.name);
+    const profile = profiles.find((p) => p.name === tool.name);
     const example = generateExampleSnippet(tool, profile);
     if (example) {
       successfulExamples.push({ tool, example });
@@ -622,9 +729,9 @@ function inferReturnTypeDetailed(profile: ToolProfile | undefined): string {
   }
 
   // Look at successful interactions that don't have error-like content
-  const successful = profile.interactions.find(i => {
+  const successful = profile.interactions.find((i) => {
     if (i.error || !i.response || i.response.isError) return false;
-    const textContent = i.response.content?.find(c => c.type === 'text');
+    const textContent = i.response.content?.find((c) => c.type === 'text');
     if (textContent && 'text' in textContent) {
       if (looksLikeError(String(textContent.text))) return false;
     }
@@ -645,7 +752,7 @@ function inferReturnTypeDetailed(profile: ToolProfile | undefined): string {
   }
 
   // Check content types
-  const types = new Set(content.map(c => c.type));
+  const types = new Set(content.map((c) => c.type));
   if (types.size === 1) {
     const type = content[0].type;
     if (type === 'text') {
@@ -705,9 +812,9 @@ function generateExampleSnippet(tool: MCPTool, profile: ToolProfile | undefined)
   }
 
   // Find a successful interaction (not an error) that doesn't have error-like content
-  const successful = profile.interactions.find(i => {
+  const successful = profile.interactions.find((i) => {
     if (i.error || !i.response || i.response.isError) return false;
-    const textContent = i.response.content?.find(c => c.type === 'text');
+    const textContent = i.response.content?.find((c) => c.type === 'text');
     if (textContent && 'text' in textContent) {
       if (looksLikeError(String(textContent.text))) return false;
     }
@@ -718,10 +825,14 @@ function generateExampleSnippet(tool: MCPTool, profile: ToolProfile | undefined)
     return null;
   }
 
-  return JSON.stringify({
-    tool: tool.name,
-    arguments: successful.question.args,
-  }, null, 2);
+  return JSON.stringify(
+    {
+      tool: tool.name,
+      arguments: successful.question.args,
+    },
+    null,
+    2
+  );
 }
 
 /**
@@ -731,10 +842,10 @@ function generateSampleResponse(profile: ToolProfile): string[] {
   const lines: string[] = [];
 
   // Find a successful interaction with a response that doesn't look like an error
-  const successful = profile.interactions.find(i => {
+  const successful = profile.interactions.find((i) => {
     if (i.error || !i.response || i.response.isError) return false;
     // Also check if the response content looks like an error
-    const textContent = i.response.content?.find(c => c.type === 'text');
+    const textContent = i.response.content?.find((c) => c.type === 'text');
     if (textContent && 'text' in textContent) {
       if (looksLikeError(String(textContent.text))) return false;
     }
@@ -744,7 +855,7 @@ function generateSampleResponse(profile: ToolProfile): string[] {
     return lines;
   }
 
-  const textContent = successful.response.content.find(c => c.type === 'text');
+  const textContent = successful.response.content.find((c) => c.type === 'text');
   if (!textContent || !('text' in textContent)) {
     return lines;
   }
@@ -792,17 +903,23 @@ function extractCommonConstraints(profiles: ToolProfile[]): {
   const toolConstraints = new Map<string, string[]>();
 
   const normalizeConstraint = (c: string): string => {
-    return c.toLowerCase()
-      .replace(/['"`]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+    return c.toLowerCase().replace(/['"`]/g, '').replace(/\s+/g, ' ').trim();
   };
 
   // Common patterns that should be grouped
   const commonPatterns = [
-    { pattern: /directory.*restriction|access.*control|allowed.*director|within allowed/i, label: 'Directory access restrictions apply' },
-    { pattern: /path.*restriction|access denied.*path|outside.*allowed/i, label: 'Path access is restricted' },
-    { pattern: /requires.*parameter|parameter.*required|missing.*parameter/i, label: 'Validates required parameters' },
+    {
+      pattern: /directory.*restriction|access.*control|allowed.*director|within allowed/i,
+      label: 'Directory access restrictions apply',
+    },
+    {
+      pattern: /path.*restriction|access denied.*path|outside.*allowed/i,
+      label: 'Path access is restricted',
+    },
+    {
+      pattern: /requires.*parameter|parameter.*required|missing.*parameter/i,
+      label: 'Validates required parameters',
+    },
   ];
 
   for (const profile of profiles) {
@@ -844,7 +961,10 @@ function extractCommonConstraints(profiles: ToolProfile[]): {
   }
 
   // Constraints that appear in more than half of tools are "common"
-  const threshold = Math.max(MATH_FACTORS.MIN_COMMON_CONSTRAINT_THRESHOLD, Math.floor(profiles.length / 2));
+  const threshold = Math.max(
+    MATH_FACTORS.MIN_COMMON_CONSTRAINT_THRESHOLD,
+    Math.floor(profiles.length / 2)
+  );
   const common: string[] = [];
 
   for (const [, { count, original }] of constraintCounts) {
@@ -856,12 +976,13 @@ function extractCommonConstraints(profiles: ToolProfile[]): {
   // Remove common constraints from per-tool lists
   if (common.length > 0) {
     for (const [toolName, constraints] of toolConstraints) {
-      const filtered = constraints.filter(c => {
+      const filtered = constraints.filter((c) => {
         const normalized = normalizeConstraint(c);
         // Keep if it's tool-specific
-        return !common.some(common =>
-          normalizeConstraint(common) === normalized ||
-          commonPatterns.some(p => p.label === common && p.pattern.test(c))
+        return !common.some(
+          (common) =>
+            normalizeConstraint(common) === normalized ||
+            commonPatterns.some((p) => p.label === common && p.pattern.test(c))
         );
       });
       toolConstraints.set(toolName, filtered);
@@ -899,7 +1020,11 @@ function generateSecuritySection(profiles: ToolProfile[]): string[] {
   const lines: string[] = [];
 
   // Collect all security notes
-  const securityFindings: Array<{ tool: string; note: string; severity: 'info' | 'warning' | 'critical' }> = [];
+  const securityFindings: Array<{
+    tool: string;
+    note: string;
+    severity: 'info' | 'warning' | 'critical';
+  }> = [];
 
   for (const profile of profiles) {
     for (const note of profile.securityNotes) {
@@ -916,9 +1041,9 @@ function generateSecuritySection(profiles: ToolProfile[]): string[] {
   lines.push('');
 
   // Group by severity
-  const critical = securityFindings.filter(f => f.severity === 'critical');
-  const warnings = securityFindings.filter(f => f.severity === 'warning');
-  const info = securityFindings.filter(f => f.severity === 'info');
+  const critical = securityFindings.filter((f) => f.severity === 'critical');
+  const warnings = securityFindings.filter((f) => f.severity === 'warning');
+  const info = securityFindings.filter((f) => f.severity === 'info');
 
   if (critical.length > 0) {
     lines.push('### Critical Issues');
@@ -956,14 +1081,30 @@ function generateSecuritySection(profiles: ToolProfile[]): string[] {
 function classifySecuritySeverity(note: string): 'info' | 'warning' | 'critical' {
   const lowerNote = note.toLowerCase();
 
-  const criticalKeywords = ['injection', 'rce', 'remote code', 'arbitrary code', 'command execution', 'sql injection', 'xss'];
-  const warningKeywords = ['risk', 'vulnerab', 'dangerous', 'unsafe', 'leak', 'exposure', 'sensitive'];
+  const criticalKeywords = [
+    'injection',
+    'rce',
+    'remote code',
+    'arbitrary code',
+    'command execution',
+    'sql injection',
+    'xss',
+  ];
+  const warningKeywords = [
+    'risk',
+    'vulnerab',
+    'dangerous',
+    'unsafe',
+    'leak',
+    'exposure',
+    'sensitive',
+  ];
 
-  if (criticalKeywords.some(kw => lowerNote.includes(kw))) {
+  if (criticalKeywords.some((kw) => lowerNote.includes(kw))) {
     return 'critical';
   }
 
-  if (warningKeywords.some(kw => lowerNote.includes(kw))) {
+  if (warningKeywords.some((kw) => lowerNote.includes(kw))) {
     return 'warning';
   }
 
@@ -992,13 +1133,17 @@ function generatePerformanceSection(profiles: ToolProfile[]): string[] {
     const errorPct = (m.errorRate * 100).toFixed(0);
     const errorDisplay = m.errorRate > 0.5 ? `**${errorPct}%**` : `${errorPct}%`;
     // Escape table cell content
-    lines.push(`| \`${escapeTableCell(m.toolName)}\` | ${m.callCount} | ${m.avgMs}ms | ${m.p50Ms}ms | ${m.p95Ms}ms | ${m.maxMs}ms | ${errorDisplay} |`);
+    lines.push(
+      `| \`${escapeTableCell(m.toolName)}\` | ${m.callCount} | ${m.avgMs}ms | ${m.p50Ms}ms | ${m.p95Ms}ms | ${m.maxMs}ms | ${errorDisplay} |`
+    );
   }
 
   lines.push('');
 
   // Add timing breakdown if separate timing data is available
-  const metricsWithBreakdown = metrics.filter(m => m.avgToolMs !== undefined && m.avgAnalysisMs !== undefined);
+  const metricsWithBreakdown = metrics.filter(
+    (m) => m.avgToolMs !== undefined && m.avgAnalysisMs !== undefined
+  );
   if (metricsWithBreakdown.length > 0) {
     lines.push('### Timing Breakdown');
     lines.push('');
@@ -1008,21 +1153,22 @@ function generatePerformanceSection(profiles: ToolProfile[]): string[] {
     lines.push('|------|-----------|-----------|--------------|--------|');
 
     for (const m of metricsWithBreakdown) {
-      const toolPct = m.avgToolMs !== undefined && m.avgMs > 0
-        ? Math.round((m.avgToolMs / m.avgMs) * 100)
-        : 0;
-      lines.push(`| \`${escapeTableCell(m.toolName)}\` | ${m.avgMs}ms | ${m.avgToolMs}ms | ${m.avgAnalysisMs}ms | ${toolPct}% |`);
+      const toolPct =
+        m.avgToolMs !== undefined && m.avgMs > 0 ? Math.round((m.avgToolMs / m.avgMs) * 100) : 0;
+      lines.push(
+        `| \`${escapeTableCell(m.toolName)}\` | ${m.avgMs}ms | ${m.avgToolMs}ms | ${m.avgAnalysisMs}ms | ${toolPct}% |`
+      );
     }
 
     lines.push('');
   }
 
   // Add performance insights
-  const slowTools = metrics.filter(m => m.avgMs > 1000);
-  const unreliableTools = metrics.filter(m => m.errorRate > 0.3);
+  const slowTools = metrics.filter((m) => m.avgMs > 1000);
+  const unreliableTools = metrics.filter((m) => m.errorRate > 0.3);
   // Identify tools where LLM analysis dominates (>70% of total time)
-  const llmDominatedTools = metricsWithBreakdown.filter(m => {
-    const toolPct = m.avgToolMs !== undefined && m.avgMs > 0 ? (m.avgToolMs / m.avgMs) : 0;
+  const llmDominatedTools = metricsWithBreakdown.filter((m) => {
+    const toolPct = m.avgToolMs !== undefined && m.avgMs > 0 ? m.avgToolMs / m.avgMs : 0;
     return toolPct < 0.3; // Tool execution is < 30% means LLM is > 70%
   });
 
@@ -1035,7 +1181,9 @@ function generatePerformanceSection(profiles: ToolProfile[]): string[] {
       for (const tool of slowTools) {
         // Include breakdown if available
         if (tool.avgToolMs !== undefined && tool.avgAnalysisMs !== undefined) {
-          lines.push(`- \`${tool.toolName}\`: ${tool.avgMs}ms average (tool: ${tool.avgToolMs}ms, analysis: ${tool.avgAnalysisMs}ms)`);
+          lines.push(
+            `- \`${tool.toolName}\`: ${tool.avgMs}ms average (tool: ${tool.avgToolMs}ms, analysis: ${tool.avgAnalysisMs}ms)`
+          );
         } else {
           lines.push(`- \`${tool.toolName}\`: ${tool.avgMs}ms average`);
         }
@@ -1048,7 +1196,9 @@ function generatePerformanceSection(profiles: ToolProfile[]): string[] {
       lines.push('');
       lines.push('These timings are dominated by LLM analysis rather than actual tool execution:');
       for (const tool of llmDominatedTools) {
-        lines.push(`- \`${tool.toolName}\`: tool exec ${tool.avgToolMs}ms vs analysis ${tool.avgAnalysisMs}ms`);
+        lines.push(
+          `- \`${tool.toolName}\`: tool exec ${tool.avgToolMs}ms vs analysis ${tool.avgAnalysisMs}ms`
+        );
       }
       lines.push('');
     }
@@ -1076,7 +1226,9 @@ function generateBehavioralMatrix(
   const lines: string[] = [];
 
   // Check if we have findings by persona
-  const hasPersonaFindings = profiles.some(p => p.findingsByPersona && p.findingsByPersona.length > 0);
+  const hasPersonaFindings = profiles.some(
+    (p) => p.findingsByPersona && p.findingsByPersona.length > 0
+  );
   if (!hasPersonaFindings) {
     return [];
   }
@@ -1087,7 +1239,7 @@ function generateBehavioralMatrix(
   lines.push('');
 
   // Build header - escape persona names in case they contain special characters
-  const header = ['Tool', ...personas.map(p => escapeTableCell(p.name))];
+  const header = ['Tool', ...personas.map((p) => escapeTableCell(p.name))];
   lines.push(`| ${header.join(' | ')} |`);
   lines.push(`| ${header.map(() => '---').join(' | ')} |`);
 
@@ -1096,7 +1248,7 @@ function generateBehavioralMatrix(
     const row = [escapeTableCell(profile.name)];
 
     for (const persona of personas) {
-      const findings = profile.findingsByPersona?.find(f => f.personaId === persona.id);
+      const findings = profile.findingsByPersona?.find((f) => f.personaId === persona.id);
       if (findings) {
         const count =
           findings.behavioralNotes.length +

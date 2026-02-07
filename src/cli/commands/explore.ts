@@ -33,7 +33,8 @@ import {
   formatOptimizationSuggestions,
 } from '../../cost/index.js';
 import { getMetricsCollector, resetMetricsCollector } from '../../metrics/collector.js';
-import { EXIT_CODES, WORKFLOW, PATHS, REPORT_SCHEMAS } from '../../constants.js';
+import { EXIT_CODES, WORKFLOW, PATHS, REPORT_SCHEMAS, MCP } from '../../constants.js';
+import { getExcludedFeatureNames } from '../../protocol/index.js';
 import { FallbackLLMClient } from '../../llm/fallback.js';
 import { getGlobalCache, resetGlobalCache } from '../../cache/response-cache.js';
 import { InterviewProgressBar, formatExploreBanner } from '../utils/progress.js';
@@ -213,6 +214,21 @@ export const exploreCommand = new Command('explore')
       process.exit(EXIT_CODES.ERROR);
     }
 
+    let pendingExitCode: number | undefined;
+
+    // Handle SIGINT/SIGTERM for graceful shutdown
+    const signalCleanup = async (): Promise<void> => {
+      output.info('\n\nInterrupted. Cleaning up...');
+      try {
+        await mcpClient.disconnect();
+      } catch {
+        /* ignore cleanup errors */
+      }
+      process.exit(EXIT_CODES.ERROR);
+    };
+    process.on('SIGINT', signalCleanup);
+    process.on('SIGTERM', signalCleanup);
+
     try {
       // Connect to MCP server
       output.info('Connecting to MCP server...');
@@ -241,6 +257,17 @@ export const exploreCommand = new Command('explore')
         discoveryParts.push(`${resourceCount} resources`);
       }
       output.info(`Found ${discoveryParts.join(', ')}\n`);
+
+      // Show protocol version context
+      if (discovery.protocolVersion !== MCP.PROTOCOL_VERSION) {
+        output.info(
+          `Protocol Version: ${discovery.protocolVersion} (bellwether supports up to ${MCP.PROTOCOL_VERSION})`
+        );
+        const excluded = getExcludedFeatureNames(discovery.protocolVersion);
+        if (excluded.length > 0) {
+          output.info(`  Version-gated features excluded: ${excluded.join(', ')}`);
+        }
+      }
 
       // Update metrics
       metricsCollector.updateInterviewCounters({
@@ -602,9 +629,18 @@ export const exploreCommand = new Command('explore')
         output.error('  - Run "bellwether auth" to configure API keys');
       }
 
-      process.exit(EXIT_CODES.ERROR);
+      pendingExitCode = EXIT_CODES.ERROR;
     } finally {
+      process.removeListener('SIGINT', signalCleanup);
+      process.removeListener('SIGTERM', signalCleanup);
       restoreLogLevel();
-      await mcpClient.disconnect();
+      try {
+        await mcpClient.disconnect();
+      } catch {
+        /* ignore cleanup errors */
+      }
+      if (pendingExitCode !== undefined) {
+        process.exit(pendingExitCode);
+      }
     }
   });

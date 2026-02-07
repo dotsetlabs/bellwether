@@ -78,16 +78,19 @@ export const watchCommand = new Command('watch')
     const verbose = config.logging.verbose;
 
     output.info('Bellwether Watch Mode\n');
-    const serverIdentifier = transport === 'stdio'
-      ? `${serverCommand} ${args.join(' ')}`.trim()
-      : (remoteUrl ?? 'unknown');
+    const serverIdentifier =
+      transport === 'stdio'
+        ? `${serverCommand} ${args.join(' ')}`.trim()
+        : (remoteUrl ?? 'unknown');
     output.info(`Server: ${serverIdentifier}`);
     output.info(`Mode: check (schema validation)`);
     output.info(`Watching: ${watchPath}`);
     output.info(`Baseline: ${baselinePath}`);
     output.info(`Poll interval: ${interval}ms`);
     output.info('');
-    output.info('Note: Watch mode runs schema validation only. Use "bellwether explore" for LLM analysis.');
+    output.info(
+      'Note: Watch mode runs schema validation only. Use "bellwether explore" for LLM analysis.'
+    );
     output.info('');
 
     // Track last baseline hash to detect changes
@@ -118,7 +121,7 @@ export const watchCommand = new Command('watch')
         }
         const discovery = await discover(
           mcpClient,
-          transport === 'stdio' ? serverCommand : remoteUrl ?? serverCommand,
+          transport === 'stdio' ? serverCommand : (remoteUrl ?? serverCommand),
           transport === 'stdio' ? args : []
         );
         output.info(`Found ${discovery.tools.length} tools`);
@@ -144,7 +147,9 @@ export const watchCommand = new Command('watch')
         });
 
         const progressCallback = (progress: InterviewProgress) => {
-          process.stdout.write(`\rChecking: ${progress.toolsCompleted + 1}/${progress.totalTools} tools`.padEnd(60));
+          process.stdout.write(
+            `\rChecking: ${progress.toolsCompleted + 1}/${progress.totalTools} tools`.padEnd(60)
+          );
         };
 
         const result = await interviewer.interview(mcpClient, discovery, progressCallback);
@@ -182,7 +187,9 @@ export const watchCommand = new Command('watch')
                   output.error(`On-drift command exited with code ${cmdResult.status}`);
                 }
               } catch (e) {
-                output.error(`On-drift command failed: ${e instanceof Error ? e.message : String(e)}`);
+                output.error(
+                  `On-drift command failed: ${e instanceof Error ? e.message : String(e)}`
+                );
               }
             }
           } else {
@@ -194,7 +201,6 @@ export const watchCommand = new Command('watch')
         saveBaseline(newBaseline, baselinePath);
         lastBaselineHash = newBaseline.hash;
         output.info(`Baseline updated: ${newBaseline.hash.slice(0, 8)}`);
-
       } catch (error) {
         output.error(`Test failed: ${error instanceof Error ? error.message : String(error)}`);
       } finally {
@@ -220,7 +226,7 @@ export const watchCommand = new Command('watch')
               }
               walkDir(fullPath);
             } else if (entry.isFile()) {
-              if (extensions.some(ext => entry.name.endsWith(ext))) {
+              if (extensions.some((ext) => entry.name.endsWith(ext))) {
                 const stat = statSync(fullPath);
                 const modTime = stat.mtimeMs;
                 const lastMod = fileModTimes.get(fullPath);
@@ -237,7 +243,9 @@ export const watchCommand = new Command('watch')
           }
         } catch (error) {
           if (verbose) {
-            output.error(`Warning: Error scanning ${dir}: ${error instanceof Error ? error.message : String(error)}`);
+            output.error(
+              `Warning: Error scanning ${dir}: ${error instanceof Error ? error.message : String(error)}`
+            );
           }
         }
       }
@@ -270,7 +278,9 @@ export const watchCommand = new Command('watch')
           output.info('\nWatching for changes... (Press Ctrl+C to exit)\n');
         }
       } catch (error) {
-        output.error(`Watch polling error: ${error instanceof Error ? error.message : String(error)}`);
+        output.error(
+          `Watch polling error: ${error instanceof Error ? error.message : String(error)}`
+        );
       } finally {
         isRunningInterview = false;
       }
@@ -279,20 +289,22 @@ export const watchCommand = new Command('watch')
     // Start polling interval
     currentInterval = setInterval(() => {
       pollForChanges().catch((error) => {
-        output.error(`Unexpected polling error: ${error instanceof Error ? error.message : String(error)}`);
+        output.error(
+          `Unexpected polling error: ${error instanceof Error ? error.message : String(error)}`
+        );
       });
     }, interval);
 
     // Handle exit
     const cleanup = (): void => {
+      // Remove signal handlers first to prevent re-entry
+      process.removeListener('SIGINT', cleanup);
+      process.removeListener('SIGTERM', cleanup);
       output.info('\n\nExiting watch mode.');
       if (currentInterval) {
         clearInterval(currentInterval);
         currentInterval = null;
       }
-      // Remove signal handlers to prevent accumulation
-      process.removeListener('SIGINT', cleanup);
-      process.removeListener('SIGTERM', cleanup);
       process.exit(EXIT_CODES.CLEAN);
     };
 

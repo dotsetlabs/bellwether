@@ -28,7 +28,8 @@ import {
   getToolFingerprints,
 } from '../../baseline/index.js';
 import { BaselineVersionError } from '../../baseline/version.js';
-import { EXIT_CODES } from '../../constants.js';
+import { EXIT_CODES, MCP } from '../../constants.js';
+import { getExcludedFeatureNames } from '../../protocol/index.js';
 import { acceptCommand } from './baseline-accept.js';
 import type { InterviewResult } from '../../interview/types.js';
 import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
@@ -42,10 +43,10 @@ function loadInterviewResult(reportPath: string): InterviewResult {
   if (!existsSync(reportPath)) {
     throw new Error(
       `Test report not found: ${reportPath}\n\n` +
-      'Run `bellwether check` first with JSON output enabled.\n' +
-      'Configure in bellwether.yaml:\n' +
-      '  output:\n' +
-      '    format: json  # or "both" for JSON + markdown'
+        'Run `bellwether check` first with JSON output enabled.\n' +
+        'Configure in bellwether.yaml:\n' +
+        '  output:\n' +
+        '    format: json  # or "both" for JSON + markdown'
     );
   }
 
@@ -63,11 +64,11 @@ function loadInterviewResult(reportPath: string): InterviewResult {
   if (result.metadata.model && result.metadata.model !== 'check') {
     throw new Error(
       `Baseline operations only work with check mode results.\n\n` +
-      `The report at ${reportPath} was created with explore mode (model: ${result.metadata.model}).\n` +
-      `Explore results are for documentation only and cannot be used for baselines.\n\n` +
-      'To create a baseline:\n' +
-      '  1. Run `bellwether check` to generate a check mode report\n' +
-      '  2. Run `bellwether baseline save` to create the baseline'
+        `The report at ${reportPath} was created with explore mode (model: ${result.metadata.model}).\n` +
+        `Explore results are for documentation only and cannot be used for baselines.\n\n` +
+        'To create a baseline:\n' +
+        '  1. Run `bellwether check` to generate a check mode report\n' +
+        '  2. Run `bellwether baseline save` to create the baseline'
     );
   }
 
@@ -122,7 +123,9 @@ baselineCommand
     const resolvedBaselinePath = baselinePath ?? defaultBaselinePath;
 
     if (!resolvedBaselinePath) {
-      output.error('No baseline path provided. Set baseline.path or baseline.savePath in config, or pass a path argument.');
+      output.error(
+        'No baseline path provided. Set baseline.path or baseline.savePath in config, or pass a path argument.'
+      );
       process.exit(EXIT_CODES.ERROR);
     }
 
@@ -162,7 +165,9 @@ baselineCommand
       (sum, p) => sum + p.behavioralNotes.length + p.limitations.length + p.securityNotes.length,
       0
     );
-    output.info(`  Server: ${result.discovery.serverInfo.name} v${result.discovery.serverInfo.version}`);
+    output.info(
+      `  Server: ${result.discovery.serverInfo.name} v${result.discovery.serverInfo.version}`
+    );
     output.info(`  Tools: ${result.toolProfiles.length}`);
     output.info(`  Assertions: ${assertionCount}`);
   });
@@ -183,11 +188,14 @@ baselineCommand
     const outputDir = config.output.dir;
     const format = options.format ?? config.baseline.outputFormat;
     const failOnDrift = options.failOnDrift ? true : config.baseline.failOnDrift;
-    const resolvedBaselinePath = baselinePath ?? config.baseline.comparePath ?? config.baseline.path;
+    const resolvedBaselinePath =
+      baselinePath ?? config.baseline.comparePath ?? config.baseline.path;
 
     // Load baseline
     if (!resolvedBaselinePath) {
-      output.error('No baseline path provided. Set baseline.path or baseline.comparePath in config, or pass a path argument.');
+      output.error(
+        'No baseline path provided. Set baseline.path or baseline.comparePath in config, or pass a path argument.'
+      );
       process.exit(EXIT_CODES.ERROR);
     }
 
@@ -260,35 +268,49 @@ baselineCommand
       throw error;
     }
 
-    // Show version compatibility warning if applicable
-    if (diff.versionCompatibility?.warning) {
-      output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
-      output.newline();
-    }
-
     // Format and output
     switch (format) {
       case 'json':
         output.info(formatDiffJson(diff));
         break;
       case 'markdown':
+        // Show version compatibility warning if applicable
+        if (diff.versionCompatibility?.warning) {
+          output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+          output.newline();
+        }
         output.info(formatDiffMarkdown(diff));
         break;
       case 'compact':
+        // Show version compatibility warning if applicable
+        if (diff.versionCompatibility?.warning) {
+          output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+          output.newline();
+        }
         output.info(formatDiffCompact(diff));
         break;
-      default:
+      default: {
+        // Show version compatibility warning if applicable
+        if (diff.versionCompatibility?.warning) {
+          output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+          output.newline();
+        }
         output.info('--- Drift Report ---');
         output.info(formatDiffText(diff));
-    }
 
-    // Show summary
-    const totalChanges = diff.toolsAdded.length + diff.toolsRemoved.length + diff.toolsModified.length;
-    output.newline();
-    output.info(`Changes: ${totalChanges} tools affected`);
-    output.info(`Severity: ${diff.severity}`);
-    if (diff.versionCompatibility) {
-      output.info(`Format versions: ${diff.versionCompatibility.sourceVersion} -> ${diff.versionCompatibility.targetVersion}`);
+        // Show summary (text format only)
+        const totalChanges =
+          diff.toolsAdded.length + diff.toolsRemoved.length + diff.toolsModified.length;
+        output.newline();
+        output.info(`Changes: ${totalChanges} tools affected`);
+        output.info(`Severity: ${diff.severity}`);
+        if (diff.versionCompatibility) {
+          output.info(
+            `Format versions: ${diff.versionCompatibility.sourceVersion} -> ${diff.versionCompatibility.targetVersion}`
+          );
+        }
+        break;
+      }
     }
 
     // Exit with error if drift detected and --fail-on-drift
@@ -316,10 +338,13 @@ baselineCommand
   .action(async (baselinePath: string | undefined, options) => {
     const config = loadConfigOrExit(options.config);
     const outputDir = config.output.dir;
-    const resolvedBaselinePath = baselinePath ?? config.baseline.comparePath ?? config.baseline.path;
+    const resolvedBaselinePath =
+      baselinePath ?? config.baseline.comparePath ?? config.baseline.path;
 
     if (!resolvedBaselinePath) {
-      output.error('No baseline path provided. Set baseline.path or baseline.comparePath in config, or pass a path argument.');
+      output.error(
+        'No baseline path provided. Set baseline.path or baseline.comparePath in config, or pass a path argument.'
+      );
       process.exit(EXIT_CODES.ERROR);
     }
 
@@ -361,6 +386,12 @@ baselineCommand
     output.info(`Name: ${baseline.server.name}`);
     output.info(`Version: ${baseline.server.version}`);
     output.info(`Protocol: ${baseline.server.protocolVersion}`);
+    if (baseline.server.protocolVersion !== MCP.PROTOCOL_VERSION) {
+      const excluded = getExcludedFeatureNames(baseline.server.protocolVersion);
+      if (excluded.length > 0) {
+        output.info(`  Version-gated features excluded: ${excluded.join(', ')}`);
+      }
+    }
     output.info(`Capabilities: ${baseline.server.capabilities.join(', ')}`);
     output.newline();
 
@@ -370,7 +401,9 @@ baselineCommand
       output.info(`--- Tools (${tools.length}) ---`);
       for (const tool of tools) {
         output.info(`\n  ${tool.name}`);
-        output.info(`    Description: ${tool.description.slice(0, 80)}${tool.description.length > 80 ? '...' : ''}`);
+        output.info(
+          `    Description: ${tool.description.slice(0, 80)}${tool.description.length > 80 ? '...' : ''}`
+        );
         output.info(`    Schema Hash: ${tool.schemaHash}`);
         if (tool.securityNotes.length > 0) {
           output.info(`    Security Notes: ${tool.securityNotes.length}`);
@@ -396,7 +429,9 @@ baselineCommand
       for (const [tool, assertions] of byTool) {
         output.info(`\n  ${tool}:`);
         for (const a of assertions.slice(0, 5)) {
-          output.info(`    [${a.type}] ${a.condition.slice(0, 60)}${a.condition.length > 60 ? '...' : ''}`);
+          output.info(
+            `    [${a.type}] ${a.condition.slice(0, 60)}${a.condition.length > 60 ? '...' : ''}`
+          );
         }
         if (assertions.length > 5) {
           output.info(`    ... and ${assertions.length - 5} more`);
@@ -481,40 +516,68 @@ baselineCommand
       throw error;
     }
 
-    // Header
-    output.info(`Comparing baselines:`);
-    output.info(`  Old: ${basename(path1)} (${getBaselineGeneratedAt(baseline1).toISOString().split('T')[0]}) [${baseline1.version}]`);
-    output.info(`  New: ${basename(path2)} (${getBaselineGeneratedAt(baseline2).toISOString().split('T')[0]}) [${baseline2.version}]`);
-    output.newline();
-
-    // Show version compatibility warning if applicable
-    if (diff.versionCompatibility?.warning) {
-      output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
-      output.newline();
-    }
-
     // Format and output
     switch (format) {
       case 'json':
         output.info(formatDiffJson(diff));
         break;
       case 'markdown':
+        output.info(`Comparing baselines:`);
+        output.info(
+          `  Old: ${basename(path1)} (${getBaselineGeneratedAt(baseline1).toISOString().split('T')[0]}) [${baseline1.version}]`
+        );
+        output.info(
+          `  New: ${basename(path2)} (${getBaselineGeneratedAt(baseline2).toISOString().split('T')[0]}) [${baseline2.version}]`
+        );
+        output.newline();
+        if (diff.versionCompatibility?.warning) {
+          output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+          output.newline();
+        }
         output.info(formatDiffMarkdown(diff));
         break;
       case 'compact':
+        output.info(`Comparing baselines:`);
+        output.info(
+          `  Old: ${basename(path1)} (${getBaselineGeneratedAt(baseline1).toISOString().split('T')[0]}) [${baseline1.version}]`
+        );
+        output.info(
+          `  New: ${basename(path2)} (${getBaselineGeneratedAt(baseline2).toISOString().split('T')[0]}) [${baseline2.version}]`
+        );
+        output.newline();
+        if (diff.versionCompatibility?.warning) {
+          output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+          output.newline();
+        }
         output.info(formatDiffCompact(diff));
         break;
-      default:
+      default: {
+        output.info(`Comparing baselines:`);
+        output.info(
+          `  Old: ${basename(path1)} (${getBaselineGeneratedAt(baseline1).toISOString().split('T')[0]}) [${baseline1.version}]`
+        );
+        output.info(
+          `  New: ${basename(path2)} (${getBaselineGeneratedAt(baseline2).toISOString().split('T')[0]}) [${baseline2.version}]`
+        );
+        output.newline();
+        if (diff.versionCompatibility?.warning) {
+          output.warn(`Version Warning: ${diff.versionCompatibility.warning}`);
+          output.newline();
+        }
         output.info(formatDiffText(diff));
-    }
 
-    // Summary
-    output.newline();
-    output.info(`Severity: ${diff.severity}`);
-    output.info(`Tools added: ${diff.toolsAdded.length}`);
-    output.info(`Tools removed: ${diff.toolsRemoved.length}`);
-    output.info(`Tools modified: ${diff.toolsModified.length}`);
-    if (diff.versionCompatibility) {
-      output.info(`Format versions: ${diff.versionCompatibility.sourceVersion} -> ${diff.versionCompatibility.targetVersion}`);
+        // Summary (text format only)
+        output.newline();
+        output.info(`Severity: ${diff.severity}`);
+        output.info(`Tools added: ${diff.toolsAdded.length}`);
+        output.info(`Tools removed: ${diff.toolsRemoved.length}`);
+        output.info(`Tools modified: ${diff.toolsModified.length}`);
+        if (diff.versionCompatibility) {
+          output.info(
+            `Format versions: ${diff.versionCompatibility.sourceVersion} -> ${diff.versionCompatibility.targetVersion}`
+          );
+        }
+        break;
+      }
     }
   });

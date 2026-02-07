@@ -45,6 +45,7 @@ import type {
   BaselineServerFingerprint,
   ToolCapability,
   PromptCapability,
+  ResourceTemplateCapability,
   PersonaInterview,
   PersonaFinding,
   BaselineToolProfile,
@@ -62,6 +63,7 @@ import { calculateBaselineHash } from './baseline-hash.js';
 import { getBaselineVersion } from './version.js';
 import { VERSION } from '../version.js';
 import { scoreDocumentation, toDocumentationScoreSummary } from './documentation-scorer.js';
+import { getFeatureFlags } from '../protocol/index.js';
 
 /**
  * Map ChangeSeverity to BaselineAssertionSeverity.
@@ -398,12 +400,16 @@ export function createBaselineFromInterview(
     model: deriveModel(result.metadata.model, mode),
   };
 
+  // Compute feature flags from the server's negotiated protocol version
+  const features = getFeatureFlags(result.discovery.protocolVersion);
+
   // Build server fingerprint
   const server: BaselineServerFingerprint = {
     name: result.discovery.serverInfo.name,
     version: result.discovery.serverInfo.version,
     protocolVersion: result.discovery.protocolVersion,
-    capabilities: buildCapabilityList(result.discovery),
+    capabilities: buildCapabilityList(result.discovery, features),
+    instructions: features.serverInstructions ? result.discovery.instructions : undefined,
   };
 
   const schemaMap = new Map<string, Record<string, unknown>>();
@@ -457,11 +463,35 @@ export function createBaselineFromInterview(
 
     const performanceConfidence = calculatePerformanceConfidence(latencySamples);
 
+    // Extract version-gated fields from discovery
+    const discoveryTool = result.discovery.tools.find((t) => t.name === profile.name);
+    const outputSchemaHash =
+      features.structuredOutput && discoveryTool?.outputSchema
+        ? computeSchemaHash(discoveryTool.outputSchema)
+        : undefined;
+
     return {
       name: profile.name,
       description: profile.description ?? '',
       inputSchema: schemaMap.get(profile.name) ?? {},
       schemaHash: declaredSchemaHash,
+      title: features.entityTitles ? discoveryTool?.title : undefined,
+      outputSchema: features.structuredOutput ? discoveryTool?.outputSchema : undefined,
+      outputSchemaHash,
+      annotations:
+        features.toolAnnotations && discoveryTool?.annotations
+          ? {
+              title: discoveryTool.annotations.title,
+              readOnlyHint: discoveryTool.annotations.readOnlyHint,
+              destructiveHint: discoveryTool.annotations.destructiveHint,
+              idempotentHint: discoveryTool.annotations.idempotentHint,
+              openWorldHint: discoveryTool.annotations.openWorldHint,
+            }
+          : undefined,
+      execution:
+        features.tasks && discoveryTool?.execution
+          ? { taskSupport: discoveryTool.execution.taskSupport }
+          : undefined,
       observedArgsSchemaHash: observedSchema.hash,
       observedArgsSchemaConsistency: observedSchema.consistency,
       observedArgsSchemaVariations: observedSchema.variations,
@@ -486,6 +516,7 @@ export function createBaselineFromInterview(
       ? result.discovery.prompts.map((p) => ({
           name: p.name,
           description: p.description,
+          title: features.entityTitles ? p.title : undefined,
           arguments: p.arguments?.map((a) => ({
             name: a.name,
             description: a.description,
@@ -501,6 +532,28 @@ export function createBaselineFromInterview(
           name: r.name,
           description: r.description,
           mimeType: r.mimeType,
+          title: features.entityTitles ? r.title : undefined,
+          annotations:
+            features.resourceAnnotations && r.annotations
+              ? {
+                  audience: r.annotations.audience,
+                  priority: r.annotations.priority,
+                  lastModified: r.annotations.lastModified,
+                }
+              : undefined,
+          size: features.resourceAnnotations ? r.size : undefined,
+        }))
+      : undefined;
+
+  // Build resource templates
+  const resourceTemplates: ResourceTemplateCapability[] | undefined =
+    result.discovery.resourceTemplates && result.discovery.resourceTemplates.length > 0
+      ? result.discovery.resourceTemplates.map((t) => ({
+          uriTemplate: t.uriTemplate,
+          name: t.name,
+          title: features.entityTitles ? t.title : undefined,
+          description: t.description,
+          mimeType: t.mimeType,
         }))
       : undefined;
 
@@ -541,7 +594,7 @@ export function createBaselineFromInterview(
     version: getBaselineVersion(),
     metadata,
     server,
-    capabilities: { tools, prompts, resources },
+    capabilities: { tools, prompts, resources, resourceTemplates },
     interviews,
     toolProfiles,
     workflows,
@@ -558,15 +611,20 @@ export function createBaselineFromInterview(
 }
 
 /**
- * Build capability list from discovery.
+ * Build capability list from discovery, gated by protocol version features.
  */
-function buildCapabilityList(discovery: DiscoveryResult): string[] {
+function buildCapabilityList(
+  discovery: DiscoveryResult,
+  features: import('../protocol/index.js').MCPFeatureFlags
+): string[] {
   const capabilities: string[] = [];
 
   if (discovery.capabilities.tools) capabilities.push('tools');
   if (discovery.capabilities.prompts) capabilities.push('prompts');
   if (discovery.capabilities.resources) capabilities.push('resources');
   if (discovery.capabilities.logging) capabilities.push('logging');
+  if (discovery.capabilities.completions && features.completions) capabilities.push('completions');
+  if (discovery.capabilities.tasks && features.tasks) capabilities.push('tasks');
 
   return capabilities;
 }

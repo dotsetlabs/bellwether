@@ -83,6 +83,15 @@ This detects:
 - Parameter changes (added, removed, type changes)
 - Schema modifications
 - Description changes
+- Tool annotation changes (readOnlyHint, destructiveHint, etc.)
+- Entity title changes (tool, prompt, resource, resource template)
+- Output schema changes
+- Execution/task support changes
+- Server instruction changes
+- Prompt and resource changes
+- Performance regression (P50/P95 latency, success rate)
+
+Comparisons are protocol-version-aware — version-specific fields are only compared when both baselines support the relevant MCP protocol version.
 
 For behavioral changes (how tools actually respond), use `bellwether explore` periodically for deeper analysis.
 

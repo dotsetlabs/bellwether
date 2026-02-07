@@ -2,6 +2,7 @@ import type {
   MCPTool,
   MCPPrompt,
   MCPResource,
+  MCPResourceTemplate,
   MCPServerInfo,
   MCPServerCapabilities,
 } from '../transport/types.js';
@@ -27,6 +28,12 @@ export interface DiscoveryResult {
 
   /** List of available resources */
   resources: MCPResource[];
+
+  /** List of available resource templates */
+  resourceTemplates: MCPResourceTemplate[];
+
+  /** Server-provided instructions for the client */
+  instructions?: string;
 
   /** Timestamp of discovery */
   timestamp: Date;
@@ -78,14 +85,14 @@ export interface PropertySchema {
  * Used to differentiate between server bugs, protocol issues, and environment problems.
  */
 export type TransportErrorCategory =
-  | 'invalid_json'          // Server output invalid JSON on stdout
-  | 'buffer_overflow'       // Response too large / buffer overflow
-  | 'connection_refused'    // Server process failed to start
-  | 'connection_lost'       // Server process died unexpectedly
-  | 'protocol_violation'    // Invalid MCP protocol message
-  | 'timeout'              // Request timed out
-  | 'shutdown_error'       // Error during graceful shutdown
-  | 'unknown';             // Unclassified error
+  | 'invalid_json' // Server output invalid JSON on stdout
+  | 'buffer_overflow' // Response too large / buffer overflow
+  | 'connection_refused' // Server process failed to start
+  | 'connection_lost' // Server process died unexpectedly
+  | 'protocol_violation' // Invalid MCP protocol message
+  | 'timeout' // Request timed out
+  | 'shutdown_error' // Error during graceful shutdown
+  | 'unknown'; // Unclassified error
 
 /**
  * Record of a transport-level error that occurred during MCP communication.

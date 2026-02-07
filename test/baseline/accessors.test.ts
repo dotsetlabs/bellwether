@@ -26,7 +26,12 @@ function createTestBaseline(options: {
   serverCommand?: string;
   mode?: 'check' | 'explore';
   workflows?: Array<{ id: string; name: string; toolSequence: string[]; succeeded: boolean }>;
-  tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown>; schemaHash?: string }>;
+  tools?: Array<{
+    name: string;
+    description?: string;
+    inputSchema?: Record<string, unknown>;
+    schemaHash?: string;
+  }>;
   toolProfiles?: Array<{
     name: string;
     description?: string;
@@ -244,6 +249,45 @@ describe('accessors', () => {
       expect(result.baselineP95Ms).toBe(250);
       expect(result.baselineSuccessRate).toBe(0.99);
     });
+
+    it('should round-trip all version-specific fields', () => {
+      const fingerprint: ToolFingerprint = {
+        name: 'tool',
+        description: 'desc',
+        schemaHash: 'hash',
+        assertions: [],
+        securityNotes: [],
+        limitations: [],
+        title: 'My Tool',
+        outputSchema: { type: 'object', properties: { result: { type: 'string' } } },
+        outputSchemaHash: 'out-hash-123',
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+        execution: { taskSupport: 'async' },
+        baselineP99Ms: 500,
+      };
+
+      const result = toToolCapability(fingerprint);
+
+      expect(result.title).toBe('My Tool');
+      expect(result.outputSchema).toEqual({
+        type: 'object',
+        properties: { result: { type: 'string' } },
+      });
+      expect(result.outputSchemaHash).toBe('out-hash-123');
+      expect(result.annotations).toEqual({
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      });
+      expect(result.execution).toEqual({ taskSupport: 'async' });
+      expect(result.baselineP99Ms).toBe(500);
+    });
   });
 
   describe('getToolFingerprints', () => {
@@ -266,12 +310,14 @@ describe('accessors', () => {
     it('should merge data from toolProfiles', () => {
       const baseline = createTestBaseline({
         tools: [{ name: 'my_tool', description: '', schemaHash: 'hash' }],
-        toolProfiles: [{
-          name: 'my_tool',
-          behavioralNotes: ['Returns JSON'],
-          limitations: ['Max 1MB'],
-          securityNotes: ['Requires auth'],
-        }],
+        toolProfiles: [
+          {
+            name: 'my_tool',
+            behavioralNotes: ['Returns JSON'],
+            limitations: ['Max 1MB'],
+            securityNotes: ['Requires auth'],
+          },
+        ],
       });
 
       const result = getToolFingerprints(baseline);
@@ -285,12 +331,14 @@ describe('accessors', () => {
     it('should build assertions from profile data', () => {
       const baseline = createTestBaseline({
         tools: [{ name: 'tool' }],
-        toolProfiles: [{
-          name: 'tool',
-          behavioralNotes: ['Returns formatted JSON'],
-          limitations: ['Cannot handle binary'],
-          securityNotes: ['Safe to use'],
-        }],
+        toolProfiles: [
+          {
+            name: 'tool',
+            behavioralNotes: ['Returns formatted JSON'],
+            limitations: ['Cannot handle binary'],
+            securityNotes: ['Safe to use'],
+          },
+        ],
       });
 
       const result = getToolFingerprints(baseline);
@@ -315,10 +363,12 @@ describe('accessors', () => {
     it('should mark security notes with "risk" as negative assertions', () => {
       const baseline = createTestBaseline({
         tools: [{ name: 'tool' }],
-        toolProfiles: [{
-          name: 'tool',
-          securityNotes: ['Potential security risk with untrusted input'],
-        }],
+        toolProfiles: [
+          {
+            name: 'tool',
+            securityNotes: ['Potential security risk with untrusted input'],
+          },
+        ],
       });
 
       const result = getToolFingerprints(baseline);
@@ -330,10 +380,12 @@ describe('accessors', () => {
     it('should mark security notes with "vulnerab" as negative assertions', () => {
       const baseline = createTestBaseline({
         tools: [{ name: 'tool' }],
-        toolProfiles: [{
-          name: 'tool',
-          securityNotes: ['Vulnerable to path traversal'],
-        }],
+        toolProfiles: [
+          {
+            name: 'tool',
+            securityNotes: ['Vulnerable to path traversal'],
+          },
+        ],
       });
 
       const result = getToolFingerprints(baseline);
@@ -345,10 +397,12 @@ describe('accessors', () => {
     it('should mark security notes with "dangerous" as negative assertions', () => {
       const baseline = createTestBaseline({
         tools: [{ name: 'tool' }],
-        toolProfiles: [{
-          name: 'tool',
-          securityNotes: ['Dangerous operation allowed'],
-        }],
+        toolProfiles: [
+          {
+            name: 'tool',
+            securityNotes: ['Dangerous operation allowed'],
+          },
+        ],
       });
 
       const result = getToolFingerprints(baseline);
@@ -360,11 +414,13 @@ describe('accessors', () => {
     it('should fall back to toolProfiles when no capabilities.tools', () => {
       const baseline = createTestBaseline({
         tools: [], // Empty
-        toolProfiles: [{
-          name: 'fallback_tool',
-          description: 'Fallback description',
-          schemaHash: 'fallback_hash',
-        }],
+        toolProfiles: [
+          {
+            name: 'fallback_tool',
+            description: 'Fallback description',
+            schemaHash: 'fallback_hash',
+          },
+        ],
       });
 
       const result = getToolFingerprints(baseline);
@@ -377,10 +433,12 @@ describe('accessors', () => {
     it('should prefer tool description over profile description', () => {
       const baseline = createTestBaseline({
         tools: [{ name: 'tool', description: 'From capability' }],
-        toolProfiles: [{
-          name: 'tool',
-          description: 'From profile',
-        }],
+        toolProfiles: [
+          {
+            name: 'tool',
+            description: 'From profile',
+          },
+        ],
       });
 
       const result = getToolFingerprints(baseline);
@@ -391,10 +449,12 @@ describe('accessors', () => {
     it('should fall back to profile description when tool description empty', () => {
       const baseline = createTestBaseline({
         tools: [{ name: 'tool', description: '' }],
-        toolProfiles: [{
-          name: 'tool',
-          description: 'From profile',
-        }],
+        toolProfiles: [
+          {
+            name: 'tool',
+            description: 'From profile',
+          },
+        ],
       });
 
       const result = getToolFingerprints(baseline);
@@ -415,18 +475,40 @@ describe('accessors', () => {
 
     it('should convert lastTestedAt string to Date', () => {
       const baseline = createTestBaseline({
-        tools: [{
-          name: 'tool',
-          // lastTestedAt would be in the ToolCapability
-        }],
+        tools: [
+          {
+            name: 'tool',
+            // lastTestedAt would be in the ToolCapability
+          },
+        ],
       });
       // Manually add lastTestedAt to simulate loaded baseline
-      (baseline.capabilities.tools[0] as unknown as Record<string, unknown>).lastTestedAt = '2024-07-01T00:00:00Z';
+      (baseline.capabilities.tools[0] as unknown as Record<string, unknown>).lastTestedAt =
+        '2024-07-01T00:00:00Z';
 
       const result = getToolFingerprints(baseline);
 
       expect(result[0].lastTestedAt).toBeInstanceOf(Date);
       expect(result[0].lastTestedAt?.toISOString()).toBe('2024-07-01T00:00:00.000Z');
+    });
+
+    it('should map execution and baselineP99Ms from capabilities', () => {
+      const baseline = createTestBaseline({
+        tools: [
+          {
+            name: 'tool',
+          },
+        ],
+      });
+      // Manually add version-specific fields to simulate loaded baseline
+      const toolCap = baseline.capabilities.tools[0] as unknown as Record<string, unknown>;
+      toolCap.execution = { taskSupport: 'async' };
+      toolCap.baselineP99Ms = 750;
+
+      const result = getToolFingerprints(baseline);
+
+      expect(result[0].execution).toEqual({ taskSupport: 'async' });
+      expect(result[0].baselineP99Ms).toBe(750);
     });
   });
 });

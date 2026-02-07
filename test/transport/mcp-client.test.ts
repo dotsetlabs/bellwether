@@ -38,7 +38,28 @@ describe('MCPClient', () => {
 
       expect(result.serverInfo.name).toBe('test-server');
       expect(result.serverInfo.version).toBe('1.0.0');
-      expect(result.protocolVersion).toBe('2024-11-05');
+      expect(result.protocolVersion).toBe('2025-11-25');
+    });
+
+    it('should store negotiated protocol version after initialization', async () => {
+      expect(client.getNegotiatedProtocolVersion()).toBeNull();
+
+      await client.connect(TSX_PATH, TSX_ARGS);
+      await client.initialize();
+
+      expect(client.getNegotiatedProtocolVersion()).toBe('2025-11-25');
+    });
+
+    it('should return feature flags based on negotiated version', async () => {
+      expect(client.getFeatureFlags()).toBeNull();
+
+      await client.connect(TSX_PATH, TSX_ARGS);
+      await client.initialize();
+
+      const flags = client.getFeatureFlags();
+      expect(flags).not.toBeNull();
+      expect(flags!.toolAnnotations).toBe(true);
+      expect(flags!.tasks).toBe(true);
     });
 
     it('should fail to initialize after spawn error', async () => {

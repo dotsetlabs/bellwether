@@ -37,7 +37,9 @@ export interface RetryOptions {
   context?: ErrorContext;
 }
 
-const DEFAULT_OPTIONS: Required<Omit<RetryOptions, 'shouldRetry' | 'onRetry' | 'operation' | 'context'>> = {
+const DEFAULT_OPTIONS: Required<
+  Omit<RetryOptions, 'shouldRetry' | 'onRetry' | 'operation' | 'context'>
+> = {
   maxAttempts: RETRY_STRATEGIES.DEFAULT.maxAttempts,
   initialDelayMs: RETRY_STRATEGIES.DEFAULT.initialDelayMs,
   maxDelayMs: RETRY_STRATEGIES.DEFAULT.maxDelayMs,
@@ -87,10 +89,7 @@ function sleep(ms: number): Promise<void> {
  * );
  * ```
  */
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  options: RetryOptions = {}
-): Promise<T> {
+export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
   const {
     maxAttempts = DEFAULT_OPTIONS.maxAttempts,
     initialDelayMs = DEFAULT_OPTIONS.initialDelayMs,
@@ -150,13 +149,7 @@ export async function withRetry<T>(
           message: `Using server-provided retry delay`,
         });
       } else {
-        delayMs = calculateDelay(
-          attempt,
-          initialDelayMs,
-          maxDelayMs,
-          backoffMultiplier,
-          jitter
-        );
+        delayMs = calculateDelay(attempt, initialDelayMs, maxDelayMs, backoffMultiplier, jitter);
       }
 
       // Log retry
@@ -220,7 +213,8 @@ export const LLM_RETRY_OPTIONS: RetryOptions = {
   jitter: RETRY_STRATEGIES.LLM.jitter,
   shouldRetry: (error) => {
     // Check for known LLM error patterns
-    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    const message =
+      error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
 
     // Rate limits - always retry
     if (message.includes('rate limit') || message.includes('429')) {
@@ -248,12 +242,20 @@ export const LLM_RETRY_OPTIONS: RetryOptions = {
     }
 
     // Auth errors - don't retry
-    if (message.includes('401') || message.includes('unauthorized') || message.includes('api key')) {
+    if (
+      message.includes('401') ||
+      message.includes('unauthorized') ||
+      message.includes('api key')
+    ) {
       return false;
     }
 
     // Quota errors - don't retry
-    if (message.includes('quota') || message.includes('insufficient') || message.includes('credit')) {
+    if (
+      message.includes('quota') ||
+      message.includes('insufficient') ||
+      message.includes('credit')
+    ) {
       return false;
     }
 
@@ -272,7 +274,8 @@ export const TRANSPORT_RETRY_OPTIONS: RetryOptions = {
   backoffMultiplier: RETRY_STRATEGIES.TRANSPORT.backoffMultiplier,
   jitter: RETRY_STRATEGIES.TRANSPORT.jitter,
   shouldRetry: (error) => {
-    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    const message =
+      error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
 
     // Timeouts might be transient
     if (message.includes('timeout')) {
@@ -308,7 +311,8 @@ export const TOOL_CALL_RETRY_OPTIONS: RetryOptions = {
   backoffMultiplier: RETRY_STRATEGIES.TOOL_CALL.backoffMultiplier,
   jitter: RETRY_STRATEGIES.TOOL_CALL.jitter,
   shouldRetry: (error) => {
-    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    const message =
+      error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
 
     // Timeout - might succeed on retry
     if (message.includes('timeout')) {
@@ -383,9 +387,7 @@ export function createCircuitBreaker(
     // Check if circuit is open
     if (state.isOpen) {
       const now = new Date();
-      const timeSinceOpen = state.openedAt
-        ? now.getTime() - state.openedAt.getTime()
-        : 0;
+      const timeSinceOpen = state.openedAt ? now.getTime() - state.openedAt.getTime() : 0;
 
       if (timeSinceOpen < resetTimeMs) {
         // Still in open state
@@ -439,6 +441,11 @@ export function createCircuitBreaker(
 
       state.failures++;
       state.lastFailure = now;
+
+      // If half-open test failed, reset openedAt to restart cooldown timer
+      if (state.isOpen) {
+        state.openedAt = now;
+      }
 
       // Check if we should open the circuit
       if (state.failures >= failureThreshold && !state.isOpen) {

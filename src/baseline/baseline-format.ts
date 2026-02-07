@@ -79,6 +79,8 @@ export interface BaselineServerFingerprint {
   protocolVersion: string;
   /** Available capabilities */
   capabilities: string[];
+  /** Server-provided instructions (MCP 2025-11-25) */
+  instructions?: string;
 }
 
 /**
@@ -93,6 +95,22 @@ export interface ToolCapability {
   inputSchema: Record<string, unknown>;
   /** Hash of the schema for change detection */
   schemaHash: string;
+  /** Human-readable title for the tool (MCP 2025-11-25) */
+  title?: string;
+  /** JSON Schema for the tool's output (MCP 2025-11-25 structured content) */
+  outputSchema?: Record<string, unknown>;
+  /** Hash of the output schema for drift detection */
+  outputSchemaHash?: string;
+  /** Behavioral annotations/hints (MCP 2025-11-25) */
+  annotations?: {
+    title?: string;
+    readOnlyHint?: boolean;
+    destructiveHint?: boolean;
+    idempotentHint?: boolean;
+    openWorldHint?: boolean;
+  };
+  /** Task execution configuration (MCP 2025-11-25) */
+  execution?: { taskSupport?: string };
   /** Hash of observed arguments schema (from actual calls) */
   observedArgsSchemaHash?: string;
   /** Consistency of observed argument schemas (0-1) */
@@ -147,6 +165,28 @@ export interface ResourceCapability {
   description?: string;
   /** MIME type */
   mimeType?: string;
+  /** Human-readable title (MCP 2025-11-25) */
+  title?: string;
+  /** Resource annotations (MCP 2025-11-25) */
+  annotations?: { audience?: string[]; priority?: number; lastModified?: string };
+  /** Resource size in bytes (MCP 2025-11-25) */
+  size?: number;
+}
+
+/**
+ * Resource template capability from discovery (MCP 2025-11-25).
+ */
+export interface ResourceTemplateCapability {
+  /** URI template (RFC 6570) */
+  uriTemplate: string;
+  /** Template name */
+  name: string;
+  /** Human-readable title */
+  title?: string;
+  /** Template description */
+  description?: string;
+  /** Expected MIME type */
+  mimeType?: string;
 }
 
 /**
@@ -157,6 +197,8 @@ export interface PromptCapability {
   name: string;
   /** Prompt description */
   description?: string;
+  /** Human-readable title (MCP 2025-11-25) */
+  title?: string;
   /** Arguments the prompt accepts */
   arguments?: Array<{
     name: string;
@@ -287,6 +329,7 @@ export interface BellwetherBaseline {
   capabilities: {
     tools: ToolCapability[];
     resources?: ResourceCapability[];
+    resourceTemplates?: ResourceTemplateCapability[];
     prompts?: PromptCapability[];
   };
 

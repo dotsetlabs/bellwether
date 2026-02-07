@@ -8,6 +8,8 @@
 export interface ParallelOptions<T> {
   /** Maximum concurrent tasks (default: 3) */
   concurrency?: number;
+  /** Timeout per task in milliseconds (default: no timeout) */
+  taskTimeoutMs?: number;
   /** Callback when a task completes */
   onTaskComplete?: (result: T, index: number) => void;
   /** Callback when a task fails */
@@ -38,7 +40,7 @@ export async function parallelLimit<T>(
   tasks: Array<() => Promise<T>>,
   options: ParallelOptions<T> = {}
 ): Promise<ParallelResult<T>> {
-  const { concurrency = 3, onTaskComplete, onTaskError } = options;
+  const { concurrency = 3, taskTimeoutMs, onTaskComplete, onTaskError } = options;
 
   const results: T[] = new Array(tasks.length);
   const errors = new Map<number, Error>();
@@ -62,7 +64,21 @@ export async function parallelLimit<T>(
         const currentIndex = index++;
         running++;
 
-        tasks[currentIndex]()
+        const taskPromise = tasks[currentIndex]();
+        const wrappedPromise = taskTimeoutMs
+          ? Promise.race([
+              taskPromise,
+              new Promise<never>((_, reject) =>
+                setTimeout(
+                  () =>
+                    reject(new Error(`Task ${currentIndex} timed out after ${taskTimeoutMs}ms`)),
+                  taskTimeoutMs
+                )
+              ),
+            ])
+          : taskPromise;
+
+        wrappedPromise
           .then((result) => {
             results[currentIndex] = result;
             onTaskComplete?.(result, currentIndex);

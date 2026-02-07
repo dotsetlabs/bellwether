@@ -46,8 +46,20 @@ Schema-level changes are detected **deterministically without any LLM involvemen
 - Parameter added/removed/renamed
 - Type changes
 - Required status changes
+- Description changes
+- Tool annotation changes (readOnlyHint, destructiveHint, idempotentHint, openWorldHint)
+- Entity title changes (tool, prompt, resource, and resource template titles)
+- Output schema changes
+- Execution/task support changes
+- Server instruction changes
+- Prompt added/removed/modified
+- Resource added/removed/modified
+- Resource template changes
+- Performance regression (P50/P95 latency, success rate)
 
 These detections are 100% reliable and consistent across runs.
+
+Comparisons are **protocol-version-aware** — version-specific fields (annotations, titles, output schemas, etc.) are only compared when both baselines support the relevant MCP protocol version.
 
 ### Semantic Comparison (LLM-Assisted)
 

@@ -52,8 +52,12 @@ export type BehaviorAspect =
   | 'description'
   | 'prompt'
   | 'resource'
+  | 'resource_template'
   | 'server'
-  | 'capability';
+  | 'capability'
+  | 'tool_annotations'
+  | 'output_schema'
+  | 'resource_annotations';
 
 /**
  * A single behavioral assertion about a tool.
@@ -300,6 +304,8 @@ export interface ToolFingerprint {
   baselineP50Ms?: number;
   /** Baseline p95 latency in milliseconds */
   baselineP95Ms?: number;
+  /** Baseline p99 latency in milliseconds */
+  baselineP99Ms?: number;
   /** Baseline success rate (0-1) */
   baselineSuccessRate?: number;
 
@@ -324,6 +330,24 @@ export interface ToolFingerprint {
   // Performance confidence fields
   /** Statistical confidence metrics for performance baselines */
   performanceConfidence?: PerformanceConfidence;
+
+  // MCP 2025-11-25 fields
+  /** Human-readable title for the tool */
+  title?: string;
+  /** JSON Schema for the tool's output */
+  outputSchema?: Record<string, unknown>;
+  /** Hash of the output schema for drift detection */
+  outputSchemaHash?: string;
+  /** Behavioral annotations/hints */
+  annotations?: {
+    title?: string;
+    readOnlyHint?: boolean;
+    destructiveHint?: boolean;
+    idempotentHint?: boolean;
+    openWorldHint?: boolean;
+  };
+  /** Task execution configuration */
+  execution?: { taskSupport?: string };
 }
 
 /**
