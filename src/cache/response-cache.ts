@@ -151,8 +151,10 @@ export class ResponseCache {
     // Calculate entry size
     const entrySize = this.estimateSize(value);
 
-    // Evict if necessary
-    this.evictIfNeeded(entrySize);
+    // Evict if necessary; skip if entry can never fit
+    if (!this.evictIfNeeded(entrySize)) {
+      return;
+    }
 
     const entry: CacheEntry<T> = {
       value,
@@ -266,7 +268,12 @@ export class ResponseCache {
   /**
    * Evict entries if needed to make room.
    */
-  private evictIfNeeded(newEntrySize: number): void {
+  private evictIfNeeded(newEntrySize: number): boolean {
+    // Skip entries that can never fit
+    if (newEntrySize > this.config.maxSizeBytes) {
+      return false;
+    }
+
     // Check entry count
     while (this.cache.size >= this.config.maxEntries) {
       this.evictLeastRecentlyUsed();
@@ -276,6 +283,8 @@ export class ResponseCache {
     while (this.totalSizeBytes + newEntrySize > this.config.maxSizeBytes && this.cache.size > 0) {
       this.evictLeastRecentlyUsed();
     }
+
+    return true;
   }
 
   /**

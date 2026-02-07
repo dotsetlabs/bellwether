@@ -383,14 +383,26 @@ export class OpenAIClient implements LLMClient {
 
           // Convert to typed errors for retry logic (same as chat method)
           if (error instanceof Error) {
-            const message = error.message.toLowerCase();
+            const status = getErrorStatus(error);
+            const code = (getErrorCode(error) ?? '').toLowerCase();
+            const type = (getErrorType(error) ?? '').toLowerCase();
+            const message = getErrorMessage(error).toLowerCase();
 
-            if (message.includes('401')) {
+            if (
+              status === 401 ||
+              status === 403 ||
+              (!status && (message.includes('401') || message.includes('403')))
+            ) {
               throw new LLMAuthError('openai', model);
             }
-            if (message.includes('429')) {
+            if (
+              status === 429 ||
+              code.includes('rate_limit') ||
+              type.includes('rate_limit') ||
+              (!status && message.includes('429'))
+            ) {
               let retryAfterMs: number | undefined;
-              const apiError = error as { headers?: { get?: (name: string) => string | null } };
+              const apiError = error as ErrorWithDetails;
               if (apiError.headers?.get) {
                 const retryAfter = apiError.headers.get('retry-after');
                 if (retryAfter) {
@@ -402,7 +414,12 @@ export class OpenAIClient implements LLMClient {
               }
               throw new LLMRateLimitError('openai', retryAfterMs, model);
             }
-            if (message.includes('insufficient_quota')) {
+            if (
+              status === 402 ||
+              code.includes('insufficient_quota') ||
+              type.includes('insufficient_quota') ||
+              message.includes('insufficient_quota')
+            ) {
               throw new LLMQuotaError('openai', model);
             }
             if (message.includes('econnrefused') || message.includes('fetch failed')) {

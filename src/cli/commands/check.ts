@@ -270,6 +270,7 @@ export const checkCommand = new Command('check')
       transport,
     });
 
+    let pendingExitCode: number | undefined;
     try {
       // Connect to MCP server
       output.info('Connecting to MCP server...');
@@ -1137,36 +1138,41 @@ export const checkCommand = new Command('check')
         } else if (!options.acceptDrift) {
           // Check if diff meets failure threshold based on severity config
           const shouldFail = shouldFailOnDiff(diff, severityConfig.failOnSeverity);
-          const exitCode = SEVERITY_TO_EXIT_CODE[diff.severity] ?? EXIT_CODES.CLEAN;
+          const driftExitCode = SEVERITY_TO_EXIT_CODE[diff.severity] ?? EXIT_CODES.CLEAN;
 
           if (diff.severity === 'breaking') {
             output.error('\nBreaking changes detected!');
             output.error('Use --accept-drift to accept these changes as intentional.');
             if (failOnDrift || shouldFail) {
-              process.exit(exitCode);
+              pendingExitCode = driftExitCode;
+              return;
             }
           } else if (diff.severity === 'warning') {
             output.warn('\nWarning-level changes detected.');
             output.warn('Use --accept-drift to accept these changes as intentional.');
             if (failOnDrift || shouldFail) {
-              process.exit(exitCode);
+              pendingExitCode = driftExitCode;
+              return;
             }
           } else if (diff.severity === 'info') {
             output.info('\nInfo-level changes detected (non-breaking).');
             if (shouldFail) {
-              process.exit(exitCode);
+              pendingExitCode = driftExitCode;
+              return;
             }
           }
 
           // Exit with appropriate code based on severity
           // This provides semantic exit codes for CI/CD even when not failing
-          process.exit(exitCode);
+          pendingExitCode = driftExitCode;
+          return;
         }
       }
 
       if (config.check.assertions.strict && (result.metadata.assertions?.failed ?? 0) > 0) {
         output.error('\nAssertion failures detected and check.assertions.strict is enabled.');
-        process.exit(EXIT_CODES.ERROR);
+        pendingExitCode = EXIT_CODES.BREAKING;
+        return;
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1187,9 +1193,16 @@ export const checkCommand = new Command('check')
         output.error('  - Check that the command is installed and in PATH');
       }
 
-      process.exit(EXIT_CODES.ERROR);
+      pendingExitCode = EXIT_CODES.ERROR;
     } finally {
-      await mcpClient.disconnect();
+      try {
+        await mcpClient.disconnect();
+      } catch {
+        /* ignore cleanup errors */
+      }
+      if (pendingExitCode !== undefined) {
+        process.exit(pendingExitCode);
+      }
     }
   });
 

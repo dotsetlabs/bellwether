@@ -116,7 +116,7 @@ export async function withTimeout<T>(
   operationName: string,
   options?: TimeoutOptions
 ): Promise<T> {
-  let timeoutId: NodeJS.Timeout;
+  let timeoutId: NodeJS.Timeout | undefined;
   const abortController = options?.abortController;
 
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -132,7 +132,7 @@ export async function withTimeout<T>(
   try {
     return await Promise.race([promise, timeoutPromise]);
   } finally {
-    clearTimeout(timeoutId!);
+    if (timeoutId) clearTimeout(timeoutId);
   }
 }
 

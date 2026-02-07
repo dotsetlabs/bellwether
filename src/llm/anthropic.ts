@@ -449,14 +449,22 @@ export class AnthropicClient implements LLMClient {
 
           // Convert to typed errors for retry logic (same as chat method)
           if (error instanceof Error) {
-            const message = error.message.toLowerCase();
+            const status = getErrorStatus(error);
+            const code = (getErrorCode(error) ?? '').toLowerCase();
+            const type = (getErrorType(error) ?? '').toLowerCase();
+            const message = getErrorMessage(error).toLowerCase();
 
-            if (message.includes('401') || message.includes('authentication')) {
+            if (status === 401 || status === 403 || message.includes('authentication')) {
               throw new LLMAuthError('anthropic', model);
             }
-            if (message.includes('429') || message.includes('rate limit')) {
+            if (
+              status === 429 ||
+              code.includes('rate_limit') ||
+              type.includes('rate_limit') ||
+              message.includes('rate limit')
+            ) {
               let retryAfterMs: number | undefined;
-              const apiError = error as { headers?: { get?: (name: string) => string | null } };
+              const apiError = error as ErrorWithDetails;
               if (apiError.headers?.get) {
                 const retryAfterMsHeader = apiError.headers.get('retry-after-ms');
                 if (retryAfterMsHeader) {
@@ -477,7 +485,13 @@ export class AnthropicClient implements LLMClient {
               }
               throw new LLMRateLimitError('anthropic', retryAfterMs, model);
             }
-            if (message.includes('insufficient') || message.includes('credit')) {
+            if (
+              status === 402 ||
+              code.includes('insufficient') ||
+              type.includes('insufficient') ||
+              message.includes('insufficient') ||
+              message.includes('credit')
+            ) {
               throw new LLMQuotaError('anthropic', model);
             }
             if (message.includes('econnrefused') || message.includes('fetch failed')) {

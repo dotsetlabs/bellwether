@@ -17,13 +17,15 @@ import { DISPLAY_LIMITS } from '../constants.js';
 export function escapeTableCell(text: string): string {
   if (!text) return '';
 
-  return text
-    // Escape pipe characters (break table columns)
-    .replace(/\|/g, '\\|')
-    // Escape newlines (break table rows)
-    .replace(/\r?\n/g, '<br>')
-    // Escape leading/trailing whitespace that might affect rendering
-    .trim();
+  return (
+    text
+      // Escape pipe characters (break table columns)
+      .replace(/\|/g, '\\|')
+      // Escape newlines (break table rows)
+      .replace(/\r?\n/g, '<br>')
+      // Escape leading/trailing whitespace that might affect rendering
+      .trim()
+  );
 }
 
 /**
@@ -51,24 +53,26 @@ export function escapeCodeBlock(text: string): string {
 export function escapeMermaid(text: string): string {
   if (!text) return '';
 
-  return text
-    // Escape double quotes (break Mermaid string literals)
-    .replace(/"/g, '#quot;')
-    // Escape square brackets (node syntax)
-    .replace(/\[/g, '#lsqb;')
-    .replace(/\]/g, '#rsqb;')
-    // Escape parentheses (node syntax)
-    .replace(/\(/g, '#lpar;')
-    .replace(/\)/g, '#rpar;')
-    // Escape curly braces (subgraph syntax)
-    .replace(/\{/g, '#lcub;')
-    .replace(/\}/g, '#rcub;')
-    // Escape arrows and pipes
-    .replace(/-->/g, '#arrow;')
-    .replace(/->/g, '#rarr;')
-    .replace(/\|/g, '#pipe;')
-    // Escape newlines
-    .replace(/\r?\n/g, ' ');
+  return (
+    text
+      // Escape double quotes (break Mermaid string literals)
+      .replace(/"/g, '#quot;')
+      // Escape square brackets (node syntax)
+      .replace(/\[/g, '#lsqb;')
+      .replace(/\]/g, '#rsqb;')
+      // Escape parentheses (node syntax)
+      .replace(/\(/g, '#lpar;')
+      .replace(/\)/g, '#rpar;')
+      // Escape curly braces (subgraph syntax)
+      .replace(/\{/g, '#lcub;')
+      .replace(/\}/g, '#rcub;')
+      // Escape arrows and pipes
+      .replace(/-->/g, '#arrow;')
+      .replace(/->/g, '#rarr;')
+      .replace(/\|/g, '#pipe;')
+      // Escape newlines
+      .replace(/\r?\n/g, ' ')
+  );
 }
 
 /**
@@ -87,10 +91,7 @@ export function mermaidLabel(text: string): string {
   }
 
   // Escape and wrap in quotes for complex text
-  const escaped = text
-    .replace(/"/g, "'")
-    .replace(/\r?\n/g, ' ')
-    .trim();
+  const escaped = text.replace(/"/g, "'").replace(/\r?\n/g, ' ').trim();
 
   return `"${escaped}"`;
 }
@@ -150,9 +151,7 @@ export function validateJsonForCodeBlock(
   if (typeof json === 'string') {
     try {
       const parsed = JSON.parse(json);
-      content = prettyPrint
-        ? JSON.stringify(parsed, null, indent)
-        : JSON.stringify(parsed);
+      content = prettyPrint ? JSON.stringify(parsed, null, indent) : JSON.stringify(parsed);
     } catch (e) {
       valid = false;
       error = e instanceof Error ? e.message : 'Invalid JSON';
@@ -160,9 +159,7 @@ export function validateJsonForCodeBlock(
     }
   } else {
     try {
-      content = prettyPrint
-        ? JSON.stringify(json, null, indent)
-        : JSON.stringify(json);
+      content = prettyPrint ? JSON.stringify(json, null, indent) : JSON.stringify(json);
     } catch (e) {
       valid = false;
       error = e instanceof Error ? e.message : 'Cannot stringify value';
@@ -213,12 +210,14 @@ export function escapeInlineCode(text: string): string {
 export function escapeLinkTitle(text: string): string {
   if (!text) return '';
 
-  return text
-    // Escape quotes
-    .replace(/"/g, '\\"')
-    // Escape parentheses
-    .replace(/\)/g, '\\)')
-    .replace(/\(/g, '\\(');
+  return (
+    text
+      // Escape quotes
+      .replace(/"/g, '\\"')
+      // Escape parentheses
+      .replace(/\)/g, '\\)')
+      .replace(/\(/g, '\\(')
+  );
 }
 
 /**
@@ -256,7 +255,10 @@ export function escapeListItem(text: string): string {
  * @param maxWidth - Maximum width (default: 50)
  * @returns Wrapped text with <br> for line breaks
  */
-export function wrapTableCell(text: string, maxWidth: number = DISPLAY_LIMITS.TABLE_CELL_MAX_WIDTH): string {
+export function wrapTableCell(
+  text: string,
+  maxWidth: number = DISPLAY_LIMITS.TABLE_CELL_MAX_WIDTH
+): string {
   if (!text || text.length <= maxWidth) {
     return escapeTableCell(text);
   }
@@ -300,7 +302,7 @@ export function buildTable(
   const lines: string[] = [];
 
   // Header row
-  const escapedHeaders = headers.map(h => escapeTableCell(h));
+  const escapedHeaders = headers.map((h) => escapeTableCell(h));
   lines.push(`| ${escapedHeaders.join(' | ')} |`);
 
   // Separator row with alignment
@@ -319,11 +321,13 @@ export function buildTable(
 
   // Data rows
   for (const row of rows) {
-    const escapedCells = row.map(cell => escapeTableCell(cell));
+    const escapedCells = row.map((cell) => escapeTableCell(cell));
     // Pad row if needed
     while (escapedCells.length < headers.length) {
       escapedCells.push('');
     }
+    // Truncate excess columns
+    escapedCells.length = headers.length;
     lines.push(`| ${escapedCells.join(' | ')} |`);
   }
 

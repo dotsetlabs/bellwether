@@ -129,6 +129,7 @@ export class FallbackLLMClient implements LLMClient {
       try {
         const ollamaClient = new OllamaClient({
           model: this.config.ollamaModel,
+          onUsage: this.config.onUsage,
         });
         this.clients.set('ollama', ollamaClient);
         this.providerOrder.push('ollama');
@@ -183,18 +184,23 @@ export class FallbackLLMClient implements LLMClient {
   /**
    * Check if a provider is currently healthy.
    */
+  private healthCheckInProgress = false;
   private isProviderHealthy(providerId: LLMProviderId): boolean {
     const health = this.health.get(providerId);
     if (!health) return false;
 
     // If marked unhealthy, check if retry delay has passed
-    if (!health.healthy) {
+    if (!health.healthy && !this.healthCheckInProgress) {
       const timeSinceCheck = Date.now() - health.lastChecked.getTime();
       if (timeSinceCheck >= this.config.unhealthyRetryDelayMs) {
+        // Prevent concurrent health resets
+        this.healthCheckInProgress = true;
         // Reset to allow retry
         health.healthy = true;
         health.consecutiveFailures = 0;
+        health.lastChecked = new Date();
         logger.info({ provider: providerId }, 'Resetting unhealthy provider for retry');
+        this.healthCheckInProgress = false;
       }
     }
 
@@ -331,9 +337,7 @@ export class FallbackLLMClient implements LLMClient {
     const errorSummary = errors
       .map(({ provider, error }) => `${provider}: ${error.message}`)
       .join('; ');
-    throw new Error(
-      `All LLM providers failed for ${operationName}. Errors: ${errorSummary}`
-    );
+    throw new Error(`All LLM providers failed for ${operationName}. Errors: ${errorSummary}`);
   }
 
   /**

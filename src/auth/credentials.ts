@@ -74,8 +74,10 @@ function readEnvFile(
       let value = trimmed.substring(eqIndex + 1).trim();
 
       // Remove surrounding quotes if present
-      if ((value.startsWith('"') && value.endsWith('"')) ||
-          (value.startsWith("'") && value.endsWith("'"))) {
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
         value = value.slice(1, -1);
       }
 
@@ -84,6 +86,10 @@ function readEnvFile(
         if (decrypted) {
           return decrypted;
         }
+        // Warn about decryption failure so users know their credential exists but can't be decrypted
+        console.warn(
+          `[bellwether] Encrypted credential found for ${envVar} but decryption failed. Check your encryption key.`
+        );
         return undefined;
       }
 

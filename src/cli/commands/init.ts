@@ -19,12 +19,7 @@ import * as output from '../output.js';
  * Returns an array of variable names found.
  */
 function detectEnvVars(cwd: string): string[] {
-  const envExampleFiles = [
-    '.env.example',
-    '.env.sample',
-    'env.example',
-    'env.sample',
-  ];
+  const envExampleFiles = ['.env.example', '.env.sample', 'env.example', 'env.sample'];
 
   for (const filename of envExampleFiles) {
     const filepath = join(cwd, filename);
@@ -78,10 +73,7 @@ export const initCommand = new Command('init')
   .description('Initialize a bellwether.yaml configuration file')
   .argument('[server-command]', 'MCP server command (e.g., "npx @mcp/server")')
   .option('-f, --force', 'Overwrite existing config file')
-  .option(
-    '--preset <name>',
-    `Use a preset configuration (${Object.keys(PRESETS).join(', ')})`
-  )
+  .option('--preset <name>', `Use a preset configuration (${Object.keys(PRESETS).join(', ')})`)
   .option(
     '--provider <provider>',
     'LLM provider for explore command (ollama, openai, anthropic)',
@@ -154,7 +146,16 @@ export const initCommand = new Command('init')
     }
 
     // Write config file
-    writeFileSync(configPath, content);
+    try {
+      writeFileSync(configPath, content);
+    } catch (error) {
+      output.error(
+        `Failed to write config file: ${error instanceof Error ? error.message : String(error)}`
+      );
+      output.error(`  Path: ${configPath}`);
+      output.error('  Check that the directory exists and you have write permissions.');
+      return;
+    }
 
     // Show success message
     output.success(`Created: ${configPath}`);
@@ -166,7 +167,9 @@ export const initCommand = new Command('init')
       output.info(`  ${envVars.join(', ')}`);
       output.newline();
       output.info('These have been added to bellwether.yaml with ${VAR} interpolation syntax.');
-      output.info('Make sure to set these in your environment or .env file before running commands.');
+      output.info(
+        'Make sure to set these in your environment or .env file before running commands.'
+      );
       output.newline();
     }
 
@@ -213,7 +216,9 @@ export const initCommand = new Command('init')
     // Show env var hint only if no env vars were auto-detected
     if (envVars.length === 0) {
       output.newline();
-      output.info('Note: If your server requires environment variables, add them to bellwether.yaml:');
+      output.info(
+        'Note: If your server requires environment variables, add them to bellwether.yaml:'
+      );
       output.info('     server:');
       output.info('       env:');
       output.info('         MY_VAR: "${MY_VAR}"  # pulls from .env or shell');

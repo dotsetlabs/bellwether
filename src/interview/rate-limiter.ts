@@ -9,6 +9,12 @@ export class RateLimiter {
   private lastRefill: number;
 
   constructor(private config: RateLimitConfig) {
+    if (config.requestsPerSecond <= 0) {
+      throw new Error(`requestsPerSecond must be positive, got ${config.requestsPerSecond}`);
+    }
+    if (config.burstLimit <= 0) {
+      throw new Error(`burstLimit must be positive, got ${config.burstLimit}`);
+    }
     this.tokens = config.burstLimit;
     this.lastRefill = Date.now();
   }
@@ -57,9 +63,8 @@ export function calculateBackoffMs(
   const maxDelay = RATE_LIMITING.MAX_DELAY_MS;
   const jitter = RATE_LIMITING.JITTER_RATIO;
 
-  const rawDelay = strategy === 'linear'
-    ? baseDelay * (attempt + 1)
-    : baseDelay * Math.pow(2, attempt);
+  const rawDelay =
+    strategy === 'linear' ? baseDelay * (attempt + 1) : baseDelay * Math.pow(2, attempt);
 
   const capped = Math.min(rawDelay, maxDelay);
   const jitterDelta = capped * jitter * (Math.random() - 0.5) * 2;
