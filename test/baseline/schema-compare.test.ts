@@ -595,3 +595,126 @@ describe('computeConsensusSchemaHash', () => {
     expect(result.hash).not.toBe('empty');
   });
 });
+
+describe('Circular reference protection', () => {
+  it('should produce stable hash for circular reference', () => {
+    // Create a schema with a circular reference via object mutation
+    const schema: Record<string, unknown> = {
+      type: 'object',
+      properties: {
+        parent: {
+          type: 'object',
+          properties: {},
+        },
+      },
+    };
+    // Create circular reference: parent.properties.self = parent
+    const parentProp = (schema.properties as Record<string, Record<string, unknown>>).parent;
+    (parentProp.properties as Record<string, unknown>).self = parentProp;
+
+    // Should not stack overflow and should return a valid hash
+    const hash = computeSchemaHash(schema);
+    expect(typeof hash).toBe('string');
+    expect(hash.length).toBeGreaterThan(0);
+    expect(hash).not.toBe('empty');
+  });
+
+  it('should handle MAX_SCHEMA_DEPTH without stack overflow', () => {
+    // Create a deeply nested schema exceeding MAX_SCHEMA_DEPTH (50)
+    let schema: Record<string, unknown> = { type: 'string' };
+    for (let i = 0; i < 60; i++) {
+      schema = {
+        type: 'object',
+        properties: {
+          nested: schema,
+        },
+      };
+    }
+
+    // Should not stack overflow
+    const hash = computeSchemaHash(schema);
+    expect(typeof hash).toBe('string');
+    expect(hash.length).toBeGreaterThan(0);
+  });
+});
+
+describe('Unicode normalization', () => {
+  it('should produce same hash for NFC and NFD equivalent keys', () => {
+    // 'café' in NFC vs NFD
+    const nfcKey = 'caf\u00E9'; // 'café' NFC (single char é)
+    const nfdKey = 'cafe\u0301'; // 'café' NFD (e + combining acute)
+
+    const schema1 = {
+      type: 'object',
+      properties: { [nfcKey]: { type: 'string' } },
+    };
+    const schema2 = {
+      type: 'object',
+      properties: { [nfdKey]: { type: 'string' } },
+    };
+
+    expect(computeSchemaHash(schema1)).toBe(computeSchemaHash(schema2));
+  });
+
+  it('should normalize Unicode in required array', () => {
+    const nfcKey = 'caf\u00E9';
+    const nfdKey = 'cafe\u0301';
+
+    const schema1 = {
+      type: 'object',
+      properties: { [nfcKey]: { type: 'string' } },
+      required: [nfcKey],
+    };
+    const schema2 = {
+      type: 'object',
+      properties: { [nfdKey]: { type: 'string' } },
+      required: [nfdKey],
+    };
+
+    expect(computeSchemaHash(schema1)).toBe(computeSchemaHash(schema2));
+  });
+});
+
+describe('$ref resolution', () => {
+  it('should resolve local $ref and include in hash', () => {
+    const schemaWithRef = {
+      type: 'object',
+      properties: {
+        address: { type: 'object', properties: { city: { type: 'string' } } },
+        shipping: { $ref: '#/properties/address' },
+      },
+    };
+
+    // Hash should complete without error and be different from schema without $ref
+    const hash = computeSchemaHash(schemaWithRef);
+    expect(typeof hash).toBe('string');
+    expect(hash.length).toBeGreaterThan(0);
+
+    // Compare with schema that has inline definition instead of $ref
+    const schemaInline = {
+      type: 'object',
+      properties: {
+        address: { type: 'object', properties: { city: { type: 'string' } } },
+        shipping: { type: 'object', properties: { city: { type: 'string' } } },
+      },
+    };
+
+    // The hashes should differ because one uses $ref notation and one uses inline
+    const hashInline = computeSchemaHash(schemaInline);
+    expect(hash).not.toBe(hashInline);
+  });
+
+  it('should gracefully handle invalid $ref', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        broken: { $ref: '#/nonexistent/path' },
+      },
+    };
+
+    // Should not throw, should produce a valid hash
+    const hash = computeSchemaHash(schema);
+    expect(typeof hash).toBe('string');
+    expect(hash.length).toBeGreaterThan(0);
+  });
+});

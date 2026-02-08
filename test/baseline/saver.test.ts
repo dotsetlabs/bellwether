@@ -482,4 +482,186 @@ describe('saver', () => {
       expect(loaded.acceptance?.acceptedAt).toBeInstanceOf(Date);
     });
   });
+
+  describe('full runtime field roundtrip', () => {
+    it('should preserve all optional runtime fields through save/load', () => {
+      const result = createTestInterviewResult({
+        tools: [{ name: 'full_tool', description: 'Tool with all fields' }],
+      });
+      const baseline = createBaseline(result, 'npx test');
+
+      // Manually populate ALL optional runtime fields on the first tool
+      const tool = baseline.capabilities.tools[0];
+      tool.responseFingerprint = {
+        structureHash: 'fp-hash-123',
+        contentType: 'object',
+        fields: ['status', 'data', 'meta'],
+        size: 'medium',
+        isEmpty: false,
+        sampleCount: 5,
+        confidence: 0.95,
+      };
+      tool.inferredOutputSchema = {
+        type: 'object',
+        properties: {
+          status: { type: 'string' },
+          data: { type: 'object', properties: { value: { type: 'number' } } },
+        },
+        required: ['status'],
+      };
+      tool.errorPatterns = [
+        {
+          category: 'validation',
+          patternHash: 'err-hash-1',
+          example: 'Invalid input: missing field',
+          count: 3,
+        },
+        {
+          category: 'not_found',
+          patternHash: 'err-hash-2',
+          example: 'Resource not found',
+          count: 1,
+        },
+      ];
+      tool.responseSchemaEvolution = {
+        currentHash: 'evo-hash-abc',
+        history: [
+          {
+            hash: 'evo-hash-abc',
+            schema: { type: 'object', properties: { status: { type: 'string' } } },
+            observedAt: '2025-01-01T00:00:00.000Z',
+            sampleCount: 5,
+          },
+        ],
+        isStable: true,
+        stabilityConfidence: 0.98,
+        inconsistentFields: [],
+        sampleCount: 5,
+      };
+      tool.baselineP50Ms = 42;
+      tool.baselineP95Ms = 85;
+      tool.baselineP99Ms = 120;
+      tool.baselineSuccessRate = 0.95;
+      tool.performanceConfidence = {
+        sampleCount: 10,
+        successfulSamples: 9,
+        validationSamples: 3,
+        totalTests: 12,
+        standardDeviation: 8.5,
+        coefficientOfVariation: 0.15,
+        confidenceLevel: 'high',
+      };
+      tool.securityFingerprint = {
+        tested: true,
+        categoriesTested: ['sql_injection', 'xss'],
+        findings: [
+          {
+            category: 'sql_injection',
+            riskLevel: 'critical',
+            title: 'SQL Injection',
+            description: 'Input not sanitized',
+            evidence: "' OR 1=1 --",
+            remediation: 'Use parameterized queries',
+            cweId: 'CWE-89',
+            parameter: 'query',
+            tool: 'full_tool',
+          },
+        ],
+        riskScore: 9,
+        testedAt: '2025-01-15T12:00:00.000Z',
+        findingsHash: 'sec-hash-xyz',
+      };
+      tool.annotations = {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      };
+      tool.outputSchema = {
+        type: 'object',
+        properties: { result: { type: 'boolean' } },
+      };
+      tool.outputSchemaHash = 'out-schema-hash-456';
+      tool.title = 'Full Test Tool';
+      tool.execution = { taskSupport: 'optional' };
+      tool.lastTestedAt = '2025-01-15T12:00:00.000Z';
+
+      // Recalculate hash after mutations
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { hash: _oldHash, ...rest } = baseline;
+      const recalculated = recalculateBaselineHash(rest);
+
+      const path = join(testDir, 'full-roundtrip.json');
+      saveBaseline(recalculated, path);
+      const loaded = loadBaseline(path);
+
+      const loadedTool = loaded.capabilities.tools[0];
+
+      // Verify all runtime fields survived the disk roundtrip
+      expect(loadedTool.responseFingerprint).toEqual(tool.responseFingerprint);
+      expect(loadedTool.inferredOutputSchema).toEqual(tool.inferredOutputSchema);
+      expect(loadedTool.errorPatterns).toEqual(tool.errorPatterns);
+      expect(loadedTool.responseSchemaEvolution).toEqual(tool.responseSchemaEvolution);
+      expect(loadedTool.baselineP50Ms).toBe(42);
+      expect(loadedTool.baselineP95Ms).toBe(85);
+      expect(loadedTool.baselineP99Ms).toBe(120);
+      expect(loadedTool.baselineSuccessRate).toBe(0.95);
+      expect(loadedTool.performanceConfidence).toEqual(tool.performanceConfidence);
+      expect(loadedTool.securityFingerprint).toEqual(tool.securityFingerprint);
+      expect(loadedTool.annotations).toEqual(tool.annotations);
+      expect(loadedTool.outputSchema).toEqual(tool.outputSchema);
+      expect(loadedTool.outputSchemaHash).toBe('out-schema-hash-456');
+      expect(loadedTool.title).toBe('Full Test Tool');
+      expect(loadedTool.execution).toEqual({ taskSupport: 'optional' });
+      expect(loadedTool.lastTestedAt).toBe('2025-01-15T12:00:00.000Z');
+    });
+
+    it('should preserve undefined optional fields as absent after roundtrip', () => {
+      const result = createTestInterviewResult({
+        tools: [{ name: 'minimal_tool', description: 'Minimal tool' }],
+      });
+      const baseline = createBaseline(result, 'npx test');
+
+      // Ensure optional runtime fields are NOT set
+      const tool = baseline.capabilities.tools[0] as unknown as Record<string, unknown>;
+      delete tool.responseFingerprint;
+      delete tool.errorPatterns;
+      delete tool.securityFingerprint;
+      delete tool.performanceConfidence;
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { hash: _oldHash, ...rest } = baseline;
+      const recalculated = recalculateBaselineHash(rest);
+
+      const path = join(testDir, 'minimal-roundtrip.json');
+      saveBaseline(recalculated, path);
+      const loaded = loadBaseline(path);
+
+      const loadedTool = loaded.capabilities.tools[0];
+
+      // These should be absent (undefined) after roundtrip
+      expect(loadedTool.responseFingerprint).toBeUndefined();
+      expect(loadedTool.errorPatterns).toBeUndefined();
+      expect(loadedTool.securityFingerprint).toBeUndefined();
+      expect(loadedTool.performanceConfidence).toBeUndefined();
+    });
+
+    it('should produce identical comparison when comparing before and after save/load', () => {
+      const result = createTestInterviewResult({
+        tools: [{ name: 'tool_a' }, { name: 'tool_b' }],
+      });
+      const baseline = createBaseline(result, 'npx test');
+      const path = join(testDir, 'comparison-roundtrip.json');
+
+      saveBaseline(baseline, path);
+      const loaded = loadBaseline(path, { skipIntegrityCheck: true });
+
+      // Comparing the original and loaded baselines should produce no drift
+      const diff = compareBaselines(baseline, loaded);
+
+      expect(diff.toolsAdded).toHaveLength(0);
+      expect(diff.toolsRemoved).toHaveLength(0);
+      expect(diff.toolsModified).toHaveLength(0);
+      expect(diff.severity).toBe('none');
+    });
+  });
 });

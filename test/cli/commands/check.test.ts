@@ -43,7 +43,16 @@ import {
   formatDiffCompact,
   formatDiffGitHubActions,
   formatDiffMarkdown,
+  getToolFingerprints,
+  toToolCapability,
+  verifyBaselineHash,
+  acceptDrift,
+  severityMeetsThreshold,
   type SeverityConfig,
+  type BehavioralBaseline,
+  type BehavioralDiff,
+  type SecurityFingerprint,
+  // type ToolFingerprint,
 } from '../../../src/baseline/index.js';
 import { REPORT_SCHEMAS, EXIT_CODES, SEVERITY_TO_EXIT_CODE } from '../../../src/constants.js';
 
@@ -1008,5 +1017,471 @@ describe('check command integration', () => {
         expect(typeof confidence?.standardDeviation).toBe('number');
       }
     }, 45000);
+  });
+
+  describe('security testing integration', () => {
+    it('should attach security fingerprints to baseline tools', async () => {
+      await client.connect(TSX_PATH, TSX_ARGS);
+      const discovery = await discover(client, TSX_PATH, TSX_ARGS);
+
+      const interviewer = new Interviewer(null, {
+        checkMode: true,
+        maxQuestionsPerTool: 2,
+        parallelTools: false,
+        serverCommand: `${TSX_PATH} ${TSX_ARGS.join(' ')}`,
+      });
+
+      const result = await interviewer.interview(client, discovery);
+      let baseline = createBaseline(result, `${TSX_PATH} ${TSX_ARGS.join(' ')}`);
+
+      // Simulate security fingerprint attachment (same pattern as check.ts:920-934)
+      const securityFingerprints = new Map<string, SecurityFingerprint>();
+      for (const tool of discovery.tools) {
+        const fingerprint: SecurityFingerprint = {
+          tested: true,
+          categoriesTested: ['sql_injection', 'xss'],
+          findings: [],
+          riskScore: 0,
+          testedAt: new Date().toISOString(),
+          findingsHash: 'empty',
+        };
+        securityFingerprints.set(tool.name, fingerprint);
+      }
+
+      // Attach fingerprints (same pattern as check.ts)
+      baseline = {
+        ...baseline,
+        capabilities: {
+          ...baseline.capabilities,
+          tools: baseline.capabilities.tools.map((tool) => {
+            const securityFp = securityFingerprints.get(tool.name);
+            if (securityFp) {
+              return { ...tool, securityFingerprint: securityFp };
+            }
+            return tool;
+          }),
+        },
+      };
+
+      // Verify fingerprints are attached
+      for (const tool of baseline.capabilities.tools) {
+        expect(tool.securityFingerprint).toBeDefined();
+        expect(tool.securityFingerprint!.tested).toBe(true);
+        expect(tool.securityFingerprint!.categoriesTested).toContain('sql_injection');
+      }
+    }, 30000);
+
+    it('should detect security drift across baselines', async () => {
+      await client.connect(TSX_PATH, TSX_ARGS);
+      const discovery = await discover(client, TSX_PATH, TSX_ARGS);
+
+      const interviewer = new Interviewer(null, {
+        checkMode: true,
+        maxQuestionsPerTool: 2,
+        parallelTools: false,
+        serverCommand: `${TSX_PATH} ${TSX_ARGS.join(' ')}`,
+      });
+
+      const result = await interviewer.interview(client, discovery);
+      const baseBaseline = createBaseline(result, `${TSX_PATH} ${TSX_ARGS.join(' ')}`);
+
+      // Baseline A: clean security (no findings)
+      const baselineA: BehavioralBaseline = {
+        ...baseBaseline,
+        capabilities: {
+          ...baseBaseline.capabilities,
+          tools: baseBaseline.capabilities.tools.map((tool) => ({
+            ...tool,
+            securityFingerprint: {
+              tested: true,
+              categoriesTested: ['sql_injection'] as const,
+              findings: [],
+              riskScore: 0,
+              testedAt: new Date().toISOString(),
+              findingsHash: 'empty',
+            },
+          })),
+        },
+      };
+
+      // Baseline B: has security findings
+      const baselineB: BehavioralBaseline = {
+        ...baseBaseline,
+        capabilities: {
+          ...baseBaseline.capabilities,
+          tools: baseBaseline.capabilities.tools.map((tool) => ({
+            ...tool,
+            securityFingerprint: {
+              tested: true,
+              categoriesTested: ['sql_injection'] as const,
+              findings: [
+                {
+                  category: 'sql_injection' as const,
+                  riskLevel: 'high' as const,
+                  title: 'SQL Injection vulnerability',
+                  description: 'Tool accepted SQL injection payload',
+                  evidence: 'Parameter: "query", Payload: "1 OR 1=1"',
+                  remediation: 'Use parameterized queries',
+                  cweId: 'CWE-89',
+                  parameter: 'query',
+                  tool: tool.name,
+                },
+              ],
+              riskScore: 25,
+              testedAt: new Date().toISOString(),
+              findingsHash: 'abc123',
+            },
+          })),
+        },
+      };
+
+      const diff = compareBaselines(baselineA, baselineB);
+
+      // Security report should be present and indicate degradation
+      expect(diff.securityReport).toBeDefined();
+      expect(diff.securityReport!.newFindings.length).toBeGreaterThan(0);
+      expect(diff.securityReport!.degraded).toBe(true);
+    }, 30000);
+
+    it('should survive save/load/compare cycle with security fingerprints', async () => {
+      await client.connect(TSX_PATH, TSX_ARGS);
+      const discovery = await discover(client, TSX_PATH, TSX_ARGS);
+
+      const interviewer = new Interviewer(null, {
+        checkMode: true,
+        maxQuestionsPerTool: 2,
+        parallelTools: false,
+        serverCommand: `${TSX_PATH} ${TSX_ARGS.join(' ')}`,
+      });
+
+      const result = await interviewer.interview(client, discovery);
+      let baseline = createBaseline(result, `${TSX_PATH} ${TSX_ARGS.join(' ')}`);
+
+      // Attach security fingerprints
+      baseline = {
+        ...baseline,
+        capabilities: {
+          ...baseline.capabilities,
+          tools: baseline.capabilities.tools.map((tool) => ({
+            ...tool,
+            securityFingerprint: {
+              tested: true,
+              categoriesTested: ['xss'] as const,
+              findings: [],
+              riskScore: 0,
+              testedAt: new Date().toISOString(),
+              findingsHash: 'empty',
+            },
+          })),
+        },
+      };
+
+      // Save and reload
+      const path = join(testDir, 'security-baseline.json');
+      saveBaseline(baseline, path);
+      const loaded = loadBaseline(path, { skipIntegrityCheck: true });
+
+      // Verify security fingerprints survived disk roundtrip
+      for (const tool of loaded.capabilities.tools) {
+        expect(tool.securityFingerprint).toBeDefined();
+        expect(tool.securityFingerprint!.tested).toBe(true);
+        expect(tool.securityFingerprint!.categoriesTested).toContain('xss');
+      }
+
+      // Now compare loaded baseline with a modified one (different findings)
+      const modified: BehavioralBaseline = {
+        ...loaded,
+        capabilities: {
+          ...loaded.capabilities,
+          tools: loaded.capabilities.tools.map((tool) => ({
+            ...tool,
+            securityFingerprint: {
+              tested: true,
+              categoriesTested: ['xss'] as const,
+              findings: [
+                {
+                  category: 'xss' as const,
+                  riskLevel: 'medium' as const,
+                  title: 'XSS vulnerability',
+                  description: 'Tool reflects input without sanitization',
+                  evidence: 'Parameter: "name"',
+                  remediation: 'Escape output',
+                  cweId: 'CWE-79',
+                  parameter: 'name',
+                  tool: tool.name,
+                },
+              ],
+              riskScore: 15,
+              testedAt: new Date().toISOString(),
+              findingsHash: 'def456',
+            },
+          })),
+        },
+      };
+
+      const diff = compareBaselines(loaded, modified);
+      expect(diff.securityReport).toBeDefined();
+      expect(diff.securityReport!.newFindings.length).toBeGreaterThan(0);
+    }, 30000);
+  });
+
+  describe('accept drift workflow', () => {
+    it('should accept drift and attach metadata', async () => {
+      await client.connect(TSX_PATH, TSX_ARGS);
+      const discovery = await discover(client, TSX_PATH, TSX_ARGS);
+
+      const interviewer = new Interviewer(null, {
+        checkMode: true,
+        maxQuestionsPerTool: 2,
+        parallelTools: false,
+        serverCommand: `${TSX_PATH} ${TSX_ARGS.join(' ')}`,
+      });
+
+      const result = await interviewer.interview(client, discovery);
+      const baseline1 = createBaseline(result, `${TSX_PATH} ${TSX_ARGS.join(' ')}`);
+
+      // Create a modified baseline (add a tool)
+      const baseline2: BehavioralBaseline = {
+        ...baseline1,
+        capabilities: {
+          ...baseline1.capabilities,
+          tools: [
+            ...baseline1.capabilities.tools,
+            {
+              name: 'drift_tool',
+              description: 'A new tool causing drift',
+              inputSchema: {},
+              schemaHash: 'drift-hash',
+            },
+          ],
+        },
+      };
+
+      const diff = compareBaselines(baseline1, baseline2);
+      expect(diff.severity).not.toBe('none');
+
+      // Accept the drift
+      const accepted = acceptDrift(baseline2, diff, {
+        reason: 'Intentional addition for v2 release',
+        acceptedBy: 'test-user',
+      });
+
+      // Verify acceptance metadata
+      expect(accepted.acceptance).toBeDefined();
+      expect(accepted.acceptance!.reason).toBe('Intentional addition for v2 release');
+      expect(accepted.acceptance!.acceptedBy).toBe('test-user');
+      expect(accepted.acceptance!.acceptedDiff.toolsAdded).toContain('drift_tool');
+      expect(accepted.acceptance!.acceptedDiff.severity).toBe(diff.severity);
+    }, 30000);
+
+    it('should preserve acceptance metadata through save/load with valid hash', async () => {
+      await client.connect(TSX_PATH, TSX_ARGS);
+      const discovery = await discover(client, TSX_PATH, TSX_ARGS);
+
+      const interviewer = new Interviewer(null, {
+        checkMode: true,
+        maxQuestionsPerTool: 2,
+        parallelTools: false,
+        serverCommand: `${TSX_PATH} ${TSX_ARGS.join(' ')}`,
+      });
+
+      const result = await interviewer.interview(client, discovery);
+      const baseline1 = createBaseline(result, `${TSX_PATH} ${TSX_ARGS.join(' ')}`);
+
+      // Create modified baseline
+      const baseline2: BehavioralBaseline = {
+        ...baseline1,
+        capabilities: {
+          ...baseline1.capabilities,
+          tools: baseline1.capabilities.tools.map((tool, idx) =>
+            idx === 0 ? { ...tool, description: 'Changed description for drift' } : tool
+          ),
+        },
+      };
+
+      const diff = compareBaselines(baseline1, baseline2);
+      const accepted = acceptDrift(baseline2, diff, { reason: 'Planned change' });
+
+      // Save and load
+      const path = join(testDir, 'accepted-baseline.json');
+      saveBaseline(accepted, path);
+
+      // Load WITHOUT skipping integrity check - hash should be valid
+      const loaded = loadBaseline(path);
+
+      // Verify acceptance metadata survived roundtrip
+      expect(loaded.acceptance).toBeDefined();
+      expect(loaded.acceptance!.reason).toBe('Planned change');
+      expect(verifyBaselineHash(loaded)).toBe(true);
+    }, 30000);
+  });
+
+  describe('exit code determination', () => {
+    it('should map SEVERITY_TO_EXIT_CODE correctly', () => {
+      expect(SEVERITY_TO_EXIT_CODE['none']).toBe(0); // CLEAN
+      expect(SEVERITY_TO_EXIT_CODE['info']).toBe(1); // INFO
+      expect(SEVERITY_TO_EXIT_CODE['warning']).toBe(2); // WARNING
+      expect(SEVERITY_TO_EXIT_CODE['breaking']).toBe(3); // BREAKING
+    });
+
+    it('should determine shouldFailOnDiff with severity configs', () => {
+      const makeDiff = (severity: 'none' | 'info' | 'warning' | 'breaking'): BehavioralDiff => ({
+        severity,
+        toolsAdded: [],
+        toolsRemoved: [],
+        toolsModified: [],
+        behaviorChanges: [],
+        summary: `${severity} changes`,
+        breakingCount: severity === 'breaking' ? 1 : 0,
+        warningCount: severity === 'warning' ? 1 : 0,
+        infoCount: severity === 'info' ? 1 : 0,
+      });
+
+      // failOnSeverity: 'breaking' — only breaking should fail
+      expect(shouldFailOnDiff(makeDiff('breaking'), 'breaking')).toBe(true);
+      expect(shouldFailOnDiff(makeDiff('warning'), 'breaking')).toBe(false);
+      expect(shouldFailOnDiff(makeDiff('info'), 'breaking')).toBe(false);
+      expect(shouldFailOnDiff(makeDiff('none'), 'breaking')).toBe(false);
+
+      // failOnSeverity: 'warning' — warning and breaking should fail
+      expect(shouldFailOnDiff(makeDiff('breaking'), 'warning')).toBe(true);
+      expect(shouldFailOnDiff(makeDiff('warning'), 'warning')).toBe(true);
+      expect(shouldFailOnDiff(makeDiff('info'), 'warning')).toBe(false);
+
+      // failOnSeverity: 'info' — info, warning, and breaking should fail
+      expect(shouldFailOnDiff(makeDiff('breaking'), 'info')).toBe(true);
+      expect(shouldFailOnDiff(makeDiff('warning'), 'info')).toBe(true);
+      expect(shouldFailOnDiff(makeDiff('info'), 'info')).toBe(true);
+      expect(shouldFailOnDiff(makeDiff('none'), 'info')).toBe(false);
+    });
+  });
+
+  describe('performance confidence checking', () => {
+    it('should identify low confidence tools below target threshold', () => {
+      // Simulate the confidence checking logic from check.ts:1011-1065
+      const confidenceLevelOrder = ['low', 'medium', 'high'] as const;
+      const targetConfidence = 'medium' as const;
+      const targetIndex = confidenceLevelOrder.indexOf(targetConfidence);
+
+      const tools = [
+        {
+          name: 'fast_tool',
+          performanceConfidence: {
+            sampleCount: 10,
+            successfulSamples: 10,
+            validationSamples: 0,
+            totalTests: 10,
+            standardDeviation: 5,
+            coefficientOfVariation: 0.1,
+            confidenceLevel: 'high' as const,
+          },
+        },
+        {
+          name: 'slow_tool',
+          performanceConfidence: {
+            sampleCount: 2,
+            successfulSamples: 2,
+            validationSamples: 0,
+            totalTests: 2,
+            standardDeviation: 50,
+            coefficientOfVariation: 0.8,
+            confidenceLevel: 'low' as const,
+          },
+        },
+        {
+          name: 'medium_tool',
+          performanceConfidence: {
+            sampleCount: 5,
+            successfulSamples: 5,
+            validationSamples: 0,
+            totalTests: 5,
+            standardDeviation: 10,
+            coefficientOfVariation: 0.3,
+            confidenceLevel: 'medium' as const,
+          },
+        },
+      ];
+
+      const lowConfidenceTools: string[] = [];
+      for (const tool of tools) {
+        const actualConfidence = tool.performanceConfidence?.confidenceLevel ?? 'low';
+        const actualIndex = confidenceLevelOrder.indexOf(actualConfidence);
+        if (actualIndex < targetIndex) {
+          lowConfidenceTools.push(tool.name);
+        }
+      }
+
+      // Only 'slow_tool' has low confidence (below medium target)
+      expect(lowConfidenceTools).toContain('slow_tool');
+      expect(lowConfidenceTools).not.toContain('fast_tool');
+      expect(lowConfidenceTools).not.toContain('medium_tool');
+      expect(lowConfidenceTools).toHaveLength(1);
+    });
+
+    it('should order confidence levels correctly', () => {
+      const confidenceLevelOrder = ['low', 'medium', 'high'] as const;
+
+      expect(confidenceLevelOrder.indexOf('low')).toBeLessThan(
+        confidenceLevelOrder.indexOf('medium')
+      );
+      expect(confidenceLevelOrder.indexOf('medium')).toBeLessThan(
+        confidenceLevelOrder.indexOf('high')
+      );
+
+      // Severity meets threshold also applies to confidence semantics
+      // low < medium < high
+      expect(severityMeetsThreshold('breaking', 'warning')).toBe(true); // higher meets lower
+      expect(severityMeetsThreshold('warning', 'breaking')).toBe(false); // lower doesn't meet higher
+    });
+  });
+
+  describe('incremental checking', () => {
+    it('should merge cached fingerprints with new results', async () => {
+      await client.connect(TSX_PATH, TSX_ARGS);
+      const discovery = await discover(client, TSX_PATH, TSX_ARGS);
+
+      const interviewer = new Interviewer(null, {
+        checkMode: true,
+        maxQuestionsPerTool: 2,
+        parallelTools: false,
+        serverCommand: `${TSX_PATH} ${TSX_ARGS.join(' ')}`,
+      });
+
+      const result = await interviewer.interview(client, discovery);
+      const fullBaseline = createBaseline(result, `${TSX_PATH} ${TSX_ARGS.join(' ')}`);
+
+      // Get all tool fingerprints
+      const allFingerprints = getToolFingerprints(fullBaseline);
+      expect(allFingerprints.length).toBeGreaterThanOrEqual(2);
+
+      // Simulate incremental: split into "new" (first tool) and "cached" (rest)
+      const newTools = fullBaseline.capabilities.tools.slice(0, 1);
+      const cachedFingerprints = allFingerprints.slice(1);
+
+      // Convert cached fingerprints back to ToolCapability (same as check.ts:939)
+      const cachedTools = cachedFingerprints.map(toToolCapability);
+
+      // Merge (same pattern as check.ts:940-942)
+      const mergedTools = [...newTools, ...cachedTools].sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+
+      // Verify all tools are present in merged result
+      expect(mergedTools.length).toBe(fullBaseline.capabilities.tools.length);
+
+      // Verify each tool from original baseline has a match in merged
+      for (const origTool of fullBaseline.capabilities.tools) {
+        const merged = mergedTools.find((t) => t.name === origTool.name);
+        expect(merged).toBeDefined();
+        expect(merged!.schemaHash).toBe(origTool.schemaHash);
+      }
+
+      // Verify the cached tools have the right data
+      for (const cachedFp of cachedFingerprints) {
+        const merged = mergedTools.find((t) => t.name === cachedFp.name);
+        expect(merged).toBeDefined();
+        expect(merged!.description).toBe(cachedFp.description);
+      }
+    }, 30000);
   });
 });

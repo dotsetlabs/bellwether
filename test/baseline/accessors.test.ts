@@ -511,4 +511,156 @@ describe('accessors', () => {
       expect(result[0].baselineP99Ms).toBe(750);
     });
   });
+
+  describe('Runtime field roundtrip fidelity', () => {
+    it('should roundtrip responseFingerprint', () => {
+      const baseline = createTestBaseline({ tools: [{ name: 'tool' }] });
+      const toolCap = baseline.capabilities.tools[0] as unknown as Record<string, unknown>;
+      toolCap.responseFingerprint = {
+        structureHash: 'abc123',
+        contentType: 'json',
+        fields: ['name', 'age'],
+      };
+
+      const fingerprints = getToolFingerprints(baseline);
+
+      expect(fingerprints[0].responseFingerprint).toBeDefined();
+      expect(fingerprints[0].responseFingerprint!.structureHash).toBe('abc123');
+      expect(fingerprints[0].responseFingerprint!.contentType).toBe('json');
+      expect(fingerprints[0].responseFingerprint!.fields).toEqual(['name', 'age']);
+    });
+
+    it('should roundtrip errorPatterns', () => {
+      const baseline = createTestBaseline({ tools: [{ name: 'tool' }] });
+      const toolCap = baseline.capabilities.tools[0] as unknown as Record<string, unknown>;
+      toolCap.errorPatterns = [
+        { category: 'validation', patternHash: 'h1', example: 'Invalid input', count: 3 },
+        { category: 'not_found', patternHash: 'h2', example: 'Not found', count: 1 },
+      ];
+
+      const fingerprints = getToolFingerprints(baseline);
+
+      expect(fingerprints[0].errorPatterns).toBeDefined();
+      expect(fingerprints[0].errorPatterns).toHaveLength(2);
+      expect(fingerprints[0].errorPatterns![0].category).toBe('validation');
+      expect(fingerprints[0].errorPatterns![1].count).toBe(1);
+    });
+
+    it('should roundtrip securityFingerprint', () => {
+      const baseline = createTestBaseline({ tools: [{ name: 'tool' }] });
+      const toolCap = baseline.capabilities.tools[0] as unknown as Record<string, unknown>;
+      toolCap.securityFingerprint = {
+        findings: [{ type: 'xss', severity: 'high', description: 'XSS found' }],
+        riskScore: 7.5,
+        categoriesTested: ['xss', 'sqli', 'path_traversal'],
+      };
+
+      const fingerprints = getToolFingerprints(baseline);
+
+      expect(fingerprints[0].securityFingerprint).toBeDefined();
+      expect(fingerprints[0].securityFingerprint!.riskScore).toBe(7.5);
+      expect(fingerprints[0].securityFingerprint!.categoriesTested).toContain('xss');
+    });
+
+    it('should roundtrip responseSchemaEvolution', () => {
+      const baseline = createTestBaseline({ tools: [{ name: 'tool' }] });
+      const toolCap = baseline.capabilities.tools[0] as unknown as Record<string, unknown>;
+      toolCap.responseSchemaEvolution = {
+        currentHash: 'evo-hash-123',
+        history: [],
+        isStable: true,
+        stabilityConfidence: 0.95,
+        inconsistentFields: [],
+        sampleCount: 10,
+      };
+
+      const fingerprints = getToolFingerprints(baseline);
+
+      expect(fingerprints[0].responseSchemaEvolution).toBeDefined();
+      expect(fingerprints[0].responseSchemaEvolution!.currentHash).toBe('evo-hash-123');
+      expect(fingerprints[0].responseSchemaEvolution!.isStable).toBe(true);
+    });
+
+    it('should roundtrip performanceConfidence', () => {
+      const baseline = createTestBaseline({ tools: [{ name: 'tool' }] });
+      const toolCap = baseline.capabilities.tools[0] as unknown as Record<string, unknown>;
+      toolCap.performanceConfidence = {
+        sampleCount: 20,
+        successfulSamples: 18,
+        validationSamples: 2,
+        totalTests: 20,
+        standardDeviation: 15.5,
+        coefficientOfVariation: 0.12,
+        confidenceLevel: 'high',
+      };
+
+      const fingerprints = getToolFingerprints(baseline);
+
+      expect(fingerprints[0].performanceConfidence).toBeDefined();
+      expect(fingerprints[0].performanceConfidence!.confidenceLevel).toBe('high');
+      expect(fingerprints[0].performanceConfidence!.sampleCount).toBe(20);
+    });
+
+    it('should full roundtrip: toToolCapability(getToolFingerprints()) preserves all fields', () => {
+      const baseline = createTestBaseline({
+        tools: [{ name: 'full_tool', description: 'Full test', schemaHash: 'schema-h' }],
+      });
+      const toolCap = baseline.capabilities.tools[0] as unknown as Record<string, unknown>;
+      // Set ALL runtime fields
+      toolCap.responseFingerprint = {
+        structureHash: 'fp-hash',
+        contentType: 'json',
+        fields: ['a'],
+      };
+      toolCap.errorPatterns = [
+        { category: 'validation', patternHash: 'ep', example: 'err', count: 1 },
+      ];
+      toolCap.securityFingerprint = { findings: [], riskScore: 0, categoriesTested: ['sqli'] };
+      toolCap.responseSchemaEvolution = {
+        currentHash: 'rse-hash',
+        history: [],
+        isStable: true,
+        stabilityConfidence: 1,
+        inconsistentFields: [],
+        sampleCount: 5,
+      };
+      toolCap.performanceConfidence = {
+        sampleCount: 10,
+        successfulSamples: 10,
+        validationSamples: 0,
+        totalTests: 10,
+        standardDeviation: 5,
+        coefficientOfVariation: 0.05,
+        confidenceLevel: 'high',
+      };
+      toolCap.baselineP50Ms = 100;
+      toolCap.baselineP95Ms = 200;
+      toolCap.baselineP99Ms = 300;
+      toolCap.baselineSuccessRate = 0.95;
+      toolCap.title = 'Full Tool';
+      toolCap.outputSchema = { type: 'object' };
+      toolCap.outputSchemaHash = 'os-hash';
+      toolCap.annotations = { readOnlyHint: true, destructiveHint: false };
+      toolCap.execution = { taskSupport: 'required' };
+
+      // Convert baseline → fingerprints → capabilities
+      const fingerprints = getToolFingerprints(baseline);
+      const roundtripped = toToolCapability(fingerprints[0]);
+
+      // Verify all fields survived
+      expect(roundtripped.responseFingerprint?.structureHash).toBe('fp-hash');
+      expect(roundtripped.errorPatterns).toHaveLength(1);
+      expect(roundtripped.securityFingerprint?.riskScore).toBe(0);
+      expect(roundtripped.performanceConfidence?.confidenceLevel).toBe('high');
+      expect(roundtripped.baselineP50Ms).toBe(100);
+      expect(roundtripped.baselineP95Ms).toBe(200);
+      expect(roundtripped.baselineP99Ms).toBe(300);
+      expect(roundtripped.baselineSuccessRate).toBe(0.95);
+      expect(roundtripped.title).toBe('Full Tool');
+      expect(roundtripped.outputSchema).toEqual({ type: 'object' });
+      expect(roundtripped.outputSchemaHash).toBe('os-hash');
+      expect(roundtripped.annotations?.readOnlyHint).toBe(true);
+      expect(roundtripped.execution?.taskSupport).toBe('required');
+    });
+  });
 });
