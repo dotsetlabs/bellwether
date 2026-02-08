@@ -1685,4 +1685,107 @@ describe('comparator', () => {
       expect(titleChange?.after).toBe('none');
     });
   });
+
+  describe('undefined vs missing-key behavior', () => {
+    it('should produce no drift when optional fields are undefined vs absent', () => {
+      // Baseline where optional fields are explicitly set to undefined
+      const withUndefined = createTestBaseline({
+        tools: [
+          {
+            name: 'tool_a',
+            responseFingerprint: undefined,
+            errorPatterns: undefined,
+            securityFingerprint: undefined,
+            performanceConfidence: undefined,
+            responseSchemaEvolution: undefined,
+          },
+        ],
+      });
+
+      // Baseline where optional fields are simply not present (missing keys)
+      const withMissing = createTestBaseline({
+        tools: [{ name: 'tool_a' }],
+      });
+
+      const diff = compareBaselines(withUndefined, withMissing);
+
+      expect(diff.toolsModified).toHaveLength(0);
+      expect(diff.behaviorChanges).toHaveLength(0);
+      expect(diff.severity).toBe('none');
+    });
+
+    it('should produce no drift when errorPatterns is undefined vs empty array', () => {
+      const withUndefined = createTestBaseline({
+        tools: [{ name: 'tool_a', errorPatterns: undefined }],
+      });
+
+      const withEmpty = createTestBaseline({
+        tools: [{ name: 'tool_a', errorPatterns: [] }],
+      });
+
+      const diff = compareBaselines(withUndefined, withEmpty);
+
+      const errorChanges = diff.behaviorChanges.filter((c) => c.aspect === 'error_pattern');
+      expect(errorChanges).toHaveLength(0);
+    });
+
+    it('should produce no drift when responseFingerprint is undefined on both sides', () => {
+      const baseline1 = createTestBaseline({
+        tools: [{ name: 'tool_a', responseFingerprint: undefined }],
+      });
+
+      const baseline2 = createTestBaseline({
+        tools: [{ name: 'tool_a' }],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const fpChanges = diff.behaviorChanges.filter((c) => c.aspect === 'response_structure');
+      expect(fpChanges).toHaveLength(0);
+    });
+
+    it('should produce no drift when securityFingerprint is undefined on both sides', () => {
+      const baseline1 = createTestBaseline({
+        tools: [{ name: 'tool_a', securityFingerprint: undefined }],
+      });
+
+      const baseline2 = createTestBaseline({
+        tools: [{ name: 'tool_a' }],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      const secChanges = diff.behaviorChanges.filter((c) => c.aspect === 'security');
+      expect(secChanges).toHaveLength(0);
+    });
+
+    it('should detect changes when going from undefined to populated', () => {
+      const baseline1 = createTestBaseline({
+        tools: [{ name: 'tool_a' }],
+      });
+
+      const baseline2 = createTestBaseline({
+        tools: [
+          {
+            name: 'tool_a',
+            responseFingerprint: {
+              structureHash: 'new-hash',
+              contentType: 'object',
+              fields: ['a'],
+              size: 'small',
+              isEmpty: false,
+              sampleCount: 1,
+              confidence: 1,
+            },
+          },
+        ],
+      });
+
+      const diff = compareBaselines(baseline1, baseline2);
+
+      // Going from no fingerprint to having one should be detected
+      const fpChanges = diff.behaviorChanges.filter((c) => c.aspect === 'response_structure');
+      expect(fpChanges.length).toBeGreaterThan(0);
+    });
+  });
 });

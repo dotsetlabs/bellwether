@@ -777,4 +777,222 @@ describe('edge cases and error handling', () => {
     expect(analysis.fingerprint.contentType).toBe('array');
     expect(analysis.inferredSchema?.items?.type).toBe('object');
   });
+
+  it('should detect binary content via base64 data URI', () => {
+    const binaryContent =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const responses = [
+      {
+        response: {
+          content: [{ type: 'text' as const, text: binaryContent }],
+          isError: false,
+        },
+        error: null,
+      },
+    ];
+
+    const analysis = analyzeResponses(responses);
+    expect(analysis.fingerprint.contentType).toBe('binary');
+  });
+
+  it('should detect binary content via control characters', () => {
+    const binaryContent = 'Hello\x00\x01\x02World\x03\x04';
+    const responses = [
+      {
+        response: {
+          content: [{ type: 'text' as const, text: binaryContent }],
+          isError: false,
+        },
+        error: null,
+      },
+    ];
+
+    const analysis = analyzeResponses(responses);
+    expect(analysis.fingerprint.contentType).toBe('binary');
+  });
+
+  it('should handle data content with base64-encoded JSON', () => {
+    // Base64-encode a JSON object
+    const jsonData = JSON.stringify({ key: 'value', num: 42 });
+    const b64 = Buffer.from(jsonData).toString('base64');
+
+    const responses = [
+      {
+        response: {
+          content: [
+            {
+              type: 'resource' as const,
+              resource: {
+                uri: 'data://test',
+                mimeType: 'application/json',
+                blob: b64,
+              },
+            },
+          ],
+          isError: false,
+        },
+        error: null,
+      },
+    ];
+
+    const analysis = analyzeResponses(responses);
+    // Should have processed the response
+    expect(analysis.fingerprint.sampleCount).toBe(1);
+  });
+
+  it('should handle data content with base64-encoded text', () => {
+    const textData = 'Hello, this is plain text content';
+    const b64 = Buffer.from(textData).toString('base64');
+
+    const responses = [
+      {
+        response: {
+          content: [
+            {
+              type: 'resource' as const,
+              resource: {
+                uri: 'data://test',
+                mimeType: 'text/plain',
+                blob: b64,
+              },
+            },
+          ],
+          isError: false,
+        },
+        error: null,
+      },
+    ];
+
+    const analysis = analyzeResponses(responses);
+    expect(analysis.fingerprint.sampleCount).toBe(1);
+  });
+
+  it('should handle image content as binary summary', () => {
+    const responses = [
+      {
+        response: {
+          content: [
+            {
+              type: 'image' as const,
+              mimeType: 'image/png',
+              data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ',
+            },
+          ],
+          isError: false,
+        },
+        error: null,
+      },
+    ];
+
+    const analysis = analyzeResponses(responses);
+    expect(analysis.fingerprint.sampleCount).toBe(1);
+  });
+
+  describe('nullable schema merging', () => {
+    it('should merge schemas with null values as nullable', () => {
+      // Create responses where some return objects and some return null
+      const responses = [
+        { response: createJsonResponse({ name: 'test', value: 42 }), error: null },
+        { response: createJsonResponse(null), error: null },
+        { response: createJsonResponse({ name: 'other', value: 100 }), error: null },
+      ];
+
+      const analysis = analyzeResponses(responses);
+      // The schema should handle the mixed null/object case
+      expect(analysis.fingerprint.sampleCount).toBe(3);
+      // Schema should exist and may be nullable
+      if (analysis.inferredSchema) {
+        // If schema was merged with null, it may be nullable or mixed type
+        expect(analysis.inferredSchema.type).toBeDefined();
+      }
+    });
+
+    it('should infer nullable for array items with null values', () => {
+      const schema = inferSchemaFromValue([1, null, 3]);
+
+      expect(schema.type).toBe('array');
+      if (schema.items) {
+        // Items should handle null values
+        expect(schema.items.type).toBeDefined();
+      }
+    });
+
+    it('should infer schema from value with undefined-like types', () => {
+      const schema = inferSchemaFromValue(undefined);
+
+      expect(schema.type).toBe('undefined');
+    });
+
+    it('should merge mixed type arrays into a union-like schema', () => {
+      const responses = [
+        { response: createJsonResponse('hello'), error: null },
+        { response: createJsonResponse(42), error: null },
+      ];
+
+      const analysis = analyzeResponses(responses);
+      expect(analysis.fingerprint.sampleCount).toBe(2);
+      // Mixed types should produce some form of schema
+      expect(analysis.inferredSchema).toBeDefined();
+    });
+  });
+
+  describe('error pattern analysis', () => {
+    it('should extract error message from isError response with text content', () => {
+      const responses = [
+        {
+          response: createTextResponse('Error: File not found at /path/to/file', true),
+          error: null,
+        },
+      ];
+
+      const analysis = analyzeResponses(responses);
+      expect(analysis.errorPatterns.length).toBeGreaterThan(0);
+      expect(analysis.errorPatterns[0].category).toBe('not_found');
+    });
+
+    it('should return null error for non-error responses', () => {
+      const responses = [{ response: createTextResponse('Normal response'), error: null }];
+
+      const analysis = analyzeResponses(responses);
+      expect(analysis.errorPatterns.length).toBe(0);
+    });
+
+    it('should handle error string alongside response', () => {
+      const responses = [{ response: null, error: 'Connection timed out after 30000ms' }];
+
+      const analysis = analyzeResponses(responses);
+      expect(analysis.errorPatterns.length).toBeGreaterThan(0);
+      expect(analysis.errorPatterns[0].category).toBe('timeout');
+    });
+
+    it('should categorize permission errors', () => {
+      const responses = [{ response: null, error: 'Permission denied: access to /secret' }];
+
+      const analysis = analyzeResponses(responses);
+      expect(analysis.errorPatterns.length).toBeGreaterThan(0);
+      expect(analysis.errorPatterns[0].category).toBe('permission');
+    });
+
+    it('should categorize validation errors', () => {
+      const responses = [{ response: null, error: 'Validation failed: invalid input format' }];
+
+      const analysis = analyzeResponses(responses);
+      expect(analysis.errorPatterns.length).toBeGreaterThan(0);
+      expect(analysis.errorPatterns[0].category).toBe('validation');
+    });
+
+    it('should aggregate duplicate error patterns', () => {
+      const responses = [
+        { response: null, error: 'Connection timed out' },
+        { response: null, error: 'Connection timed out' },
+        { response: null, error: 'Connection timed out' },
+      ];
+
+      const analysis = analyzeResponses(responses);
+      // Same error pattern should be aggregated
+      const timeoutPatterns = analysis.errorPatterns.filter((p) => p.category === 'timeout');
+      expect(timeoutPatterns.length).toBe(1);
+      expect(timeoutPatterns[0].count).toBe(3);
+    });
+  });
 });

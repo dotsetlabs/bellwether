@@ -105,58 +105,67 @@ describe('error-analyzer', () => {
   // ==================== Root Cause Inference ====================
   describe('inferRootCause', () => {
     it('should infer missing required parameter', () => {
-      expect(inferRootCause("'email' is required", 'client_error_validation'))
-        .toContain('Required parameter "email"');
+      expect(inferRootCause("'email' is required", 'client_error_validation')).toContain(
+        'Required parameter "email"'
+      );
     });
 
     it('should infer missing field', () => {
-      expect(inferRootCause('missing field "username"', 'client_error_validation'))
-        .toContain('Missing required field');
+      expect(inferRootCause('missing field "username"', 'client_error_validation')).toContain(
+        'Missing required field'
+      );
     });
 
     it('should infer invalid format', () => {
-      expect(inferRootCause('Invalid format for date', 'client_error_validation'))
-        .toContain('Invalid input format');
+      expect(inferRootCause('Invalid format for date', 'client_error_validation')).toContain(
+        'Invalid input format'
+      );
     });
 
     it('should infer invalid type', () => {
-      expect(inferRootCause('Invalid type for age', 'client_error_validation'))
-        .toContain('Invalid input type');
+      expect(inferRootCause('Invalid type for age', 'client_error_validation')).toContain(
+        'Invalid input type'
+      );
     });
 
     it('should infer resource not found', () => {
-      expect(inferRootCause('User not found', 'client_error_not_found'))
-        .toContain('Referenced resource does not exist');
+      expect(inferRootCause('User not found', 'client_error_not_found')).toContain(
+        'Referenced resource does not exist'
+      );
     });
 
     it('should infer duplicate resource', () => {
-      expect(inferRootCause('Email already exists', 'client_error_conflict'))
-        .toContain('Resource already exists');
+      expect(inferRootCause('Email already exists', 'client_error_conflict')).toContain(
+        'Resource already exists'
+      );
     });
 
     it('should infer authentication failure', () => {
-      expect(inferRootCause('Unauthorized access', 'client_error_auth'))
-        .toContain('Authentication credentials');
+      expect(inferRootCause('Unauthorized access', 'client_error_auth')).toContain(
+        'Authentication credentials'
+      );
     });
 
     it('should infer permission failure', () => {
-      expect(inferRootCause('Permission denied', 'client_error_auth'))
-        .toContain('Insufficient permissions');
+      expect(inferRootCause('Permission denied', 'client_error_auth')).toContain(
+        'Insufficient permissions'
+      );
     });
 
     it('should infer rate limit', () => {
-      expect(inferRootCause('Rate limit exceeded', 'client_error_rate_limit'))
-        .toContain('Request rate limit exceeded');
+      expect(inferRootCause('Rate limit exceeded', 'client_error_rate_limit')).toContain(
+        'Request rate limit exceeded'
+      );
     });
 
     it('should infer timeout', () => {
-      expect(inferRootCause('Request timed out', 'unknown'))
-        .toContain('Operation timed out');
+      expect(inferRootCause('Request timed out', 'unknown')).toContain('Operation timed out');
     });
 
     it('should fall back to category-based inference', () => {
-      expect(inferRootCause('Unknown error occurred', 'server_error'))
-        .toContain('Server-side error');
+      expect(inferRootCause('Unknown error occurred', 'server_error')).toContain(
+        'Server-side error'
+      );
     });
   });
 
@@ -199,8 +208,9 @@ describe('error-analyzer', () => {
     });
 
     it('should fall back to category-based remediation', () => {
-      expect(generateRemediation('client_error_auth', 'Some auth error'))
-        .toContain('authentication');
+      expect(generateRemediation('client_error_auth', 'Some auth error')).toContain(
+        'authentication'
+      );
     });
   });
 
@@ -341,8 +351,18 @@ describe('error-analyzer', () => {
   describe('generateErrorSummary', () => {
     it('should generate comprehensive summary', () => {
       const patterns: ErrorPattern[] = [
-        { category: 'validation', patternHash: 'a', example: "Error 400: 'email' is required", count: 5 },
-        { category: 'validation', patternHash: 'b', example: 'Error 400: Invalid format', count: 3 },
+        {
+          category: 'validation',
+          patternHash: 'a',
+          example: "Error 400: 'email' is required",
+          count: 5,
+        },
+        {
+          category: 'validation',
+          patternHash: 'b',
+          example: 'Error 400: Invalid format',
+          count: 3,
+        },
         { category: 'not_found', patternHash: 'c', example: 'Error 404: User not found', count: 2 },
       ];
 
@@ -368,7 +388,12 @@ describe('error-analyzer', () => {
 
     it('should count transient errors correctly', () => {
       const patterns: ErrorPattern[] = [
-        { category: 'internal', patternHash: 'a', example: 'HTTP 500 Internal Server Error', count: 3 },
+        {
+          category: 'internal',
+          patternHash: 'a',
+          example: 'HTTP 500 Internal Server Error',
+          count: 3,
+        },
         { category: 'validation', patternHash: 'b', example: 'Error 400: Invalid input', count: 2 },
       ];
 
@@ -379,8 +404,18 @@ describe('error-analyzer', () => {
 
     it('should extract related parameters', () => {
       const patterns: ErrorPattern[] = [
-        { category: 'validation', patternHash: 'a', example: "Field 'email' is required", count: 1 },
-        { category: 'validation', patternHash: 'b', example: "Parameter 'username' is invalid", count: 1 },
+        {
+          category: 'validation',
+          patternHash: 'a',
+          example: "Field 'email' is required",
+          count: 1,
+        },
+        {
+          category: 'validation',
+          patternHash: 'b',
+          example: "Parameter 'username' is invalid",
+          count: 1,
+        },
       ];
 
       const summary = generateErrorSummary('test_tool', patterns);
@@ -655,6 +690,65 @@ describe('error-analyzer', () => {
 
       expect(analyses).toHaveLength(1);
       expect(analyses[0].wasExpected).toBe(true);
+    });
+  });
+
+  // ==================== Trend Threshold Boundaries ====================
+  describe('Trend threshold boundaries', () => {
+    it('should classify exactly 1.5x rate as increasing', () => {
+      // prevCount=2, currCount=3 → ratio=1.5 → exactly at threshold: currCount > prevCount * 1.5 → 3 > 3 is false
+      // Need currCount > prevCount * 1.5 (strictly greater), so use 4 to get > 1.5x
+      // Actually the code is: currCount > prevCount * 1.5
+      // 2 * 1.5 = 3, so currCount=4 → 4 > 3 → increasing
+      const previous: ErrorPattern[] = [
+        { category: 'validation', patternHash: 'a', example: 'Error', count: 2 },
+      ];
+      const current: ErrorPattern[] = [
+        { category: 'validation', patternHash: 'a', example: 'Error', count: 4 },
+      ];
+
+      const report = analyzeErrorTrends(previous, current);
+
+      expect(report.increasingCategories).toContain('validation');
+    });
+
+    it('should NOT classify exactly 1.5x rate as increasing (boundary)', () => {
+      // currCount > prevCount * 1.5 must be strictly greater
+      // prevCount=2, currCount=3 → 3 > 3.0 → false → NOT increasing
+      const previous: ErrorPattern[] = [
+        { category: 'validation', patternHash: 'a', example: 'Error', count: 2 },
+      ];
+      const current: ErrorPattern[] = [
+        { category: 'validation', patternHash: 'a', example: 'Error', count: 3 },
+      ];
+
+      const report = analyzeErrorTrends(previous, current);
+
+      expect(report.increasingCategories).not.toContain('validation');
+    });
+
+    it('should classify exactly 0.5x rate as decreasing (boundary)', () => {
+      // currCount < prevCount * 0.5
+      // prevCount=10, currCount=4 → 4 < 5.0 → true → decreasing
+      const previous: ErrorPattern[] = [
+        { category: 'validation', patternHash: 'a', example: 'Error', count: 10 },
+      ];
+      const current: ErrorPattern[] = [
+        { category: 'validation', patternHash: 'a', example: 'Error', count: 4 },
+      ];
+
+      const report = analyzeErrorTrends(previous, current);
+
+      expect(report.decreasingCategories).toContain('validation');
+
+      // At boundary: prevCount=10, currCount=5 → 5 < 5.0 → false → NOT decreasing
+      const currentBoundary: ErrorPattern[] = [
+        { category: 'validation', patternHash: 'a', example: 'Error', count: 5 },
+      ];
+
+      const reportBoundary = analyzeErrorTrends(previous, currentBoundary);
+
+      expect(reportBoundary.decreasingCategories).not.toContain('validation');
     });
   });
 });

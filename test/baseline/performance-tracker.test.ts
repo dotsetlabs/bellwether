@@ -12,12 +12,14 @@ import {
   formatComparison,
   isPerformanceAcceptable,
   aggregateSamplesByTool,
+  extractPerformanceBaselines,
 } from '../../src/baseline/performance-tracker.js';
 import type {
   LatencySample,
   ToolPerformanceMetrics,
   PerformanceBaseline,
 } from '../../src/baseline/performance-tracker.js';
+import type { BehavioralBaseline } from '../../src/baseline/types.js';
 import { PERFORMANCE_TRACKING } from '../../src/constants.js';
 
 // Helper to create latency samples
@@ -43,7 +45,10 @@ describe('Performance Tracker', () => {
 
     it('should calculate correct percentiles', () => {
       // 10 samples from 100ms to 1000ms
-      const samples = createSamples('test_tool', [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]);
+      const samples = createSamples(
+        'test_tool',
+        [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+      );
       const metrics = calculateMetrics(samples);
 
       expect(metrics).not.toBeNull();
@@ -140,9 +145,9 @@ describe('Performance Tracker', () => {
         collectedAt: new Date(),
       };
 
-      const baseline = createPerformanceBaseline(metrics, 0.20);
+      const baseline = createPerformanceBaseline(metrics, 0.2);
 
-      expect(baseline.maxAllowedRegression).toBe(0.20);
+      expect(baseline.maxAllowedRegression).toBe(0.2);
     });
   });
 
@@ -190,7 +195,7 @@ describe('Performance Tracker', () => {
         baselineP95: 200,
         baselineP99: 300,
         baselineSuccessRate: 0.99,
-        maxAllowedRegression: 0.10, // 10% threshold
+        maxAllowedRegression: 0.1, // 10% threshold
         establishedAt: new Date(),
       };
 
@@ -223,7 +228,7 @@ describe('Performance Tracker', () => {
         baselineP95: 200,
         baselineP99: 300,
         baselineSuccessRate: 0.99,
-        maxAllowedRegression: 0.10,
+        maxAllowedRegression: 0.1,
         establishedAt: new Date(),
       };
 
@@ -255,7 +260,7 @@ describe('Performance Tracker', () => {
         baselineP95: 200,
         baselineP99: 300,
         baselineSuccessRate: 0.99,
-        maxAllowedRegression: 0.10,
+        maxAllowedRegression: 0.1,
         establishedAt: new Date(),
       };
 
@@ -303,7 +308,7 @@ describe('Performance Tracker', () => {
         baselineP95: 200,
         baselineP99: 300,
         baselineSuccessRate: 0.99,
-        maxAllowedRegression: 0.10,
+        maxAllowedRegression: 0.1,
         establishedAt: new Date(),
       });
       baselines.set('tool2', {
@@ -312,7 +317,7 @@ describe('Performance Tracker', () => {
         baselineP95: 200,
         baselineP99: 300,
         baselineSuccessRate: 0.99,
-        maxAllowedRegression: 0.10,
+        maxAllowedRegression: 0.1,
         establishedAt: new Date(),
       });
 
@@ -384,7 +389,7 @@ describe('Performance Tracker', () => {
           baselineP95: 200,
           baselineP99: 300,
           baselineSuccessRate: 0.99,
-          maxAllowedRegression: 0.10,
+          maxAllowedRegression: 0.1,
           establishedAt: new Date(),
         },
         trend: 'degrading' as const,
@@ -460,12 +465,122 @@ describe('Performance Tracker', () => {
     it('should have valid threshold values', () => {
       expect(PERFORMANCE_TRACKING.DEFAULT_REGRESSION_THRESHOLD).toBeGreaterThan(0);
       expect(PERFORMANCE_TRACKING.DEFAULT_REGRESSION_THRESHOLD).toBeLessThan(1);
-      expect(PERFORMANCE_TRACKING.WARNING_THRESHOLD).toBeLessThan(PERFORMANCE_TRACKING.DEFAULT_REGRESSION_THRESHOLD);
+      expect(PERFORMANCE_TRACKING.WARNING_THRESHOLD).toBeLessThan(
+        PERFORMANCE_TRACKING.DEFAULT_REGRESSION_THRESHOLD
+      );
     });
 
     it('should have trend thresholds', () => {
       expect(PERFORMANCE_TRACKING.TREND_THRESHOLDS.improving).toBeLessThan(0);
       expect(PERFORMANCE_TRACKING.TREND_THRESHOLDS.degrading).toBeGreaterThan(0);
+    });
+  });
+
+  describe('extractPerformanceBaselines', () => {
+    function createBaselineWithPerf(
+      tools: Array<{
+        name: string;
+        baselineP50Ms?: number;
+        baselineP95Ms?: number;
+        baselineP99Ms?: number;
+        baselineSuccessRate?: number;
+      }>
+    ): BehavioralBaseline {
+      return {
+        version: '1.0.0',
+        metadata: {
+          mode: 'check',
+          generatedAt: '2024-01-15T10:30:00.000Z',
+          serverCommand: 'npx test-server',
+          cliVersion: '0.11.0',
+          durationMs: 1000,
+          personas: [],
+          model: 'none',
+        },
+        server: {
+          name: 'test-server',
+          version: '1.0.0',
+          protocolVersion: '0.1.0',
+          capabilities: ['tools'],
+        },
+        capabilities: {
+          tools: tools.map((t) => ({
+            name: t.name,
+            description: '',
+            inputSchema: {},
+            schemaHash: 'hash',
+            baselineP50Ms: t.baselineP50Ms,
+            baselineP95Ms: t.baselineP95Ms,
+            baselineP99Ms: t.baselineP99Ms,
+            baselineSuccessRate: t.baselineSuccessRate,
+          })),
+        },
+        interviews: [],
+        toolProfiles: [],
+        assertions: [],
+        summary: 'Test',
+        hash: 'test-hash',
+      };
+    }
+
+    it('should extract baselines from behavioral baseline', () => {
+      const baseline = createBaselineWithPerf([
+        {
+          name: 'tool_a',
+          baselineP50Ms: 100,
+          baselineP95Ms: 200,
+          baselineP99Ms: 300,
+          baselineSuccessRate: 0.99,
+        },
+        {
+          name: 'tool_b',
+          baselineP50Ms: 50,
+          baselineP95Ms: 80,
+          baselineP99Ms: 100,
+          baselineSuccessRate: 1.0,
+        },
+      ]);
+
+      const result = extractPerformanceBaselines(baseline);
+
+      expect(result.size).toBe(2);
+      expect(result.get('tool_a')!.baselineP50).toBe(100);
+      expect(result.get('tool_a')!.baselineP95).toBe(200);
+      expect(result.get('tool_b')!.baselineP50).toBe(50);
+    });
+
+    it('should estimate p99 from p95 when p99 not stored', () => {
+      const baseline = createBaselineWithPerf([
+        { name: 'tool_a', baselineP50Ms: 100, baselineP95Ms: 200 },
+      ]);
+
+      const result = extractPerformanceBaselines(baseline);
+
+      // p99 should be estimated as p95 * 1.2
+      expect(result.get('tool_a')!.baselineP99).toBe(200 * 1.2);
+    });
+
+    it('should skip tools without performance data', () => {
+      const baseline = createBaselineWithPerf([
+        { name: 'with_perf', baselineP50Ms: 100, baselineP95Ms: 200 },
+        { name: 'without_perf' }, // No performance data
+      ]);
+
+      const result = extractPerformanceBaselines(baseline);
+
+      expect(result.size).toBe(1);
+      expect(result.has('with_perf')).toBe(true);
+      expect(result.has('without_perf')).toBe(false);
+    });
+
+    it('should apply custom regression threshold', () => {
+      const baseline = createBaselineWithPerf([
+        { name: 'tool_a', baselineP50Ms: 100, baselineP95Ms: 200 },
+      ]);
+
+      const result = extractPerformanceBaselines(baseline, 0.25);
+
+      expect(result.get('tool_a')!.maxAllowedRegression).toBe(0.25);
     });
   });
 });
