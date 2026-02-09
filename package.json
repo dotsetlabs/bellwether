@@ -74,7 +74,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.72.1",
+    "@anthropic-ai/sdk": "^0.74.0",
     "ajv": "^8.17.1",
     "chalk": "^5.4.1",
     "cli-progress": "^3.12.0",
