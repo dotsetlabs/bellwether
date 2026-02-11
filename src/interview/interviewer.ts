@@ -774,8 +774,11 @@ export class Interviewer {
       );
 
       const toolMap = new Map(discovery.tools.map((tool) => [tool.name, tool]));
+      const toolAnnotations = new Map(
+        discovery.tools.filter((t) => t.annotations).map((t) => [t.name, t.annotations!])
+      );
       const orderedTools = statefulEnabled
-        ? getDependencyOrder(dependencies)
+        ? getDependencyOrder(dependencies, toolAnnotations)
             .map((name) => toolMap.get(name))
             .filter((tool): tool is MCPTool => !!tool)
         : discovery.tools;
@@ -798,8 +801,14 @@ export class Interviewer {
         'Using check mode tool testing'
       );
 
+      const fixtureKeys = this.config.testFixtures?.parameterValues
+        ? new Set(Object.keys(this.config.testFixtures.parameterValues))
+        : undefined;
       const statefulRunner = statefulEnabled
-        ? new StatefulTestRunner({ shareOutputs: statefulConfig?.shareOutputsBetweenTools ?? true })
+        ? new StatefulTestRunner({
+            shareOutputs: statefulConfig?.shareOutputsBetweenTools ?? true,
+            fixtureKeys,
+          })
         : undefined;
 
       const parallelResult = await this.interviewToolsInParallel(
@@ -2152,6 +2161,7 @@ export class Interviewer {
     return generateSchemaTests(tool, {
       skipErrorTests,
       maxTestsPerTool: maxTests,
+      testFixtures: this.config.testFixtures,
     });
   }
 

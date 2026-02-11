@@ -115,6 +115,8 @@ interface ClassifiedIssues {
   environment: ClassifiedIssue[];
   /** Expected validation rejections (not real bugs) */
   validation: ClassifiedIssue[];
+  /** Failures from shared state between dependent tools (stateful testing artifacts) */
+  statefulDependency: ClassifiedIssue[];
 }
 
 /**
@@ -131,6 +133,7 @@ function classifyIssuesBySource(profiles: ToolProfile[]): ClassifiedIssues {
     externalDependency: [],
     environment: [],
     validation: [],
+    statefulDependency: [],
   };
 
   for (const profile of profiles) {
@@ -222,6 +225,15 @@ function classifyIssuesBySource(profiles: ToolProfile[]): ClassifiedIssues {
 
       // 4. Check if this is a happy path failure
       if (expected === 'success' && actual === 'error') {
+        // Check for stateful dependency failure first
+        if (profile.dependencyInfo?.dependsOn.length) {
+          const hasStatefulKeys = interaction.question.metadata?.stateful?.usedKeys?.length;
+          if (hasStatefulKeys) {
+            result.statefulDependency.push(issue);
+            continue;
+          }
+        }
+
         // Determine if error is from external service
         if (detectedServices.length > 0) {
           issue.service = detectedServices[0];
@@ -792,7 +804,8 @@ function generateTransportIssuesSection(
     lines.push('### Discovery Warnings');
     lines.push('');
     for (const warning of warnings) {
-      const icon = warning.level === 'error' ? '🔴' : warning.level === 'warning' ? '🟡' : 'ℹ️';
+      const icon =
+        warning.level === 'error' ? 'ERROR' : warning.level === 'warning' ? 'WARNING' : 'INFO';
       lines.push(`${icon} **${warning.level.toUpperCase()}**: ${warning.message}`);
       if (warning.recommendation) {
         lines.push(`  - ${warning.recommendation}`);
@@ -824,7 +837,7 @@ function generateTransportIssuesSection(
         const category = formatTransportErrorCategory(error.category);
         const operation = error.operation ?? 'unknown';
         const message = escapeTableCell(error.message);
-        lines.push(`| 🔴 ${category} | ${operation} | ${message} |`);
+        lines.push(`| BUG ${category} | ${operation} | ${message} |`);
       }
       if (serverBugErrors.length > 10) {
         lines.push(`| ... | ... | ... and ${serverBugErrors.length - 10} more |`);
@@ -844,7 +857,7 @@ function generateTransportIssuesSection(
         const category = formatTransportErrorCategory(error.category);
         const operation = error.operation ?? 'unknown';
         const message = escapeTableCell(error.message);
-        lines.push(`| 🟡 ${category} | ${operation} | ${message} |`);
+        lines.push(`| ENV ${category} | ${operation} | ${message} |`);
       }
       if (envErrors.length > 10) {
         lines.push(`| ... | ... | ... and ${envErrors.length - 10} more |`);
@@ -975,28 +988,34 @@ function generateIssuesDetectedSection(profiles: ToolProfile[]): string[] {
   const hasExternalDeps = classified.externalDependency.length > 0;
   const hasEnvironment = classified.environment.length > 0;
   const hasValidation = classified.validation.length > 0;
+  const hasStatefulDeps = classified.statefulDependency.length > 0;
 
   lines.push('| Category | Count | Description |');
   lines.push('|----------|-------|-------------|');
 
   if (hasServerBugs) {
     lines.push(
-      `| ${ISSUE_CLASSIFICATION.ICONS.serverBug} ${ISSUE_CLASSIFICATION.CATEGORIES.serverBug} | ${classified.serverBug.length} | ${ISSUE_CLASSIFICATION.DESCRIPTIONS.serverBug} |`
+      `| ${ISSUE_CLASSIFICATION.CATEGORIES.serverBug} | ${classified.serverBug.length} | ${ISSUE_CLASSIFICATION.DESCRIPTIONS.serverBug} |`
     );
   }
   if (hasExternalDeps) {
     lines.push(
-      `| ${ISSUE_CLASSIFICATION.ICONS.externalDependency} ${ISSUE_CLASSIFICATION.CATEGORIES.externalDependency} | ${classified.externalDependency.length} | ${ISSUE_CLASSIFICATION.DESCRIPTIONS.externalDependency} |`
+      `| ${ISSUE_CLASSIFICATION.CATEGORIES.externalDependency} | ${classified.externalDependency.length} | ${ISSUE_CLASSIFICATION.DESCRIPTIONS.externalDependency} |`
     );
   }
   if (hasEnvironment) {
     lines.push(
-      `| ${ISSUE_CLASSIFICATION.ICONS.environment} ${ISSUE_CLASSIFICATION.CATEGORIES.environment} | ${classified.environment.length} | ${ISSUE_CLASSIFICATION.DESCRIPTIONS.environment} |`
+      `| ${ISSUE_CLASSIFICATION.CATEGORIES.environment} | ${classified.environment.length} | ${ISSUE_CLASSIFICATION.DESCRIPTIONS.environment} |`
     );
   }
   if (hasValidation) {
     lines.push(
-      `| ${ISSUE_CLASSIFICATION.ICONS.validation} ${ISSUE_CLASSIFICATION.CATEGORIES.validation} | ${classified.validation.length} | ${ISSUE_CLASSIFICATION.DESCRIPTIONS.validation} |`
+      `| ${ISSUE_CLASSIFICATION.CATEGORIES.validation} | ${classified.validation.length} | ${ISSUE_CLASSIFICATION.DESCRIPTIONS.validation} |`
+    );
+  }
+  if (hasStatefulDeps) {
+    lines.push(
+      `| ${ISSUE_CLASSIFICATION.CATEGORIES.statefulDependency} | ${classified.statefulDependency.length} | ${ISSUE_CLASSIFICATION.DESCRIPTIONS.statefulDependency} |`
     );
   }
 
@@ -1004,9 +1023,7 @@ function generateIssuesDetectedSection(profiles: ToolProfile[]): string[] {
 
   // Server bugs section (highest priority - requires fixing)
   if (hasServerBugs) {
-    lines.push(
-      `### ${ISSUE_CLASSIFICATION.ICONS.serverBug} ${ISSUE_CLASSIFICATION.HEADERS.serverBug}`
-    );
+    lines.push(`### ${ISSUE_CLASSIFICATION.HEADERS.serverBug}`);
     lines.push('');
 
     // Separate critical (accepts invalid input) from other bugs
@@ -1040,9 +1057,7 @@ function generateIssuesDetectedSection(profiles: ToolProfile[]): string[] {
 
   // External dependencies section (informational - expected without credentials)
   if (hasExternalDeps) {
-    lines.push(
-      `### ${ISSUE_CLASSIFICATION.ICONS.externalDependency} ${ISSUE_CLASSIFICATION.HEADERS.externalDependency}`
-    );
+    lines.push(`### ${ISSUE_CLASSIFICATION.HEADERS.externalDependency}`);
     lines.push('');
     lines.push('These failures are expected when external services are not configured:');
     lines.push('');
@@ -1077,9 +1092,7 @@ function generateIssuesDetectedSection(profiles: ToolProfile[]): string[] {
 
   // Environment configuration section
   if (hasEnvironment) {
-    lines.push(
-      `### ${ISSUE_CLASSIFICATION.ICONS.environment} ${ISSUE_CLASSIFICATION.HEADERS.environment}`
-    );
+    lines.push(`### ${ISSUE_CLASSIFICATION.HEADERS.environment}`);
     lines.push('');
     lines.push('Configure these settings to enable full testing:');
     lines.push('');
@@ -1094,11 +1107,38 @@ function generateIssuesDetectedSection(profiles: ToolProfile[]): string[] {
     lines.push('');
   }
 
+  // Stateful dependency failures (expected behavior - collapsed by default)
+  if (hasStatefulDeps) {
+    lines.push('<details>');
+    lines.push(
+      `<summary>${ISSUE_CLASSIFICATION.HEADERS.statefulDependency} (${classified.statefulDependency.length})</summary>`
+    );
+    lines.push('');
+    lines.push(
+      'These failures are expected when tools depend on shared state from prior tool executions:'
+    );
+    lines.push('');
+    for (const issue of classified.statefulDependency.slice(
+      0,
+      DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT
+    )) {
+      lines.push(`- \`${escapeTableCell(issue.tool)}\`: ${issue.description}`);
+    }
+    if (classified.statefulDependency.length > DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT) {
+      lines.push(
+        `- ... ${classified.statefulDependency.length - DISPLAY_LIMITS.ISSUES_DISPLAY_LIMIT} more`
+      );
+    }
+    lines.push('');
+    lines.push('</details>');
+    lines.push('');
+  }
+
   // Validation rejections (expected behavior - collapsed by default)
   if (hasValidation) {
     lines.push('<details>');
     lines.push(
-      `<summary>${ISSUE_CLASSIFICATION.ICONS.validation} ${ISSUE_CLASSIFICATION.HEADERS.validation} (${classified.validation.length})</summary>`
+      `<summary>${ISSUE_CLASSIFICATION.HEADERS.validation} (${classified.validation.length})</summary>`
     );
     lines.push('');
     lines.push('These are expected validation errors from invalid input tests:');
@@ -1215,7 +1255,12 @@ function generateContractPerformanceSection(
 
   for (const m of metrics) {
     const successRate = ((1 - m.errorRate) * 100).toFixed(0);
-    const successEmoji = m.errorRate < 0.1 ? '✓' : m.errorRate < 0.5 ? '⚠' : '✗';
+    const successEmoji =
+      m.errorRate < 0.1
+        ? RELIABILITY_DISPLAY.SYMBOLS.PASS
+        : m.errorRate < 0.5
+          ? RELIABILITY_DISPLAY.SYMBOLS.WARN
+          : RELIABILITY_DISPLAY.SYMBOLS.FAIL;
     const confidenceDisplay = formatConfidenceDisplay(m.confidence);
     // Guard against 0 calls edge case - show N/A for latency metrics
     const p50Display = m.callCount > 0 ? `${m.p50Ms}ms` : 'N/A';
@@ -1241,7 +1286,7 @@ function generateContractPerformanceSection(
     );
 
     lines.push(
-      `> **⚠️ Low Confidence**: ${lowConfidenceTools.length} tool(s) have low statistical confidence.`
+      `> **Low Confidence**: ${lowConfidenceTools.length} tool(s) have low statistical confidence.`
     );
     if (lowSampleTools.length > 0) {
       lines.push(
@@ -1389,7 +1434,7 @@ function generateContractSecuritySection(fingerprints: Map<string, SecurityFinge
 
   // If no findings, show clean status
   if (allFindings.length === 0) {
-    lines.push('✅ No security vulnerabilities detected during testing.');
+    lines.push('No security vulnerabilities detected during testing.');
     lines.push('');
     return lines;
   }
@@ -1406,9 +1451,9 @@ function generateContractSecuritySection(fingerprints: Map<string, SecurityFinge
     lines.push('|------|------|---------|-----|');
 
     for (const finding of criticalAndHigh) {
-      const riskEmoji = finding.riskLevel === 'critical' ? '🔴' : '🟠';
+      const riskEmoji = finding.riskLevel === 'critical' ? 'CRITICAL' : 'HIGH';
       lines.push(
-        `| ${riskEmoji} ${finding.riskLevel} | \`${escapeTableCell(finding.tool)}\` | ${escapeTableCell(finding.title)} | ${finding.cweId} |`
+        `| ${riskEmoji} | \`${escapeTableCell(finding.tool)}\` | ${escapeTableCell(finding.title)} | ${finding.cweId} |`
       );
     }
     lines.push('');
@@ -1450,9 +1495,9 @@ function generateContractSecuritySection(fingerprints: Map<string, SecurityFinge
     lines.push('|------|------|---------|-----|');
 
     for (const finding of mediumAndLow) {
-      const riskEmoji = finding.riskLevel === 'medium' ? '🟡' : '🔵';
+      const riskEmoji = finding.riskLevel === 'medium' ? 'MEDIUM' : 'LOW';
       lines.push(
-        `| ${riskEmoji} ${finding.riskLevel} | \`${escapeTableCell(finding.tool)}\` | ${escapeTableCell(finding.title)} | ${finding.cweId} |`
+        `| ${riskEmoji} | \`${escapeTableCell(finding.tool)}\` | ${escapeTableCell(finding.title)} | ${finding.cweId} |`
       );
     }
     lines.push('');
@@ -1473,7 +1518,7 @@ function generateContractSecuritySection(fingerprints: Map<string, SecurityFinge
 
   for (const { name, riskScore, findingCount } of toolScores) {
     const scoreEmoji =
-      riskScore >= 70 ? '🔴' : riskScore >= 40 ? '🟠' : riskScore >= 20 ? '🟡' : '🟢';
+      riskScore >= 70 ? 'CRITICAL' : riskScore >= 40 ? 'HIGH' : riskScore >= 20 ? 'MEDIUM' : 'OK';
     lines.push(
       `| \`${escapeTableCell(name)}\` | ${scoreEmoji} ${riskScore}/100 | ${findingCount} |`
     );
@@ -1523,7 +1568,7 @@ function generateWorkflowTestingSection(results: WorkflowResult[]): string[] {
   lines.push('|----------|--------|-------|----------|');
 
   for (const result of results) {
-    const status = result.success ? '✓ Passed' : '✗ Failed';
+    const status = result.success ? 'Passed' : 'Failed';
     const stepsInfo = `${result.steps.filter((s) => s.success).length}/${result.workflow.steps.length}`;
     const duration = formatDuration(result.durationMs);
     lines.push(
@@ -1534,7 +1579,7 @@ function generateWorkflowTestingSection(results: WorkflowResult[]): string[] {
 
   // Details for each workflow
   for (const result of results) {
-    const statusIcon = result.success ? '✓' : '✗';
+    const statusIcon = result.success ? 'Pass' : 'Fail';
     lines.push(`### ${statusIcon} ${result.workflow.name}`);
     lines.push('');
     lines.push(`**ID:** \`${result.workflow.id}\``);
@@ -1552,7 +1597,7 @@ function generateWorkflowTestingSection(results: WorkflowResult[]): string[] {
       const stepResult = result.steps[i];
       const step = result.workflow.steps[i];
       const stepNum = i + 1;
-      const status = stepResult.success ? '✓ Pass' : '✗ Fail';
+      const status = stepResult.success ? 'Pass' : 'Fail';
       const duration = formatDuration(stepResult.durationMs);
 
       let notes = '';
@@ -1789,10 +1834,10 @@ function generateSchemaStabilitySection(
 
   // Overall status
   if (stableCount === toolsWithSchemas.length) {
-    lines.push('✅ All tested tools have consistent response schemas.');
+    lines.push('All tested tools have consistent response schemas.');
     lines.push('');
   } else if (unstableCount > 0) {
-    lines.push(`⚠️ ${unstableCount} tool(s) have inconsistent response schemas.`);
+    lines.push(`${unstableCount} tool(s) have inconsistent response schemas.`);
     lines.push('');
   }
 
@@ -1823,7 +1868,7 @@ function generateSchemaStabilitySection(
         : '-';
 
     lines.push(
-      `| \`${escapeTableCell(name)}\` | ${gradeEmoji} ${grade} | ${stabilityStatus} | ${confidenceDisplay} | ${evolution.sampleCount} | ${escapeTableCell(issues)} |`
+      `| \`${escapeTableCell(name)}\` | ${gradeEmoji} | ${stabilityStatus} | ${confidenceDisplay} | ${evolution.sampleCount} | ${escapeTableCell(issues)} |`
     );
   }
 
@@ -1877,17 +1922,17 @@ function generateSchemaStabilitySection(
 function getGradeEmoji(grade: 'A' | 'B' | 'C' | 'D' | 'F' | 'N/A'): string {
   switch (grade) {
     case 'A':
-      return '🟢';
+      return 'A';
     case 'B':
-      return '🟢';
+      return 'B';
     case 'C':
-      return '🟡';
+      return 'C';
     case 'D':
-      return '🟠';
+      return 'D';
     case 'F':
-      return '🔴';
+      return 'F';
     case 'N/A':
-      return '⚪';
+      return 'N/A';
   }
 }
 
@@ -2060,19 +2105,19 @@ function generateErrorAnalysisSection(summaries: Map<string, ErrorAnalysisSummar
 function getCategoryEmoji(category: string): string {
   switch (category) {
     case 'client_error_validation':
-      return '⚠️';
+      return 'Validation';
     case 'client_error_auth':
-      return '🔐';
+      return 'Auth';
     case 'client_error_not_found':
-      return '🔍';
+      return 'Not Found';
     case 'client_error_conflict':
-      return '💥';
+      return 'Conflict';
     case 'client_error_rate_limit':
-      return '⏱️';
+      return 'Rate Limit';
     case 'server_error':
-      return '🔥';
+      return 'Server Error';
     default:
-      return '❓';
+      return 'Unknown';
   }
 }
 
@@ -2194,7 +2239,7 @@ function generateDocumentationQualitySection(score: DocumentationScore): string[
     for (const [type, issues] of issuesByType) {
       const severityLabel = issues[0].severity;
       const severityEmoji =
-        severityLabel === 'error' ? '🔴' : severityLabel === 'warning' ? '🟡' : '🔵';
+        severityLabel === 'error' ? 'ERROR' : severityLabel === 'warning' ? 'WARNING' : 'INFO';
       const typeLabel = formatIssueTypeLabel(type);
       lines.push(`| ${typeLabel} | ${issues.length} | ${severityEmoji} ${severityLabel} |`);
     }

@@ -16,7 +16,10 @@ import * as output from '../output.js';
 /**
  * Provider display names and info.
  */
-const PROVIDER_INFO: Record<Exclude<LLMProviderId, 'ollama'>, { name: string; url: string; envVar: string }> = {
+const PROVIDER_INFO: Record<
+  Exclude<LLMProviderId, 'ollama'>,
+  { name: string; url: string; envVar: string }
+> = {
   openai: {
     name: 'OpenAI',
     url: 'https://platform.openai.com/api-keys',
@@ -157,23 +160,25 @@ async function interactiveSetup(): Promise<void> {
 
   // Check current status
   const status = await getAuthStatus();
-  const configuredProviders = status.filter(s => s.provider !== 'ollama' && s.configured);
+  const configuredProviders = status.filter((s) => s.provider !== 'ollama' && s.configured);
 
   if (configuredProviders.length > 0) {
     output.info('Currently configured:');
     for (const s of configuredProviders) {
-      const source = s.source === 'keychain' ? 'keychain' :
-                     s.source === 'env' ? `env (${s.envVar})` : s.source;
-      output.info(`  - ${PROVIDER_INFO[s.provider as keyof typeof PROVIDER_INFO]?.name ?? s.provider}: ${source}`);
+      const source =
+        s.source === 'keychain' ? 'keychain' : s.source === 'env' ? `env (${s.envVar})` : s.source;
+      output.info(
+        `  - ${PROVIDER_INFO[s.provider as keyof typeof PROVIDER_INFO]?.name ?? s.provider}: ${source}`
+      );
     }
     output.newline();
   }
 
   // Select provider
-  const provider = await promptSelect(rl, 'Which LLM provider would you like to configure?', [
+  const provider = (await promptSelect(rl, 'Which LLM provider would you like to configure?', [
     { value: 'anthropic', label: 'Anthropic Claude (recommended)' },
     { value: 'openai', label: 'OpenAI' },
-  ]) as Exclude<LLMProviderId, 'ollama'>;
+  ])) as Exclude<LLMProviderId, 'ollama'>;
 
   const info = PROVIDER_INFO[provider];
   output.info(`\nGet your ${info.name} API key from:`);
@@ -209,12 +214,12 @@ async function interactiveSetup(): Promise<void> {
   try {
     if (storageChoice === 'keychain') {
       await keychain.setApiKey(provider, apiKey);
-      output.success(`\n\u2713 API key stored in system keychain`);
+      output.success(`\nAPI key stored in system keychain`);
     } else {
       // Store in ~/.bellwether/.env using encrypted file backend
       keychain.enableFileBackend();
       await keychain.setApiKey(provider, apiKey);
-      output.success(`\n\u2713 API key stored in ~/.bellwether/.env (encrypted)`);
+      output.success(`\nAPI key stored in ~/.bellwether/.env (encrypted)`);
     }
 
     output.info(`\nYou're all set! Bellwether will now use ${info.name} for tests.`);
@@ -270,11 +275,11 @@ async function showStatus(): Promise<void> {
         default:
           sourceDesc = s.source;
       }
-      output.info(`  Status: \u2713 Configured`);
+      output.info(`  Status: Configured`);
       output.info(`  Source: ${sourceDesc}`);
       output.info(`  Model:  ${DEFAULT_MODELS[s.provider]}`);
     } else {
-      output.info(`  Status: \u2717 Not configured`);
+      output.info(`  Status: Not configured`);
       output.info(`  Setup:  Run \`bellwether auth\` or set ${info.envVar}`);
     }
     output.newline();
@@ -299,10 +304,10 @@ async function addProvider(providerArg?: string): Promise<void> {
   if (providerArg && (providerArg === 'openai' || providerArg === 'anthropic')) {
     provider = providerArg;
   } else {
-    provider = await promptSelect(rl, 'Which provider?', [
+    provider = (await promptSelect(rl, 'Which provider?', [
       { value: 'anthropic', label: 'Anthropic (recommended)' },
       { value: 'openai', label: 'OpenAI' },
-    ]) as Exclude<LLMProviderId, 'ollama'>;
+    ])) as Exclude<LLMProviderId, 'ollama'>;
   }
 
   const info = PROVIDER_INFO[provider];
@@ -320,7 +325,7 @@ async function addProvider(providerArg?: string): Promise<void> {
   const keychain = getKeychainService();
   await keychain.setApiKey(provider, apiKey);
 
-  output.success(`\n\u2713 ${info.name} API key stored in keychain`);
+  output.success(`\n${info.name} API key stored in keychain`);
   rl.close();
 }
 
@@ -335,17 +340,17 @@ async function removeProvider(providerArg?: string): Promise<void> {
   if (providerArg && (providerArg === 'openai' || providerArg === 'anthropic')) {
     provider = providerArg;
   } else {
-    provider = await promptSelect(rl, 'Which provider to remove?', [
+    provider = (await promptSelect(rl, 'Which provider to remove?', [
       { value: 'anthropic', label: 'Anthropic' },
       { value: 'openai', label: 'OpenAI' },
-    ]) as Exclude<LLMProviderId, 'ollama'>;
+    ])) as Exclude<LLMProviderId, 'ollama'>;
   }
 
   const keychain = getKeychainService();
   const deleted = await keychain.deleteApiKey(provider);
 
   if (deleted) {
-    output.success(`\n\u2713 ${PROVIDER_INFO[provider].name} API key removed from keychain`);
+    output.success(`\n${PROVIDER_INFO[provider].name} API key removed from keychain`);
   } else {
     output.info(`\nNo ${PROVIDER_INFO[provider].name} API key found in keychain`);
   }
@@ -376,12 +381,10 @@ export const authCommand = new Command('auth')
       .action(removeProvider)
   )
   .addCommand(
-    new Command('clear')
-      .description('Remove all stored API keys')
-      .action(async () => {
-        const keychain = getKeychainService();
-        await keychain.clearAll();
-        output.success('All API keys removed from keychain.');
-      })
+    new Command('clear').description('Remove all stored API keys').action(async () => {
+      const keychain = getKeychainService();
+      await keychain.clearAll();
+      output.success('All API keys removed from keychain.');
+    })
   )
   .action(interactiveSetup); // Default action is interactive setup

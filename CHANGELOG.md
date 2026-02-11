@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-02-11
+
+### Changed
+
+- **Remove all emoji from CLI and documentation output**: Replaced ~40 unique emoji characters across 35+ files with professional text-based alternatives. Terminal output now uses `[PASS]`/`[FAIL]`/`[WARN]`/`[INFO]` labels; markdown reports use plain-text severity badges (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `OK`); trend indicators use `Improved`/`Degraded`/`Stable`/`New`/`Resolved`. Improves accessibility, log-friendliness, and CI compatibility.
+- **Annotation-aware tool ordering**: `getDependencyOrder()` now sorts readOnly tools first and destructive tools last within each dependency layer, producing safer execution sequences.
+
+### Added
+
+- **Test fixtures configuration**: New `testFixtures` option on `InterviewConfig` allows overriding default parameter values for schema-generated tests. Stateful test runner respects fixture keys and will not overwrite user-provided values.
+
 ## [2.0.1] - 2026-02-07
 
 ### Added

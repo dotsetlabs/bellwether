@@ -17,7 +17,11 @@ interface DiscoverOptions {
 /**
  * Action handler for the discover command.
  */
-async function discoverAction(command: string | undefined, args: string[], options: DiscoverOptions): Promise<void> {
+async function discoverAction(
+  command: string | undefined,
+  args: string[],
+  options: DiscoverOptions
+): Promise<void> {
   // Config is optional for discover command - use defaults if not found
   let config: BellwetherConfig | undefined;
   try {
@@ -33,8 +37,12 @@ async function discoverAction(command: string | undefined, args: string[], optio
   const defaultTimeout = 30000;
   const defaultTransport = 'stdio';
 
-  const timeout = parseInt(options.timeout ?? '', 10) || config?.discovery?.timeout || defaultTimeout;
-  const transportType = (options.transport ?? config?.discovery?.transport ?? defaultTransport) as 'stdio' | 'sse' | 'streamable-http';
+  const timeout =
+    parseInt(options.timeout ?? '', 10) || config?.discovery?.timeout || defaultTimeout;
+  const transportType = (options.transport ?? config?.discovery?.transport ?? defaultTransport) as
+    | 'stdio'
+    | 'sse'
+    | 'streamable-http';
   const isRemoteTransport = transportType === 'sse' || transportType === 'streamable-http';
   const outputJson = options.json ?? config?.discovery?.json ?? false;
   const remoteUrl = options.url ?? config?.discovery?.url;
@@ -83,7 +91,7 @@ async function discoverAction(command: string | undefined, args: string[], optio
     if (result.warnings && result.warnings.length > 0) {
       output.newline();
       for (const warning of result.warnings) {
-        output.warn(`⚠ ${warning.message}`);
+        output.warn(`[warn] ${warning.message}`);
       }
     }
 
@@ -93,7 +101,7 @@ async function discoverAction(command: string | undefined, args: string[], optio
       output.warn('Transport errors during discovery:');
       for (const err of result.transportErrors.slice(0, 3)) {
         const typeLabel = err.category.replace(/_/g, ' ');
-        output.warn(`  ✗ ${typeLabel}: ${err.message.substring(0, 100)}`);
+        output.warn(`  [fail] ${typeLabel}: ${err.message.substring(0, 100)}`);
       }
       if (result.transportErrors.length > 3) {
         output.warn(`  ... and ${result.transportErrors.length - 3} more`);

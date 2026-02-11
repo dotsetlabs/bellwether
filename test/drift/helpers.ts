@@ -436,12 +436,12 @@ export function createDirectBaseline(options: DirectBaselineOptions): Behavioral
   }));
 
   return {
-    version: options.version || '2.0.1',
+    version: options.version || '2.1.0',
     metadata: {
       mode: 'check',
       generatedAt: new Date().toISOString(),
       serverCommand: 'npx test-server',
-      cliVersion: '2.0.1',
+      cliVersion: '2.1.0',
       durationMs: 1000,
       personas: [],
       model: 'none',

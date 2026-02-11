@@ -128,9 +128,10 @@ export function compareInferredSchemas(
       newOptional: [],
       backwardCompatible: true, // Adding fields is backward compatible
       isBreaking: false,
-      summary: fields.length > 0
-        ? `Schema established with ${fields.length} field(s)`
-        : 'Empty schema established',
+      summary:
+        fields.length > 0
+          ? `Schema established with ${fields.length} field(s)`
+          : 'Empty schema established',
     };
   }
 
@@ -146,9 +147,8 @@ export function compareInferredSchemas(
       newOptional: [],
       backwardCompatible: false, // Removing all fields is breaking
       isBreaking: true,
-      summary: fields.length > 0
-        ? `Schema removed (${fields.length} field(s) lost)`
-        : 'Schema removed',
+      summary:
+        fields.length > 0 ? `Schema removed (${fields.length} field(s) lost)` : 'Schema removed',
     };
   }
 
@@ -166,8 +166,8 @@ function compareSchemaStructures(
   const prevFields = new Set(Object.keys(previous.properties ?? {}));
   const currFields = new Set(Object.keys(current.properties ?? {}));
 
-  const fieldsAdded = [...currFields].filter(f => !prevFields.has(f));
-  const fieldsRemoved = [...prevFields].filter(f => !currFields.has(f));
+  const fieldsAdded = [...currFields].filter((f) => !prevFields.has(f));
+  const fieldsRemoved = [...prevFields].filter((f) => !currFields.has(f));
 
   // Check for type changes in common fields
   const typeChanges: SchemaTypeChange[] = [];
@@ -192,10 +192,11 @@ function compareSchemaStructures(
   const prevRequired = new Set(previous.required ?? []);
   const currRequired = new Set(current.required ?? []);
 
-  const newRequired = [...currRequired].filter(f => !prevRequired.has(f) && prevFields.has(f));
-  const newOptional = [...prevRequired].filter(f => !currRequired.has(f) && currFields.has(f));
+  const newRequired = [...currRequired].filter((f) => !prevRequired.has(f) && prevFields.has(f));
+  const newOptional = [...prevRequired].filter((f) => !currRequired.has(f) && currFields.has(f));
 
-  const structureChanged = fieldsAdded.length > 0 ||
+  const structureChanged =
+    fieldsAdded.length > 0 ||
     fieldsRemoved.length > 0 ||
     typeChanges.length > 0 ||
     newRequired.length > 0 ||
@@ -207,7 +208,7 @@ function compareSchemaStructures(
   // - No new required fields on existing fields
   const backwardCompatible =
     fieldsRemoved.length === 0 &&
-    typeChanges.every(tc => tc.backwardCompatible) &&
+    typeChanges.every((tc) => tc.backwardCompatible) &&
     newRequired.length === 0;
 
   // Breaking if:
@@ -216,7 +217,7 @@ function compareSchemaStructures(
   // - New required fields (consumers may not provide them)
   const isBreaking =
     fieldsRemoved.length > 0 ||
-    typeChanges.some(tc => !tc.backwardCompatible) ||
+    typeChanges.some((tc) => !tc.backwardCompatible) ||
     newRequired.length > 0;
 
   // Build summary
@@ -247,8 +248,8 @@ function compareSchemaStructures(
 function isTypeChangeCompatible(prevType: string, currType: string): boolean {
   // Widening type changes are compatible (more permissive)
   const wideningChanges: Record<string, string[]> = {
-    'integer': ['number'], // integer -> number is compatible
-    'null': ['string', 'number', 'integer', 'boolean', 'object', 'array'], // null -> anything
+    integer: ['number'], // integer -> number is compatible
+    null: ['string', 'number', 'integer', 'boolean', 'object', 'array'], // null -> anything
   };
 
   if (wideningChanges[prevType]?.includes(currType)) {
@@ -325,9 +326,7 @@ function createEmptyDiff(): SchemaEvolutionDiff {
  * @param schemas - Array of inferred schemas from samples
  * @returns Schema evolution record
  */
-export function buildSchemaEvolution(
-  schemas: InferredSchema[]
-): ResponseSchemaEvolution {
+export function buildSchemaEvolution(schemas: InferredSchema[]): ResponseSchemaEvolution {
   if (schemas.length === 0) {
     return {
       currentHash: 'empty',
@@ -371,9 +370,7 @@ export function buildSchemaEvolution(
   const isStable = inconsistentFields.length === 0;
 
   // Confidence based on consistency ratio and sample count
-  let stabilityConfidence = isStable
-    ? 1
-    : 1 - (inconsistentFields.length / Math.max(1, totalFields));
+  let stabilityConfidence = isStable ? 1 : 1 - inconsistentFields.length / Math.max(1, totalFields);
 
   // Adjust confidence based on sample count
   // More samples = higher confidence in stability assessment
@@ -387,12 +384,14 @@ export function buildSchemaEvolution(
   const currentSchema = schemas[schemas.length - 1];
   const currentHash = computeInferredSchemaHash(currentSchema);
 
-  const history: SchemaVersion[] = [{
-    hash: currentHash,
-    schema: currentSchema,
-    observedAt: new Date(),
-    sampleCount: schemas.length,
-  }];
+  const history: SchemaVersion[] = [
+    {
+      hash: currentHash,
+      schema: currentSchema,
+      observedAt: new Date(),
+      sampleCount: schemas.length,
+    },
+  ];
 
   return {
     currentHash,
@@ -423,8 +422,8 @@ export function compareSchemaEvolution(
   if (!previous) {
     return {
       ...createEmptyDiff(),
-      structureChanged: (current?.inconsistentFields.length ?? 0) > 0 ||
-        current?.currentHash !== 'empty',
+      structureChanged:
+        (current?.inconsistentFields.length ?? 0) > 0 || current?.currentHash !== 'empty',
       summary: current?.isStable
         ? 'Schema tracking established (stable)'
         : `Schema tracking established (${current?.inconsistentFields.length ?? 0} inconsistent field(s))`,
@@ -463,9 +462,7 @@ export function compareSchemaEvolution(
     return {
       ...createEmptyDiff(),
       structureChanged: false,
-      summary: current.isStable
-        ? 'Schema stabilized'
-        : 'Schema became unstable',
+      summary: current.isStable ? 'Schema stabilized' : 'Schema became unstable',
     };
   }
 
@@ -481,10 +478,12 @@ export function compareSchemaEvolution(
 export function formatSchemaEvolution(evolution: ResponseSchemaEvolution): string {
   const lines: string[] = [];
 
-  const stabilityIcon = evolution.isStable ? '✓' : '⚠';
+  const stabilityIcon = evolution.isStable ? 'stable' : 'unstable';
   const confidencePercent = Math.round(evolution.stabilityConfidence * 100);
 
-  lines.push(`${stabilityIcon} Schema ${evolution.isStable ? 'Stable' : 'Unstable'} (${confidencePercent}% confidence)`);
+  lines.push(
+    `${stabilityIcon} Schema ${evolution.isStable ? 'Stable' : 'Unstable'} (${confidencePercent}% confidence)`
+  );
 
   if (evolution.sampleCount > 0) {
     lines.push(`  Samples: ${evolution.sampleCount}`);
@@ -492,9 +491,10 @@ export function formatSchemaEvolution(evolution: ResponseSchemaEvolution): strin
   }
 
   if (evolution.inconsistentFields.length > 0) {
-    const fieldsDisplay = evolution.inconsistentFields.length <= 3
-      ? evolution.inconsistentFields.join(', ')
-      : `${evolution.inconsistentFields.slice(0, 3).join(', ')} +${evolution.inconsistentFields.length - 3} more`;
+    const fieldsDisplay =
+      evolution.inconsistentFields.length <= 3
+        ? evolution.inconsistentFields.join(', ')
+        : `${evolution.inconsistentFields.slice(0, 3).join(', ')} +${evolution.inconsistentFields.length - 3} more`;
     lines.push(`  Inconsistent fields: ${fieldsDisplay}`);
   }
 
@@ -520,11 +520,15 @@ export function formatSchemaEvolutionDiff(
   }
 
   if (diff.fieldsRemoved.length > 0) {
-    lines.push(red(`  ${diff.fieldsRemoved.length} field(s) removed: ${diff.fieldsRemoved.join(', ')}`));
+    lines.push(
+      red(`  ${diff.fieldsRemoved.length} field(s) removed: ${diff.fieldsRemoved.join(', ')}`)
+    );
   }
 
   if (diff.fieldsAdded.length > 0) {
-    lines.push(green(`  ${diff.fieldsAdded.length} field(s) added: ${diff.fieldsAdded.join(', ')}`));
+    lines.push(
+      green(`  ${diff.fieldsAdded.length} field(s) added: ${diff.fieldsAdded.join(', ')}`)
+    );
   }
 
   for (const tc of diff.typeChanges) {

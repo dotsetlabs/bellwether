@@ -362,9 +362,8 @@ export class StreamingDisplay {
             this.lineLength = 0;
           }
           // Only apply ANSI styling per-character if supported
-          const styledChar = this.supportsAnsi && this.config.style === 'dim'
-            ? `\x1b[2m${char}\x1b[0m`
-            : char;
+          const styledChar =
+            this.supportsAnsi && this.config.style === 'dim' ? `\x1b[2m${char}\x1b[0m` : char;
           this.stream.write(styledChar);
           this.lineLength++;
         }
@@ -507,20 +506,20 @@ export interface DiffSummary {
 }
 
 /**
- * Icon mapping for diff severity levels.
+ * Label mapping for diff severity levels.
  */
-const SEVERITY_ICONS: Record<string, string> = {
-  none: '✓',
-  info: 'ℹ',
-  warning: '⚠',
-  breaking: '✗',
+const SEVERITY_LABELS: Record<string, string> = {
+  none: '[ok]',
+  info: '[info]',
+  warning: '[warn]',
+  breaking: '[break]',
 };
 
 /**
- * Get the icon for a severity level.
+ * Get the label for a severity level.
  */
 export function getSeverityIcon(severity: string): string {
-  return SEVERITY_ICONS[severity] ?? '?';
+  return SEVERITY_LABELS[severity] ?? '?';
 }
 
 /**

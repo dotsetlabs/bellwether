@@ -18,7 +18,9 @@ describe('external-dependency-detector', () => {
   describe('detectExternalDependency', () => {
     describe('Plaid detection', () => {
       it('should detect Plaid API errors', () => {
-        const result = detectExternalDependency('INVALID_ACCESS_TOKEN: The access token is invalid');
+        const result = detectExternalDependency(
+          'INVALID_ACCESS_TOKEN: The access token is invalid'
+        );
         expect(result).not.toBeNull();
         expect(result?.serviceName).toBe('plaid');
         expect(result?.displayName).toBe('Plaid');
@@ -61,13 +63,17 @@ describe('external-dependency-detector', () => {
       });
 
       it('should detect AWS access denied', () => {
-        const result = detectExternalDependency('AccessDenied: User is not authorized to perform s3:GetObject');
+        const result = detectExternalDependency(
+          'AccessDenied: User is not authorized to perform s3:GetObject'
+        );
         expect(result).not.toBeNull();
         expect(result?.serviceName).toBe('aws');
       });
 
       it('should detect S3 bucket errors', () => {
-        const result = detectExternalDependency('NoSuchBucket: The specified bucket does not exist');
+        const result = detectExternalDependency(
+          'NoSuchBucket: The specified bucket does not exist'
+        );
         expect(result).not.toBeNull();
         expect(result?.serviceName).toBe('aws');
       });
@@ -90,7 +96,10 @@ describe('external-dependency-detector', () => {
 
     describe('Database detection', () => {
       it('should detect PostgreSQL connection errors', () => {
-        const result = detectExternalDependency('ECONNREFUSED: could not connect to server', 'postgres_query');
+        const result = detectExternalDependency(
+          'ECONNREFUSED: could not connect to server',
+          'postgres_query'
+        );
         expect(result).not.toBeNull();
         expect(result?.serviceName).toBe('database');
       });
@@ -110,7 +119,10 @@ describe('external-dependency-detector', () => {
 
     describe('HTTP status code detection', () => {
       it('should detect status codes in errors', () => {
-        const result = detectExternalDependency('Request failed with status code 401', 'stripe_charge');
+        const result = detectExternalDependency(
+          'Request failed with status code 401',
+          'stripe_charge'
+        );
         expect(result).not.toBeNull();
         // Status code match adds confidence
       });
@@ -140,7 +152,10 @@ describe('external-dependency-detector', () => {
     });
 
     it('should detect services from description', () => {
-      const result = detectExternalServiceFromTool('create_link', 'Creates a link token with Plaid');
+      const result = detectExternalServiceFromTool(
+        'create_link',
+        'Creates a link token with Plaid'
+      );
       expect(result).not.toBeNull();
       expect(result?.serviceName).toBe('plaid');
     });
@@ -327,7 +342,12 @@ describe('external-dependency-detector', () => {
       ];
 
       const result = analyzeExternalDependencies(errors);
-      expect(result.totalCodeBugErrors + result.totalExternalErrors + result.totalEnvironmentErrors + result.totalUnknownErrors).toBeGreaterThan(0);
+      expect(
+        result.totalCodeBugErrors +
+          result.totalExternalErrors +
+          result.totalEnvironmentErrors +
+          result.totalUnknownErrors
+      ).toBeGreaterThan(0);
     });
 
     it('should handle empty input', () => {
@@ -464,7 +484,9 @@ describe('external-dependency-detector', () => {
   describe('confirmed vs detected dependency tracking', () => {
     describe('detectExternalDependency confidence levels', () => {
       it('should return confirmed level when error message matches patterns', () => {
-        const result = detectExternalDependency('INVALID_ACCESS_TOKEN: The access token is invalid');
+        const result = detectExternalDependency(
+          'INVALID_ACCESS_TOKEN: The access token is invalid'
+        );
         expect(result).not.toBeNull();
         expect(result?.confidenceLevel).toBe('confirmed');
         expect(result?.evidence.fromErrorMessage).toBe(true);
@@ -622,7 +644,7 @@ describe('external-dependency-detector', () => {
 
         expect(markdown).toContain('Confidence');
         // Should show either checkmark for confirmed or ~ for likely
-        expect(markdown.match(/[✓~?]/)).toBeTruthy();
+        expect(markdown.match(/[+~?]/)).toBeTruthy();
       });
 
       it('should show confirmed vs detected tools separately', () => {

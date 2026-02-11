@@ -26,9 +26,10 @@ export function formatToolResultLine(summary: ToolProgressSummary): string {
   }
 
   const passPart = `${summary.passedTests}/${summary.totalTests} passed`;
-  const validationPart = summary.validationTotal > 0
-    ? ` (validation: ${summary.validationPassed}/${summary.validationTotal})`
-    : '';
+  const validationPart =
+    summary.validationTotal > 0
+      ? ` (validation: ${summary.validationPassed}/${summary.validationTotal})`
+      : '';
   const timingPart = summary.avgMs > 0 ? ` (${summary.avgMs}ms avg)` : '';
   const mockPart = summary.mocked
     ? ` (mocked${summary.mockService ? `: ${summary.mockService}` : ''})`
@@ -39,22 +40,22 @@ export function formatToolResultLine(summary: ToolProgressSummary): string {
 
 export function buildCheckSummary(result: InterviewResult): CheckSummary {
   const toolProfiles = result.toolProfiles;
-  const skipped = toolProfiles.filter(p => p.skipped).map(p => p.name);
-  const mocked = toolProfiles.filter(p => p.mocked).map(p => p.name);
-  const issueTools = toolProfiles.filter(profileHasIssues).map(p => p.name);
-  const fullyTested = toolProfiles.filter(p => !p.skipped && !p.mocked).length;
+  const skipped = toolProfiles.filter((p) => p.skipped).map((p) => p.name);
+  const mocked = toolProfiles.filter((p) => p.mocked).map((p) => p.name);
+  const issueTools = toolProfiles.filter(profileHasIssues).map((p) => p.name);
+  const fullyTested = toolProfiles.filter((p) => !p.skipped && !p.mocked).length;
 
   const lines: string[] = [];
   lines.push('Summary:');
-  lines.push(`✓ ${fullyTested} tools fully tested`);
+  lines.push(`[PASS] ${fullyTested} tools fully tested`);
   if (skipped.length > 0) {
-    lines.push(`⚠ ${skipped.length} tools skipped`);
+    lines.push(`[WARN] ${skipped.length} tools skipped`);
   }
   if (mocked.length > 0) {
-    lines.push(`⚠ ${mocked.length} tools mocked`);
+    lines.push(`[WARN] ${mocked.length} tools mocked`);
   }
   if (issueTools.length > 0) {
-    lines.push(`✗ ${issueTools.length} tools have issues`);
+    lines.push(`[FAIL] ${issueTools.length} tools have issues`);
   }
 
   const nextSteps: string[] = [];
@@ -88,7 +89,9 @@ export function colorizeConfidence(label: string, _level?: 'high' | 'medium' | '
 }
 
 export function profileHasIssues(profile: ToolProfile): boolean {
-  return profile.interactions.some(i => !i.mocked && i.outcomeAssessment && !i.outcomeAssessment.correct);
+  return profile.interactions.some(
+    (i) => !i.mocked && i.outcomeAssessment && !i.outcomeAssessment.correct
+  );
 }
 
 function resolveStatusSymbol(summary: ToolProgressSummary): string {

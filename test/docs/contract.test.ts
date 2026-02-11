@@ -136,7 +136,9 @@ describe('generateContractMd', () => {
 
     expect(contract).toContain('## Metrics Legend');
     expect(contract).toContain('## Validation Testing');
-    expect(contract).toContain('| Tool | Parameters | Reliability | P50 | Confidence | Description |');
+    expect(contract).toContain(
+      '| Tool | Parameters | Reliability | P50 | Confidence | Description |'
+    );
     expect(contract).toContain('Required Params');
   });
 
@@ -176,11 +178,41 @@ describe('Performance Baseline CV calculation', () => {
           name: 'consistent_tool',
           description: 'Tool with consistent timing',
           interactions: [
-            createInteraction({ toolName: 'consistent_tool', description: 'Call 1', expected: 'success', actual: 'success', durationMs: 10 }),
-            createInteraction({ toolName: 'consistent_tool', description: 'Call 2', expected: 'success', actual: 'success', durationMs: 10 }),
-            createInteraction({ toolName: 'consistent_tool', description: 'Call 3', expected: 'success', actual: 'success', durationMs: 10 }),
-            createInteraction({ toolName: 'consistent_tool', description: 'Call 4', expected: 'success', actual: 'success', durationMs: 10 }),
-            createInteraction({ toolName: 'consistent_tool', description: 'Call 5', expected: 'success', actual: 'success', durationMs: 10 }),
+            createInteraction({
+              toolName: 'consistent_tool',
+              description: 'Call 1',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 10,
+            }),
+            createInteraction({
+              toolName: 'consistent_tool',
+              description: 'Call 2',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 10,
+            }),
+            createInteraction({
+              toolName: 'consistent_tool',
+              description: 'Call 3',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 10,
+            }),
+            createInteraction({
+              toolName: 'consistent_tool',
+              description: 'Call 4',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 10,
+            }),
+            createInteraction({
+              toolName: 'consistent_tool',
+              description: 'Call 5',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 10,
+            }),
           ],
           behavioralNotes: [],
           limitations: [],
@@ -207,11 +239,41 @@ describe('Performance Baseline CV calculation', () => {
           name: 'variable_tool',
           description: 'Tool with variable timing',
           interactions: [
-            createInteraction({ toolName: 'variable_tool', description: 'Fast call', expected: 'success', actual: 'success', durationMs: 50 }),
-            createInteraction({ toolName: 'variable_tool', description: 'Slow call', expected: 'success', actual: 'success', durationMs: 150 }),
-            createInteraction({ toolName: 'variable_tool', description: 'Medium call', expected: 'success', actual: 'success', durationMs: 100 }),
-            createInteraction({ toolName: 'variable_tool', description: 'Another fast', expected: 'success', actual: 'success', durationMs: 60 }),
-            createInteraction({ toolName: 'variable_tool', description: 'Another slow', expected: 'success', actual: 'success', durationMs: 140 }),
+            createInteraction({
+              toolName: 'variable_tool',
+              description: 'Fast call',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 50,
+            }),
+            createInteraction({
+              toolName: 'variable_tool',
+              description: 'Slow call',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 150,
+            }),
+            createInteraction({
+              toolName: 'variable_tool',
+              description: 'Medium call',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 100,
+            }),
+            createInteraction({
+              toolName: 'variable_tool',
+              description: 'Another fast',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 60,
+            }),
+            createInteraction({
+              toolName: 'variable_tool',
+              description: 'Another slow',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 140,
+            }),
           ],
           behavioralNotes: [],
           limitations: [],
@@ -239,12 +301,42 @@ describe('Performance Baseline CV calculation', () => {
           description: 'Tool with mixed outcomes',
           interactions: [
             // Successful calls are fast
-            createInteraction({ toolName: 'mixed_tool', description: 'Success 1', expected: 'success', actual: 'success', durationMs: 10 }),
-            createInteraction({ toolName: 'mixed_tool', description: 'Success 2', expected: 'success', actual: 'success', durationMs: 10 }),
-            createInteraction({ toolName: 'mixed_tool', description: 'Success 3', expected: 'success', actual: 'success', durationMs: 10 }),
+            createInteraction({
+              toolName: 'mixed_tool',
+              description: 'Success 1',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 10,
+            }),
+            createInteraction({
+              toolName: 'mixed_tool',
+              description: 'Success 2',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 10,
+            }),
+            createInteraction({
+              toolName: 'mixed_tool',
+              description: 'Success 3',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 10,
+            }),
             // Error calls are slow (but shouldn't affect confidence metrics)
-            createInteraction({ toolName: 'mixed_tool', description: 'Validation 1', expected: 'error', actual: 'error', durationMs: 500 }),
-            createInteraction({ toolName: 'mixed_tool', description: 'Validation 2', expected: 'error', actual: 'error', durationMs: 500 }),
+            createInteraction({
+              toolName: 'mixed_tool',
+              description: 'Validation 1',
+              expected: 'error',
+              actual: 'error',
+              durationMs: 500,
+            }),
+            createInteraction({
+              toolName: 'mixed_tool',
+              description: 'Validation 2',
+              expected: 'error',
+              actual: 'error',
+              durationMs: 500,
+            }),
           ],
           behavioralNotes: [],
           limitations: [],
@@ -275,8 +367,20 @@ describe('Performance Baseline CV calculation', () => {
           description: 'Tool with few samples',
           interactions: [
             // Need at least 2 calls to trigger Performance Baseline section
-            createInteraction({ toolName: 'low_sample_tool', description: 'Call 1', expected: 'success', actual: 'success', durationMs: 100 }),
-            createInteraction({ toolName: 'low_sample_tool', description: 'Call 2', expected: 'success', actual: 'success', durationMs: 100 }),
+            createInteraction({
+              toolName: 'low_sample_tool',
+              description: 'Call 1',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 100,
+            }),
+            createInteraction({
+              toolName: 'low_sample_tool',
+              description: 'Call 2',
+              expected: 'success',
+              actual: 'success',
+              durationMs: 100,
+            }),
             // Still less than HIGH.MIN_SAMPLES (10) so confidence will be LOW
           ],
           behavioralNotes: [],
@@ -512,7 +616,7 @@ describe('Issue Classification', () => {
 
     const contract = generateContractMd(resultWithCriticalIssue, {});
 
-    expect(contract).toContain('### 🐛 Server Bugs (Require Fixing)');
+    expect(contract).toContain('### Server Bugs (Require Fixing)');
     expect(contract).toContain('Critical - Accepts Invalid Input');
     expect(contract).toContain('`insecure_tool`');
     expect(contract).toContain('accepts SQL injection payload');
@@ -549,13 +653,14 @@ describe('Issue Classification', () => {
     };
 
     // Modify the interaction to have a Plaid-specific error message
-    resultWithExternalService.toolProfiles[0].interactions[0].error = 'INVALID_LINK_TOKEN: Invalid link token';
+    resultWithExternalService.toolProfiles[0].interactions[0].error =
+      'INVALID_LINK_TOKEN: Invalid link token';
 
     const contract = generateContractMd(resultWithExternalService, {});
 
     expect(contract).toContain('## Issues Detected');
     expect(contract).toContain('External Service');
-    expect(contract).toContain('🔌');
+    expect(contract).toContain('External Service');
   });
 
   it('classifies environment errors separately', () => {
@@ -588,13 +693,14 @@ describe('Issue Classification', () => {
     };
 
     // Set an environment-related error message
-    resultWithEnvIssue.toolProfiles[0].interactions[0].error = 'Missing credentials: DATABASE_URL not configured';
+    resultWithEnvIssue.toolProfiles[0].interactions[0].error =
+      'Missing credentials: DATABASE_URL not configured';
 
     const contract = generateContractMd(resultWithEnvIssue, {});
 
     expect(contract).toContain('## Issues Detected');
     expect(contract).toContain('Environment');
-    expect(contract).toContain('⚙️');
+    expect(contract).toContain('Environment');
   });
 
   it('puts validation rejections in collapsible section', () => {
@@ -629,7 +735,7 @@ describe('Issue Classification', () => {
     const contract = generateContractMd(resultWithValidation, {});
 
     // This should NOT show issues since outcomeAssessment.correct is true
-    expect(contract).toContain('✓ No issues detected');
+    expect(contract).toContain('No issues detected');
   });
 
   it('shows no issues message when all tests pass', () => {
@@ -665,7 +771,7 @@ describe('Issue Classification', () => {
     const contract = generateContractMd(resultAllPassing, {});
 
     expect(contract).toContain('## Issues Detected');
-    expect(contract).toContain('✓ No issues detected');
+    expect(contract).toContain('No issues detected');
   });
 
   it('handles mixed issue types correctly', () => {

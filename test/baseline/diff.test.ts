@@ -413,12 +413,12 @@ describe('Diff Formatting', () => {
       expect(output).toContain('**3**');
     });
 
-    it('should use correct severity emojis', () => {
+    it('should use correct severity labels', () => {
       const severities: Array<{ severity: BehavioralDiff['severity']; emoji: string }> = [
-        { severity: 'none', emoji: '✅' },
-        { severity: 'info', emoji: 'ℹ️' },
-        { severity: 'warning', emoji: '⚠️' },
-        { severity: 'breaking', emoji: '❌' },
+        { severity: 'none', emoji: 'OK' },
+        { severity: 'info', emoji: 'INFO' },
+        { severity: 'warning', emoji: 'WARNING' },
+        { severity: 'breaking', emoji: 'BREAKING' },
       ];
 
       for (const { severity, emoji } of severities) {

@@ -13,6 +13,7 @@ import type { Persona, QuestionCategory } from '../persona/types.js';
 import type { Workflow, WorkflowResult, WorkflowTimeoutConfig } from '../workflow/types.js';
 import type { LoadedScenarios, ScenarioResult } from '../scenarios/types.js';
 import type { ToolResponseCache } from '../cache/response-cache.js';
+import type { TestFixturesConfig } from './schema-test-generator.js';
 
 /**
  * Server context extracted during discovery/initial probing.
@@ -116,6 +117,8 @@ export interface InterviewConfig {
   rateLimit?: RateLimitConfig;
   /** Stateful testing configuration */
   statefulTesting?: StatefulTestingConfig;
+  /** Test fixtures for overriding default parameter values */
+  testFixtures?: TestFixturesConfig;
 }
 
 /**

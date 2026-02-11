@@ -36,10 +36,10 @@ export interface DependencyEdge {
  * Types of dependencies between tools.
  */
 export type DependencyType =
-  | 'mention'        // Tool A's description mentions tool B
-  | 'output_input'   // Tool A's output is tool B's input
-  | 'resource_ref'   // Tool A creates resource that tool B uses
-  | 'sequence'       // Tool A must run before tool B (implied)
+  | 'mention' // Tool A's description mentions tool B
+  | 'output_input' // Tool A's output is tool B's input
+  | 'resource_ref' // Tool A creates resource that tool B uses
+  | 'sequence' // Tool A must run before tool B (implied)
   | 'shared_resource'; // Both tools operate on same resource
 
 /**
@@ -79,19 +79,31 @@ export interface DependencyStats {
 // Common patterns for tool relationships
 const DEPENDENCY_PATTERNS = [
   // "requires output from X" / "requires X"
-  { pattern: /requires?\s+(?:output\s+from\s+)?['"`]?(\w+)['"`]?/gi, type: 'mention' as DependencyType },
+  {
+    pattern: /requires?\s+(?:output\s+from\s+)?['"`]?(\w+)['"`]?/gi,
+    type: 'mention' as DependencyType,
+  },
   // "after calling X" / "after X"
   { pattern: /after\s+(?:calling\s+)?['"`]?(\w+)['"`]?/gi, type: 'sequence' as DependencyType },
   // "use result from X" / "use output of X"
-  { pattern: /use\s+(?:the\s+)?(?:result|output)\s+(?:of|from)\s+['"`]?(\w+)['"`]?/gi, type: 'output_input' as DependencyType },
+  {
+    pattern: /use\s+(?:the\s+)?(?:result|output)\s+(?:of|from)\s+['"`]?(\w+)['"`]?/gi,
+    type: 'output_input' as DependencyType,
+  },
   // "first call X" / "call X first"
-  { pattern: /(?:first\s+call|call\s+first)\s+['"`]?(\w+)['"`]?/gi, type: 'sequence' as DependencyType },
+  {
+    pattern: /(?:first\s+call|call\s+first)\s+['"`]?(\w+)['"`]?/gi,
+    type: 'sequence' as DependencyType,
+  },
   // "chain with X" / "chains to X"
   { pattern: /chains?\s+(?:with|to)\s+['"`]?(\w+)['"`]?/gi, type: 'sequence' as DependencyType },
   // "needs X" / "need X to"
   { pattern: /needs?\s+['"`]?(\w+)['"`]?\s+(?:to|first)?/gi, type: 'mention' as DependencyType },
   // "X returns ... which is used by"
-  { pattern: /['"`]?(\w+)['"`]?\s+returns?.*which\s+is\s+used/gi, type: 'output_input' as DependencyType },
+  {
+    pattern: /['"`]?(\w+)['"`]?\s+returns?.*which\s+is\s+used/gi,
+    type: 'output_input' as DependencyType,
+  },
 ];
 
 // Common ID/token parameter patterns that suggest dependencies
@@ -105,8 +117,17 @@ const ID_PARAMETER_PATTERNS = [
 // Common output field names that create resources
 // Note: Reserved for future enhanced dependency detection
 const _RESOURCE_OUTPUT_PATTERNS = [
-  'id', 'item_id', 'account_id', 'user_id', 'token', 'link_token',
-  'access_token', 'session_id', 'path', 'file_path', 'resource_id',
+  'id',
+  'item_id',
+  'account_id',
+  'user_id',
+  'token',
+  'link_token',
+  'access_token',
+  'session_id',
+  'path',
+  'file_path',
+  'resource_id',
 ];
 void _RESOURCE_OUTPUT_PATTERNS;
 
@@ -115,8 +136,8 @@ void _RESOURCE_OUTPUT_PATTERNS;
  */
 export function analyzeDependencies(tools: MCPTool[]): DependencyGraph {
   const edges: DependencyEdge[] = [];
-  const toolNames = new Set(tools.map(t => t.name.toLowerCase()));
-  const toolMap = new Map(tools.map(t => [t.name.toLowerCase(), t]));
+  const toolNames = new Set(tools.map((t) => t.name.toLowerCase()));
+  const toolMap = new Map(tools.map((t) => [t.name.toLowerCase(), t]));
 
   for (const tool of tools) {
     // Strategy 1: Description analysis
@@ -185,7 +206,7 @@ function extractToolMentions(
       if (description.toLowerCase().includes(variant.toLowerCase())) {
         // Check if already found via pattern
         const existingEdge = edges.find(
-          e => e.from === otherTool.name.toLowerCase() || e.from === otherTool.name
+          (e) => e.from === otherTool.name.toLowerCase() || e.from === otherTool.name
         );
         if (!existingEdge) {
           edges.push({
@@ -208,7 +229,9 @@ function extractToolMentions(
  */
 function findParameterMatches(tool: MCPTool, allTools: MCPTool[]): DependencyEdge[] {
   const edges: DependencyEdge[] = [];
-  const schema = tool.inputSchema as { properties?: Record<string, unknown>; required?: string[] } | undefined;
+  const schema = tool.inputSchema as
+    | { properties?: Record<string, unknown>; required?: string[] }
+    | undefined;
 
   if (!schema?.properties) return edges;
 
@@ -230,11 +253,13 @@ function findParameterMatches(tool: MCPTool, allTools: MCPTool[]): DependencyEdg
         // E.g., param "item_id" might come from "get_item", "create_item", "link_exchange"
         const resourceType = paramLower.replace(/_?(id|token)$/i, '');
 
-        if (otherName.includes(resourceType) ||
-            (prefix && otherName.includes(prefix)) ||
-            otherName.includes('create') ||
-            otherName.includes('link') ||
-            otherName.includes('exchange')) {
+        if (
+          otherName.includes(resourceType) ||
+          (prefix && otherName.includes(prefix)) ||
+          otherName.includes('create') ||
+          otherName.includes('link') ||
+          otherName.includes('exchange')
+        ) {
           edges.push({
             from: otherTool.name,
             to: tool.name,
@@ -275,9 +300,13 @@ function findResourceReferences(
     const otherName = otherTool.name.toLowerCase();
 
     // create_X -> [get|list|update|delete]_X dependency
-    if (otherName.includes(resourceType) &&
-        (otherName.includes('create') || otherName.includes('add') ||
-         otherName.includes('link') || otherName.includes('exchange'))) {
+    if (
+      otherName.includes(resourceType) &&
+      (otherName.includes('create') ||
+        otherName.includes('add') ||
+        otherName.includes('link') ||
+        otherName.includes('exchange'))
+    ) {
       edges.push({
         from: otherTool.name,
         to: tool.name,
@@ -369,7 +398,7 @@ function deduplicateEdges(edges: DependencyEdge[]): DependencyEdge[] {
  * Build the full dependency graph from edges.
  */
 function buildGraph(edges: DependencyEdge[], tools: MCPTool[]): DependencyGraph {
-  const toolNames = tools.map(t => t.name);
+  const toolNames = tools.map((t) => t.name);
 
   // Build adjacency lists
   const dependsOn = new Map<string, Set<string>>();
@@ -386,14 +415,10 @@ function buildGraph(edges: DependencyEdge[], tools: MCPTool[]): DependencyGraph 
   }
 
   // Find entry points (no dependencies)
-  const entryPoints = toolNames.filter(name =>
-    (dependsOn.get(name)?.size ?? 0) === 0
-  );
+  const entryPoints = toolNames.filter((name) => (dependsOn.get(name)?.size ?? 0) === 0);
 
   // Find terminal points (no dependents)
-  const terminalPoints = toolNames.filter(name =>
-    (dependedBy.get(name)?.size ?? 0) === 0
-  );
+  const terminalPoints = toolNames.filter((name) => (dependedBy.get(name)?.size ?? 0) === 0);
 
   // Build layers using topological sort
   const layers = topologicalLayers(toolNames, dependsOn);
@@ -413,10 +438,7 @@ function buildGraph(edges: DependencyEdge[], tools: MCPTool[]): DependencyGraph 
 /**
  * Build layers using topological sort (tools with same depth in same layer).
  */
-function topologicalLayers(
-  toolNames: string[],
-  dependsOn: Map<string, Set<string>>
-): string[][] {
+function topologicalLayers(toolNames: string[], dependsOn: Map<string, Set<string>>): string[][] {
   const layers: string[][] = [];
   const depth = new Map<string, number>();
 
@@ -456,7 +478,7 @@ function topologicalLayers(
   // Group by depth
   const maxDepth = Math.max(...Array.from(depth.values()));
   for (let d = 0; d <= maxDepth; d++) {
-    const layerTools = toolNames.filter(name => depth.get(name) === d);
+    const layerTools = toolNames.filter((name) => depth.get(name) === d);
     if (layerTools.length > 0) {
       layers.push(layerTools);
     }
@@ -468,10 +490,7 @@ function topologicalLayers(
 /**
  * Detect cycles in the dependency graph.
  */
-function detectCycles(
-  toolNames: string[],
-  dependsOn: Map<string, Set<string>>
-): string[][] {
+function detectCycles(toolNames: string[], dependsOn: Map<string, Set<string>>): string[][] {
   const cycles: string[][] = [];
   const visited = new Set<string>();
   const recursionStack = new Set<string>();
@@ -544,10 +563,8 @@ export function calculateDependencyStats(graph: DependencyGraph): DependencyStat
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
-  const totalTools = new Set([
-    ...graph.edges.map(e => e.from),
-    ...graph.edges.map(e => e.to),
-  ]).size;
+  const totalTools = new Set([...graph.edges.map((e) => e.from), ...graph.edges.map((e) => e.to)])
+    .size;
 
   return {
     totalEdges: graph.edges.length,
@@ -566,9 +583,9 @@ export function generateDependencyMermaid(graph: DependencyGraph): string {
   const lines: string[] = ['graph TD'];
 
   // Group edges by confidence for styling
-  const highConfidence = graph.edges.filter(e => e.confidence >= 0.7);
-  const mediumConfidence = graph.edges.filter(e => e.confidence >= 0.5 && e.confidence < 0.7);
-  const lowConfidence = graph.edges.filter(e => e.confidence < 0.5);
+  const highConfidence = graph.edges.filter((e) => e.confidence >= 0.7);
+  const mediumConfidence = graph.edges.filter((e) => e.confidence >= 0.5 && e.confidence < 0.7);
+  const lowConfidence = graph.edges.filter((e) => e.confidence < 0.5);
 
   // Add high confidence edges (solid lines)
   for (const edge of highConfidence) {
@@ -625,10 +642,7 @@ export function generateDependencyMermaid(graph: DependencyGraph): string {
 /**
  * Generate markdown documentation for dependencies.
  */
-export function generateDependencyMarkdown(
-  graph: DependencyGraph,
-  stats: DependencyStats
-): string {
+export function generateDependencyMarkdown(graph: DependencyGraph, stats: DependencyStats): string {
   const lines: string[] = [];
 
   lines.push('## Tool Dependencies');
@@ -720,12 +734,12 @@ export function generateDependencyMarkdown(
 
   // Cycles warning
   if (graph.cycles.length > 0) {
-    lines.push('### ⚠️ Circular Dependencies');
+    lines.push('### Circular Dependencies');
     lines.push('');
     lines.push('The following circular dependencies were detected:');
     lines.push('');
     for (const cycle of graph.cycles.slice(0, 5)) {
-      lines.push(`- ${cycle.map(t => `\`${t}\``).join(' → ')}`);
+      lines.push(`- ${cycle.map((t) => `\`${t}\``).join(' → ')}`);
     }
     lines.push('');
   }
@@ -738,7 +752,7 @@ export function generateDependencyMarkdown(
     lines.push('');
     for (let i = 0; i < graph.layers.length && i < 5; i++) {
       const layer = graph.layers[i];
-      lines.push(`${i + 1}. ${layer.map(t => `\`${t}\``).join(', ')}`);
+      lines.push(`${i + 1}. ${layer.map((t) => `\`${t}\``).join(', ')}`);
     }
     if (graph.layers.length > 5) {
       lines.push(`... and ${graph.layers.length - 5} more layers`);

@@ -261,7 +261,12 @@ describe('prompts/templates', () => {
         name: 'Security Tester',
         description: 'Security focused',
         systemPrompt: 'Security tester',
-        questionBias: { happy_path: 0.2, edge_cases: 0.3, error_handling: 0.3, boundary_conditions: 0.2 },
+        questionBias: {
+          happy_path: 0.2,
+          edge_cases: 0.3,
+          error_handling: 0.3,
+          boundary_conditions: 0.2,
+        },
       };
 
       const prompt = buildResponseAnalysisPrompt({
@@ -278,7 +283,12 @@ describe('prompts/templates', () => {
         name: 'QA Engineer',
         description: 'QA focused',
         systemPrompt: 'QA engineer',
-        questionBias: { happy_path: 0.2, edge_cases: 0.4, error_handling: 0.2, boundary_conditions: 0.2 },
+        questionBias: {
+          happy_path: 0.2,
+          edge_cases: 0.4,
+          error_handling: 0.2,
+          boundary_conditions: 0.2,
+        },
       };
 
       const prompt = buildResponseAnalysisPrompt({
@@ -295,7 +305,12 @@ describe('prompts/templates', () => {
         name: 'Novice User',
         description: 'New user perspective',
         systemPrompt: 'Novice user',
-        questionBias: { happy_path: 0.5, edge_cases: 0.2, error_handling: 0.2, boundary_conditions: 0.1 },
+        questionBias: {
+          happy_path: 0.5,
+          edge_cases: 0.2,
+          error_handling: 0.2,
+          boundary_conditions: 0.1,
+        },
       };
 
       const prompt = buildResponseAnalysisPrompt({
@@ -331,13 +346,21 @@ describe('prompts/templates', () => {
       tool: sampleTool,
       interactions: [
         {
-          question: { description: 'Basic lookup', category: 'happy_path', args: { location: 'NYC' } },
+          question: {
+            description: 'Basic lookup',
+            category: 'happy_path',
+            args: { location: 'NYC' },
+          },
           response: { content: [{ type: 'text', text: '{"temp": 72}' }] },
           error: null,
           analysis: 'Returns temperature in the expected format.',
         },
         {
-          question: { description: 'Invalid location', category: 'error_handling', args: { location: 'XYZ123' } },
+          question: {
+            description: 'Invalid location',
+            category: 'error_handling',
+            args: { location: 'XYZ123' },
+          },
           response: null,
           error: 'Location not found',
           analysis: 'Properly returns error for invalid locations.',
@@ -584,8 +607,8 @@ describe('prompts/templates', () => {
       const prompt = buildWorkflowSummaryPrompt(workflowSummaryContext);
 
       // Success marker
-      expect(prompt).toMatch(/1\. ✓/);
-      expect(prompt).toMatch(/2\. ✓/);
+      expect(prompt).toMatch(/1\. Pass/);
+      expect(prompt).toMatch(/2\. Pass/);
     });
 
     it('should show failure markers for failed steps', () => {
@@ -603,7 +626,7 @@ describe('prompts/templates', () => {
 
       const prompt = buildWorkflowSummaryPrompt(failedContext);
 
-      expect(prompt).toMatch(/1\. ✗/);
+      expect(prompt).toMatch(/1\. Fail/);
       expect(prompt).toContain('Cart service unavailable');
     });
 
@@ -831,8 +854,13 @@ describe('prompts/templates', () => {
         prompt: sampleMCPPrompt,
         interactions: [
           {
-            question: { description: 'English to Spanish', args: { text: 'Hello', language: 'es' } },
-            response: { messages: [{ role: 'assistant', content: { type: 'text', text: 'Hola' } }] },
+            question: {
+              description: 'English to Spanish',
+              args: { text: 'Hello', language: 'es' },
+            },
+            response: {
+              messages: [{ role: 'assistant', content: { type: 'text', text: 'Hola' } }],
+            },
             error: null,
             analysis: 'Correctly translated',
           },

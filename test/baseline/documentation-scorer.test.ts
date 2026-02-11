@@ -24,7 +24,10 @@ import {
   meetsDocumentationGrade,
 } from '../../src/baseline/documentation-scorer.js';
 import type { MCPTool } from '../../src/transport/types.js';
-import type { DocumentationScore, DocumentationGrade } from '../../src/baseline/documentation-scorer.js';
+import type {
+  DocumentationScore,
+  DocumentationGrade,
+} from '../../src/baseline/documentation-scorer.js';
 import { DOCUMENTATION_SCORING } from '../../src/constants.js';
 
 // Helper to create a tool with specific properties
@@ -58,7 +61,8 @@ describe('scoreDocumentation', () => {
       const tools: MCPTool[] = [
         createTool({
           name: 'create-file',
-          description: 'Creates a new file at the specified path with the given content. Returns the file path on success.',
+          description:
+            'Creates a new file at the specified path with the given content. Returns the file path on success.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -69,7 +73,8 @@ describe('scoreDocumentation', () => {
         }),
         createTool({
           name: 'delete-file',
-          description: 'Deletes the file at the specified path. Returns true if the file was successfully deleted.',
+          description:
+            'Deletes the file at the specified path. Returns true if the file was successfully deleted.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -99,7 +104,7 @@ describe('scoreDocumentation', () => {
 
       expect(result.overallScore).toBeLessThan(50);
       expect(result.grade).toBe('F');
-      expect(result.issues.some(i => i.type === 'missing_description')).toBe(true);
+      expect(result.issues.some((i) => i.type === 'missing_description')).toBe(true);
     });
 
     it('should return lower score for tools with short descriptions', () => {
@@ -111,7 +116,7 @@ describe('scoreDocumentation', () => {
       const result = scoreDocumentation(tools);
 
       expect(result.overallScore).toBeLessThan(70);
-      expect(result.issues.some(i => i.type === 'short_description')).toBe(true);
+      expect(result.issues.some((i) => i.type === 'short_description')).toBe(true);
     });
 
     it('should penalize undocumented parameters', () => {
@@ -132,7 +137,7 @@ describe('scoreDocumentation', () => {
       const result = scoreDocumentation(tools);
 
       expect(result.components.parameterDocumentation).toBe(0);
-      expect(result.issues.some(i => i.type === 'missing_param_description')).toBe(true);
+      expect(result.issues.some((i) => i.type === 'missing_param_description')).toBe(true);
     });
   });
 });
@@ -161,7 +166,7 @@ describe('scoreToolDocumentation', () => {
 
     const result = scoreToolDocumentation(tool);
 
-    expect(result.issues.some(i => i.type === 'missing_description')).toBe(true);
+    expect(result.issues.some((i) => i.type === 'missing_description')).toBe(true);
     expect(result.score).toBeLessThan(100);
   });
 
@@ -170,7 +175,7 @@ describe('scoreToolDocumentation', () => {
 
     const result = scoreToolDocumentation(tool);
 
-    expect(result.issues.some(i => i.type === 'short_description')).toBe(true);
+    expect(result.issues.some((i) => i.type === 'short_description')).toBe(true);
   });
 });
 
@@ -317,9 +322,7 @@ describe('calculateExampleCoverage', () => {
   });
 
   it('should return 0% when no tools have examples', () => {
-    const tools: MCPTool[] = [
-      createTool({ inputSchema: { type: 'object', properties: {} } }),
-    ];
+    const tools: MCPTool[] = [createTool({ inputSchema: { type: 'object', properties: {} } })];
 
     expect(calculateExampleCoverage(tools)).toBe(0);
   });
@@ -407,35 +410,51 @@ describe('scoreToGrade', () => {
 describe('generateSuggestions', () => {
   it('should suggest adding descriptions for tools without them', () => {
     const issues = [
-      { tool: 'tool1', type: 'missing_description' as const, severity: 'error' as const, message: 'Missing' },
+      {
+        tool: 'tool1',
+        type: 'missing_description' as const,
+        severity: 'error' as const,
+        message: 'Missing',
+      },
     ];
     const tools: MCPTool[] = [createTool({ name: 'tool1' })];
 
     const suggestions = generateSuggestions(issues, tools);
 
-    expect(suggestions.some(s => s.includes('description'))).toBe(true);
+    expect(suggestions.some((s) => s.includes('description'))).toBe(true);
   });
 
   it('should suggest expanding short descriptions', () => {
     const issues = [
-      { tool: 'tool1', type: 'short_description' as const, severity: 'warning' as const, message: 'Short' },
+      {
+        tool: 'tool1',
+        type: 'short_description' as const,
+        severity: 'warning' as const,
+        message: 'Short',
+      },
     ];
     const tools: MCPTool[] = [createTool({ name: 'tool1' })];
 
     const suggestions = generateSuggestions(issues, tools);
 
-    expect(suggestions.some(s => s.includes('Expand'))).toBe(true);
+    expect(suggestions.some((s) => s.includes('Expand'))).toBe(true);
   });
 
   it('should suggest adding parameter descriptions', () => {
     const issues = [
-      { tool: 'tool1', type: 'missing_param_description' as const, severity: 'warning' as const, message: 'Missing param', paramName: 'path' },
+      {
+        tool: 'tool1',
+        type: 'missing_param_description' as const,
+        severity: 'warning' as const,
+        message: 'Missing param',
+        paramName: 'path',
+      },
     ];
     const tools: MCPTool[] = [createTool({ name: 'tool1' })];
 
     const suggestions = generateSuggestions(issues, tools);
 
-    expect(suggestions.some(s => s.includes('parameter'))).toBe(true);
+    expect(suggestions.some((s) => s.includes('parameter'))).toBe(true);
   });
 
   it('should limit suggestions to maximum', () => {
@@ -692,11 +711,11 @@ describe('toDocumentationScoreSummary', () => {
 
 describe('getGradeIndicator', () => {
   it('should return correct indicators for each grade', () => {
-    expect(getGradeIndicator('A')).toBe('✓');
-    expect(getGradeIndicator('B')).toBe('✓');
+    expect(getGradeIndicator('A')).toBe('+');
+    expect(getGradeIndicator('B')).toBe('+');
     expect(getGradeIndicator('C')).toBe('~');
     expect(getGradeIndicator('D')).toBe('!');
-    expect(getGradeIndicator('F')).toBe('✗');
+    expect(getGradeIndicator('F')).toBe('-');
   });
 });
 
@@ -769,7 +788,8 @@ describe('integration tests', () => {
     const tools: MCPTool[] = [
       {
         name: 'read_file',
-        description: 'Reads the contents of a file at the specified path. Returns the file content as a string.',
+        description:
+          'Reads the contents of a file at the specified path. Returns the file content as a string.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -781,7 +801,8 @@ describe('integration tests', () => {
       },
       {
         name: 'write_file',
-        description: 'Writes content to a file at the specified path. Creates the file if it does not exist.',
+        description:
+          'Writes content to a file at the specified path. Creates the file if it does not exist.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -810,6 +831,6 @@ describe('integration tests', () => {
     expect(result.overallScore).toBeLessThan(100);
     expect(result.components.descriptionCoverage).toBe(100);
     expect(result.components.parameterDocumentation).toBeLessThan(100);
-    expect(result.issues.some(i => i.tool === 'list_files')).toBe(true);
+    expect(result.issues.some((i) => i.tool === 'list_files')).toBe(true);
   });
 });

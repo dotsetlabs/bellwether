@@ -77,11 +77,11 @@ export const PERFORMANCE_CONFIDENCE = {
     low: 'LOW',
   } as const,
 
-  /** Emoji indicators for confidence levels (used in Markdown) */
+  /** Text indicators for confidence levels (used in Markdown) */
   INDICATORS: {
-    high: '✓',
-    medium: '~',
-    low: '!',
+    high: 'high',
+    medium: 'med',
+    low: 'low',
   } as const,
 
   /** Recommendation messages for low confidence */
@@ -365,15 +365,15 @@ export const OUTCOME_ASSESSMENT = {
   },
 
   /**
-   * Icons/indicators for outcome assessment results.
+   * Text indicators for outcome assessment results.
    */
   INDICATORS: {
     /** Correct outcome (success or expected error) */
-    correct: '✓',
+    correct: '[PASS]',
     /** Incorrect outcome (unexpected behavior) */
-    incorrect: '✗',
+    incorrect: '[FAIL]',
     /** Ambiguous outcome (either was acceptable) */
-    ambiguous: '~',
+    ambiguous: '[--]',
   },
 } as const;
 
@@ -1242,9 +1242,9 @@ export const RELIABILITY_DISPLAY = {
   MEDIUM_THRESHOLD: 50,
   /** Status symbols for reliability and validation summaries */
   SYMBOLS: {
-    PASS: '✓',
-    WARN: '⚠',
-    FAIL: '✗',
+    PASS: '[PASS]',
+    WARN: '[WARN]',
+    FAIL: '[FAIL]',
   } as const,
 } as const;
 

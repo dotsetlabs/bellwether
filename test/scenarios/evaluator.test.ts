@@ -110,7 +110,11 @@ describe('scenarios/evaluator', () => {
 
     describe('contains condition', () => {
       it('should pass when string contains substring', () => {
-        const assertion: ScenarioAssertion = { path: 'text', condition: 'contains', value: 'world' };
+        const assertion: ScenarioAssertion = {
+          path: 'text',
+          condition: 'contains',
+          value: 'world',
+        };
         const result = evaluateAssertion(assertion, { text: 'Hello, world!' }, false);
         expect(result.passed).toBe(true);
       });
@@ -257,7 +261,7 @@ describe('scenarios/evaluator', () => {
 
       const formatted = formatAssertionResults(results);
 
-      expect(formatted).toContain('✓');
+      expect(formatted).toContain('[PASS]');
       expect(formatted).toContain('name');
       expect(formatted).toContain('exists');
     });
@@ -274,7 +278,7 @@ describe('scenarios/evaluator', () => {
 
       const formatted = formatAssertionResults(results);
 
-      expect(formatted).toContain('✗');
+      expect(formatted).toContain('[FAIL]');
       expect(formatted).toContain('count');
       expect(formatted).toContain('Expected 10 to equal 5');
     });

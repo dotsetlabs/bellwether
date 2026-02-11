@@ -490,7 +490,7 @@ describe('docs', () => {
       const md = generateAgentsMd(mockResult);
 
       expect(md).toContain('## Workflow Test Results');
-      expect(md).toContain('❌');
+      expect(md).toContain('Failed');
     });
 
     it('should include Behavioral Matrix when multiple personas used', () => {
