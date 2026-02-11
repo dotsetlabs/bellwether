@@ -4,10 +4,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import {
-  RegistryClient,
-  generateRunCommand,
-} from '../../registry/index.js';
+import { RegistryClient, generateRunCommand } from '../../registry/index.js';
 import type { RegistryServerEntry } from '../../registry/index.js';
 import { EXIT_CODES } from '../../constants.js';
 import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
@@ -25,9 +22,14 @@ export function createRegistryCommand(): Command {
     .option('-c, --config <path>', 'Path to config file')
     .option('-l, --limit <number>', 'Maximum results to show')
     .option('--json', 'Output as JSON')
-    .action(async (query: string | undefined, options: { config?: string; limit?: string; json?: boolean }) => {
-      await handleRegistry(query, options);
-    });
+    .action(
+      async (
+        query: string | undefined,
+        options: { config?: string; limit?: string; json?: boolean }
+      ) => {
+        await handleRegistry(query, options);
+      }
+    );
 }
 
 export const registryCommand = createRegistryCommand();
@@ -74,7 +76,9 @@ async function handleRegistry(
     if (servers.length === 0) {
       output.info(chalk.yellow('No servers found.'));
       if (query) {
-        output.info(chalk.gray(`Try a different search term or browse all servers with: bellwether registry`));
+        output.info(
+          chalk.gray(`Try a different search term or browse all servers with: bellwether registry`)
+        );
       }
       return;
     }
@@ -124,7 +128,7 @@ function isLikelyEnvVar(name: string): boolean {
     /auth/i,
     /^[A-Z][A-Z0-9_]+$/, // ALL_CAPS_PATTERN
   ];
-  return envPatterns.some(pattern => pattern.test(name));
+  return envPatterns.some((pattern) => pattern.test(name));
 }
 
 /**
@@ -188,36 +192,38 @@ function analyzeServerRequirements(entry: RegistryServerEntry): {
     // Only look at the actual server name part (after last /) to avoid false matches
     // e.g., "io.github.user/postgres" should match "postgres", not "github"
     const fullName = entry.server.name.toLowerCase();
-    const serverNamePart = fullName.includes('/') ? fullName.split('/').pop() || fullName : fullName;
+    const serverNamePart = fullName.includes('/')
+      ? fullName.split('/').pop() || fullName
+      : fullName;
     const serviceEnvVars: Record<string, string[]> = {
-      'openai': ['OPENAI_API_KEY'],
-      'anthropic': ['ANTHROPIC_API_KEY'],
-      'github': ['GITHUB_TOKEN', 'GITHUB_PERSONAL_ACCESS_TOKEN'],
-      'gitlab': ['GITLAB_TOKEN', 'GITLAB_PERSONAL_ACCESS_TOKEN'],
-      'slack': ['SLACK_TOKEN', 'SLACK_BOT_TOKEN'],
-      'discord': ['DISCORD_TOKEN', 'DISCORD_BOT_TOKEN'],
-      'postgres': ['DATABASE_URL', 'POSTGRES_CONNECTION_STRING'],
-      'mysql': ['DATABASE_URL', 'MYSQL_CONNECTION_STRING'],
-      'redis': ['REDIS_URL'],
-      'mongodb': ['MONGODB_URI'],
-      'aws': ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'],
-      'azure': ['AZURE_SUBSCRIPTION_ID', 'AZURE_CLIENT_ID'],
-      'gcp': ['GOOGLE_APPLICATION_CREDENTIALS'],
-      'google': ['GOOGLE_API_KEY'],
-      'stripe': ['STRIPE_API_KEY'],
-      'twilio': ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
-      'sendgrid': ['SENDGRID_API_KEY'],
-      'mailgun': ['MAILGUN_API_KEY'],
-      'firebase': ['FIREBASE_PROJECT_ID'],
-      'supabase': ['SUPABASE_URL', 'SUPABASE_KEY'],
-      'notion': ['NOTION_API_KEY'],
-      'airtable': ['AIRTABLE_API_KEY'],
-      'letta': ['LETTA_API_KEY'],
-      'brave': ['BRAVE_API_KEY'],
-      'puppeteer': [],
-      'playwright': [],
-      'filesystem': [],
-      'everything': [],
+      openai: ['OPENAI_API_KEY'],
+      anthropic: ['ANTHROPIC_API_KEY'],
+      github: ['GITHUB_TOKEN', 'GITHUB_PERSONAL_ACCESS_TOKEN'],
+      gitlab: ['GITLAB_TOKEN', 'GITLAB_PERSONAL_ACCESS_TOKEN'],
+      slack: ['SLACK_TOKEN', 'SLACK_BOT_TOKEN'],
+      discord: ['DISCORD_TOKEN', 'DISCORD_BOT_TOKEN'],
+      postgres: ['DATABASE_URL', 'POSTGRES_CONNECTION_STRING'],
+      mysql: ['DATABASE_URL', 'MYSQL_CONNECTION_STRING'],
+      redis: ['REDIS_URL'],
+      mongodb: ['MONGODB_URI'],
+      aws: ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'],
+      azure: ['AZURE_SUBSCRIPTION_ID', 'AZURE_CLIENT_ID'],
+      gcp: ['GOOGLE_APPLICATION_CREDENTIALS'],
+      google: ['GOOGLE_API_KEY'],
+      stripe: ['STRIPE_API_KEY'],
+      twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
+      sendgrid: ['SENDGRID_API_KEY'],
+      mailgun: ['MAILGUN_API_KEY'],
+      firebase: ['FIREBASE_PROJECT_ID'],
+      supabase: ['SUPABASE_URL', 'SUPABASE_KEY'],
+      notion: ['NOTION_API_KEY'],
+      airtable: ['AIRTABLE_API_KEY'],
+      letta: ['LETTA_API_KEY'],
+      brave: ['BRAVE_API_KEY'],
+      puppeteer: [],
+      playwright: [],
+      filesystem: [],
+      everything: [],
       'sequential-thinking': [],
     };
 
@@ -259,10 +265,10 @@ function displayServer(entry: RegistryServerEntry): void {
     nameLine += chalk.gray(` v${server.version}`);
   }
   if (meta?.status === 'active') {
-    nameLine += chalk.green(' ✓');
+    nameLine += chalk.green(' [active]');
   }
   if (requirements.needsSetup) {
-    nameLine += chalk.yellow(' ⚙');  // Setup required indicator
+    nameLine += chalk.yellow(' [setup required]');
   }
   output.info(nameLine);
 
@@ -306,13 +312,13 @@ function displayServer(entry: RegistryServerEntry): void {
     if (requirements.envVars.length > 0) {
       output.info(chalk.yellow('  Environment:'));
       for (const envVar of requirements.envVars) {
-        const isSet = process.env[envVar] ? chalk.green('✓') : chalk.red('✗');
+        const isSet = process.env[envVar] ? chalk.green('set') : chalk.red('missing');
         output.info(chalk.yellow(`    ${isSet} ${envVar}`));
       }
     }
 
     // Setup hints (new)
-    if (requirements.setupHints.length > 0 && requirements.envVars.some(v => !process.env[v])) {
+    if (requirements.setupHints.length > 0 && requirements.envVars.some((v) => !process.env[v])) {
       output.info(chalk.gray('  Setup:'));
       for (const hint of requirements.setupHints) {
         output.info(chalk.gray(`    → ${hint}`));

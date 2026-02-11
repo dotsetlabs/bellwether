@@ -28,8 +28,9 @@ import * as output from '../output.js';
 import { EXIT_CODES, PATHS } from '../../constants.js';
 import { formatDateISO } from '../../utils/index.js';
 
-export const goldenCommand = new Command('golden')
-  .description('Manage golden outputs for tool validation');
+export const goldenCommand = new Command('golden').description(
+  'Manage golden outputs for tool validation'
+);
 
 // Save command
 goldenCommand
@@ -69,12 +70,9 @@ goldenCommand
 
     const argsJson = options.args ?? config.golden.defaultArgs;
     const mode = options.mode ?? config.golden.mode;
-    const normalizeTimestamps = options.normalizeTimestamps === false
-      ? false
-      : config.golden.normalizeTimestamps;
-    const normalizeUuids = options.normalizeUuids === false
-      ? false
-      : config.golden.normalizeUuids;
+    const normalizeTimestamps =
+      options.normalizeTimestamps === false ? false : config.golden.normalizeTimestamps;
+    const normalizeUuids = options.normalizeUuids === false ? false : config.golden.normalizeUuids;
 
     // Parse tool arguments
     let toolArgs: Record<string, unknown>;
@@ -120,11 +118,11 @@ goldenCommand
 
       // Discover tools
       const discovery = await discover(mcpClient, serverCommand, args);
-      const tool = discovery.tools.find(t => t.name === options.tool);
+      const tool = discovery.tools.find((t) => t.name === options.tool);
 
       if (!tool) {
         output.error(`Tool not found: ${options.tool}`);
-        output.info(`Available tools: ${discovery.tools.map(t => t.name).join(', ')}`);
+        output.info(`Available tools: ${discovery.tools.map((t) => t.name).join(', ')}`);
         process.exit(EXIT_CODES.ERROR);
       }
 
@@ -134,7 +132,7 @@ goldenCommand
 
       if (response.isError) {
         output.error('Tool returned an error:');
-        const textContent = response.content.find(c => c.type === 'text');
+        const textContent = response.content.find((c) => c.type === 'text');
         if (textContent && 'text' in textContent) {
           output.error(String(textContent.text));
         }
@@ -171,7 +169,9 @@ goldenCommand
         output.info(preview + (golden.output.raw.length > 200 ? '...' : ''));
       }
     } catch (error) {
-      output.error(`Failed to capture golden output: ${error instanceof Error ? error.message : error}`);
+      output.error(
+        `Failed to capture golden output: ${error instanceof Error ? error.message : error}`
+      );
       process.exit(EXIT_CODES.ERROR);
     } finally {
       await mcpClient.disconnect();
@@ -222,7 +222,7 @@ goldenCommand
 
     const goldens = listGoldenOutputs(storePath);
     const filteredGoldens = options.tool
-      ? goldens.filter(g => g.toolName === options.tool)
+      ? goldens.filter((g) => g.toolName === options.tool)
       : goldens;
 
     if (filteredGoldens.length === 0) {
@@ -259,13 +259,13 @@ goldenCommand
           const result = compareWithGolden(golden, response);
           results.push(result);
 
-          const icon = result.passed ? '\u2713' : '\u2717';
+          const icon = result.passed ? '[PASS]' : '[FAIL]';
           if (result.passed) {
             output.success(`  ${icon} ${result.summary}`);
           } else {
             output.error(`  ${icon} ${result.summary}`);
-            if (result.differences.filter(d => !d.allowed).length <= 5) {
-              for (const diff of result.differences.filter(d => !d.allowed)) {
+            if (result.differences.filter((d) => !d.allowed).length <= 5) {
+              for (const diff of result.differences.filter((d) => !d.allowed)) {
                 output.warn(`    - ${diff.description} at ${diff.path}`);
               }
             }
@@ -277,24 +277,28 @@ goldenCommand
             severity: 'breaking',
             mode: golden.tolerance.mode,
             goldenCapturedAt: golden.capturedAt,
-            differences: [{
-              type: 'changed',
-              path: '$',
-              expected: 'successful response',
-              actual: `error: ${error instanceof Error ? error.message : String(error)}`,
-              allowed: false,
-              description: 'Tool call failed',
-            }],
+            differences: [
+              {
+                type: 'changed',
+                path: '$',
+                expected: 'successful response',
+                actual: `error: ${error instanceof Error ? error.message : String(error)}`,
+                allowed: false,
+                description: 'Tool call failed',
+              },
+            ],
             summary: `Tool call failed: ${error instanceof Error ? error.message : String(error)}`,
           });
-          output.error(`  \u2717 Tool call failed: ${error instanceof Error ? error.message : String(error)}`);
+          output.error(
+            `  [FAIL] Tool call failed: ${error instanceof Error ? error.message : String(error)}`
+          );
         }
       }
 
       output.newline();
 
       // Summary
-      const passed = results.filter(r => r.passed).length;
+      const passed = results.filter((r) => r.passed).length;
       const failed = results.length - passed;
 
       if (format === 'json') {
@@ -425,15 +429,15 @@ function formatResultsMarkdown(results: GoldenComparisonResult[]): string {
   lines.push('|------|--------|------|-------------|');
 
   for (const result of results) {
-    const status = result.passed ? '✓ Match' : `✗ ${result.severity}`;
-    const diffCount = result.differences.filter(d => !d.allowed).length;
+    const status = result.passed ? 'Match' : `${result.severity}`;
+    const diffCount = result.differences.filter((d) => !d.allowed).length;
     lines.push(`| \`${result.toolName}\` | ${status} | ${result.mode} | ${diffCount} |`);
   }
 
   lines.push('');
 
   // Details for failed comparisons
-  const failed = results.filter(r => !r.passed);
+  const failed = results.filter((r) => !r.passed);
   if (failed.length > 0) {
     lines.push('### Drift Details');
     lines.push('');
@@ -446,7 +450,7 @@ function formatResultsMarkdown(results: GoldenComparisonResult[]): string {
       lines.push(`**Severity:** ${result.severity}`);
       lines.push('');
       lines.push('**Changes:**');
-      for (const diff of result.differences.filter(d => !d.allowed)) {
+      for (const diff of result.differences.filter((d) => !d.allowed)) {
         lines.push(`- ${diff.description}`);
         if (diff.expected !== undefined) {
           lines.push(`  - Expected: \`${String(diff.expected)}\``);

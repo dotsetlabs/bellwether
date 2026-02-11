@@ -99,7 +99,7 @@ export function evaluateAssertion(
           actualValue,
           error:
             actualValue === undefined
-              ? assertion.message ?? `Expected path "${assertion.path}" to exist`
+              ? (assertion.message ?? `Expected path "${assertion.path}" to exist`)
               : undefined,
         };
 
@@ -111,8 +111,8 @@ export function evaluateAssertion(
           actualValue,
           error: isEqual
             ? undefined
-            : assertion.message ??
-              `Expected ${JSON.stringify(actualValue)} to equal ${JSON.stringify(assertion.value)}`,
+            : (assertion.message ??
+              `Expected ${JSON.stringify(actualValue)} to equal ${JSON.stringify(assertion.value)}`),
         };
       }
 
@@ -131,8 +131,8 @@ export function evaluateAssertion(
           actualValue,
           error: containsValue
             ? undefined
-            : assertion.message ??
-              `Expected ${JSON.stringify(actualValue)} to contain ${JSON.stringify(assertion.value)}`,
+            : (assertion.message ??
+              `Expected ${JSON.stringify(actualValue)} to contain ${JSON.stringify(assertion.value)}`),
         };
       }
 
@@ -144,7 +144,7 @@ export function evaluateAssertion(
           actualValue,
           error: isTruthy
             ? undefined
-            : assertion.message ?? `Expected path "${assertion.path}" to be truthy`,
+            : (assertion.message ?? `Expected path "${assertion.path}" to be truthy`),
         };
       }
 
@@ -164,8 +164,7 @@ export function evaluateAssertion(
           actualValue,
           error: typeMatches
             ? undefined
-            : assertion.message ??
-              `Expected type "${assertion.value}" but got "${actualType}"`,
+            : (assertion.message ?? `Expected type "${assertion.value}" but got "${actualType}"`),
         };
       }
 
@@ -175,7 +174,7 @@ export function evaluateAssertion(
           passed: !isError,
           actualValue: isError,
           error: isError
-            ? assertion.message ?? 'Expected response to not be an error'
+            ? (assertion.message ?? 'Expected response to not be an error')
             : undefined,
         };
 
@@ -227,7 +226,7 @@ export function formatAssertionResults(results: AssertionResult[]): string {
   const lines: string[] = [];
 
   for (const result of results) {
-    const status = result.passed ? '✓' : '✗';
+    const status = result.passed ? '[PASS]' : '[FAIL]';
     const condition = result.assertion.condition;
     const path = result.assertion.path;
 

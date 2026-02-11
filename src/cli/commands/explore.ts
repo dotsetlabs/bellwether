@@ -567,7 +567,7 @@ export const exploreCommand = new Command('explore')
       if (result.scenarioResults && result.scenarioResults.length > 0) {
         const passed = result.scenarioResults.filter((r) => r.passed).length;
         const failed = result.scenarioResults.length - passed;
-        const statusIcon = failed === 0 ? '\u2713' : '\u2717';
+        const statusIcon = failed === 0 ? '[PASS]' : '[FAIL]';
         output.info(
           `\nCustom scenarios: ${passed}/${result.scenarioResults.length} passed ${statusIcon}`
         );
@@ -589,7 +589,7 @@ export const exploreCommand = new Command('explore')
       if (result.workflowResults && result.workflowResults.length > 0) {
         const successful = result.workflowResults.filter((wr) => wr.success).length;
         const failed = result.workflowResults.length - successful;
-        const statusIcon = failed === 0 ? '\u2713' : '\u2717';
+        const statusIcon = failed === 0 ? '[PASS]' : '[FAIL]';
         output.info(
           `\nWorkflows: ${successful}/${result.workflowResults.length} passed ${statusIcon}`
         );

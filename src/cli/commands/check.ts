@@ -14,6 +14,7 @@ import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
 import { Interviewer } from '../../interview/interviewer.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
+import type { TestFixturesConfig } from '../../interview/schema-test-generator.js';
 import { generateContractMd, generateJsonReport } from '../../docs/generator.js';
 import {
   loadConfig,
@@ -338,7 +339,7 @@ export const checkCommand = new Command('check')
       // Output discovery warnings (Issue D: anomaly detection)
       if (discovery.warnings && discovery.warnings.length > 0) {
         for (const warning of discovery.warnings) {
-          output.warn(`⚠ ${warning.message}`);
+          output.warn(`[warn] ${warning.message}`);
         }
         output.newline();
       }
@@ -348,7 +349,7 @@ export const checkCommand = new Command('check')
         output.warn('Transport errors during discovery:');
         for (const err of discovery.transportErrors.slice(0, 3)) {
           const typeLabel = err.category.replace(/_/g, ' ');
-          output.warn(`  ✗ ${typeLabel}: ${err.message.substring(0, 100)}`);
+          output.warn(`  [fail] ${typeLabel}: ${err.message.substring(0, 100)}`);
         }
         if (discovery.transportErrors.length > 3) {
           output.warn(`  ... and ${discovery.transportErrors.length - 3} more`);
@@ -482,6 +483,7 @@ export const checkCommand = new Command('check')
         externalServices: config.check.externalServices,
         assertions: config.check.assertions,
         rateLimit: config.check.rateLimit,
+        testFixtures: config.check.testFixtures as TestFixturesConfig | undefined,
       });
 
       // Log sampling configuration
@@ -581,7 +583,7 @@ export const checkCommand = new Command('check')
       if (result.scenarioResults && result.scenarioResults.length > 0) {
         const passed = result.scenarioResults.filter((r) => r.passed).length;
         const failed = result.scenarioResults.length - passed;
-        const statusIcon = failed === 0 ? '\u2713' : '\u2717';
+        const statusIcon = failed === 0 ? '[PASS]' : '[FAIL]';
         output.info(
           `\nCustom scenarios: ${passed}/${result.scenarioResults.length} passed ${statusIcon}`
         );
@@ -818,7 +820,7 @@ export const checkCommand = new Command('check')
             const workflowResult = await workflowExecutor.execute(workflow);
             workflowResults.push(workflowResult);
 
-            const statusIcon = workflowResult.success ? '\u2713' : '\u2717';
+            const statusIcon = workflowResult.success ? '[PASS]' : '[FAIL]';
             const stepsInfo = `${workflowResult.steps.filter((s) => s.success).length}/${workflow.steps.length} steps`;
 
             if (workflowResult.success) {
@@ -839,7 +841,7 @@ export const checkCommand = new Command('check')
             }
           } catch (error) {
             output.error(
-              `  \u2717 ${workflow.name} - Error: ${error instanceof Error ? error.message : error}`
+              `  [FAIL] ${workflow.name} - Error: ${error instanceof Error ? error.message : error}`
             );
           }
         }

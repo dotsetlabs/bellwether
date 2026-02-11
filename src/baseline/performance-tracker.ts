@@ -822,9 +822,9 @@ export function formatComparison(comparison: PerformanceComparison): string {
 
   if (comparison.hasRegression) {
     if (!comparison.isReliable) {
-      lines.push(`  ⚠️ REGRESSION DETECTED (low confidence - may not be reliable)`);
+      lines.push(`  REGRESSION DETECTED (low confidence - may not be reliable)`);
     } else {
-      lines.push(`  ⚠️ REGRESSION DETECTED`);
+      lines.push(`  REGRESSION DETECTED`);
     }
   }
 

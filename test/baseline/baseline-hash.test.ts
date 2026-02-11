@@ -16,12 +16,12 @@ function createMinimalBaseline(
   overrides: Partial<Omit<BehavioralBaseline, 'hash'>> = {}
 ): Omit<BehavioralBaseline, 'hash'> {
   return {
-    version: '2.0.1',
+    version: '2.1.0',
     metadata: {
       mode: 'check',
       generatedAt: '2025-01-15T12:00:00.000Z',
       serverCommand: 'npx test-server',
-      cliVersion: '2.0.1',
+      cliVersion: '2.1.0',
       durationMs: 1000,
       personas: [],
       model: 'none',

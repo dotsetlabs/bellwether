@@ -268,6 +268,7 @@ export const ISSUE_CLASSIFICATION = {
     externalDependency: 'External Service',
     environment: 'Environment',
     validation: 'Validation',
+    statefulDependency: 'Stateful Dependency',
   } as const,
 
   /** Category descriptions for the summary table */
@@ -276,14 +277,7 @@ export const ISSUE_CLASSIFICATION = {
     externalDependency: 'Requires API credentials or external service',
     environment: 'Missing configuration or credentials',
     validation: 'Expected validation rejections',
-  } as const,
-
-  /** Category icons for visual distinction */
-  ICONS: {
-    serverBug: '🐛',
-    externalDependency: '🔌',
-    environment: '⚙️',
-    validation: '✓',
+    statefulDependency: 'Failures from shared state between dependent tools',
   } as const,
 
   /** Section headers for each category */
@@ -292,6 +286,7 @@ export const ISSUE_CLASSIFICATION = {
     externalDependency: 'External Service Dependencies',
     environment: 'Environment Configuration',
     validation: 'Validation Rejections (Expected)',
+    statefulDependency: 'Stateful Dependencies (Expected)',
   } as const,
 
   /** Maximum validation issues to show before collapsing */

@@ -11,15 +11,22 @@
  * is sanitized before inclusion in prompts to prevent prompt injection attacks.
  */
 
-import type { MCPTool, MCPToolCallResult, MCPPrompt, MCPPromptGetResult } from '../transport/types.js';
-import type { InterviewQuestion, ToolProfile, ServerContext, PromptQuestion } from '../interview/types.js';
+import type {
+  MCPTool,
+  MCPToolCallResult,
+  MCPPrompt,
+  MCPPromptGetResult,
+} from '../transport/types.js';
+import type {
+  InterviewQuestion,
+  ToolProfile,
+  ServerContext,
+  PromptQuestion,
+} from '../interview/types.js';
 import type { DiscoveryResult } from '../discovery/types.js';
 import type { Persona } from '../persona/types.js';
 import type { Workflow, WorkflowStep, WorkflowStepResult } from '../workflow/types.js';
-import {
-  sanitizeForPrompt,
-  sanitizeObjectForPrompt,
-} from '../utils/sanitize.js';
+import { sanitizeForPrompt, sanitizeObjectForPrompt } from '../utils/sanitize.js';
 import { getLogger } from '../logging/logger.js';
 
 const logger = getLogger('prompt-templates');
@@ -45,10 +52,14 @@ function buildServerContextSection(ctx: ServerContext | undefined): string {
 
   if (ctx?.allowedDirectories && ctx.allowedDirectories.length > 0) {
     parts.push(`IMPORTANT - Allowed directories: ${ctx.allowedDirectories.join(', ')}`);
-    parts.push(`All file/directory paths MUST be within these directories (e.g., ${ctx.allowedDirectories[0]}/example.txt)`);
+    parts.push(
+      `All file/directory paths MUST be within these directories (e.g., ${ctx.allowedDirectories[0]}/example.txt)`
+    );
   } else {
     // Provide guidance even without known allowed directories - default to /tmp
-    parts.push('Note: Use /tmp as the base directory for file paths (e.g., /tmp/test.txt, /tmp/data/)');
+    parts.push(
+      'Note: Use /tmp as the base directory for file paths (e.g., /tmp/test.txt, /tmp/data/)'
+    );
   }
 
   if (ctx?.allowedHosts && ctx.allowedHosts.length > 0) {
@@ -56,11 +67,11 @@ function buildServerContextSection(ctx: ServerContext | undefined): string {
   }
 
   if (ctx?.constraints && ctx.constraints.length > 0) {
-    parts.push(`Server constraints:\n${ctx.constraints.map(c => `- ${c}`).join('\n')}`);
+    parts.push(`Server constraints:\n${ctx.constraints.map((c) => `- ${c}`).join('\n')}`);
   }
 
   if (ctx?.hints && ctx.hints.length > 0) {
-    parts.push(`Hints:\n${ctx.hints.map(h => `- ${h}`).join('\n')}`);
+    parts.push(`Hints:\n${ctx.hints.map((h) => `- ${h}`).join('\n')}`);
   }
 
   return `\nServer Context:\n${parts.join('\n')}\n`;
@@ -69,12 +80,15 @@ function buildServerContextSection(ctx: ServerContext | undefined): string {
 /**
  * Build section about previous errors to avoid.
  */
-function buildPreviousErrorsSection(errors: Array<{ args: Record<string, unknown>; error: string }> | undefined): string {
+function buildPreviousErrorsSection(
+  errors: Array<{ args: Record<string, unknown>; error: string }> | undefined
+): string {
   if (!errors || errors.length === 0) return '';
 
-  const errorExamples = errors.slice(0, 3).map(e =>
-    `- Args: ${JSON.stringify(e.args)} → Error: ${e.error}`
-  ).join('\n');
+  const errorExamples = errors
+    .slice(0, 3)
+    .map((e) => `- Args: ${JSON.stringify(e.args)} → Error: ${e.error}`)
+    .join('\n');
 
   return `
 LEARN FROM PREVIOUS ERRORS:
@@ -92,10 +106,9 @@ ${errorExamples}
 export function buildQuestionGenerationPrompt(ctx: QuestionGenerationContext): string {
   // Sanitize tool data to prevent prompt injection
   const sanitizedName = sanitizeForPrompt(ctx.tool.name, { escapeStructural: true });
-  const sanitizedDesc = sanitizeForPrompt(
-    ctx.tool.description ?? 'No description provided',
-    { escapeStructural: true }
-  );
+  const sanitizedDesc = sanitizeForPrompt(ctx.tool.description ?? 'No description provided', {
+    escapeStructural: true,
+  });
 
   // Log warning if injection patterns detected
   if (sanitizedName.hadInjectionPatterns || sanitizedDesc.hadInjectionPatterns) {
@@ -202,7 +215,9 @@ export function buildResponseAnalysisPrompt(ctx: ResponseAnalysisContext): strin
       : 'No response';
 
   // Sanitize test description
-  const sanitizedDesc = sanitizeForPrompt(ctx.question.description, { escapeStructural: true }).sanitized;
+  const sanitizedDesc = sanitizeForPrompt(ctx.question.description, {
+    escapeStructural: true,
+  }).sanitized;
 
   const focusGuidance = getPersonaFocusGuidance(ctx.persona);
 
@@ -246,10 +261,9 @@ export interface ToolProfileSynthesisContext {
 export function buildToolProfileSynthesisPrompt(ctx: ToolProfileSynthesisContext): string {
   // Sanitize tool metadata
   const sanitizedToolName = sanitizeForPrompt(ctx.tool.name, { escapeStructural: true }).sanitized;
-  const sanitizedToolDesc = sanitizeForPrompt(
-    ctx.tool.description ?? 'No description',
-    { escapeStructural: true }
-  ).sanitized;
+  const sanitizedToolDesc = sanitizeForPrompt(ctx.tool.description ?? 'No description', {
+    escapeStructural: true,
+  }).sanitized;
 
   // Sanitize interaction data
   const interactionSummary = ctx.interactions
@@ -292,7 +306,7 @@ export interface OverallSynthesisContext {
  */
 export function buildOverallSynthesisPrompt(ctx: OverallSynthesisContext): string {
   const profileSummary = ctx.toolProfiles
-    .map(p => `- ${p.name}: ${p.behavioralNotes[0] ?? 'No notes'}`)
+    .map((p) => `- ${p.name}: ${p.behavioralNotes[0] ?? 'No notes'}`)
     .join('\n');
 
   return `Summarize the capabilities of this MCP server based on the interview findings.
@@ -352,10 +366,12 @@ export interface WorkflowSummaryContext {
  * Generate the prompt for summarizing a workflow execution.
  */
 export function buildWorkflowSummaryPrompt(ctx: WorkflowSummaryContext): string {
-  const stepSummaries = ctx.stepResults.map((r, i) => {
-    const status = r.success ? '✓' : '✗';
-    return `${i + 1}. ${status} ${r.step.description}: ${r.analysis ?? (r.error || 'Completed')}`;
-  }).join('\n');
+  const stepSummaries = ctx.stepResults
+    .map((r, i) => {
+      const status = r.success ? 'Pass' : 'Fail';
+      return `${i + 1}. ${status} ${r.step.description}: ${r.analysis ?? (r.error || 'Completed')}`;
+    })
+    .join('\n');
 
   return `Summarize this workflow execution.
 
@@ -379,10 +395,12 @@ export interface PromptQuestionGenerationContext {
  */
 export function buildPromptQuestionGenerationPrompt(ctx: PromptQuestionGenerationContext): string {
   const argsDescription = ctx.prompt.arguments?.length
-    ? ctx.prompt.arguments.map(a => {
-        const req = a.required ? '(required)' : '(optional)';
-        return `- ${a.name} ${req}: ${a.description ?? 'No description'}`;
-      }).join('\n')
+    ? ctx.prompt.arguments
+        .map((a) => {
+          const req = a.required ? '(required)' : '(optional)';
+          return `- ${a.name} ${req}: ${a.description ?? 'No description'}`;
+        })
+        .join('\n')
     : 'No arguments';
 
   return `You are generating test cases for an MCP prompt template.
@@ -428,10 +446,12 @@ export function buildPromptResponseAnalysisPrompt(ctx: PromptResponseAnalysisCon
   if (ctx.error) {
     responseStr = `Error: ${ctx.error}`;
   } else if (ctx.response) {
-    const messages = ctx.response.messages.map(m => {
-      const content = m.content.type === 'text' ? m.content.text : `[${m.content.type} content]`;
-      return `${m.role}: ${content}`;
-    }).join('\n');
+    const messages = ctx.response.messages
+      .map((m) => {
+        const content = m.content.type === 'text' ? m.content.text : `[${m.content.type} content]`;
+        return `${m.role}: ${content}`;
+      })
+      .join('\n');
     responseStr = messages || 'Empty response';
   } else {
     responseStr = 'No response';

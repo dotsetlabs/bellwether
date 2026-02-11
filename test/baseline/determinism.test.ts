@@ -11,7 +11,7 @@
  * 4. Edge cases (Unicode, floating-point, empty schemas)
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import {
@@ -29,7 +29,10 @@ describe('Baseline Determinism', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `bellwether-determinism-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(
+      tmpdir(),
+      `bellwether-determinism-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
     mkdirSync(testDir, { recursive: true });
   });
 
@@ -64,13 +67,11 @@ describe('Baseline Determinism', () => {
 
     it('should produce identical tool hashes across 50 iterations', () => {
       const result = createMockInterviewResult();
-      const baselines = Array.from({ length: 50 }, () =>
-        createBaseline(result, 'npx test-server')
-      );
+      const baselines = Array.from({ length: 50 }, () => createBaseline(result, 'npx test-server'));
 
       // Verify tool schemaHashes are consistent (hash can include timestamps)
       const toolHashes = new Set(
-        baselines.map(b => b.capabilities.tools.map(t => t.schemaHash).join(','))
+        baselines.map((b) => b.capabilities.tools.map((t) => t.schemaHash).join(','))
       );
       expect(toolHashes.size).toBe(1);
     });
@@ -87,8 +88,8 @@ describe('Baseline Determinism', () => {
       const baseline1 = createBaseline(result, 'npx test-server');
       const baseline2 = createBaseline(result, 'npx test-server');
 
-      const order1 = baseline1.capabilities.tools.map(t => t.name).join(',');
-      const order2 = baseline2.capabilities.tools.map(t => t.name).join(',');
+      const order1 = baseline1.capabilities.tools.map((t) => t.name).join(',');
+      const order2 = baseline2.capabilities.tools.map((t) => t.name).join(',');
       expect(order1).toBe(order2);
     });
   });
@@ -252,8 +253,9 @@ describe('Baseline Determinism', () => {
       const baseline1 = createBaseline(result1, 'npx test-server');
       const baseline2 = createBaseline(result2, 'npx test-server');
 
-      const severities = Array.from({ length: 10 }, () =>
-        compareBaselines(baseline1, baseline2, {}).severity
+      const severities = Array.from(
+        { length: 10 },
+        () => compareBaselines(baseline1, baseline2, {}).severity
       );
 
       const uniqueSeverities = new Set(severities);
@@ -267,9 +269,9 @@ describe('Baseline Determinism', () => {
       const schema = {
         type: 'object',
         properties: {
-          'élève': { type: 'string' },
-          '中文参数': { type: 'number' },
-          '🚀': { type: 'boolean' },
+          élève: { type: 'string' },
+          中文参数: { type: 'number' },
+          rocketProp: { type: 'boolean' },
         },
       };
 
@@ -391,6 +393,7 @@ describe('Baseline Determinism', () => {
 
     it('should handle circular reference protection consistently', () => {
       // Create a schema with self-reference (via any cast)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const schema: any = {
         type: 'object',
         properties: {},
@@ -445,7 +448,9 @@ describe('Baseline Determinism', () => {
       const baseline2 = createBaseline(result, 'npx test-server');
 
       // Note: baseline hash can include timestamps, so compare stable fields.
-      expect(baseline1.capabilities.tools[0].schemaHash).toBe(baseline2.capabilities.tools[0].schemaHash);
+      expect(baseline1.capabilities.tools[0].schemaHash).toBe(
+        baseline2.capabilities.tools[0].schemaHash
+      );
       expect(JSON.stringify(baseline1.toolProfiles[0].assertions)).toBe(
         JSON.stringify(baseline2.toolProfiles[0].assertions)
       );
@@ -455,10 +460,12 @@ describe('Baseline Determinism', () => {
 
 // ==================== Helper Functions ====================
 
-function createMockInterviewResult(options: {
-  serverName?: string;
-  tools?: ToolProfile[];
-} = {}): InterviewResult {
+function createMockInterviewResult(
+  options: {
+    serverName?: string;
+    tools?: ToolProfile[];
+  } = {}
+): InterviewResult {
   const defaultTool = createMockToolProfile('test_tool');
 
   const discovery: DiscoveryResult = {
@@ -467,7 +474,7 @@ function createMockInterviewResult(options: {
       version: '1.0.0',
     },
     protocolVersion: '2024-11-05',
-    tools: (options.tools ?? [defaultTool]).map(t => ({
+    tools: (options.tools ?? [defaultTool]).map((t) => ({
       name: t.name,
       description: t.description ?? `${t.name} description`,
       inputSchema: {
@@ -505,10 +512,7 @@ function createMockInterviewResult(options: {
   };
 }
 
-function createMockToolProfile(
-  name: string,
-  overrides: Partial<ToolProfile> = {}
-): ToolProfile {
+function createMockToolProfile(name: string, overrides: Partial<ToolProfile> = {}): ToolProfile {
   return {
     name,
     description: overrides.description ?? `${name} description`,

@@ -230,15 +230,15 @@ export function scoreToolDocumentation(tool: MCPTool): ToolDocumentationScore {
   }
 
   // Check parameter descriptions
-  const schema = tool.inputSchema as {
-    properties?: Record<string, { description?: string }>;
-  } | undefined;
+  const schema = tool.inputSchema as
+    | {
+        properties?: Record<string, { description?: string }>;
+      }
+    | undefined;
 
   if (schema?.properties) {
     const params = Object.entries(schema.properties);
-    const undocumentedParams = params.filter(
-      ([_, p]) => !p.description?.trim()
-    );
+    const undocumentedParams = params.filter(([_, p]) => !p.description?.trim());
 
     for (const [paramName] of undocumentedParams) {
       issues.push({
@@ -326,9 +326,11 @@ export function calculateParameterDocumentation(tools: MCPTool[]): number {
   let documentedParams = 0;
 
   for (const tool of tools) {
-    const schema = tool.inputSchema as {
-      properties?: Record<string, { description?: string }>;
-    } | undefined;
+    const schema = tool.inputSchema as
+      | {
+          properties?: Record<string, { description?: string }>;
+        }
+      | undefined;
 
     if (schema?.properties) {
       for (const prop of Object.values(schema.properties)) {
@@ -365,10 +367,12 @@ export function calculateExampleCoverage(tools: MCPTool[]): number {
  * Check if a tool has any examples defined in its schema.
  */
 export function hasExamples(tool: MCPTool): boolean {
-  const schema = tool.inputSchema as {
-    examples?: unknown[];
-    properties?: Record<string, { examples?: unknown[] }>;
-  } | undefined;
+  const schema = tool.inputSchema as
+    | {
+        examples?: unknown[];
+        properties?: Record<string, { examples?: unknown[] }>;
+      }
+    | undefined;
 
   // Check for schema-level examples
   if (schema?.examples && schema.examples.length > 0) {
@@ -400,23 +404,16 @@ export function scoreToGrade(score: number): DocumentationGrade {
 /**
  * Generate improvement suggestions based on issues found.
  */
-export function generateSuggestions(
-  issues: DocumentationIssue[],
-  tools: MCPTool[]
-): string[] {
+export function generateSuggestions(issues: DocumentationIssue[], tools: MCPTool[]): string[] {
   const suggestions: string[] = [];
   const maxSuggestions = DOCUMENTATION_SCORING.MAX_SUGGESTIONS;
 
   // Suggest fixing missing descriptions
-  const missingDescriptions = issues.filter(
-    (i) => i.type === 'missing_description'
-  );
+  const missingDescriptions = issues.filter((i) => i.type === 'missing_description');
   if (missingDescriptions.length > 0) {
     const toolNames = missingDescriptions.map((i) => i.tool);
     if (toolNames.length <= 3) {
-      suggestions.push(
-        `Add descriptions to tool(s): ${toolNames.join(', ')}`
-      );
+      suggestions.push(`Add descriptions to tool(s): ${toolNames.join(', ')}`);
     } else {
       suggestions.push(
         `Add descriptions to ${missingDescriptions.length} tool(s) missing documentation`
@@ -425,9 +422,7 @@ export function generateSuggestions(
   }
 
   // Suggest expanding short descriptions
-  const shortDescriptions = issues.filter(
-    (i) => i.type === 'short_description'
-  );
+  const shortDescriptions = issues.filter((i) => i.type === 'short_description');
   if (shortDescriptions.length > 0) {
     suggestions.push(
       `Expand descriptions for ${shortDescriptions.length} tool(s) to at least ${DOCUMENTATION_SCORING.DESCRIPTION.MIN_GOOD_LENGTH} characters`
@@ -435,9 +430,7 @@ export function generateSuggestions(
   }
 
   // Suggest adding parameter descriptions
-  const missingParams = issues.filter(
-    (i) => i.type === 'missing_param_description'
-  );
+  const missingParams = issues.filter((i) => i.type === 'missing_param_description');
   if (missingParams.length > 0) {
     const uniqueTools = new Set(missingParams.map((i) => i.tool));
     suggestions.push(
@@ -450,9 +443,7 @@ export function generateSuggestions(
     const toolsWithoutExamples = tools.filter((t) => !hasExamples(t));
     const ratio = toolsWithoutExamples.length / tools.length;
     if (ratio > DOCUMENTATION_SCORING.EXAMPLES_SUGGESTION_THRESHOLD) {
-      suggestions.push(
-        'Consider adding examples to tool schemas to improve documentation'
-      );
+      suggestions.push('Consider adding examples to tool schemas to improve documentation');
     }
   }
 
@@ -535,13 +526,9 @@ export function formatDocumentationScore(score: DocumentationScore): string {
   lines.push(`Documentation Quality: ${score.overallScore}/100 (${score.grade})`);
   lines.push('');
   lines.push('Components:');
-  lines.push(
-    `  Description Coverage: ${score.components.descriptionCoverage}%`
-  );
+  lines.push(`  Description Coverage: ${score.components.descriptionCoverage}%`);
   lines.push(`  Description Quality: ${score.components.descriptionQuality}%`);
-  lines.push(
-    `  Parameter Documentation: ${score.components.parameterDocumentation}%`
-  );
+  lines.push(`  Parameter Documentation: ${score.components.parameterDocumentation}%`);
   lines.push(`  Example Coverage: ${score.components.exampleCoverage}%`);
 
   if (score.issues.length > 0) {
@@ -567,9 +554,7 @@ export function formatDocumentationScore(score: DocumentationScore): string {
 /**
  * Format documentation score as a compact one-line summary.
  */
-export function formatDocumentationScoreCompact(
-  score: DocumentationScore
-): string {
+export function formatDocumentationScoreCompact(score: DocumentationScore): string {
   const issueCount = score.issues.length;
   const issueSuffix = issueCount > 0 ? ` | ${issueCount} issue(s)` : '';
   return `Documentation: ${score.overallScore}/100 (${score.grade})${issueSuffix}`;
@@ -578,9 +563,7 @@ export function formatDocumentationScoreCompact(
 /**
  * Format documentation score change as a human-readable string.
  */
-export function formatDocumentationScoreChange(
-  change: DocumentationScoreChange
-): string {
+export function formatDocumentationScoreChange(change: DocumentationScoreChange): string {
   const lines: string[] = [];
 
   lines.push(change.summary);
@@ -598,9 +581,7 @@ export function formatDocumentationScoreChange(
 /**
  * Convert documentation score to a serializable summary for baseline storage.
  */
-export function toDocumentationScoreSummary(
-  score: DocumentationScore
-): DocumentationScoreSummary {
+export function toDocumentationScoreSummary(score: DocumentationScore): DocumentationScoreSummary {
   return {
     overallScore: score.overallScore,
     grade: score.grade,
@@ -614,9 +595,7 @@ export function toDocumentationScoreSummary(
 /**
  * Group issues by their type.
  */
-function groupIssuesByType(
-  issues: DocumentationIssue[]
-): Record<string, DocumentationIssue[]> {
+function groupIssuesByType(issues: DocumentationIssue[]): Record<string, DocumentationIssue[]> {
   const grouped: Record<string, DocumentationIssue[]> = {};
   for (const issue of issues) {
     if (!grouped[issue.type]) {
@@ -638,20 +617,20 @@ function formatIssueType(type: string): string {
 }
 
 /**
- * Get the emoji indicator for a documentation grade.
+ * Get the text indicator for a documentation grade.
  */
 export function getGradeIndicator(grade: DocumentationGrade): string {
   switch (grade) {
     case 'A':
-      return '✓';
+      return '+';
     case 'B':
-      return '✓';
+      return '+';
     case 'C':
       return '~';
     case 'D':
       return '!';
     case 'F':
-      return '✗';
+      return '-';
   }
 }
 
@@ -678,10 +657,7 @@ export function getGradeBadgeColor(
 /**
  * Check if a documentation score meets a minimum threshold.
  */
-export function meetsDocumentationThreshold(
-  score: DocumentationScore,
-  minScore: number
-): boolean {
+export function meetsDocumentationThreshold(score: DocumentationScore, minScore: number): boolean {
   return score.overallScore >= minScore;
 }
 

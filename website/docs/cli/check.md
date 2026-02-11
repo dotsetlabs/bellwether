@@ -393,9 +393,9 @@ Bellwether scores documentation quality for all tools:
 
 ```
 ─── Documentation Quality ───
-  📊 Score: 85/100 (B)
+  Score: 85/100 (B)
   Grade: B → A
-  ✓ Issues fixed: 3
+  Issues fixed: 3
 ```
 
 Documentation is scored on:

@@ -52,12 +52,12 @@ Bellwether Authentication Status
 =================================
 
 Anthropic:
-  Status: ✓ Configured
+  Status: Configured
   Source: System keychain
   Model:  claude-haiku-4-5
 
 OpenAI:
-  Status: ✗ Not configured
+  Status: Not configured
   Setup:  Run 'bellwether auth' or set OPENAI_API_KEY
 
 Ollama:
@@ -129,7 +129,7 @@ bellwether auth status
 ```bash
 bellwether auth add openai
 # Enter your OpenAI API key: ********
-# ✓ OpenAI API key stored in keychain
+# OpenAI API key stored in keychain
 ```
 
 ### Add Anthropic Key
@@ -137,14 +137,14 @@ bellwether auth add openai
 ```bash
 bellwether auth add anthropic
 # Enter your Anthropic API key: ********
-# ✓ Anthropic API key stored in keychain
+# Anthropic API key stored in keychain
 ```
 
 ### Remove a Key
 
 ```bash
 bellwether auth remove openai
-# ✓ OpenAI API key removed from keychain
+# OpenAI API key removed from keychain
 ```
 
 ### Clear All Keys

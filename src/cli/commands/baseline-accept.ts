@@ -87,10 +87,13 @@ export const acceptCommand = new Command('accept')
   .action(async (options) => {
     const config = loadConfigOrExit(options.config);
     const outputDir = config.output.dir;
-    const resolvedBaselinePath = options.baseline ?? config.baseline.comparePath ?? config.baseline.path;
+    const resolvedBaselinePath =
+      options.baseline ?? config.baseline.comparePath ?? config.baseline.path;
 
     if (!resolvedBaselinePath) {
-      output.error('No baseline path provided. Set baseline.path or baseline.comparePath in config, or pass --baseline.');
+      output.error(
+        'No baseline path provided. Set baseline.path or baseline.comparePath in config, or pass --baseline.'
+      );
       process.exit(EXIT_CODES.ERROR);
     }
 
@@ -174,7 +177,7 @@ export const acceptCommand = new Command('accept')
     // For breaking changes without --force, show a warning
     if (diff.severity === 'breaking' && !options.force) {
       output.warn('');
-      output.warn('⚠️  This will accept BREAKING changes!');
+      output.warn('WARNING: This will accept BREAKING changes!');
       output.warn('');
       output.warn('Breaking changes may affect downstream consumers of this MCP server.');
       output.warn('Make sure you have updated any dependent systems accordingly.');

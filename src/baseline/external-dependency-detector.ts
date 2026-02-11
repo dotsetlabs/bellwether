@@ -360,7 +360,9 @@ export function getExternalServiceStatus(
 
   const requiredEnv = credentials.requiredEnv ?? [];
   const requiredKeys = credentials.requiredConfigKeys ?? [];
-  const hasSandboxConfig = !!(configService?.sandboxCredentials && Object.keys(configService.sandboxCredentials).length > 0);
+  const hasSandboxConfig = !!(
+    configService?.sandboxCredentials && Object.keys(configService.sandboxCredentials).length > 0
+  );
 
   const envRequirements = hasSandboxConfig ? [] : requiredEnv;
   const configRequirements = hasSandboxConfig ? requiredKeys : [];
@@ -499,9 +501,12 @@ export function isTransientError(errorMessage: string): boolean {
  */
 function confidenceLevelPriority(level: DependencyConfidenceLevel): number {
   switch (level) {
-    case 'confirmed': return 3;
-    case 'likely': return 2;
-    case 'possible': return 1;
+    case 'confirmed':
+      return 3;
+    case 'likely':
+      return 2;
+    case 'possible':
+      return 1;
   }
 }
 
@@ -531,7 +536,8 @@ export function analyzeExternalDependencies(
         case 'external_dependency':
           totalExternalErrors += pattern.count;
           if (analysis.dependency) {
-            const { serviceName, displayName, isTransient, remediation, confidenceLevel } = analysis.dependency;
+            const { serviceName, displayName, isTransient, remediation, confidenceLevel } =
+              analysis.dependency;
             toolServices.push(serviceName);
             const isConfirmed = confidenceLevel === 'confirmed';
 
@@ -547,12 +553,19 @@ export function analyzeExternalDependencies(
               // Track confirmed vs detected tools separately
               if (isConfirmed && !existing.confirmedTools.includes(toolName)) {
                 existing.confirmedTools.push(toolName);
-              } else if (!isConfirmed && !existing.detectedTools.includes(toolName) && !existing.confirmedTools.includes(toolName)) {
+              } else if (
+                !isConfirmed &&
+                !existing.detectedTools.includes(toolName) &&
+                !existing.confirmedTools.includes(toolName)
+              ) {
                 existing.detectedTools.push(toolName);
               }
               existing.hasTransientErrors = existing.hasTransientErrors || isTransient;
               // Update highest confidence level
-              if (confidenceLevelPriority(confidenceLevel) > confidenceLevelPriority(existing.highestConfidenceLevel)) {
+              if (
+                confidenceLevelPriority(confidenceLevel) >
+                confidenceLevelPriority(existing.highestConfidenceLevel)
+              ) {
                 existing.highestConfidenceLevel = confidenceLevel;
               }
             } else {
@@ -661,31 +674,44 @@ export function formatExternalDependenciesMarkdown(summary: ExternalDependencySu
 
   lines.push('### External Dependencies Detected');
   lines.push('');
-  lines.push('| Service | Confidence | Errors | Confirmed Tools | Detected Tools | Recommendation |');
-  lines.push('|---------|------------|--------|-----------------|----------------|----------------|');
+  lines.push(
+    '| Service | Confidence | Errors | Confirmed Tools | Detected Tools | Recommendation |'
+  );
+  lines.push(
+    '|---------|------------|--------|-----------------|----------------|----------------|'
+  );
 
   for (const [, service] of summary.services) {
     // Show confidence level with visual indicator
-    const confidenceIcon = service.highestConfidenceLevel === 'confirmed' ? '✓' :
-                           service.highestConfidenceLevel === 'likely' ? '~' : '?';
+    const confidenceIcon =
+      service.highestConfidenceLevel === 'confirmed'
+        ? '+'
+        : service.highestConfidenceLevel === 'likely'
+          ? '~'
+          : '?';
     const confidenceLabel = `${confidenceIcon} ${service.highestConfidenceLevel}`;
 
     // Format confirmed tools (from actual errors)
-    const confirmedTools = service.confirmedTools.length > 0
-      ? service.confirmedTools.map((t) => `\`${t}\``).join(', ')
-      : '-';
+    const confirmedTools =
+      service.confirmedTools.length > 0
+        ? service.confirmedTools.map((t) => `\`${t}\``).join(', ')
+        : '-';
 
     // Format detected tools (from name/description only - not confirmed by errors)
-    const detectedTools = service.detectedTools.length > 0
-      ? service.detectedTools.map((t) => `\`${t}\``).join(', ')
-      : '-';
+    const detectedTools =
+      service.detectedTools.length > 0
+        ? service.detectedTools.map((t) => `\`${t}\``).join(', ')
+        : '-';
 
     // Show confirmed errors vs total
-    const errorDisplay = service.confirmedErrorCount > 0
-      ? `${service.confirmedErrorCount} confirmed`
-      : `${service.errorCount} (unconfirmed)`;
+    const errorDisplay =
+      service.confirmedErrorCount > 0
+        ? `${service.confirmedErrorCount} confirmed`
+        : `${service.errorCount} (unconfirmed)`;
 
-    lines.push(`| ${service.displayName} | ${confidenceLabel} | ${errorDisplay} | ${confirmedTools} | ${detectedTools} | ${service.remediation} |`);
+    lines.push(
+      `| ${service.displayName} | ${confidenceLabel} | ${errorDisplay} | ${confirmedTools} | ${detectedTools} | ${service.remediation} |`
+    );
   }
 
   lines.push('');

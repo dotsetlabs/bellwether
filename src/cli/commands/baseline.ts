@@ -444,7 +444,7 @@ baselineCommand
     if (baseline.workflows && baseline.workflows.length > 0) {
       output.info(`--- Workflows (${baseline.workflows.length}) ---`);
       for (const wf of baseline.workflows) {
-        const icon = wf.succeeded ? '\u2713' : '\u2717';
+        const icon = wf.succeeded ? '[PASS]' : '[FAIL]';
         output.info(`  ${icon} ${wf.name}: ${wf.toolSequence.join(' -> ')}`);
       }
       output.newline();

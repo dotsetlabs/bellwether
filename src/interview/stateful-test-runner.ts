@@ -17,7 +17,7 @@ export class StatefulTestRunner {
   private jsonPathValues = new Map<string, StoredValue>();
   private recentResponses: Array<{ value: unknown; sourceTool: string }> = [];
 
-  constructor(private options: { shareOutputs: boolean }) {}
+  constructor(private options: { shareOutputs: boolean; fixtureKeys?: Set<string> }) {}
 
   applyStateToQuestion(
     _toolName: string,
@@ -35,6 +35,11 @@ export class StatefulTestRunner {
 
     for (const [param] of Object.entries(args)) {
       if (!shouldPreferStateValue(param)) {
+        continue;
+      }
+
+      // Don't override user-provided fixture values
+      if (this.options.fixtureKeys?.has(param)) {
         continue;
       }
 

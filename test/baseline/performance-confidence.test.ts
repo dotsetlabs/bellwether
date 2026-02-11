@@ -372,9 +372,9 @@ describe('confidence thresholds', () => {
   });
 
   it('should have correct indicators', () => {
-    expect(PERFORMANCE_CONFIDENCE.INDICATORS.high).toBe('✓');
-    expect(PERFORMANCE_CONFIDENCE.INDICATORS.medium).toBe('~');
-    expect(PERFORMANCE_CONFIDENCE.INDICATORS.low).toBe('!');
+    expect(PERFORMANCE_CONFIDENCE.INDICATORS.high).toBe('high');
+    expect(PERFORMANCE_CONFIDENCE.INDICATORS.medium).toBe('med');
+    expect(PERFORMANCE_CONFIDENCE.INDICATORS.low).toBe('low');
   });
 });
 
@@ -492,51 +492,57 @@ describe('confidence in performance report', () => {
     const { generatePerformanceReport } = await import('../../src/baseline/performance-tracker.js');
 
     const currentMetrics = new Map<string, ToolPerformanceMetrics>([
-      ['reliable-tool', {
-        toolName: 'reliable-tool',
-        p50Ms: 100,
-        p95Ms: 150,
-        p99Ms: 200,
-        successRate: 1.0,
-        sampleCount: 15,
-        avgMs: 100,
-        minMs: 80,
-        maxMs: 200,
-        stdDevMs: 10,
-        collectedAt: new Date(),
-        confidence: {
+      [
+        'reliable-tool',
+        {
+          toolName: 'reliable-tool',
+          p50Ms: 100,
+          p95Ms: 150,
+          p99Ms: 200,
+          successRate: 1.0,
           sampleCount: 15,
-          successfulSamples: 15,
-          validationSamples: 0,
-          totalTests: 15,
-          standardDeviation: 10,
-          coefficientOfVariation: 0.1,
-          confidenceLevel: 'high' as const,
+          avgMs: 100,
+          minMs: 80,
+          maxMs: 200,
+          stdDevMs: 10,
+          collectedAt: new Date(),
+          confidence: {
+            sampleCount: 15,
+            successfulSamples: 15,
+            validationSamples: 0,
+            totalTests: 15,
+            standardDeviation: 10,
+            coefficientOfVariation: 0.1,
+            confidenceLevel: 'high' as const,
+          },
         },
-      }],
-      ['unreliable-tool', {
-        toolName: 'unreliable-tool',
-        p50Ms: 100,
-        p95Ms: 150,
-        p99Ms: 200,
-        successRate: 1.0,
-        sampleCount: 2,
-        avgMs: 100,
-        minMs: 80,
-        maxMs: 200,
-        stdDevMs: 50,
-        collectedAt: new Date(),
-        confidence: {
+      ],
+      [
+        'unreliable-tool',
+        {
+          toolName: 'unreliable-tool',
+          p50Ms: 100,
+          p95Ms: 150,
+          p99Ms: 200,
+          successRate: 1.0,
           sampleCount: 2,
-          successfulSamples: 2,
-          validationSamples: 0,
-          totalTests: 2,
-          standardDeviation: 50,
-          coefficientOfVariation: 0.5,
-          confidenceLevel: 'low' as const,
-          recommendation: 'Need more samples',
+          avgMs: 100,
+          minMs: 80,
+          maxMs: 200,
+          stdDevMs: 50,
+          collectedAt: new Date(),
+          confidence: {
+            sampleCount: 2,
+            successfulSamples: 2,
+            validationSamples: 0,
+            totalTests: 2,
+            standardDeviation: 50,
+            coefficientOfVariation: 0.5,
+            confidenceLevel: 'low' as const,
+            recommendation: 'Need more samples',
+          },
         },
-      }],
+      ],
     ]);
 
     const report = generatePerformanceReport(currentMetrics, new Map());
@@ -554,22 +560,112 @@ describe('calculatePerformanceConfidence with expectedOutcome', () => {
       // Mix of happy_path (success expected) and validation (error expected) tests
       const samples: LatencySample[] = [
         // 5 happy_path tests (success expected) - these should count for confidence
-        { toolName: 'test', durationMs: 100, success: true, timestamp: new Date(), expectedOutcome: 'success' },
-        { toolName: 'test', durationMs: 102, success: true, timestamp: new Date(), expectedOutcome: 'success' },
-        { toolName: 'test', durationMs: 98, success: true, timestamp: new Date(), expectedOutcome: 'success' },
-        { toolName: 'test', durationMs: 101, success: true, timestamp: new Date(), expectedOutcome: 'success' },
-        { toolName: 'test', durationMs: 99, success: true, timestamp: new Date(), expectedOutcome: 'success' },
+        {
+          toolName: 'test',
+          durationMs: 100,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'success',
+        },
+        {
+          toolName: 'test',
+          durationMs: 102,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'success',
+        },
+        {
+          toolName: 'test',
+          durationMs: 98,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'success',
+        },
+        {
+          toolName: 'test',
+          durationMs: 101,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'success',
+        },
+        {
+          toolName: 'test',
+          durationMs: 99,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'success',
+        },
         // 10 validation tests (error expected) - these should NOT count for performance confidence
-        { toolName: 'test', durationMs: 50, success: false, timestamp: new Date(), expectedOutcome: 'error' },
-        { toolName: 'test', durationMs: 51, success: false, timestamp: new Date(), expectedOutcome: 'error' },
-        { toolName: 'test', durationMs: 52, success: false, timestamp: new Date(), expectedOutcome: 'error' },
-        { toolName: 'test', durationMs: 53, success: false, timestamp: new Date(), expectedOutcome: 'error' },
-        { toolName: 'test', durationMs: 54, success: false, timestamp: new Date(), expectedOutcome: 'error' },
-        { toolName: 'test', durationMs: 55, success: false, timestamp: new Date(), expectedOutcome: 'error' },
-        { toolName: 'test', durationMs: 56, success: false, timestamp: new Date(), expectedOutcome: 'error' },
-        { toolName: 'test', durationMs: 57, success: false, timestamp: new Date(), expectedOutcome: 'error' },
-        { toolName: 'test', durationMs: 58, success: false, timestamp: new Date(), expectedOutcome: 'error' },
-        { toolName: 'test', durationMs: 59, success: false, timestamp: new Date(), expectedOutcome: 'error' },
+        {
+          toolName: 'test',
+          durationMs: 50,
+          success: false,
+          timestamp: new Date(),
+          expectedOutcome: 'error',
+        },
+        {
+          toolName: 'test',
+          durationMs: 51,
+          success: false,
+          timestamp: new Date(),
+          expectedOutcome: 'error',
+        },
+        {
+          toolName: 'test',
+          durationMs: 52,
+          success: false,
+          timestamp: new Date(),
+          expectedOutcome: 'error',
+        },
+        {
+          toolName: 'test',
+          durationMs: 53,
+          success: false,
+          timestamp: new Date(),
+          expectedOutcome: 'error',
+        },
+        {
+          toolName: 'test',
+          durationMs: 54,
+          success: false,
+          timestamp: new Date(),
+          expectedOutcome: 'error',
+        },
+        {
+          toolName: 'test',
+          durationMs: 55,
+          success: false,
+          timestamp: new Date(),
+          expectedOutcome: 'error',
+        },
+        {
+          toolName: 'test',
+          durationMs: 56,
+          success: false,
+          timestamp: new Date(),
+          expectedOutcome: 'error',
+        },
+        {
+          toolName: 'test',
+          durationMs: 57,
+          success: false,
+          timestamp: new Date(),
+          expectedOutcome: 'error',
+        },
+        {
+          toolName: 'test',
+          durationMs: 58,
+          success: false,
+          timestamp: new Date(),
+          expectedOutcome: 'error',
+        },
+        {
+          toolName: 'test',
+          durationMs: 59,
+          success: false,
+          timestamp: new Date(),
+          expectedOutcome: 'error',
+        },
       ];
 
       const result = calculatePerformanceConfidence(samples);
@@ -589,17 +685,77 @@ describe('calculatePerformanceConfidence with expectedOutcome', () => {
       // because confidence metrics should be based on deterministic happy_path tests
       const samples: LatencySample[] = [
         // 3 happy_path tests (expectedOutcome: 'success')
-        { toolName: 'test', durationMs: 100, success: true, timestamp: new Date(), expectedOutcome: 'success' },
-        { toolName: 'test', durationMs: 102, success: true, timestamp: new Date(), expectedOutcome: 'success' },
-        { toolName: 'test', durationMs: 98, success: true, timestamp: new Date(), expectedOutcome: 'success' },
+        {
+          toolName: 'test',
+          durationMs: 100,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'success',
+        },
+        {
+          toolName: 'test',
+          durationMs: 102,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'success',
+        },
+        {
+          toolName: 'test',
+          durationMs: 98,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'success',
+        },
         // 7 "either" outcome tests - these are ambiguous and don't count for confidence
-        { toolName: 'test', durationMs: 105, success: true, timestamp: new Date(), expectedOutcome: 'either' },
-        { toolName: 'test', durationMs: 106, success: true, timestamp: new Date(), expectedOutcome: 'either' },
-        { toolName: 'test', durationMs: 107, success: true, timestamp: new Date(), expectedOutcome: 'either' },
-        { toolName: 'test', durationMs: 108, success: true, timestamp: new Date(), expectedOutcome: 'either' },
-        { toolName: 'test', durationMs: 109, success: true, timestamp: new Date(), expectedOutcome: 'either' },
-        { toolName: 'test', durationMs: 110, success: true, timestamp: new Date(), expectedOutcome: 'either' },
-        { toolName: 'test', durationMs: 111, success: true, timestamp: new Date(), expectedOutcome: 'either' },
+        {
+          toolName: 'test',
+          durationMs: 105,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'either',
+        },
+        {
+          toolName: 'test',
+          durationMs: 106,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'either',
+        },
+        {
+          toolName: 'test',
+          durationMs: 107,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'either',
+        },
+        {
+          toolName: 'test',
+          durationMs: 108,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'either',
+        },
+        {
+          toolName: 'test',
+          durationMs: 109,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'either',
+        },
+        {
+          toolName: 'test',
+          durationMs: 110,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'either',
+        },
+        {
+          toolName: 'test',
+          durationMs: 111,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'either',
+        },
       ];
 
       const result = calculatePerformanceConfidence(samples);
@@ -634,11 +790,32 @@ describe('calculatePerformanceConfidence with expectedOutcome', () => {
     it('should track correct outcomes in latency samples', () => {
       const samples: LatencySample[] = [
         // Correct happy_path outcome (expected success, got success)
-        { toolName: 'test', durationMs: 100, success: true, timestamp: new Date(), expectedOutcome: 'success', outcomeCorrect: true },
+        {
+          toolName: 'test',
+          durationMs: 100,
+          success: true,
+          timestamp: new Date(),
+          expectedOutcome: 'success',
+          outcomeCorrect: true,
+        },
         // Correct validation outcome (expected error, got error)
-        { toolName: 'test', durationMs: 50, success: false, timestamp: new Date(), expectedOutcome: 'error', outcomeCorrect: true },
+        {
+          toolName: 'test',
+          durationMs: 50,
+          success: false,
+          timestamp: new Date(),
+          expectedOutcome: 'error',
+          outcomeCorrect: true,
+        },
         // Incorrect outcome (expected success, got error)
-        { toolName: 'test', durationMs: 60, success: false, timestamp: new Date(), expectedOutcome: 'success', outcomeCorrect: false },
+        {
+          toolName: 'test',
+          durationMs: 60,
+          success: false,
+          timestamp: new Date(),
+          expectedOutcome: 'success',
+          outcomeCorrect: false,
+        },
       ];
 
       const result = calculatePerformanceConfidence(samples);

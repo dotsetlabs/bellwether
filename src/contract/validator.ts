@@ -306,9 +306,9 @@ export async function validateContract(
   }
 
   // Calculate summary
-  const breakingCount = violations.filter(v => v.severity === 'breaking').length;
-  const warningCount = violations.filter(v => v.severity === 'warning').length;
-  const infoCount = violations.filter(v => v.severity === 'info').length;
+  const breakingCount = violations.filter((v) => v.severity === 'breaking').length;
+  const warningCount = violations.filter((v) => v.severity === 'warning').length;
+  const infoCount = violations.filter((v) => v.severity === 'info').length;
 
   // Determine overall severity
   let severity: ChangeSeverity = 'none';
@@ -340,8 +340,9 @@ export async function validateContract(
       warningCount,
       infoCount,
       toolsChecked: Object.keys(contract.tools).length,
-      toolsPassed: Object.keys(contract.tools).length -
-        violations.filter(v => v.type === 'missing_tool').length,
+      toolsPassed:
+        Object.keys(contract.tools).length -
+        violations.filter((v) => v.type === 'missing_tool').length,
     },
     mode,
   };
@@ -355,10 +356,12 @@ function validateParameters(
   paramContracts: Record<string, ParameterContract>
 ): ContractViolation[] {
   const violations: ContractViolation[] = [];
-  const schema = tool.inputSchema as {
-    properties?: Record<string, unknown>;
-    required?: string[];
-  } | undefined;
+  const schema = tool.inputSchema as
+    | {
+        properties?: Record<string, unknown>;
+        required?: string[];
+      }
+    | undefined;
 
   const actualProperties = schema?.properties || {};
   const actualRequired = schema?.required || [];
@@ -494,7 +497,7 @@ function validateOutput(
   const violations: ContractViolation[] = [];
 
   // Extract text content
-  const textContent = result.content.find(c => c.type === 'text');
+  const textContent = result.content.find((c) => c.type === 'text');
   const raw = textContent && 'text' in textContent ? String(textContent.text) : '';
 
   // Check content type
@@ -662,8 +665,10 @@ function getValueType(value: unknown): string {
 function detectContentType(raw: string): 'json' | 'markdown' | 'text' {
   const trimmed = raw.trim();
 
-  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-      (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+  if (
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  ) {
     try {
       JSON.parse(trimmed);
       return 'json';
@@ -690,10 +695,7 @@ function truncate(str: string, maxLen: number): string {
 /**
  * Generate a contract from current server state.
  */
-export function generateContract(
-  tools: MCPTool[],
-  serverName?: string
-): Contract {
+export function generateContract(tools: MCPTool[], serverName?: string): Contract {
   const contract: Contract = {
     version: CONTRACT_TESTING.SCHEMA_VERSION,
     server: serverName ? { name: serverName } : undefined,
@@ -701,10 +703,12 @@ export function generateContract(
   };
 
   for (const tool of tools) {
-    const schema = tool.inputSchema as {
-      properties?: Record<string, unknown>;
-      required?: string[];
-    } | undefined;
+    const schema = tool.inputSchema as
+      | {
+          properties?: Record<string, unknown>;
+          required?: string[];
+        }
+      | undefined;
 
     const inputContracts: Record<string, ParameterContract> = {};
 
@@ -750,7 +754,7 @@ export function generateContractYaml(contract: Contract): string {
  */
 export function generateContractValidationMarkdown(result: ContractValidationResult): string {
   const lines: string[] = [];
-  const statusIcon = result.passed ? '✓' : '✗';
+  const statusIcon = result.passed ? 'PASS' : 'FAIL';
   const statusText = result.passed ? 'PASSED' : 'FAILED';
 
   lines.push('## Contract Validation');
@@ -796,8 +800,11 @@ export function generateContractValidationMarkdown(result: ContractValidationRes
       const violations = bySeverity[severity];
       if (violations.length === 0) continue;
 
-      const icon = severity === 'breaking' ? '❌' : severity === 'warning' ? '⚠️' : 'ℹ️';
-      lines.push(`#### ${icon} ${severity.charAt(0).toUpperCase() + severity.slice(1)} (${violations.length})`);
+      const icon =
+        severity === 'breaking' ? 'BREAKING' : severity === 'warning' ? 'WARNING' : 'INFO';
+      lines.push(
+        `#### ${icon} ${severity.charAt(0).toUpperCase() + severity.slice(1)} (${violations.length})`
+      );
       lines.push('');
 
       for (const v of violations.slice(0, CONTRACT_TESTING.MAX_VALIDATION_ERRORS)) {

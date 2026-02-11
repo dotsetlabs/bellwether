@@ -33,7 +33,7 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
   if (diff.toolsRemoved.length > 0) {
     lines.push(red('─── Tools Removed ───'));
     for (const tool of diff.toolsRemoved) {
-      lines.push(`  ${red('✗')} ${tool}`);
+      lines.push(`  ${red('[FAIL]')} ${tool}`);
     }
     lines.push('');
   }
@@ -117,7 +117,7 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
     }
   } else if (diff.performanceReport?.improvementCount ?? 0 > 0) {
     lines.push(green('─── Performance ───'));
-    lines.push(`  ${green('✓')} ${diff.performanceReport?.improvementCount} tool(s) improved`);
+    lines.push(`  ${green('[PASS]')} ${diff.performanceReport?.improvementCount} tool(s) improved`);
     lines.push('');
   }
 
@@ -154,7 +154,7 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
       }
     } else if (secReport.resolvedFindings.length > 0) {
       lines.push(green('─── Security Improvements ───'));
-      lines.push(`  ${green('✓')} ${secReport.resolvedFindings.length} finding(s) resolved`);
+      lines.push(`  ${green('[PASS]')} ${secReport.resolvedFindings.length} finding(s) resolved`);
       lines.push('');
     }
 
@@ -177,7 +177,7 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
       lines.push('');
 
       for (const issue of schemaReport.toolsWithIssues) {
-        const issueIcon = issue.isBreaking ? red('✗') : yellow('⚠');
+        const issueIcon = issue.isBreaking ? red('[FAIL]') : yellow('[WARN]');
         lines.push(`  ${issueIcon} ${bold(issue.toolName)}`);
         lines.push(`      ${issue.summary}`);
 
@@ -192,7 +192,7 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
     } else if (schemaReport.stableCount > 0) {
       lines.push(green('─── Schema Stability ───'));
       lines.push(
-        `  ${green('✓')} ${schemaReport.stableCount} tool(s) with stable response schemas`
+        `  ${green('[PASS]')} ${schemaReport.stableCount} tool(s) with stable response schemas`
       );
       lines.push('');
     }
@@ -219,7 +219,7 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
       lines.push('');
     } else if (errorReport.trends.length > 0) {
       lines.push(green('─── Error Patterns ───'));
-      lines.push(`  ${green('✓')} Error patterns stable`);
+      lines.push(`  ${green('[PASS]')} Error patterns stable`);
       lines.push('');
     }
   }
@@ -245,7 +245,7 @@ export function formatDiffText(diff: BehavioralDiff, useColors: boolean = true):
       );
       lines.push(`  ${green('Grade:')} ${docReport.previousGrade} → ${docReport.currentGrade}`);
       if (docReport.issuesFixed > 0) {
-        lines.push(`  ${green('✓')} Issues fixed: ${docReport.issuesFixed}`);
+        lines.push(`  ${green('[PASS]')} Issues fixed: ${docReport.issuesFixed}`);
       }
       lines.push('');
     }
@@ -525,10 +525,10 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
     lines.push('|------|--------|---------|');
 
     for (const tool of diff.toolsRemoved) {
-      lines.push(`| ${tool} | ❌ Removed | Breaking change |`);
+      lines.push(`| ${tool} | Removed | Breaking change |`);
     }
     for (const tool of diff.toolsAdded) {
-      lines.push(`| ${tool} | ✅ Added | New tool |`);
+      lines.push(`| ${tool} | Added | New tool |`);
     }
     for (const toolDiff of diff.toolsModified) {
       const details = [
@@ -538,7 +538,7 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
       ]
         .filter(Boolean)
         .join(', ');
-      lines.push(`| ${toolDiff.tool} | ⚠️ Modified | ${details} |`);
+      lines.push(`| ${toolDiff.tool} | Modified | ${details} |`);
     }
     lines.push('');
   }
@@ -551,7 +551,11 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
 
     for (const change of diff.behaviorChanges) {
       const sevEmoji =
-        change.severity === 'breaking' ? '🔴' : change.severity === 'warning' ? '🟡' : '🟢';
+        change.severity === 'breaking'
+          ? 'CRITICAL'
+          : change.severity === 'warning'
+            ? 'WARNING'
+            : 'OK';
       lines.push(
         `| ${change.tool} | ${change.aspect} | ${sevEmoji} ${change.severity} | ${change.description} |`
       );
@@ -567,7 +571,7 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
       lines.push('');
 
       if (secReport.degraded) {
-        lines.push(`⚠️ **Security posture degraded**: ${secReport.summary}`);
+        lines.push(`**Security posture degraded**: ${secReport.summary}`);
         lines.push('');
       }
 
@@ -589,7 +593,7 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
       if (secReport.resolvedFindings.length > 0) {
         lines.push('#### Resolved Findings');
         lines.push('');
-        lines.push(`✅ ${secReport.resolvedFindings.length} security finding(s) resolved`);
+        lines.push(`${secReport.resolvedFindings.length} security finding(s) resolved`);
         lines.push('');
       }
 
@@ -608,7 +612,7 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
       lines.push('');
 
       if (schemaReport.hasBreakingChanges) {
-        lines.push('⚠️ **Breaking schema changes detected**');
+        lines.push('**Breaking schema changes detected**');
         lines.push('');
       }
 
@@ -617,7 +621,11 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
         lines.push('|------|--------|---------|');
 
         for (const issue of schemaReport.toolsWithIssues) {
-          const statusIcon = issue.isBreaking ? '🔴' : issue.becameUnstable ? '🟡' : '🔵';
+          const statusIcon = issue.isBreaking
+            ? 'CRITICAL'
+            : issue.becameUnstable
+              ? 'WARNING'
+              : 'INFO';
           const status = issue.isBreaking
             ? 'Breaking'
             : issue.becameUnstable
@@ -646,7 +654,7 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
       lines.push('');
 
       if (et.significantChange) {
-        lines.push(`⚠️ **Error behavior changed**: ${et.summary}`);
+        lines.push(`**Error behavior changed**: ${et.summary}`);
         lines.push('');
       }
 
@@ -693,7 +701,7 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
 
         for (const regression of perfReport.regressions) {
           const percentStr = (regression.regressionPercent * 100).toFixed(1);
-          const confidenceEmoji = regression.isReliable ? '✓' : '⚠️';
+          const confidenceEmoji = regression.isReliable ? '' : '[low]';
           const confidenceLabel = regression.currentConfidence ?? 'unknown';
           lines.push(
             `| ${regression.toolName} | ${regression.previousP50Ms.toFixed(0)}ms | ${regression.currentP50Ms.toFixed(0)}ms | +${percentStr}% | ${confidenceEmoji} ${confidenceLabel} |`
@@ -703,7 +711,7 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
       }
 
       if (perfReport.lowConfidenceTools && perfReport.lowConfidenceTools.length > 0) {
-        lines.push(`> **⚠️ Low confidence metrics**: ${perfReport.lowConfidenceTools.join(', ')}`);
+        lines.push(`> **Low confidence metrics**: ${perfReport.lowConfidenceTools.join(', ')}`);
         lines.push('> Consider running with more samples for reliable baselines.');
         lines.push('');
       }
@@ -715,7 +723,11 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
         lines.push('|------|----------|---------|--------|');
 
         for (const change of perfReport.confidenceChanges) {
-          const statusEmoji = change.improved ? '📈' : change.degraded ? '📉' : '➡️';
+          const statusEmoji = change.improved
+            ? 'Improved'
+            : change.degraded
+              ? 'Degraded'
+              : 'Stable';
           lines.push(
             `| ${change.toolName} | ${change.previousLevel ?? 'N/A'} | ${change.currentLevel} | ${statusEmoji} ${change.improved ? 'Improved' : change.degraded ? 'Degraded' : 'Changed'} |`
           );
@@ -731,7 +743,7 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
     lines.push('### Documentation Quality');
     lines.push('');
 
-    const changeIcon = doc.improved ? '📈' : doc.degraded ? '📉' : '➡️';
+    const changeIcon = doc.improved ? 'Improved' : doc.degraded ? 'Degraded' : 'Stable';
     const sign = doc.change > 0 ? '+' : '';
     lines.push(`**Score:** ${doc.currentScore}/100 (${doc.currentGrade}) ${changeIcon}`);
 
@@ -809,15 +821,15 @@ export function formatDiffMarkdown(diff: BehavioralDiff): string {
 function getTrendEmoji(trend: 'increasing' | 'decreasing' | 'stable' | 'new' | 'resolved'): string {
   switch (trend) {
     case 'new':
-      return '🆕';
+      return 'New';
     case 'resolved':
-      return '✅';
+      return 'Resolved';
     case 'increasing':
-      return '📈';
+      return 'Improved';
     case 'decreasing':
-      return '📉';
+      return 'Degraded';
     case 'stable':
-      return '➡️';
+      return 'Stable';
   }
 }
 
@@ -1676,26 +1688,26 @@ function getSeverityBadge(severity: ChangeSeverity, useColors: boolean): string 
 
   switch (severity) {
     case 'none':
-      return c.green('✓ NONE');
+      return c.green('[ok] NONE');
     case 'info':
-      return c.cyan('ℹ INFO');
+      return c.cyan('[info] INFO');
     case 'warning':
-      return c.yellow('⚠ WARNING');
+      return c.yellow('[warn] WARNING');
     case 'breaking':
-      return c.red('✗ BREAKING');
+      return c.red('[break] BREAKING');
   }
 }
 
 function getSeverityEmoji(severity: ChangeSeverity): string {
   switch (severity) {
     case 'none':
-      return '✅';
+      return 'OK';
     case 'info':
-      return 'ℹ️';
+      return 'INFO';
     case 'warning':
-      return '⚠️';
+      return 'WARNING';
     case 'breaking':
-      return '❌';
+      return 'BREAKING';
   }
 }
 
@@ -1767,16 +1779,16 @@ function getRiskLevelColor(riskLevel: RiskLevel, useColors: boolean): (s: string
 function getRiskLevelEmoji(riskLevel: RiskLevel): string {
   switch (riskLevel) {
     case 'critical':
-      return '🔴';
+      return 'CRITICAL';
     case 'high':
-      return '🟠';
+      return 'HIGH';
     case 'medium':
-      return '🟡';
+      return 'MEDIUM';
     case 'low':
-      return '🔵';
+      return 'LOW';
     case 'info':
     default:
-      return '⚪';
+      return 'INFO';
   }
 }
 
@@ -1847,7 +1859,7 @@ export function formatSecurityReport(report: SecurityDiff, useColors: boolean = 
   if (report.resolvedFindings.length > 0) {
     lines.push(green('─── Resolved Findings ───'));
     for (const finding of report.resolvedFindings) {
-      lines.push(`  ${green('✓')} ${finding.title} (${finding.tool})`);
+      lines.push(`  ${green('[PASS]')} ${finding.title} (${finding.tool})`);
     }
     lines.push('');
   }

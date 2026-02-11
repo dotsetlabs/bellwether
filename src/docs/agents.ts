@@ -106,7 +106,7 @@ export function generateAgentsMd(result: InterviewResult): string {
   // Check for configuration issues (high error rate with access-related errors)
   const configWarning = detectConfigurationIssues(toolProfiles, metadata);
   if (configWarning) {
-    lines.push('> ⚠️ **Configuration Issue Detected**');
+    lines.push('> **Configuration Issue Detected**');
     lines.push('>');
     lines.push(`> ${configWarning}`);
     lines.push('');
@@ -359,7 +359,7 @@ export function generateAgentsMd(result: InterviewResult): string {
     lines.push('');
 
     for (const workflowResult of result.workflowResults) {
-      const statusIcon = workflowResult.success ? '✅' : '❌';
+      const statusIcon = workflowResult.success ? 'Passed' : 'Failed';
       lines.push(`### ${statusIcon} ${workflowResult.workflow.name}`);
       lines.push('');
       lines.push(workflowResult.workflow.description);
@@ -375,7 +375,7 @@ export function generateAgentsMd(result: InterviewResult): string {
       lines.push('');
       for (let i = 0; i < workflowResult.steps.length; i++) {
         const stepResult = workflowResult.steps[i];
-        const stepIcon = stepResult.success ? '✓' : '✗';
+        const stepIcon = stepResult.success ? 'Pass' : 'Fail';
         lines.push(
           `${i + 1}. ${stepIcon} **${stepResult.step.tool}**: ${stepResult.step.description}`
         );
@@ -383,7 +383,7 @@ export function generateAgentsMd(result: InterviewResult): string {
           lines.push(`   - ${stepResult.analysis}`);
         }
         if (stepResult.error) {
-          lines.push(`   - ⚠️ Error: ${stepResult.error}`);
+          lines.push(`   - Error: ${stepResult.error}`);
         }
       }
       lines.push('');
@@ -1256,7 +1256,7 @@ function generateBehavioralMatrix(
           findings.securityNotes.length;
 
         const hasWarnings = findings.securityNotes.length > 0 || findings.limitations.length > 0;
-        const icon = hasWarnings ? '⚠️' : '✓';
+        const icon = hasWarnings ? 'WARN' : 'OK';
         row.push(`${icon} ${count} finding${count !== 1 ? 's' : ''}`);
       } else {
         row.push('-');
@@ -1272,8 +1272,8 @@ function generateBehavioralMatrix(
   lines.push('<details>');
   lines.push('<summary>Matrix Legend</summary>');
   lines.push('');
-  lines.push('- ✓ = No warnings or limitations found');
-  lines.push('- ⚠️ = Warnings or limitations detected');
+  lines.push('- OK = No warnings or limitations found');
+  lines.push('- WARN = Warnings or limitations detected');
   lines.push('- Numbers indicate total findings (behavioral notes + limitations + security notes)');
   lines.push('');
   lines.push('</details>');

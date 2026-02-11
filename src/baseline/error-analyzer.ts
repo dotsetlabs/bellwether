@@ -991,7 +991,7 @@ function getTrendArrow(trend: ErrorTrend['trend']): string {
     case 'new':
       return '+';
     case 'resolved':
-      return '✓';
+      return 'resolved';
     case 'stable':
       return '→';
   }
