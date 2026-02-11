@@ -66,7 +66,7 @@ output:
     checkReport: "bellwether-check.json"
     exploreReport: "bellwether-explore.json"
     contractDoc: "CONTRACT.md"
-  agentsDoc: "AGENTS.md"
+    agentsDoc: "AGENTS.md"
 
 :::note Migration Note
 If you have `output.format: agents.md` in an existing config, it still works.

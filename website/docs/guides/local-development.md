@@ -219,25 +219,27 @@ llm:
 For deterministic testing without LLM costs, define custom scenarios in `bellwether-tests.yaml`:
 
 ```yaml
-version: 1
-tools:
-  - name: read_file
-    scenarios:
-      - name: "Read existing file"
-        input:
-          path: "/tmp/test.txt"
-        assertions:
-          - path: "content[0].text"
-            condition: "contains"
-            expected: "file contents"
+version: "1"
+description: Custom test scenarios
 
-      - name: "Read missing file"
-        input:
-          path: "/nonexistent"
-        assertions:
-          - path: "isError"
-            condition: "equals"
-            expected: true
+scenarios:
+  - tool: read_file
+    description: "Read existing file"
+    category: happy_path
+    args:
+      path: "/tmp/test.txt"
+    assertions:
+      - path: content
+        condition: exists
+
+  - tool: read_file
+    description: "Read missing file"
+    category: error_handling
+    args:
+      path: "/nonexistent"
+    assertions:
+      - path: error
+        condition: exists
 ```
 
 Configure in `bellwether.yaml` to use scenarios only:

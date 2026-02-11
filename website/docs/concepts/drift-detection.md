@@ -193,7 +193,7 @@ INFO (1):
   - read_file: Documentation clarified for binary files
 
 Summary: 1 breaking, 2 warnings, 1 info
-Exit code: 1 (drift detected)
+Exit code: 3 (breaking changes)
 ```
 
 ## Drift Categories

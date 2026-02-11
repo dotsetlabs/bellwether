@@ -223,7 +223,7 @@ bellwether explore npx server
 | Code | Meaning |
 |:-----|:--------|
 | `0` | Success - exploration completed |
-| `1` | Exploration failed |
+| `4` | Error - connection, config, or LLM failure |
 
 ## Environment Variables
 

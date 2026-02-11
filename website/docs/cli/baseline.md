@@ -285,11 +285,11 @@ A baseline file captures:
 
 ```json
 {
-  "version": "0.11.0",
+  "version": "2.0.1",
   "metadata": {
     "mode": "check",
     "generatedAt": "2024-01-15T10:30:00Z",
-    "cliVersion": "0.11.0",
+    "cliVersion": "2.0.1",
     "serverCommand": "npx @mcp/your-server",
     "serverName": "your-server",
     "durationMs": 1234,

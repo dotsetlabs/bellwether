@@ -321,7 +321,8 @@ check:
   parallel: true              # Faster checks
   parallelWorkers: 4          # Concurrent tool tests
   performanceThreshold: 10    # Flag >10% latency regression
-  security: false             # Enable security testing (optional)
+  security:
+    enabled: false            # Enable security testing (optional)
 
 logging:
   level: warn
@@ -623,11 +624,18 @@ server:
 
 ### Debug Mode
 
+Enable debug logging in `bellwether.yaml`:
+
 ```yaml
-- run: |
-    npx @dotsetlabs/bellwether check 2>&1 | tee bellwether.log
-  env:
-    LOG_LEVEL: debug
+logging:
+  level: debug
+  verbose: true
+```
+
+Then capture output in CI:
+
+```yaml
+- run: npx @dotsetlabs/bellwether check 2>&1 | tee bellwether.log
 
 - uses: actions/upload-artifact@v4
   if: failure()

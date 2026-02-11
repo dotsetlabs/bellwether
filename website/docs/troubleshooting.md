@@ -143,9 +143,11 @@ Error: Server process exited unexpectedly
 
 **Solutions:**
 
-1. **Enable debug logging:**
-   ```bash
-   bellwether check --log-level debug npx server
+1. **Enable debug logging** in `bellwether.yaml`:
+   ```yaml
+   logging:
+     level: debug
+     verbose: true
    ```
 
 2. **Test server independently:**
@@ -304,26 +306,36 @@ This is expected when drift is found. Options:
      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
    ```
 
-3. **Enable debug logging:**
+3. **Enable debug logging** in `bellwether.yaml`:
    ```yaml
-   - run: |
-       bellwether check --log-level debug --log-file debug.log
+   logging:
+     level: debug
+     verbose: true
+   ```
+   Then capture output in CI:
+   ```yaml
+   - run: npx @dotsetlabs/bellwether check 2>&1 | tee bellwether.log
    - uses: actions/upload-artifact@v4
      if: failure()
      with:
        name: debug-logs
-       path: debug.log
+       path: bellwether.log
    ```
 
 ## Debug Mode
 
-For detailed troubleshooting, enable debug mode:
+For detailed troubleshooting, enable debug mode in `bellwether.yaml`:
+
+```yaml
+logging:
+  level: debug
+  verbose: true
+```
+
+Then run your command normally:
 
 ```bash
-bellwether check \
-  --log-level debug \
-  --log-file ./debug.log \
-  npx server
+bellwether check
 ```
 
 This logs:
@@ -333,10 +345,7 @@ This logs:
 
 For explore mode:
 ```bash
-bellwether explore \
-  --log-level debug \
-  --log-file ./debug.log \
-  npx server
+bellwether explore
 ```
 
 This also logs:

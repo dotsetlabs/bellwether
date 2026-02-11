@@ -46,9 +46,9 @@ Yes! Bellwether is completely free and open source (MIT license).
 
 For `bellwether explore`:
 
-- **Anthropic** (recommended) - Claude Haiku 4.5, Claude Sonnet 4.5, Claude Opus 4.5
-- **OpenAI** - GPT-4.1-nano (default), GPT-4.1, GPT-4o
-- **Ollama** - Local models (Qwen3, Llama, Mistral, etc.)
+- **Anthropic** (recommended) - Claude Haiku 4.5 (default), Claude Sonnet 4.5 (premium)
+- **OpenAI** - GPT-4.1-nano (default), GPT-4.1 (premium)
+- **Ollama** - Local models (Qwen3:8b default, Llama, Mistral, etc.)
 
 ### How much does explore mode cost?
 

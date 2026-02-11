@@ -284,7 +284,7 @@ One workflow = one user journey:
 ### "Assertion failed"
 
 - Check JSONPath syntax
-- Use `--debug` to see actual response
+- Enable `logging.level: debug` in `bellwether.yaml` to see actual response
 - Verify expected value matches response format
 
 ## See Also

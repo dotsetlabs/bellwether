@@ -37,11 +37,11 @@ This generates `bellwether-baseline.json`:
 
 ```json
 {
-  "version": "0.11.0",
+  "version": "2.0.1",
   "metadata": {
     "mode": "check",
     "generatedAt": "2026-01-25T10:30:00Z",
-    "cliVersion": "0.11.0",
+    "cliVersion": "2.0.1",
     "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
     "serverName": "@modelcontextprotocol/server-filesystem",
     "durationMs": 2341,
@@ -256,7 +256,7 @@ Use `baseline accept --accepted-by <name>` if you need a full audit trail of who
 
 ## Baseline Format Versioning
 
-Baselines use the CLI package version as the format version (e.g., `0.11.0`):
+Baselines use the CLI package version as the format version (e.g., `2.0.1`):
 
 | Component | Description |
 |:----------|:------------|
