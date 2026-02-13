@@ -29,6 +29,9 @@ npm run build
 # Run tests
 npm test
 
+# Validate docs/version consistency
+npm run check:consistency
+
 # Watch mode for development
 npm run dev
 ```
@@ -66,8 +69,9 @@ Looking for a place to start? Check out issues labeled [`good first issue`](http
 4. **Write or update tests** for your changes
 5. **Run tests**: `npm test`
 6. **Run linting**: `npm run lint`
-7. **Commit your changes** with a clear commit message
-8. **Push to your fork** and submit a pull request
+7. **Run consistency checks**: `npm run check:consistency`
+8. **Commit your changes** with a clear commit message
+9. **Push to your fork** and submit a pull request
 
 ## Architecture Overview
 

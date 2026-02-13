@@ -1,5 +1,10 @@
 import pino, { Logger as PinoLogger, LoggerOptions } from 'pino';
 
+const IS_TEST_ENV =
+  process.env.NODE_ENV === 'test' ||
+  process.env.VITEST === 'true' ||
+  process.env.VITEST_WORKER_ID !== undefined;
+
 /**
  * Log levels supported by Bellwether.
  */
@@ -27,7 +32,7 @@ export interface LoggerConfig {
  * Users can enable verbose output with --log-level info or --log-level debug.
  */
 const DEFAULT_CONFIG: Required<Omit<LoggerConfig, 'file' | 'name'>> = {
-  level: 'warn',
+  level: IS_TEST_ENV ? 'silent' : 'warn',
   pretty: false,
   timestamp: true,
 };
@@ -79,7 +84,7 @@ export function createLogger(config: LoggerConfig = {}): PinoLogger {
  */
 export function getLogger(name?: string): PinoLogger {
   if (!globalLogger) {
-    globalLogger = createLogger({ level: 'warn' });
+    globalLogger = createLogger({ level: DEFAULT_CONFIG.level });
   }
 
   if (name) {

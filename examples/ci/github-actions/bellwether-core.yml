@@ -1,0 +1,20 @@
+name: Bellwether Drift Detection
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  bellwether:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Bellwether Core Check
+        uses: dotsetlabs/bellwether@v2.1.0
+        with:
+          version: '2.1.0'
+          server-command: 'npx @mcp/your-server'
+          baseline-path: './bellwether-baseline.json'
+          fail-on-severity: 'breaking'

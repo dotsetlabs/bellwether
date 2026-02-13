@@ -1,4 +1,4 @@
-import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
+import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 
 const sidebars: SidebarsConfig = {
   docsSidebar: [
@@ -22,16 +22,26 @@ const sidebars: SidebarsConfig = {
       label: 'CLI Reference',
       collapsed: false,
       items: [
-        'cli/init',
-        'cli/check',
-        'cli/explore',
-        'cli/baseline',
-        'cli/golden',
-        'cli/contract',
-        'cli/watch',
-        'cli/discover',
-        'cli/auth',
-        'cli/registry',
+        {
+          type: 'category',
+          label: 'Core',
+          collapsed: false,
+          items: ['cli/init', 'cli/check', 'cli/baseline'],
+        },
+        {
+          type: 'category',
+          label: 'Advanced',
+          collapsed: false,
+          items: [
+            'cli/explore',
+            'cli/watch',
+            'cli/discover',
+            'cli/golden',
+            'cli/contract',
+            'cli/registry',
+            'cli/auth',
+          ],
+        },
       ],
     },
     {
@@ -39,6 +49,7 @@ const sidebars: SidebarsConfig = {
       label: 'Concepts',
       collapsed: false,
       items: [
+        'concepts/core-vs-advanced',
         'concepts/test-modes',
         'concepts/baselines',
         'concepts/drift-detection',
@@ -46,6 +57,7 @@ const sidebars: SidebarsConfig = {
         'concepts/workflows',
         'concepts/output-formats',
         'concepts/positioning',
+        'concepts/compatibility-policy',
       ],
     },
     {
@@ -55,6 +67,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'guides/local-development',
         'guides/ci-cd',
+        'guides/golden-paths',
         'guides/configuration',
         'guides/github-gitlab',
         'guides/custom-personas',

@@ -9,8 +9,9 @@ Understanding where Bellwether fits in your development workflow.
 
 ## Bellwether IS:
 
-- **Behavioral documentation tool**: Discovers and documents what your MCP server actually does by testing it
-- **Drift detection system**: Compares baseline behaviors to catch unexpected changes between versions
+- **Drift detection system first**: Compares baseline behavior and schemas to catch unexpected changes between versions
+- **Core CI workflow**: `init` + `check` + `baseline` for deterministic deployment gating
+- **Behavioral documentation tool (optional layer)**: `explore` can generate deeper behavior docs when needed
 - **Multi-perspective testing**: 4 personas (Technical Writer, Security, QA, Novice) surface different types of issues
 - **CI/CD integration**: Designed to run in pipelines with exit codes for deployment gating
 - **Security hygiene checker**: Catches common issues like path traversal, injection patterns, and info disclosure

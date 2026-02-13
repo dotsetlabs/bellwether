@@ -33,8 +33,8 @@ function getPackageVersion(): string {
 
     return packageJson.version;
   } catch {
-    // Fallback version - should match package.json
-    return '2.1.0';
+    // Final fallback to avoid hardcoded release drift.
+    return process.env.BELLWETHER_VERSION || '0.0.0';
   }
 }
 

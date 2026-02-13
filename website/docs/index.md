@@ -42,6 +42,15 @@ Your MCP Server (tools, data, capabilities)
 
 See [Test Modes](/concepts/test-modes) for details.
 
+## Product Positioning
+
+Bellwether has a tight two-tier model:
+
+- **Core workflow (default)**: `init`, `check`, `baseline`
+- **Advanced workflow (opt-in)**: `explore`, `watch`, `discover`, `golden`, `contract`, `registry`
+
+Most teams should start and stay in the core workflow for CI/CD drift prevention.
+
 ## Quick Example
 
 ```bash
@@ -78,6 +87,9 @@ Both JSON reports include a `$schema` pointer for validation against the publish
 
 - [Installation](/installation) - Install and configure Bellwether
 - [Quick Start](/quickstart) - Run your first check
+- [Core vs Advanced](/concepts/core-vs-advanced) - Keep your workflow focused
 - [Test Modes](/concepts/test-modes) - Understand check vs explore
 - [CLI Reference](/cli/check) - Full command documentation
 - [CI/CD Integration](/guides/ci-cd) - Integrate with GitHub Actions, GitLab CI
+- [Golden Paths](/guides/golden-paths) - Copy-paste adoption templates
+- [Compatibility Policy](/concepts/compatibility-policy) - Versioning and deprecations

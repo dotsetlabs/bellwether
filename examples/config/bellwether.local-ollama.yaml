@@ -1,0 +1,23 @@
+server:
+  command: npx
+  args:
+    - "@mcp/your-server"
+  timeout: 30000
+
+llm:
+  provider: ollama
+  model: qwen3:8b
+  ollama:
+    baseUrl: "http://localhost:11434"
+
+explore:
+  personas:
+    - technical_writer
+    - security_tester
+  maxQuestionsPerTool: 3
+  parallelPersonas: false
+
+output:
+  dir: ".bellwether"
+  docsDir: "."
+  format: both
