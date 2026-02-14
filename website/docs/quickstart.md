@@ -96,6 +96,9 @@ This generates docs and/or JSON based on `output.format` (default is both):
 
 ## Common Workflows
 
+Bellwether has a focused default path: `init` -> `check` -> `baseline`.
+Use advanced commands only when you explicitly need deeper analysis.
+
 ### Local Development
 
 ```bash
@@ -131,6 +134,7 @@ bellwether explore                       # Generate AGENTS.md (if output.format 
 ## Next Steps
 
 - [CLI Reference](/cli/check) - Check and explore commands
+- [Golden Paths](/guides/golden-paths) - Production-ready templates
 - [Local Development](/guides/local-development) - Watch mode and continuous testing
 - [CI/CD Integration](/guides/ci-cd) - GitHub Actions, GitLab CI
 - [Configuration](/guides/configuration) - Customize bellwether.yaml

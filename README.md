@@ -31,6 +31,15 @@ bellwether check
 
 That's it. No API keys. No LLM costs. Runs in seconds.
 
+## Product Focus
+
+Bellwether is intentionally opinionated:
+
+- **Core workflow (default)**: `init` -> `check` -> `baseline`
+- **Advanced workflow (opt-in)**: `explore`, `watch`, `discover`, `golden`, `contract`, `registry`
+
+If you only need CI-safe drift detection, you can stay entirely in the core workflow.
+
 ## Two Modes
 
 | Mode | Purpose | Cost | When to Use |
@@ -85,45 +94,29 @@ jobs:
 
 Comparisons are **protocol-version-aware** — version-specific fields (annotations, titles, output schemas, etc.) are only compared when both baselines support the relevant MCP protocol version.
 
-## Commands
+## Command Tiers
 
-### Essential Commands
-
-```bash
-bellwether init <server-command>   # Create config
-bellwether check                   # Detect drift (free, deterministic)
-bellwether baseline save           # Save baseline to compare against
-bellwether baseline compare        # Compare current vs saved baseline
-```
-
-### Explore Command (Optional)
-
-```bash
-bellwether init --preset local npx @mcp/server  # Uses Ollama (free)
-bellwether explore                              # LLM-powered testing
-```
-
-Requires LLM (Ollama for free local, or OpenAI/Anthropic). Generates `AGENTS.md` with behavioral documentation.
-
-### All Commands
+### Core Commands (Recommended)
 
 | Command | Purpose |
 |:--------|:--------|
-| `init` | Create `bellwether.yaml` config |
-| `check` | Schema drift detection (free) |
-| `explore` | LLM behavioral testing |
-| `baseline save` | Save test results as baseline |
-| `baseline compare` | Compare against baseline |
-| `baseline show` | Display baseline contents |
-| `baseline accept` | Accept drift as intentional |
-| `baseline diff` | Compare two baselines |
-| `discover` | Show server capabilities |
+| `init` | Create `bellwether.yaml` |
+| `check` | Deterministic schema drift detection |
+| `baseline save` | Save snapshot for future comparisons |
+| `baseline compare` | Compare latest check output to saved baseline |
+
+### Advanced Commands (Optional)
+
+| Command | Purpose |
+|:--------|:--------|
+| `explore` | LLM behavioral testing and `AGENTS.md` generation |
 | `watch` | Continuous checking on file changes |
+| `discover` | Capability inspection without tests |
 | `registry` | Search MCP Registry |
 | `golden` | Golden output regression testing |
-| `contract` | Contract validation (generate/validate/show) |
+| `contract` | Contract validation and generation |
 | `auth` | Manage LLM provider API keys |
-| `validate-config` | Validate bellwether.yaml without running tests |
+| `validate-config` | Validate `bellwether.yaml` without running tests |
 
 ## CI/CD Exit Codes
 
@@ -139,9 +132,9 @@ Requires LLM (Ollama for free local, or OpenAI/Anthropic). Generates `AGENTS.md`
 ## GitHub Action
 
 ```yaml
-- uses: dotsetlabs/bellwether@v2.0.0
+- uses: dotsetlabs/bellwether@v2.1.1
   with:
-    version: '2.0.0'
+    version: '2.1.1'
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
     fail-on-severity: 'warning'
@@ -170,8 +163,17 @@ bellwether init --preset local npx @mcp/server # Local Ollama (free)
 **[docs.bellwether.sh](https://docs.bellwether.sh)** — Full reference for configuration and commands.
 
 - [Quick Start](https://docs.bellwether.sh/quickstart)
+- [Core vs Advanced](https://docs.bellwether.sh/concepts/core-vs-advanced)
 - [CLI Reference](https://docs.bellwether.sh/cli/init)
 - [CI/CD Integration](https://docs.bellwether.sh/guides/ci-cd)
+- [Golden Paths](https://docs.bellwether.sh/guides/golden-paths)
+- [Compatibility Policy](https://docs.bellwether.sh/concepts/compatibility-policy)
+
+## Project Governance
+
+- [Roadmap](./ROADMAP.md)
+- [Changelog](./CHANGELOG.md)
+- [Security Policy](./SECURITY.md)
 
 ## Community
 

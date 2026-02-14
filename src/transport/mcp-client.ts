@@ -30,61 +30,7 @@ import {
   isKnownProtocolVersion,
   type MCPFeatureFlags,
 } from '../protocol/index.js';
-
-/**
- * Environment variables to filter out when spawning MCP server processes.
- * These may contain sensitive credentials that should not be exposed.
- */
-const FILTERED_ENV_VARS = new Set([
-  // LLM API keys
-  'OPENAI_API_KEY',
-  'ANTHROPIC_API_KEY',
-  'GOOGLE_API_KEY',
-  'AZURE_OPENAI_API_KEY',
-  'COHERE_API_KEY',
-  'HUGGINGFACE_API_KEY',
-  'REPLICATE_API_TOKEN',
-  // Provider credentials
-  'AWS_SECRET_ACCESS_KEY',
-  'AWS_SESSION_TOKEN',
-  'AZURE_CLIENT_SECRET',
-  'GOOGLE_APPLICATION_CREDENTIALS',
-  // SCM/CI tokens
-  'GITHUB_TOKEN',
-  'GH_TOKEN',
-  'GITLAB_TOKEN',
-  'BITBUCKET_TOKEN',
-  'NPM_TOKEN',
-  'PYPI_TOKEN',
-  // Database credentials
-  'DATABASE_URL',
-  'DATABASE_PASSWORD',
-  'POSTGRES_PASSWORD',
-  'MYSQL_PASSWORD',
-  'REDIS_PASSWORD',
-  'MONGODB_URI',
-  // Application secrets
-  'COOKIE_SECRET',
-  'SESSION_SECRET',
-  'JWT_SECRET',
-  'ENCRYPTION_KEY',
-  'PRIVATE_KEY',
-]);
-
-/**
- * Patterns for environment variable names that should be filtered.
- * Matches common naming conventions for secrets.
- */
-const FILTERED_ENV_PATTERNS = [
-  /_API_KEY$/i,
-  /_SECRET$/i,
-  /_TOKEN$/i,
-  /_PASSWORD$/i,
-  /_PRIVATE_KEY$/i,
-  /_CREDENTIALS$/i,
-  /^SECRET_/i,
-  /^PRIVATE_/i,
-];
+import { filterSpawnEnv } from './env-filter.js';
 
 export interface MCPClientOptions {
   /** Request timeout in milliseconds (default: 30000) */
@@ -355,44 +301,6 @@ export class MCPClient {
   }
 
   /**
-   * Check if an environment variable name looks like a secret.
-   */
-  private isSensitiveEnvVar(name: string): boolean {
-    // Check explicit list
-    if (FILTERED_ENV_VARS.has(name)) {
-      return true;
-    }
-
-    // Check patterns
-    return FILTERED_ENV_PATTERNS.some((pattern) => pattern.test(name));
-  }
-
-  /**
-   * Filter sensitive environment variables before passing to subprocess.
-   * Uses both explicit list and pattern matching to catch common secret naming conventions.
-   */
-  private filterEnv(
-    baseEnv: NodeJS.ProcessEnv,
-    additionalEnv?: Record<string, string>
-  ): Record<string, string> {
-    const filtered: Record<string, string> = {};
-
-    // Copy process.env, filtering out sensitive variables
-    for (const [key, value] of Object.entries(baseEnv)) {
-      if (value !== undefined && !this.isSensitiveEnvVar(key)) {
-        filtered[key] = value;
-      }
-    }
-
-    // Add additional env vars (these are explicitly provided, so allow them)
-    if (additionalEnv) {
-      Object.assign(filtered, additionalEnv);
-    }
-
-    return filtered;
-  }
-
-  /**
    * Connect to an MCP server by spawning it as a subprocess.
    */
   async connect(command: string, args: string[] = [], env?: Record<string, string>): Promise<void> {
@@ -410,7 +318,7 @@ export class MCPClient {
     };
 
     // Filter out sensitive environment variables before spawning subprocess
-    const filteredEnv = this.filterEnv(process.env, env);
+    const filteredEnv = filterSpawnEnv(process.env, env);
 
     this.process = spawn(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -565,7 +473,7 @@ export class MCPClient {
    */
   private async waitForStartup(): Promise<void> {
     // Enforce minimum startup delay to allow server to fully start
-    // npx-based servers often need significant time to download and start
+    // while still honoring explicit higher startupDelay values from config/tests.
     const delay = Math.max(this.startupDelay, TIMEOUTS.MIN_SERVER_STARTUP_WAIT);
 
     this.logger.debug({ delay }, 'Waiting for server startup');

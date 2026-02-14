@@ -97,24 +97,16 @@ Bellwether - MCP Server Validation & Documentation
 const examples = `
 Examples:
 
-  Initialize configuration:
-    $ bellwether init                       # Create bellwether.yaml
-    $ bellwether init --preset ci           # Optimized for CI/CD
-    $ bellwether init --preset local        # Local LLM with Ollama
+  Core workflow (recommended):
+    $ bellwether init npx @mcp/my-server    # Create bellwether.yaml
+    $ bellwether check                      # Free, deterministic drift detection
+    $ bellwether baseline save              # Save baseline snapshot
+    $ bellwether check --fail-on-drift      # CI/CD gating
 
-  Check for drift (free, fast, deterministic):
-    $ bellwether check npx @mcp/my-server   # Validate schemas
-    $ bellwether baseline save              # Save baseline
-    $ bellwether baseline compare ./bellwether-baseline.json  # Detect drift
-
-  Explore behavior (LLM-powered):
-    $ bellwether explore npx @mcp/my-server # Generate AGENTS.md documentation
-
-  Discover server capabilities:
-    $ bellwether discover npx @mcp/server-postgres
-
-  Search MCP Registry:
-    $ bellwether registry filesystem
+  Advanced workflow (opt-in):
+    $ bellwether explore                    # LLM behavioral exploration
+    $ bellwether discover                   # Quick capability inspection
+    $ bellwether watch                      # Continuous checking
 
 Documentation: https://docs.bellwether.sh
 `;
@@ -123,18 +115,21 @@ program
   .name('bellwether')
   .description(
     `${banner}
-Check MCP servers for drift. Explore behavior. Generate documentation.
+Deterministic MCP drift detection with an optional advanced analysis layer.
 
-Commands:
-  check    - Schema validation and drift detection (free, fast, deterministic)
-  explore  - LLM-powered behavioral exploration and documentation
-  discover - Quick capability discovery (no tests)
-  registry - Search the MCP Registry
-  baseline - Manage baselines (save/compare/accept/diff/show)
-  golden   - Golden output regression testing
-  contract - Contract validation (generate/validate/show)
-  watch    - Continuous checking on file changes
-  auth     - Manage LLM provider API keys
+Core commands (default path):
+  init     - Create bellwether.yaml configuration
+  check    - Schema validation and drift detection (free, deterministic)
+  baseline - Save and compare baseline snapshots
+
+Advanced commands (opt-in):
+  explore         - LLM-powered behavioral exploration and documentation
+  discover        - Quick capability discovery (no tests)
+  watch           - Continuous checking on file changes
+  registry        - Search the MCP Registry
+  golden          - Golden output regression testing
+  contract        - Contract validation (generate/validate/show)
+  auth            - Manage LLM provider API keys
   validate-config - Validate bellwether.yaml without running tests
 
 For more information on a specific command, use:
@@ -172,24 +167,21 @@ For more information on a specific command, use:
   })
   .addHelpText('after', examples);
 
-// Add command groups for better organization
-program.addHelpText('beforeAll', '\nCore Commands:');
-
-// Core commands - check and explore
+program.addCommand(initCommand.description('Create a new bellwether.yaml configuration file'));
 program.addCommand(
   checkCommand.description('Check MCP server schema and detect drift (free, fast, deterministic)')
 );
+program.addCommand(
+  baselineCommand.description('Manage baselines for drift detection (save, compare, show, diff)')
+);
+
+// Advanced commands
 program.addCommand(
   exploreCommand.description('Explore MCP server behavior with LLM-powered testing')
 );
 program.addCommand(watchCommand.description('Watch for MCP server changes and auto-check'));
 program.addCommand(
   discoverCommand.description('Discover MCP server capabilities (tools, prompts, resources)')
-);
-program.addCommand(initCommand.description('Create a new bellwether.yaml configuration file'));
-program.addCommand(authCommand.description('Manage LLM provider API keys (keychain storage)'));
-program.addCommand(
-  baselineCommand.description('Manage baselines for drift detection (save, compare, show, diff)')
 );
 program.addCommand(
   goldenCommand.description(
@@ -202,6 +194,7 @@ program.addCommand(
     'Validate MCP servers against contract definitions (validate, generate, show)'
   )
 );
+program.addCommand(authCommand.description('Manage LLM provider API keys (keychain storage)'));
 program.addCommand(
   validateConfigCommand.description('Validate bellwether.yaml configuration (no tests)')
 );

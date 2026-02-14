@@ -1,0 +1,15 @@
+stages:
+  - test
+
+bellwether_drift:
+  stage: test
+  image: node:20
+  before_script:
+    - npm ci
+  script:
+    - npx @dotsetlabs/bellwether@2.1.1 check --fail-on-drift
+  artifacts:
+    when: always
+    paths:
+      - .bellwether/
+      - CONTRACT.md

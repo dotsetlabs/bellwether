@@ -7,6 +7,8 @@ sidebar_position: 1
 
 Bellwether offers two commands to fit different workflows and budgets.
 
+For product scope and command-tier guidance, see [Core vs Advanced](/concepts/core-vs-advanced).
+
 ## Quick Comparison
 
 | | `bellwether check` | `bellwether explore` |
@@ -162,6 +164,7 @@ bellwether init --preset thorough  # Explore with all personas
 
 ## See Also
 
+- [Core vs Advanced](/concepts/core-vs-advanced) - Keep usage focused
 - [check](/cli/check) - Check command reference
 - [explore](/cli/explore) - Explore command reference
 - [Configuration](/guides/configuration) - Full configuration reference

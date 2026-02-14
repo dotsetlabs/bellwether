@@ -1,10 +1,10 @@
-import {themes as prismThemes} from 'prism-react-renderer';
-import type {Config} from '@docusaurus/types';
+import { themes as prismThemes } from 'prism-react-renderer';
+import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Bellwether',
-  tagline: 'Automated behavioral documentation for MCP servers',
+  tagline: 'Deterministic MCP drift detection for CI',
   favicon: 'img/favicon.ico',
 
   future: {
@@ -92,11 +92,11 @@ const config: Config = {
           items: [
             {
               label: 'Changelog',
-              href: 'https://github.com/dotsetlabs/bellwether/blob/main/cli/CHANGELOG.md',
+              href: 'https://github.com/dotsetlabs/bellwether/blob/main/CHANGELOG.md',
             },
             {
               label: 'Roadmap',
-              href: 'https://github.com/dotsetlabs/bellwether/blob/main/cli/ROADMAP.md',
+              href: 'https://github.com/dotsetlabs/bellwether/blob/main/ROADMAP.md',
             },
           ],
         },

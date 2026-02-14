@@ -7,8 +7,8 @@ export const TIMEOUTS = {
   WATCH_INTERVAL: 5000,
   /** Server startup delay (500ms) */
   SERVER_STARTUP: 500,
-  /** Minimum server startup wait (5 seconds) */
-  MIN_SERVER_STARTUP_WAIT: 5000,
+  /** Minimum server startup wait (500ms) */
+  MIN_SERVER_STARTUP_WAIT: 500,
   /** Server ready poll interval (100ms) */
   SERVER_READY_POLL: 100,
   /** Process shutdown SIGKILL timeout (5 seconds) */
