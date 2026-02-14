@@ -47,9 +47,9 @@ jobs:
 
 ```yaml
 - name: Run Bellwether
-  uses: dotsetlabs/bellwether@v2.1.0
+  uses: dotsetlabs/bellwether@v2.1.1
   with:
-    version: '2.1.0'
+    version: '2.1.1'
     server-command: 'npx @modelcontextprotocol/server-filesystem'
     server-args: '/tmp'
     baseline-path: './bellwether-baseline.json'
