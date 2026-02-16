@@ -95,8 +95,8 @@ const config: Config = {
               href: 'https://github.com/dotsetlabs/bellwether/blob/main/CHANGELOG.md',
             },
             {
-              label: 'Roadmap',
-              href: 'https://github.com/dotsetlabs/bellwether/blob/main/ROADMAP.md',
+              label: 'Releases',
+              href: 'https://github.com/dotsetlabs/bellwether/releases',
             },
           ],
         },

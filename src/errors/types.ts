@@ -229,6 +229,42 @@ export class ProtocolError extends TransportError {
 }
 
 /**
+ * Remote server authentication/authorization failed.
+ */
+export class ServerAuthError extends TransportError {
+  /** HTTP status code if available */
+  readonly statusCode?: number;
+  /** Suggested remediation hint */
+  readonly hint?: string;
+
+  constructor(
+    message: string,
+    statusCode?: number,
+    hint?: string,
+    context?: ErrorContext,
+    cause?: Error
+  ) {
+    super(message, {
+      code: 'TRANSPORT_AUTH_FAILED',
+      severity: 'high',
+      retryable: 'terminal',
+      context: {
+        ...context,
+        metadata: {
+          ...context?.metadata,
+          statusCode,
+          hint,
+        },
+      },
+      cause,
+    });
+    this.name = 'ServerAuthError';
+    this.statusCode = statusCode;
+    this.hint = hint;
+  }
+}
+
+/**
  * Buffer overflow during message processing.
  */
 export class BufferOverflowError extends TransportError {

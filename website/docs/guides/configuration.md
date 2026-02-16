@@ -32,7 +32,7 @@ Bellwether looks for configuration in this order:
 5. `./.bellwether.yml`
 
 :::info Config Required
-All commands (except `bellwether init`) require a config file. Run `bellwether init` to create `bellwether.yaml` first.
+Most commands require a config file. `auth`, `discover`, and `registry` can run without one, but `init` is the easiest way to bootstrap a full project config.
 :::
 
 ## Configuration Overview
@@ -46,6 +46,8 @@ server:
   transport: stdio
   # url: "https://example.com/mcp"
   # sessionId: "session-id"
+  # headers:
+  #   Authorization: "Bearer ${MCP_SERVER_TOKEN}"
   timeout: 30000
   # env:
   #   API_KEY: "${API_KEY}"
@@ -67,11 +69,6 @@ output:
     exploreReport: "bellwether-explore.json"
     contractDoc: "CONTRACT.md"
     agentsDoc: "AGENTS.md"
-
-:::note Migration Note
-If you have `output.format: agents.md` in an existing config, it still works.
-Bellwether now normalizes that to `docs`. Update your config to `docs` when convenient.
-:::
 
 baseline:
   path: "bellwether-baseline.json"
@@ -180,6 +177,8 @@ discovery:
   transport: stdio
   # url: "https://example.com/mcp"
   # sessionId: "session-id"
+  # headers:
+  #   X-API-Key: "${MCP_API_KEY}"
 
 registry:
   limit: 10
@@ -200,6 +199,11 @@ contract:
   timeout: 30000
   failOnViolation: false
 ```
+
+:::note Migration Note
+If you have `output.format: agents.md` in an existing config, it still works.
+Bellwether now normalizes that to `docs`. Update your config to `docs` when convenient.
+:::
 
 ## Environment Variable Interpolation
 
@@ -254,6 +258,26 @@ server:
     API_KEY: "${API_KEY}"
     AUTH_TOKEN: "${AUTH_TOKEN}"
 ```
+
+**Remote Server Authorization Headers:**
+```yaml
+server:
+  transport: sse
+  url: "https://api.example.com/mcp"
+  headers:
+    Authorization: "Bearer ${MCP_SERVER_TOKEN}"
+
+discovery:
+  transport: streamable-http
+  url: "https://api.example.com/mcp"
+  headers:
+    X-API-Key: "${MCP_API_KEY}"
+```
+
+Header precedence:
+1. `server.headers` applies to remote commands by default.
+2. `discovery.headers` overrides `server.headers` for `bellwether discover`.
+3. CLI `-H/--header` overrides both for a single run.
 
 **URLs with Defaults:**
 ```yaml

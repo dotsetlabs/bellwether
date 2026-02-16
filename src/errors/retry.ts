@@ -6,6 +6,7 @@ import { getLogger } from '../logging/logger.js';
 import {
   BellwetherError,
   LLMRateLimitError,
+  ServerAuthError,
   isRetryable,
   wrapError,
   createTimingContext,
@@ -274,8 +275,26 @@ export const TRANSPORT_RETRY_OPTIONS: RetryOptions = {
   backoffMultiplier: RETRY_STRATEGIES.TRANSPORT.backoffMultiplier,
   jitter: RETRY_STRATEGIES.TRANSPORT.jitter,
   shouldRetry: (error) => {
+    if (error instanceof ServerAuthError) {
+      return false;
+    }
+
     const message =
       error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+
+    // Authentication/authorization failures are terminal until credentials change
+    if (
+      message.includes('401') ||
+      message.includes('403') ||
+      message.includes('407') ||
+      message.includes('unauthorized') ||
+      message.includes('forbidden') ||
+      message.includes('authentication') ||
+      message.includes('authorization') ||
+      message.includes('access denied')
+    ) {
+      return false;
+    }
 
     // Timeouts might be transient
     if (message.includes('timeout')) {

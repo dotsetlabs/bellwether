@@ -79,7 +79,9 @@ Or for streamable HTTP:
 server:
   transport: streamable-http
   url: http://localhost:8000/mcp
-  # sessionId: "your-auth-token"
+  # sessionId: "server-issued-session-id"
+  # headers:
+  #   Authorization: "Bearer ${MCP_SERVER_TOKEN}"
 ```
 
 ## Development Workflow
@@ -178,8 +180,8 @@ bellwether baseline compare ./bellwether-baseline.json
 # Update baseline if changes are correct
 bellwether baseline save --force
 
-# Commit updated baseline
-git add bellwether-baseline.json AGENTS.md
+# Commit updated baseline and generated contract docs
+git add bellwether-baseline.json CONTRACT.md
 git commit -m "Update baseline: added symlink support"
 ```
 

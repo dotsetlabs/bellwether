@@ -16,6 +16,7 @@ import {
   LLMQuotaError,
   ProtocolError,
   ServerExitError,
+  ServerAuthError,
 } from '../../src/errors/types.js';
 import { resetLogger, configureLogger } from '../../src/logging/logger.js';
 
@@ -389,6 +390,12 @@ describe('errors/retry', () => {
 
     it('should NOT retry on parse errors', () => {
       expect(shouldRetry!(new Error('parse error'), 1)).toBe(false);
+    });
+
+    it('should NOT retry on auth failures', () => {
+      expect(shouldRetry!(new Error('401 Unauthorized'), 1)).toBe(false);
+      expect(shouldRetry!(new Error('403 Forbidden'), 1)).toBe(false);
+      expect(shouldRetry!(new ServerAuthError('Unauthorized', 401), 1)).toBe(false);
     });
 
     it('should use correct timing parameters', () => {

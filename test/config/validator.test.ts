@@ -15,6 +15,7 @@ import {
   exploreConfigSchema,
   baselineConfigSchema,
   outputConfigSchema,
+  discoveryConfigSchema,
   getConfigWarnings,
 } from '../../src/config/validator.js';
 
@@ -189,6 +190,42 @@ describe('validateConfig', () => {
 
       expect(config.server.env?.API_KEY).toBe('secret');
     });
+
+    it('should accept remote auth headers', () => {
+      const config = validateConfig({
+        server: {
+          transport: 'sse',
+          url: 'https://example.com/mcp',
+          headers: {
+            Authorization: 'Bearer token',
+            'X-API-Key': 'abc123',
+          },
+        },
+      });
+
+      expect(config.server.headers).toEqual({
+        Authorization: 'Bearer token',
+        'X-API-Key': 'abc123',
+      });
+    });
+  });
+
+  describe('discovery configuration', () => {
+    it('should accept discovery auth headers', () => {
+      const config = validateConfig({
+        discovery: {
+          transport: 'streamable-http',
+          url: 'https://example.com/mcp',
+          headers: {
+            Authorization: 'Bearer discover-token',
+          },
+        },
+      });
+
+      expect(config.discovery.headers).toEqual({
+        Authorization: 'Bearer discover-token',
+      });
+    });
   });
 
   describe('getConfigWarnings', () => {
@@ -203,6 +240,36 @@ describe('validateConfig', () => {
 
       const warnings = getConfigWarnings(config);
       expect(warnings.some((w) => w.includes('minSamples'))).toBe(true);
+    });
+
+    it('should warn when server headers are set for stdio transport', () => {
+      const config = validateConfig({
+        server: {
+          transport: 'stdio',
+          headers: {
+            Authorization: 'Bearer token',
+          },
+        },
+      });
+
+      const warnings = getConfigWarnings(config);
+      expect(warnings).toContain('server.headers is set but ignored when server.transport is stdio');
+    });
+
+    it('should warn when discovery headers are set for stdio transport', () => {
+      const config = validateConfig({
+        discovery: {
+          transport: 'stdio',
+          headers: {
+            Authorization: 'Bearer token',
+          },
+        },
+      });
+
+      const warnings = getConfigWarnings(config);
+      expect(warnings).toContain(
+        'discovery.headers is set but ignored when discovery.transport is stdio'
+      );
     });
   });
 
@@ -643,7 +710,7 @@ describe('findConfigFile', () => {
   });
 });
 
-describe('Zod schemas', () => {
+  describe('Zod schemas', () => {
   describe('serverConfigSchema', () => {
     it('should parse valid server config', () => {
       const result = serverConfigSchema.safeParse({
@@ -660,6 +727,7 @@ describe('Zod schemas', () => {
       expect(result.command).toBe('');
       expect(result.args).toEqual([]);
       expect(result.timeout).toBeDefined();
+      expect(result.headers).toBeUndefined();
     });
   });
 
@@ -731,6 +799,31 @@ describe('Zod schemas', () => {
       expect(result.dir).toBe('.bellwether');
       expect(result.docsDir).toBe('.');
       expect(result.format).toBe('both');
+    });
+  });
+
+  describe('discoveryConfigSchema', () => {
+    it('should parse discovery headers', () => {
+      const result = discoveryConfigSchema.safeParse({
+        transport: 'sse',
+        url: 'https://example.com/sse',
+        headers: {
+          Authorization: 'Bearer token',
+        },
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.headers).toEqual({
+          Authorization: 'Bearer token',
+        });
+      }
+    });
+
+    it('should default headers to undefined', () => {
+      const result = discoveryConfigSchema.parse({});
+
+      expect(result.headers).toBeUndefined();
     });
   });
 

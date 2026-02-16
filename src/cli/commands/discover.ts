@@ -4,6 +4,8 @@ import { discover, summarizeDiscovery } from '../../discovery/discovery.js';
 import { EXIT_CODES } from '../../constants.js';
 import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
 import * as output from '../output.js';
+import { ServerAuthError } from '../../errors/types.js';
+import { mergeHeaders, parseCliHeaders } from '../utils/headers.js';
 
 interface DiscoverOptions {
   config?: string;
@@ -12,6 +14,7 @@ interface DiscoverOptions {
   transport?: string;
   url?: string;
   sessionId?: string;
+  header?: string[];
 }
 
 /**
@@ -47,6 +50,15 @@ async function discoverAction(
   const outputJson = options.json ?? config?.discovery?.json ?? false;
   const remoteUrl = options.url ?? config?.discovery?.url;
   const sessionId = options.sessionId ?? config?.discovery?.sessionId;
+  const configuredHeaders = mergeHeaders(config?.server?.headers, config?.discovery?.headers);
+  let cliHeaders: Record<string, string> | undefined;
+  try {
+    cliHeaders = parseCliHeaders(options.header);
+  } catch (error) {
+    output.error(error instanceof Error ? error.message : String(error));
+    process.exit(EXIT_CODES.ERROR);
+  }
+  const headers = mergeHeaders(configuredHeaders, cliHeaders);
 
   // Validate transport options
   if (isRemoteTransport && !remoteUrl) {
@@ -74,9 +86,10 @@ async function discoverAction(
       await client.connectRemote(remoteUrl!, {
         transport: transportType,
         sessionId,
+        headers,
       });
     } else {
-      await client.connect(command!, args);
+      await client.connect(command!, args, config?.server?.env);
     }
 
     output.info('Discovering capabilities...\n');
@@ -114,7 +127,17 @@ async function discoverAction(
       output.info(summarizeDiscovery(result));
     }
   } catch (error) {
-    output.error(`Discovery failed: ${error instanceof Error ? error.message : String(error)}`);
+    const message = error instanceof Error ? error.message : String(error);
+    output.error(`Discovery failed: ${message}`);
+    if (
+      error instanceof ServerAuthError ||
+      message.includes('401') ||
+      message.includes('403') ||
+      message.includes('407') ||
+      /unauthorized|forbidden|authentication|authorization/i.test(message)
+    ) {
+      output.error('Hint: configure discovery.headers/server.headers or pass --header.');
+    }
     process.exit(EXIT_CODES.ERROR);
   } finally {
     await client.disconnect();
@@ -132,4 +155,8 @@ export const discoverCommand = new Command('discover')
   .option('--transport <type>', 'Transport type: stdio, sse, streamable-http')
   .option('--url <url>', 'URL for remote MCP server (requires --transport sse or streamable-http)')
   .option('--session-id <id>', 'Session ID for remote server authentication')
+  .option(
+    '-H, --header <header...>',
+    'Custom headers for remote MCP requests (e.g., "Authorization: Bearer token")'
+  )
   .action(discoverAction);

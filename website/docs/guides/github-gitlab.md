@@ -47,9 +47,9 @@ jobs:
 
 ```yaml
 - name: Run Bellwether
-  uses: dotsetlabs/bellwether@v2.1.1
+  uses: dotsetlabs/bellwether@v2.1.2
   with:
-    version: '2.1.1'
+    version: '2.1.2'
     server-command: 'npx @modelcontextprotocol/server-filesystem'
     server-args: '/tmp'
     baseline-path: './bellwether-baseline.json'
@@ -84,7 +84,8 @@ jobs:
 
       - name: Compare baselines
         run: |
-          npx @dotsetlabs/bellwether baseline diff main-baseline.json pr-baseline.json --fail-on-drift
+          npx @dotsetlabs/bellwether baseline diff main-baseline.json pr-baseline.json --format json > baseline-diff.json
+          node -e "const diff=require('./baseline-diff.json'); process.exit(diff.severity === 'none' ? 0 : 1)"
 ```
 
 ---
@@ -130,7 +131,8 @@ bellwether:mr:
     - bellwether baseline save ./mr-baseline.json
 
     # Compare
-    - bellwether baseline diff main-baseline.json mr-baseline.json --fail-on-drift
+    - bellwether baseline diff main-baseline.json mr-baseline.json --format json > baseline-diff.json
+    - node -e "const diff=require('./baseline-diff.json'); process.exit(diff.severity === 'none' ? 0 : 1)"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 ```

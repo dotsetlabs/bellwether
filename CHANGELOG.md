@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-02-16
+
+### Added
+
+- **Remote MCP header auth support** across config, transport, and CLI:
+  - `server.headers` and `discovery.headers` configuration
+  - `-H/--header` overrides on `check`, `explore`, and `discover`
+  - `ServerAuthError` classification with auth-aware retry behavior
+- **Header parsing utilities and tests** for validated, case-insensitive CLI/config header merging.
+
+### Changed
+
+- **Remote diagnostics and guidance**: improved auth/connection error hints in `check`, `explore`, `discover`, and `watch`.
+- **Capability handling**: `check`/`explore` now continue when prompts/resources exist even if no tools are exposed.
+- **Documentation refresh** across README + website guides/CLI references to align with current auth, config, and command behavior.
+- **Release consistency tooling**: simplified consistency validation by removing checks tied to deleted policy files.
+
+### Fixed
+
+- **Remote preflight stream cleanup**: preflight now cancels response bodies to avoid leaving open remote streams before transport initialization.
+- **Broken documentation links and stale examples**: removed/updated outdated references and invalid CLI examples.
+
+### Removed
+
+- **Man page generation and distribution** (`man/`, `scripts/generate-manpage.sh`, `man:generate` script).
+- **Husky/lint-staged workflow** and related hook files.
+- **Repository files no longer maintained** (`ROADMAP.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`).
+
+## [2.1.1] - 2026-02-14
+
+### Changed
+
+- **Product focus tightening**: Clarified the core workflow (`init`, `check`, `baseline`) and repositioned advanced commands as opt-in in CLI/docs.
+- **Release quality hardening**: Added stronger consistency checks and documentation alignment to reduce drift between code behavior and published guidance.
+
 ## [2.1.0] - 2026-02-11
 
 ### Changed

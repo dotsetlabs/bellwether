@@ -868,10 +868,16 @@ function generateTransportIssuesSection(
     // Recommendations
     const hasInvalidJson = transportErrors.some((e) => e.category === 'invalid_json');
     const hasProtocolError = transportErrors.some((e) => e.category === 'protocol_violation');
+    const hasAuthError = transportErrors.some((e) => e.category === 'auth_failed');
 
-    if (hasInvalidJson || hasProtocolError) {
+    if (hasInvalidJson || hasProtocolError || hasAuthError) {
       lines.push('### Recommendations');
       lines.push('');
+      if (hasAuthError) {
+        lines.push(
+          '- **Auth Failed**: Configure remote authentication headers (for example `Authorization: Bearer <token>`) and verify credentials are valid.'
+        );
+      }
       if (hasInvalidJson) {
         lines.push(
           '- **Invalid JSON**: The server may be writing debug output to stdout. Ensure all non-JSON-RPC output goes to stderr.'
@@ -900,6 +906,8 @@ function formatTransportErrorCategory(category: string): string {
       return 'Buffer Overflow';
     case 'connection_refused':
       return 'Connection Refused';
+    case 'auth_failed':
+      return 'Auth Failed';
     case 'connection_lost':
       return 'Connection Lost';
     case 'protocol_violation':

@@ -35,7 +35,7 @@ npx @dotsetlabs/bellwether init npx @mcp/your-server
 npx @dotsetlabs/bellwether check
 ```
 
-This is useful for CI/CD pipelines or one-off usage. All commands (except `init`) require a config file, so `init` is always the first step.
+This is useful for CI/CD pipelines or one-off usage. Most commands require a config file, so `init` is usually the first step (`auth`, `discover`, and `registry` can run without one).
 
 ## LLM Provider Setup (Optional)
 

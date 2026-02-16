@@ -38,6 +38,8 @@ export const serverConfigSchema = z
     sessionId: z.string().optional().default(CONFIG_DEFAULTS.server.sessionId),
     /** Additional environment variables */
     env: z.record(z.string()).optional(),
+    /** Custom headers for remote server authentication */
+    headers: z.record(z.string()).optional(),
   })
   .default(CONFIG_DEFAULTS.server);
 
@@ -628,6 +630,8 @@ export const discoveryConfigSchema = z
     url: z.string().optional().default(CONFIG_DEFAULTS.discovery.url),
     /** Session ID for remote auth */
     sessionId: z.string().optional().default(CONFIG_DEFAULTS.discovery.sessionId),
+    /** Custom headers for remote server authentication */
+    headers: z.record(z.string()).optional(),
   })
   .default(CONFIG_DEFAULTS.discovery);
 
@@ -776,6 +780,14 @@ export function getConfigWarnings(config: BellwetherConfig): string[] {
     if (unconfigured.length === Object.keys(EXTERNAL_DEPENDENCIES.SERVICES).length) {
       warnings.push('External services mode is set to "fail" but no credentials detected');
     }
+  }
+
+  if ((config.server.transport ?? 'stdio') === 'stdio' && config.server.headers) {
+    warnings.push('server.headers is set but ignored when server.transport is stdio');
+  }
+
+  if ((config.discovery.transport ?? 'stdio') === 'stdio' && config.discovery.headers) {
+    warnings.push('discovery.headers is set but ignored when discovery.transport is stdio');
   }
 
   return warnings;

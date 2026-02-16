@@ -26,6 +26,7 @@ import {
 } from '../../baseline/index.js';
 import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
+import { ServerAuthError } from '../../errors/types.js';
 
 export const watchCommand = new Command('watch')
   .description('Watch for file changes and auto-check (uses bellwether.yaml)')
@@ -51,6 +52,7 @@ export const watchCommand = new Command('watch')
     const transport = config.server.transport ?? 'stdio';
     const remoteUrl = config.server.url?.trim();
     const remoteSessionId = config.server.sessionId?.trim();
+    const remoteHeaders = config.server.headers;
 
     // Validate config for check mode (watch only does check, not explore)
     try {
@@ -117,6 +119,7 @@ export const watchCommand = new Command('watch')
           await mcpClient.connectRemote(remoteUrl!, {
             transport,
             sessionId: remoteSessionId || undefined,
+            headers: remoteHeaders,
           });
         }
         const discovery = await discover(
@@ -202,7 +205,17 @@ export const watchCommand = new Command('watch')
         lastBaselineHash = newBaseline.hash;
         output.info(`Baseline updated: ${newBaseline.hash.slice(0, 8)}`);
       } catch (error) {
-        output.error(`Test failed: ${error instanceof Error ? error.message : String(error)}`);
+        const message = error instanceof Error ? error.message : String(error);
+        output.error(`Test failed: ${message}`);
+        if (
+          error instanceof ServerAuthError ||
+          message.includes('401') ||
+          message.includes('403') ||
+          message.includes('407') ||
+          /unauthorized|forbidden|authentication|authorization/i.test(message)
+        ) {
+          output.error('Hint: configure server.headers.Authorization in bellwether.yaml');
+        }
       } finally {
         await mcpClient.disconnect();
       }

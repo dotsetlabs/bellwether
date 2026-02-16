@@ -1,6 +1,6 @@
 {
   "name": "@dotsetlabs/bellwether",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "The open-source MCP testing tool. Structural drift detection and behavioral documentation for Model Context Protocol servers.",
   "type": "module",
   "main": "dist/index.js",
@@ -36,9 +36,7 @@
     "clean": "rm -rf dist",
     "docs:generate": "npm --prefix website run build",
     "docs:dev": "npm --prefix website run start",
-    "man:generate": "./scripts/generate-manpage.sh",
-    "prepare": "husky install || true",
-    "prepublishOnly": "npm run build && npm run man:generate"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mcp",
@@ -98,25 +96,16 @@
     "@typescript-eslint/parser": "^6.21.0",
     "@vitest/coverage-v8": "^4.0.18",
     "eslint": "^8.57.1",
-    "husky": "^9.1.0",
-    "lint-staged": "^16.2.7",
     "prettier": "^3.3.0",
     "tsx": "^4.21.0",
     "typescript": "^5.3.0",
     "vitest": "^4.0.17"
-  },
-  "lint-staged": {
-    "*.ts": [
-      "eslint --fix",
-      "prettier --write"
-    ]
   },
   "files": [
     "dist",
     "!dist/**/*.map",
     "schemas",
     "scripts/completions",
-    "man",
     "README.md",
     "LICENSE",
     "CHANGELOG.md",

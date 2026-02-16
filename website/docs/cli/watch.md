@@ -59,6 +59,10 @@ Configure watch mode in `bellwether.yaml`:
 ```yaml
 server:
   command: "npx @mcp/your-server"
+  # transport: sse
+  # url: "https://api.example.com/mcp"
+  # headers:
+  #   Authorization: "Bearer ${MCP_SERVER_TOKEN}"
   timeout: 30000
 
 watch:

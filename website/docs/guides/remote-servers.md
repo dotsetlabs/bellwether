@@ -5,7 +5,7 @@ sidebar_position: 6
 
 # Remote MCP Servers
 
-Bellwether can connect to remote MCP servers over HTTP using SSE (Server-Sent Events) or Streamable HTTP transports. `bellwether check` and `bellwether explore` support these transports when configured in `bellwether.yaml`.
+Bellwether can connect to remote MCP servers over HTTP using SSE (Server-Sent Events) or Streamable HTTP transports. `bellwether check`, `bellwether explore`, and `bellwether discover` support remote transports.
 
 ## Transport Types
 
@@ -23,7 +23,17 @@ Configure the server transport in `bellwether.yaml`:
 server:
   transport: sse
   url: https://api.example.com/mcp
-  # sessionId: "your-auth-token"
+  # sessionId: "server-issued-session-id"
+  # headers:
+  #   Authorization: "Bearer ${MCP_SERVER_TOKEN}"
+```
+
+One-off CLI header overrides:
+
+```bash
+bellwether check -H "Authorization: Bearer $MCP_SERVER_TOKEN"
+bellwether explore -H "Authorization: Bearer $MCP_SERVER_TOKEN"
+bellwether discover --transport sse --url https://api.example.com/mcp -H "Authorization: Bearer $MCP_SERVER_TOKEN"
 ```
 
 ## SSE Transport
@@ -44,7 +54,7 @@ bellwether discover \
 bellwether discover \
   --transport sse \
   --url https://api.example.com/mcp \
-  --session-id "your-auth-token"
+  -H "Authorization: Bearer $MCP_SERVER_TOKEN"
 ```
 
 ### SSE Protocol Details
@@ -69,13 +79,24 @@ bellwether discover \
 
 ### With Custom Headers
 
-For servers requiring authentication or custom headers, use the session ID:
+For servers requiring authentication or custom headers, use explicit headers:
 
 ```bash
 bellwether discover \
   --transport streamable-http \
   --url https://api.example.com/mcp \
-  --session-id "Bearer your-jwt-token"
+  -H "Authorization: Bearer $MCP_SERVER_TOKEN" \
+  -H "X-API-Key: $MCP_API_KEY"
+```
+
+You can also set persistent headers in `bellwether.yaml`:
+
+```yaml
+server:
+  transport: streamable-http
+  url: https://api.example.com/mcp
+  headers:
+    Authorization: "Bearer ${MCP_SERVER_TOKEN}"
 ```
 
 ### HTTP Protocol Details
@@ -134,7 +155,7 @@ bellwether discover \
 bellwether discover \
   --transport streamable-http \
   --url https://api.example.com/mcp \
-  --session-id "Bearer eyJhbGciOiJIUzI1NiIs..."
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
 ```
 
 ### Local Development Server
@@ -181,9 +202,9 @@ Error: HTTP 401: Unauthorized
 ```
 
 Check:
-- Session ID is correct
+- `Authorization` / API key header value is correct
 - Token hasn't expired
-- Server expects the token format you're using
+- Server expects the header name and token format you're using
 
 ### Reconnection (SSE)
 
@@ -199,25 +220,25 @@ For advanced use cases, you can use the transport classes directly:
 ```typescript
 import {
   MCPClient,
-  SSETransport,
-  HTTPTransport
+  discover
 } from '@dotsetlabs/bellwether';
 
 // Using SSE transport
 const client = new MCPClient({ debug: true });
 await client.connectRemote('https://api.example.com/mcp', {
   transport: 'sse',
-  sessionId: 'your-token'
+  headers: { Authorization: 'Bearer your-token' }
 });
 
 // Discover capabilities
-const discovery = await client.discover();
-console.log(discovery.tools);
+const result = await discover(client, 'https://api.example.com/mcp', []);
+console.log(result.tools);
 
 // Using HTTP transport
 const httpClient = new MCPClient();
 await httpClient.connectRemote('https://api.example.com/mcp', {
-  transport: 'streamable-http'
+  transport: 'streamable-http',
+  headers: { Authorization: 'Bearer your-token' }
 });
 ```
 
@@ -227,7 +248,7 @@ When connecting to remote MCP servers:
 
 1. **Always use HTTPS** in production
 2. **Validate server certificates** - don't disable TLS verification
-3. **Secure your session tokens** - treat them like passwords
+3. **Secure auth credentials** - protect API keys, bearer tokens, and session IDs
 4. **Be cautious with unknown servers** - they can execute arbitrary tool calls
 
 ## See Also

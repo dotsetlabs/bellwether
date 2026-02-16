@@ -116,16 +116,15 @@ describe('discovery', () => {
       expect(client.listPrompts).not.toHaveBeenCalled();
     });
 
-    it('should handle tool listing errors gracefully', async () => {
+    it('should fail when tools capability is advertised but listing tools errors', async () => {
       const client = createMockClient({
         capabilities: { tools: {} },
         throwOnListTools: true,
       });
 
-      const result = await discover(client, 'cmd', []);
-
-      // Should not throw and should return empty tools array
-      expect(result.tools).toHaveLength(0);
+      await expect(discover(client, 'cmd', [])).rejects.toThrow(
+        'Failed to list tools despite advertised tools capability'
+      );
     });
 
     it('should handle prompt listing errors gracefully', async () => {

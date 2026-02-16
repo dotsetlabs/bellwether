@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HTTPTransport } from '../../src/transport/http-transport.js';
+import { ServerAuthError } from '../../src/errors/types.js';
 
 describe('HTTPTransport', () => {
   let originalFetch: typeof fetch;
@@ -294,6 +295,50 @@ describe('HTTPTransport', () => {
           method: 'test',
         })
       ).rejects.toThrow('HTTP 404');
+    });
+
+    it('should throw ServerAuthError on 401', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve('Unauthorized'),
+      });
+      globalThis.fetch = mockFetch;
+
+      const transport = new HTTPTransport({
+        baseUrl: 'https://example.com/mcp',
+      });
+      await transport.connect();
+
+      await expect(
+        transport.sendAsync({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'test',
+        })
+      ).rejects.toBeInstanceOf(ServerAuthError);
+    });
+
+    it('should throw ServerAuthError on 403', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        text: () => Promise.resolve('Forbidden'),
+      });
+      globalThis.fetch = mockFetch;
+
+      const transport = new HTTPTransport({
+        baseUrl: 'https://example.com/mcp',
+      });
+      await transport.connect();
+
+      await expect(
+        transport.sendAsync({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'test',
+        })
+      ).rejects.toBeInstanceOf(ServerAuthError);
     });
   });
 
