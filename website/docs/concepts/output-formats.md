@@ -218,11 +218,11 @@ Baseline format versions follow the CLI package version; baselines are compatibl
 
 ```json
 {
-  "version": "2.0.1",
+  "version": "2.1.1",
   "metadata": {
     "mode": "check",
     "generatedAt": "2026-01-25T10:30:00Z",
-    "cliVersion": "2.0.1",
+    "cliVersion": "2.1.1",
     "serverCommand": "npx @modelcontextprotocol/server-filesystem /tmp",
     "serverName": "@modelcontextprotocol/server-filesystem",
     "durationMs": 1823,

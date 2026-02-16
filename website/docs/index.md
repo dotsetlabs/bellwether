@@ -57,7 +57,7 @@ Most teams should start and stay in the core workflow for CI/CD drift prevention
 # Install
 npm install -g @dotsetlabs/bellwether
 
-# Initialize configuration with your server command (required before any other command)
+# Initialize configuration with your server command (required before most commands)
 bellwether init npx @mcp/your-server
 
 # Run check (free, fast, deterministic)

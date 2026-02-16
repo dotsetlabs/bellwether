@@ -4,7 +4,7 @@ Thank you for your interest in contributing to Bellwether! This document provide
 
 ## Code of Conduct
 
-By participating in this project, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md). Please read it before contributing.
+By participating in this project, you agree to engage respectfully and constructively in issues, discussions, and pull requests.
 
 ## Getting Started
 
@@ -81,7 +81,7 @@ src/
 ├── baseline/       # Drift detection, baseline management, comparator
 ├── cache/          # Response caching with TTL
 ├── cli/            # CLI commands, output formatting, utilities
-│   ├── commands/   # Individual CLI commands (12 total)
+│   ├── commands/   # Individual CLI commands
 │   ├── output/     # Terminal reporter
 │   └── utils/      # CLI utilities (env, progress, server-context)
 ├── config/         # Configuration loading, validation, templates

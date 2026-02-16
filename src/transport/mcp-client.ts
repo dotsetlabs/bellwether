@@ -31,6 +31,7 @@ import {
   type MCPFeatureFlags,
 } from '../protocol/index.js';
 import { filterSpawnEnv } from './env-filter.js';
+import { ConnectionError, ServerAuthError } from '../errors/types.js';
 
 export interface MCPClientOptions {
   /** Request timeout in milliseconds (default: 30000) */
@@ -47,6 +48,8 @@ export interface MCPClientOptions {
   sseConfig?: Omit<SSETransportConfig, 'debug'>;
   /** Configuration for HTTP transport */
   httpConfig?: Omit<HTTPTransportConfig, 'debug'>;
+  /** Optional preflight check for remote transports (default: true) */
+  remotePreflight?: boolean;
 }
 
 interface PendingRequest {
@@ -118,6 +121,8 @@ export class MCPClient {
   private connectionState: ConnectionState = { attempted: false };
   /** Protocol version negotiated with the server during initialization */
   private negotiatedProtocolVersion: string | null = null;
+  /** Whether to run an explicit preflight before remote connection */
+  private remotePreflight: boolean;
 
   constructor(options?: MCPClientOptions) {
     this.timeout = options?.timeout ?? DEFAULT_TIMEOUT;
@@ -126,6 +131,125 @@ export class MCPClient {
     this.transportType = options?.transport ?? 'stdio';
     this.sseConfig = options?.sseConfig;
     this.httpConfig = options?.httpConfig;
+    this.remotePreflight = options?.remotePreflight ?? true;
+  }
+
+  /**
+   * Merge two header maps, giving precedence to override values.
+   */
+  private mergeHeaders(
+    base?: Record<string, string>,
+    override?: Record<string, string>
+  ): Record<string, string> | undefined {
+    if (!base && !override) return undefined;
+
+    const merged: Record<string, string> = {};
+    const apply = (headers?: Record<string, string>): void => {
+      if (!headers) return;
+      for (const [name, value] of Object.entries(headers)) {
+        const normalized = name.toLowerCase();
+        for (const existing of Object.keys(merged)) {
+          if (existing.toLowerCase() === normalized) {
+            delete merged[existing];
+            break;
+          }
+        }
+        merged[name] = value;
+      }
+    };
+
+    apply(base);
+    apply(override);
+    return Object.keys(merged).length > 0 ? merged : undefined;
+  }
+
+  /**
+   * Optional remote connectivity/auth preflight (enabled by default).
+   * Uses GET (not HEAD/OPTIONS) for broader compatibility.
+   *
+   * Any successful HTTP response (including 404/405/etc.) confirms network reachability.
+   * Only auth failures and hard network/timeouts are treated as terminal preflight failures.
+   */
+  private async preflightRemote(
+    url: string,
+    transport: 'sse' | 'streamable-http',
+    headers?: Record<string, string>
+  ): Promise<void> {
+    if (!this.remotePreflight) {
+      return;
+    }
+
+    const endpoint = transport === 'sse' ? `${url.replace(/\/$/, '')}/sse` : url;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), Math.min(this.timeout, 5000));
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          Accept: transport === 'sse' ? 'text/event-stream' : 'application/json, text/event-stream',
+          ...(headers ?? {}),
+        },
+        signal: controller.signal,
+      });
+      const closePreflightBody = async (): Promise<void> => {
+        try {
+          await response.body?.cancel();
+        } catch {
+          // Ignore body cancellation failures; preflight status handling is primary.
+        }
+      };
+
+      if (response.status === 401) {
+        await closePreflightBody();
+        throw new ServerAuthError(
+          `Remote MCP preflight failed: unauthorized (${response.status})`,
+          response.status,
+          'Add authentication headers (for example Authorization) and retry.'
+        );
+      }
+      if (response.status === 403) {
+        await closePreflightBody();
+        throw new ServerAuthError(
+          `Remote MCP preflight failed: forbidden (${response.status})`,
+          response.status,
+          'Credentials are valid but lack required permissions/scopes.'
+        );
+      }
+      if (response.status === 407) {
+        await closePreflightBody();
+        throw new ServerAuthError(
+          `Remote MCP preflight failed: proxy authentication required (${response.status})`,
+          response.status,
+          'Configure proxy credentials and retry.'
+        );
+      }
+      if (!response.ok) {
+        // Non-auth HTTP statuses are compatibility-safe to continue:
+        // some MCP servers reject generic GET preflight paths but still
+        // support their actual protocol endpoints for normal operation.
+        this.logger.debug(
+          { endpoint, status: response.status },
+          'Remote preflight received non-auth HTTP status; continuing to transport connect'
+        );
+      }
+
+      await closePreflightBody();
+    } catch (error) {
+      if (error instanceof ServerAuthError || error instanceof ConnectionError) {
+        throw error;
+      }
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new ConnectionError(`Remote MCP preflight timed out for ${endpoint}`);
+      }
+      throw new ConnectionError(
+        `Remote MCP preflight failed for ${endpoint}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   /**
@@ -155,6 +279,13 @@ export class MCPClient {
     for (const pattern of TRANSPORT_ERRORS.CONNECTION_REFUSED_PATTERNS) {
       if (pattern.test(msg)) {
         return { category: 'connection_refused', likelyServerBug: false };
+      }
+    }
+
+    // Check for authentication failures (environment/config issue)
+    for (const pattern of TRANSPORT_ERRORS.AUTH_FAILURE_PATTERNS) {
+      if (pattern.test(msg)) {
+        return { category: 'auth_failed', likelyServerBug: false };
       }
     }
 
@@ -231,6 +362,8 @@ export class MCPClient {
         return 'Server response exceeded buffer limits';
       case 'connection_refused':
         return 'Failed to connect to server process';
+      case 'auth_failed':
+        return 'Authentication failed when connecting to remote MCP server';
       case 'connection_lost':
         return 'Connection to server was lost unexpectedly';
       case 'protocol_violation':
@@ -341,6 +474,7 @@ export class MCPClient {
     this.transport.on('error', (error: Error) => {
       this.logger.error({ error: error.message }, 'Transport error');
       this.recordTransportError(error, 'stdio_transport');
+      this.clearPendingRequests(error.message);
     });
 
     this.transport.on('close', () => {
@@ -408,28 +542,41 @@ export class MCPClient {
     this.cleaningUp = false;
     this.disconnecting = false;
 
+    // Track connection state for diagnostics
+    this.connectionState = {
+      attempted: true,
+      url,
+    };
+
     this.logger.info({ url, transport }, 'Connecting to remote MCP server');
+
+    const mergedHeaders =
+      transport === 'sse'
+        ? this.mergeHeaders(this.sseConfig?.headers, options?.headers)
+        : this.mergeHeaders(this.httpConfig?.headers, options?.headers);
+
+    await this.preflightRemote(url, transport, mergedHeaders);
 
     if (transport === 'sse') {
       const sseTransport = new SSETransport({
+        ...this.sseConfig,
         baseUrl: url,
         sessionId: options?.sessionId ?? this.sseConfig?.sessionId,
-        headers: options?.headers ?? this.sseConfig?.headers,
+        headers: mergedHeaders,
         timeout: this.timeout,
         debug: this.debug,
-        ...this.sseConfig,
       });
 
       await sseTransport.connect();
       this.transport = sseTransport;
     } else if (transport === 'streamable-http') {
       const httpTransport = new HTTPTransport({
+        ...this.httpConfig,
         baseUrl: url,
         sessionId: options?.sessionId ?? this.httpConfig?.sessionId,
-        headers: options?.headers ?? this.httpConfig?.headers,
+        headers: mergedHeaders,
         timeout: this.timeout,
         debug: this.debug,
-        ...this.httpConfig,
       });
 
       await httpTransport.connect();
@@ -458,6 +605,7 @@ export class MCPClient {
     this.transport.on('error', (error: Error) => {
       this.logger.error({ error: error.message }, 'Transport error');
       this.recordTransportError(error, 'remote_transport');
+      this.clearPendingRequests(error.message);
     });
 
     this.transport.on('close', () => {

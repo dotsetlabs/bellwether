@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SSETransport } from '../../src/transport/sse-transport.js';
+import { ServerAuthError } from '../../src/errors/types.js';
 
 const encoder = new TextEncoder();
 
@@ -78,6 +79,16 @@ describe('SSETransport', () => {
       globalThis.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 500 }));
 
       await expect(transport.connect()).rejects.toThrow(/Failed to connect/i);
+    });
+
+    it('should throw ServerAuthError on 401 during SSE connect', async () => {
+      const transport = new SSETransport({
+        baseUrl: 'https://example.com/mcp',
+      });
+
+      globalThis.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
+
+      await expect(transport.connect()).rejects.toBeInstanceOf(ServerAuthError);
     });
 
     it('should receive endpoint and message events', async () => {
@@ -181,6 +192,43 @@ describe('SSETransport', () => {
       expect(errorHandler).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'Transport not connected' })
       );
+    });
+
+    it('should emit ServerAuthError for 403 on message POST', async () => {
+      const { stream } = createControlledStream();
+
+      const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          return new Response('Forbidden', { status: 403 });
+        }
+
+        return new Response(stream, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        });
+      });
+      globalThis.fetch = fetchMock as typeof fetch;
+
+      const transport = new SSETransport({
+        baseUrl: 'https://example.com/mcp',
+        reconnectDelay: 10000,
+      });
+      await transport.connect();
+
+      const errorHandler = vi.fn();
+      transport.on('error', errorHandler);
+
+      transport.send({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'test',
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(errorHandler).toHaveBeenCalledWith(expect.any(ServerAuthError));
+
+      transport.close();
     });
   });
 

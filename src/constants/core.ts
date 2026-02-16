@@ -83,6 +83,18 @@ export const TRANSPORT_ERRORS = {
     /not found/i,
   ] as readonly RegExp[],
 
+  /** Patterns indicating remote authentication/authorization failures */
+  AUTH_FAILURE_PATTERNS: [
+    /\b401\b/i,
+    /\b403\b/i,
+    /\b407\b/i,
+    /unauthorized/i,
+    /forbidden/i,
+    /authentication/i,
+    /authorization/i,
+    /access denied/i,
+  ] as readonly RegExp[],
+
   /** Patterns indicating connection was lost */
   CONNECTION_LOST_PATTERNS: [
     /ECONNRESET/i,

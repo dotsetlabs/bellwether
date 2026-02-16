@@ -26,7 +26,7 @@ bellwether init "npx @mcp/server /data"
 The `init` command creates a `bellwether.yaml` configuration file in the current directory. This file controls all aspects of how Bellwether checks and explores your MCP server.
 
 :::note Required First Step
-Every CLI command (except `init`) requires this config file. Run `bellwether init` once per project.
+Most CLI commands require this config file. `auth`, `discover`, and `registry` can run without one, but `init` is still the recommended first step.
 :::
 
 ## Arguments
@@ -128,6 +128,8 @@ server:
   transport: stdio
   # url: "https://example.com/mcp"
   # sessionId: "session-id"
+  # headers:
+  #   Authorization: "Bearer ${MCP_SERVER_TOKEN}"
   timeout: 30000
   env: {}
 
@@ -228,7 +230,7 @@ logging:
 ```
 
 :::tip Config-First Design
-All customization is done through this configuration file. CLI commands have minimal flags—only `--config`, `--format`, and operational flags like `--accept-drift`.
+All customization is done through this configuration file. CLI commands have minimal flags—mainly `--config`, output/acceptance controls, and remote header overrides like `--header`.
 :::
 
 ## Two Commands

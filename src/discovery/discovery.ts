@@ -23,6 +23,7 @@ export async function discover(
 ): Promise<DiscoveryResult> {
   // Initialize connection
   const initResult = await client.initialize();
+  const capabilityWarnings: DiscoveryWarning[] = [];
 
   // Discover tools
   let tools: MCPTool[] = [];
@@ -31,6 +32,11 @@ export async function discover(
       tools = await client.listTools();
     } catch (error) {
       logger.error({ error }, 'Failed to list tools');
+      throw new Error(
+        `Failed to list tools despite advertised tools capability: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 
@@ -41,6 +47,11 @@ export async function discover(
       prompts = await client.listPrompts();
     } catch (error) {
       logger.error({ error }, 'Failed to list prompts');
+      capabilityWarnings.push({
+        level: 'warning',
+        message: `Failed to list prompts: ${error instanceof Error ? error.message : String(error)}`,
+        recommendation: 'Check server prompt implementation and transport health.',
+      });
     }
   }
 
@@ -52,11 +63,24 @@ export async function discover(
       resources = await client.listResources();
     } catch (error) {
       logger.error({ error }, 'Failed to list resources');
+      capabilityWarnings.push({
+        level: 'warning',
+        message: `Failed to list resources: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        recommendation: 'Check server resource implementation and transport health.',
+      });
     }
     try {
       resourceTemplates = await client.listResourceTemplates();
     } catch (error) {
       logger.debug({ error }, 'Failed to list resource templates (server may not support them)');
+      capabilityWarnings.push({
+        level: 'info',
+        message: `Failed to list resource templates: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
     }
   }
 
@@ -64,14 +88,17 @@ export async function discover(
   const transportErrors: TransportErrorRecord[] = client.getTransportErrors();
 
   // Generate warnings based on discovery results
-  const warnings: DiscoveryWarning[] = generateDiscoveryWarnings(
-    initResult.capabilities,
-    tools,
-    prompts,
-    resources,
-    transportErrors,
-    initResult.protocolVersion
-  );
+  const warnings: DiscoveryWarning[] = [
+    ...capabilityWarnings,
+    ...generateDiscoveryWarnings(
+      initResult.capabilities,
+      tools,
+      prompts,
+      resources,
+      transportErrors,
+      initResult.protocolVersion
+    ),
+  ];
 
   return {
     serverInfo: initResult.serverInfo,

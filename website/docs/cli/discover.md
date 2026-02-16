@@ -15,7 +15,7 @@ bellwether discover [command] [args...] [options]
 
 ## Description
 
-The `discover` command connects to an MCP server and lists its capabilities (tools, prompts, and resources) without conducting a full check. This is useful for quick reconnaissance or verifying server connectivity.
+The `discover` command connects to an MCP server and lists its capabilities (tools, prompts, resources, and resource templates) without conducting a full check. This is useful for quick reconnaissance or verifying server connectivity.
 
 :::note Config Optional
 `discover` can run without a config file. If `bellwether.yaml` is present, its discovery settings are used.
@@ -46,7 +46,8 @@ For remote MCP servers, use `--transport sse` or `--transport streamable-http` w
 |:-------|:------------|:--------|
 | `--transport <type>` | Transport type: `stdio`, `sse`, `streamable-http` | `discovery.transport` |
 | `--url <url>` | URL for remote MCP server (requires `--transport sse` or `streamable-http`) | - |
-| `--session-id <id>` | Session ID for remote server authentication | - |
+| `--session-id <id>` | Session ID for remote MCP session continuity (optional) | - |
+| `-H, --header <header...>` | Custom header(s) for remote MCP requests | From `discovery.headers` / `server.headers` |
 
 ## Examples
 
@@ -145,7 +146,19 @@ bellwether discover \
 bellwether discover \
   --transport streamable-http \
   --url https://api.example.com/mcp \
-  --session-id "auth-token-123"
+  -H "Authorization: Bearer $MCP_SERVER_TOKEN"
+```
+
+For config-based auth, set:
+
+```yaml
+server:
+  headers:
+    Authorization: "Bearer ${MCP_SERVER_TOKEN}"
+
+discovery:
+  headers:
+    X-API-Key: "${MCP_API_KEY}"   # Overrides server.headers for discover
 ```
 
 ## Use Cases

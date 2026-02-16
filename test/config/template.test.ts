@@ -169,6 +169,16 @@ describe('generateConfigTemplate', () => {
       expect(template).toContain('timeout:');
     });
 
+    it('should include remote auth header examples for server and discovery', () => {
+      const template = generateConfigTemplate();
+
+      expect(template).toContain('# Custom headers for remote server authentication');
+      expect(template).toContain('# Headers support ${VAR} environment variable interpolation');
+      expect(template).toContain('#   Authorization: "Bearer ${MCP_SERVER_TOKEN}"');
+      expect(template).toContain('discovery:');
+      expect(template).toContain('#   X-API-Key: "${MCP_API_KEY}"');
+    });
+
     it('should include SCENARIOS section', () => {
       const template = generateConfigTemplate();
 

@@ -4,6 +4,7 @@ import { standardToolSet, samplePrompts } from '../fixtures/sample-tools.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { getTsxCommand } from '../fixtures/tsx-command.js';
+import { ServerAuthError } from '../../src/errors/types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -389,6 +390,158 @@ describe('MCPClient', () => {
           expect(e.likelyServerBug).toBe(false);
         });
       }
+    });
+  });
+
+  describe('remote transport behavior', () => {
+    let originalFetch: typeof fetch;
+
+    beforeEach(() => {
+      originalFetch = globalThis.fetch;
+    });
+
+    afterEach(() => {
+      globalThis.fetch = originalFetch;
+    });
+
+    it('merges remote headers with connectRemote override precedence', async () => {
+      const fetchMock = vi.fn().mockImplementation(() => {
+        const stream = new ReadableStream<Uint8Array>({
+          start() {
+            // Keep stream open for connection lifecycle
+          },
+        });
+        return Promise.resolve(
+          new Response(stream, {
+            status: 200,
+            headers: { 'content-type': 'text/event-stream' },
+          })
+        );
+      });
+      globalThis.fetch = fetchMock as typeof fetch;
+
+      const remoteClient = new MCPClient({
+        transport: 'sse',
+        sseConfig: {
+          baseUrl: 'https://unused.example',
+          headers: {
+            Authorization: 'Bearer config',
+            'X-Base': '1',
+          },
+        },
+      });
+
+      await remoteClient.connectRemote('https://example.com/mcp', {
+        transport: 'sse',
+        headers: {
+          Authorization: 'Bearer cli',
+          'X-Opt': '2',
+        },
+      });
+
+      const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe('Bearer cli');
+      expect(headers['X-Base']).toBe('1');
+      expect(headers['X-Opt']).toBe('2');
+
+      await remoteClient.disconnect();
+    });
+
+    it('runs preflight by default for remote connection', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response('Method Not Allowed', { status: 405 }));
+      globalThis.fetch = fetchMock as typeof fetch;
+
+      const remoteClient = new MCPClient({
+        transport: 'streamable-http',
+      });
+
+      await remoteClient.connectRemote('https://example.com/mcp', {
+        transport: 'streamable-http',
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][1]?.method).toBe('GET');
+      await remoteClient.disconnect();
+    });
+
+    it('cancels preflight response bodies to avoid leaking open streams', async () => {
+      let cancelled = false;
+      const stream = new ReadableStream<Uint8Array>({
+        start() {
+          // Keep stream open until client cancels it.
+        },
+        cancel() {
+          cancelled = true;
+        },
+      });
+
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(stream, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        })
+      );
+      globalThis.fetch = fetchMock as typeof fetch;
+
+      const remoteClient = new MCPClient({
+        transport: 'streamable-http',
+      });
+
+      await remoteClient.connectRemote('https://example.com/mcp', {
+        transport: 'streamable-http',
+      });
+
+      expect(cancelled).toBe(true);
+      await remoteClient.disconnect();
+    });
+
+    it('can disable preflight for remote connection', async () => {
+      const fetchMock = vi.fn();
+      globalThis.fetch = fetchMock as typeof fetch;
+
+      const remoteClient = new MCPClient({
+        transport: 'streamable-http',
+        remotePreflight: false,
+      });
+
+      await remoteClient.connectRemote('https://example.com/mcp', {
+        transport: 'streamable-http',
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      await remoteClient.disconnect();
+    });
+
+    it('runs optional preflight and throws ServerAuthError on 401', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue(new Response('Unauthorized', { status: 401 }));
+
+      const remoteClient = new MCPClient({
+        transport: 'streamable-http',
+        remotePreflight: true,
+      });
+
+      await expect(
+        remoteClient.connectRemote('https://example.com/mcp', {
+          transport: 'streamable-http',
+        })
+      ).rejects.toBeInstanceOf(ServerAuthError);
+    });
+
+    it('rejects initialize promptly on remote auth failure (no timeout masking)', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue(new Response('Unauthorized', { status: 401 }));
+
+      const remoteClient = new MCPClient({
+        timeout: 5000,
+        transport: 'streamable-http',
+        remotePreflight: false,
+      });
+
+      await remoteClient.connectRemote('https://example.com/mcp', {
+        transport: 'streamable-http',
+      });
+
+      await expect(remoteClient.initialize()).rejects.toThrow('authentication failed');
+      await remoteClient.disconnect();
     });
   });
 });

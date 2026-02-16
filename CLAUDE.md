@@ -110,6 +110,7 @@ Bellwether is an MCP (Model Context Protocol) server testing tool with two main 
 - `src/contract/` - Contract-as-code validation
 - `src/cost/` - LLM cost tracking
 - `src/errors/` - Error types (LLMAuthError, LLMRateLimitError, etc.) and retry logic
+  - Includes `ServerAuthError` (`TRANSPORT_AUTH_FAILED`) for remote MCP 401/403/407 auth failures
 - `src/logging/` - Pino-based structured logging
 - `src/metrics/` - Metrics collection
 - `src/persona/` - Built-in test personas (edge-case, security, QA, novice)
@@ -127,6 +128,7 @@ Bellwether is an MCP (Model Context Protocol) server testing tool with two main 
 - `ToolCapability` - Per-tool data stored in baseline file (schema, description, performance, security)
 - `MCPFeatureFlags` - Protocol version feature flags controlling version-gated comparisons
 - `DiscoveryResult` - Server capabilities from discovery (tools, prompts, resources, resourceTemplates)
+- `ServerAuthError` - Transport auth/authorization failure with `statusCode` and remediation hint
 
 ### Testing Patterns
 
@@ -139,6 +141,8 @@ Tests are in `test/` mirroring `src/` structure. The test framework uses Vitest 
 
 Config file: `bellwether.yaml` (generated via `bellwether init`)
 - Server command and args
+- Remote connection settings: `server.transport`, `server.url`, `server.sessionId`, `server.headers`
+- Discover-specific remote overrides: `discovery.transport`, `discovery.url`, `discovery.sessionId`, `discovery.headers`
 - LLM provider settings
 - Test scenarios and workflows
 - Severity thresholds

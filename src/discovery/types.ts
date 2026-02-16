@@ -88,6 +88,7 @@ export type TransportErrorCategory =
   | 'invalid_json' // Server output invalid JSON on stdout
   | 'buffer_overflow' // Response too large / buffer overflow
   | 'connection_refused' // Server process failed to start
+  | 'auth_failed' // Authentication/authorization failed (401/403/407)
   | 'connection_lost' // Server process died unexpectedly
   | 'protocol_violation' // Invalid MCP protocol message
   | 'timeout' // Request timed out

@@ -125,16 +125,15 @@ describe('cli/discover', () => {
       expect(result.serverInfo.version).toBe('2.0.0');
     });
 
-    it('should handle tool listing errors gracefully', async () => {
+    it('should fail when tool capability is advertised but listing tools errors', async () => {
       const client = createMockClient({
         throwOnListTools: true,
         capabilities: { tools: {} },
       });
 
-      const result = await discover(client, 'npx', ['@test/server']);
-
-      // Should return empty tools array on error
-      expect(result.tools).toHaveLength(0);
+      await expect(discover(client, 'npx', ['@test/server'])).rejects.toThrow(
+        'Failed to list tools despite advertised tools capability'
+      );
     });
   });
 

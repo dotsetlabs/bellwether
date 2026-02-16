@@ -10,6 +10,7 @@ export const CONFIG_DEFAULTS = {
     transport: 'stdio' as const,
     url: '',
     sessionId: '',
+    headers: undefined as Record<string, string> | undefined,
   },
   llm: {
     provider: 'ollama' as const,
@@ -139,6 +140,7 @@ export const CONFIG_DEFAULTS = {
     transport: 'stdio' as const,
     url: '',
     sessionId: '',
+    headers: undefined as Record<string, string> | undefined,
   },
   registry: {
     limit: 10,

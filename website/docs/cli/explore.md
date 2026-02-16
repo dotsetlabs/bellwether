@@ -40,6 +40,7 @@ This generates AGENTS.md—rich behavioral documentation that captures how your 
 | Option | Description | Default |
 |:-------|:------------|:--------|
 | `-c, --config <path>` | Path to config file | `bellwether.yaml` |
+| `-H, --header <header...>` | Custom header(s) for remote MCP requests (for example `Authorization: Bearer token`) | From `server.headers` |
 
 :::tip Config-First Design
 LLM provider and model are configured in `bellwether.yaml` under `llm.provider` and `llm.model`. This keeps your configuration in one place and avoids needing to remember CLI flags.
@@ -55,6 +56,14 @@ bellwether explore npx @modelcontextprotocol/server-filesystem /tmp
 
 # Or use server command from config
 bellwether explore
+```
+
+### Remote Server with Auth Header
+
+```bash
+bellwether explore \
+  --config bellwether.yaml \
+  -H "Authorization: Bearer $MCP_SERVER_TOKEN"
 ```
 
 ### Configure LLM Provider
@@ -115,6 +124,10 @@ Explore mode uses settings from `bellwether.yaml`. Key sections:
 ```yaml
 server:
   command: "npx @mcp/your-server"
+  # transport: sse
+  # url: "https://api.example.com/mcp"
+  # headers:
+  #   Authorization: "Bearer ${MCP_SERVER_TOKEN}"
   timeout: 30000
 
 llm:

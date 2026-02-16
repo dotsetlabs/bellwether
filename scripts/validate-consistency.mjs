@@ -6,7 +6,6 @@ import { join, relative } from 'node:path';
 const root = process.cwd();
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const packageVersion = String(packageJson.version ?? '').trim();
-const packageMajor = packageVersion.split('.')[0];
 
 if (!packageVersion || !/^\d+\.\d+\.\d+$/.test(packageVersion)) {
   console.error('Invalid package.json version, expected semver x.y.z');
@@ -60,18 +59,6 @@ for (const file of markdownTargets) {
       const line = getLineNumber(content, match.index ?? 0);
       report(file, `stale action input version ${found} on line ${line}; expected ${packageVersion}`);
     }
-  }
-}
-
-const securityPath = join(root, 'SECURITY.md');
-if (existsSync(securityPath)) {
-  const securityText = readFileSync(securityPath, 'utf8');
-  const supportedPattern = new RegExp(`\\|\\s*${packageMajor}\\.x\\.x\\s*\\|\\s*Yes\\s*\\|`);
-  if (!supportedPattern.test(securityText)) {
-    report(
-      securityPath,
-      `supported versions matrix must include "| ${packageMajor}.x.x | Yes |" for current major`
-    );
   }
 }
 

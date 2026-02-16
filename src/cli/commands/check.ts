@@ -93,6 +93,8 @@ import {
   MCP,
 } from '../../constants.js';
 import { getFeatureFlags, getExcludedFeatureNames } from '../../protocol/index.js';
+import { ServerAuthError } from '../../errors/types.js';
+import { mergeHeaders, parseCliHeaders } from '../utils/headers.js';
 
 export const checkCommand = new Command('check')
   .description('Check MCP server schema and detect drift (free, fast, deterministic)')
@@ -114,6 +116,10 @@ export const checkCommand = new Command('check')
   .option(
     '--fail-on-severity <level>',
     'Fail threshold (overrides config): none, info, warning, breaking'
+  )
+  .option(
+    '-H, --header <header...>',
+    'Custom headers for remote MCP requests (e.g., "Authorization: Bearer token")'
   )
   .action(async (serverCommandArg: string | undefined, serverArgs: string[], options) => {
     // Load configuration
@@ -143,6 +149,15 @@ export const checkCommand = new Command('check')
     const transport = config.server.transport ?? 'stdio';
     const remoteUrl = config.server.url?.trim();
     const remoteSessionId = config.server.sessionId?.trim();
+    const configRemoteHeaders = config.server.headers;
+    let cliHeaders: Record<string, string> | undefined;
+    try {
+      cliHeaders = parseCliHeaders(options.header as string[] | undefined);
+    } catch (error) {
+      output.error(error instanceof Error ? error.message : String(error));
+      process.exit(EXIT_CODES.ERROR);
+    }
+    const remoteHeaders = mergeHeaders(configRemoteHeaders, cliHeaders);
 
     // Validate config for check
     try {
@@ -287,6 +302,7 @@ export const checkCommand = new Command('check')
         await mcpClient.connectRemote(remoteUrl, {
           transport,
           sessionId: remoteSessionId || undefined,
+          headers: remoteHeaders,
         });
       }
 
@@ -363,11 +379,18 @@ export const checkCommand = new Command('check')
         personasUsed: 0, // No personas in check mode
       });
 
-      if (discovery.tools.length === 0) {
-        output.info('No tools found. Nothing to check.');
+      const hasInterviewTargets =
+        discovery.tools.length > 0 ||
+        discovery.prompts.length > 0 ||
+        (discovery.resources?.length ?? 0) > 0;
+      if (!hasInterviewTargets) {
+        output.info('No tools, prompts, or resources found. Nothing to check.');
         metricsCollector.endInterview();
         await mcpClient.disconnect();
         return;
+      }
+      if (discovery.tools.length === 0) {
+        output.info('No tools found; continuing with prompt/resource checks.');
       }
 
       // Incremental checking - load baseline and determine which tools to test
@@ -1212,15 +1235,39 @@ export const checkCommand = new Command('check')
       output.error('\n--- Check Failed ---');
       output.error(`Error: ${errorMessage}`);
 
-      if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('Connection refused')) {
+      const isRemoteTransport = transport !== 'stdio';
+      if (
+        error instanceof ServerAuthError ||
+        errorMessage.includes('401') ||
+        errorMessage.includes('403') ||
+        errorMessage.includes('407') ||
+        /unauthorized|forbidden|authentication|authorization/i.test(errorMessage)
+      ) {
+        output.error('\nAuthentication failed:');
+        output.error('  - Add server.headers.Authorization in bellwether.yaml');
+        output.error('  - Or pass --header "Authorization: Bearer $TOKEN"');
+        output.error('  - Verify credentials are valid and not expired');
+      } else if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('Connection refused')) {
         output.error('\nPossible causes:');
-        output.error('  - The MCP server is not running');
-        output.error('  - The server address/port is incorrect');
+        if (isRemoteTransport) {
+          output.error('  - The remote MCP server is not reachable');
+          output.error('  - The server URL/port is incorrect');
+        } else {
+          output.error('  - The MCP server is not running');
+          output.error('  - The server address/port is incorrect');
+        }
+      } else if (isRemoteTransport && errorMessage.includes('HTTP 404')) {
+        output.error('\nPossible causes:');
+        output.error('  - The remote MCP URL is incorrect');
+        output.error('  - For SSE transport, verify the server exposes /sse');
       } else if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
         output.error('\nPossible causes:');
         output.error('  - The MCP server is taking too long to respond');
         output.error('  - Increase server.timeout in bellwether.yaml');
-      } else if (errorMessage.includes('ENOENT') || errorMessage.includes('not found')) {
+      } else if (
+        !isRemoteTransport &&
+        (errorMessage.includes('ENOENT') || errorMessage.includes('not found'))
+      ) {
         output.error('\nPossible causes:');
         output.error('  - The server command was not found');
         output.error('  - Check that the command is installed and in PATH');

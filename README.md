@@ -132,9 +132,9 @@ Comparisons are **protocol-version-aware** — version-specific fields (annotati
 ## GitHub Action
 
 ```yaml
-- uses: dotsetlabs/bellwether@v2.1.1
+- uses: dotsetlabs/bellwether@v2.1.2
   with:
-    version: '2.1.1'
+    version: '2.1.2'
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
     fail-on-severity: 'warning'
@@ -148,6 +148,22 @@ All settings live in `bellwether.yaml`. Create one with presets:
 bellwether init npx @mcp/your-server           # Default (free, fast)
 bellwether init --preset ci npx @mcp/server    # Optimized for CI/CD
 bellwether init --preset local npx @mcp/server # Local Ollama (free)
+```
+
+For remote MCP servers that require auth headers, configure:
+
+```yaml
+server:
+  transport: sse
+  url: "https://api.example.com/mcp"
+  headers:
+    Authorization: "Bearer ${MCP_SERVER_TOKEN}"
+```
+
+Or use one-off CLI overrides:
+
+```bash
+bellwether check -H "Authorization: Bearer $MCP_SERVER_TOKEN"
 ```
 
 ## Environment Variables
@@ -171,9 +187,8 @@ bellwether init --preset local npx @mcp/server # Local Ollama (free)
 
 ## Project Governance
 
-- [Roadmap](./ROADMAP.md)
 - [Changelog](./CHANGELOG.md)
-- [Security Policy](./SECURITY.md)
+- [Releases](https://github.com/dotsetlabs/bellwether/releases)
 
 ## Community
 

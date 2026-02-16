@@ -22,7 +22,7 @@ Create a config file for your MCP server:
 bellwether init npx @mcp/your-server
 ```
 
-This creates `bellwether.yaml` with your server command and settings. Every command (except `init`) requires this config file.
+This creates `bellwether.yaml` with your server command and settings. Most commands use this config file (`auth`, `discover`, and `registry` can run without one).
 
 ### Presets
 
@@ -40,7 +40,7 @@ This creates `bellwether.yaml` with your server command and settings. Every comm
 bellwether check
 ```
 
-This discovers tools, validates schemas, and by default generates both docs and JSON (controlled by `output.format`):
+This discovers capabilities (tools, prompts, resources), validates schemas, and by default generates both docs and JSON (controlled by `output.format`):
 - `CONTRACT.md` - structural documentation (configurable via `output.files.contractDoc`)
 - `bellwether-check.json` - validation results (configurable via `output.files.checkReport`)
 

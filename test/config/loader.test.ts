@@ -273,6 +273,46 @@ logging:
       expect(config.logging.verbose).toBe(true);
     });
 
+    it('should interpolate environment variables in remote headers', () => {
+      const previousToken = process.env.MCP_SERVER_TOKEN;
+      const previousApiKey = process.env.MCP_API_KEY;
+      process.env.MCP_SERVER_TOKEN = 'token-123';
+      process.env.MCP_API_KEY = 'api-key-456';
+
+      try {
+        writeFileSync(
+          join(testDir, 'bellwether.yaml'),
+          `
+server:
+  transport: sse
+  url: https://example.com/mcp
+  headers:
+    Authorization: "Bearer \${MCP_SERVER_TOKEN}"
+discovery:
+  transport: streamable-http
+  url: https://example.com/mcp
+  headers:
+    X-API-Key: "$MCP_API_KEY"
+`
+        );
+
+        const config = loadConfig();
+        expect(config.server.headers?.Authorization).toBe('Bearer token-123');
+        expect(config.discovery.headers?.['X-API-Key']).toBe('api-key-456');
+      } finally {
+        if (previousToken === undefined) {
+          delete process.env.MCP_SERVER_TOKEN;
+        } else {
+          process.env.MCP_SERVER_TOKEN = previousToken;
+        }
+        if (previousApiKey === undefined) {
+          delete process.env.MCP_API_KEY;
+        } else {
+          process.env.MCP_API_KEY = previousApiKey;
+        }
+      }
+    });
+
     it('should validate provider values', () => {
       writeFileSync(
         join(testDir, 'bellwether.yaml'),

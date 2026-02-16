@@ -92,6 +92,12 @@ server:
   # Session ID for remote authentication (optional)
   # sessionId: "your-session-id"
 
+  # Custom headers for remote server authentication
+  # Headers support \${VAR} environment variable interpolation
+  # headers:
+  #   Authorization: "Bearer \${MCP_SERVER_TOKEN}"
+  #   X-API-Key: "\${MCP_API_KEY}"
+
   # Timeout for server startup and tool calls (milliseconds, default: ${defaults.server.timeout})
   timeout: ${defaults.server.timeout}
 
@@ -426,6 +432,12 @@ discovery:
 
   # Session ID for remote server authentication
   # sessionId: "session-id"
+
+  # Custom headers for remote server authentication
+  # Headers support \${VAR} environment variable interpolation
+  # headers:
+  #   Authorization: "Bearer \${MCP_SERVER_TOKEN}"
+  #   X-API-Key: "\${MCP_API_KEY}"
 
 # =============================================================================
 # REGISTRY COMMAND SETTINGS

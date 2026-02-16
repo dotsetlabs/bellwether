@@ -18,7 +18,7 @@ bellwether check --accept-drift --accept-reason "Added new feature"
 
 ## Description
 
-The `check` command is the core of Bellwether. It connects to an MCP server, discovers its tools, validates schemas, and generates CONTRACT.md documentation—all without requiring an LLM.
+The `check` command is the core of Bellwether. It connects to an MCP server, discovers capabilities (tools, prompts, resources), validates schemas, and generates CONTRACT.md documentation—all without requiring an LLM.
 
 This is the recommended command for CI/CD pipelines because it's:
 - **Free** - No API keys or LLM costs
@@ -59,6 +59,12 @@ This is the recommended command for CI/CD pipelines because it's:
 |:-------|:------------|:--------|
 | `--min-severity <level>` | Minimum severity to report (overrides config): `none`, `info`, `warning`, `breaking` | From config |
 | `--fail-on-severity <level>` | Fail threshold (overrides config): `none`, `info`, `warning`, `breaking` | `breaking` |
+
+### Remote Auth Override
+
+| Option | Description | Default |
+|:-------|:------------|:--------|
+| `-H, --header <header...>` | Custom header(s) for remote MCP requests (for example `Authorization: Bearer token`) | From `server.headers` |
 
 :::tip Config-First Design
 Bellwether uses a **config-first** approach. All settings—including parallel testing, security testing, sampling, and output options—are configured in `bellwether.yaml`. CLI flags are minimal and primarily used for one-time overrides in CI/CD pipelines.
@@ -106,6 +112,14 @@ bellwether check --format junit > results.xml
 
 # Fail on any warning or breaking change
 bellwether check --fail-on-severity warning
+```
+
+### Remote Server with Auth Header
+
+```bash
+bellwether check \
+  --config bellwether.yaml \
+  -H "Authorization: Bearer $MCP_SERVER_TOKEN"
 ```
 
 Configure parallel testing, incremental checking, and security testing in `bellwether.yaml`:
@@ -182,6 +196,10 @@ Check mode uses settings from `bellwether.yaml`. Run `bellwether init` to genera
 server:
   command: "npx @mcp/your-server"
   args: ["/data"]
+  # transport: sse
+  # url: "https://api.example.com/mcp"
+  # headers:
+  #   Authorization: "Bearer ${MCP_SERVER_TOKEN}"
   timeout: 30000
 
 output:
