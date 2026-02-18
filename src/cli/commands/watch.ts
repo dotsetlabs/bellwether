@@ -26,6 +26,7 @@ import {
 } from '../../baseline/index.js';
 import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
+import { resolvePathFromOutputDir } from '../utils/path-resolution.js';
 import { ServerAuthError } from '../../errors/types.js';
 
 export const watchCommand = new Command('watch')
@@ -71,9 +72,7 @@ export const watchCommand = new Command('watch')
 
     // Baseline path for watch mode (use savePath or baseline default)
     const baselinePathValue = config.baseline.savePath ?? config.baseline.path;
-    const baselinePath = baselinePathValue.startsWith('/')
-      ? baselinePathValue
-      : resolve(join(config.output.dir, baselinePathValue));
+    const baselinePath = resolve(resolvePathFromOutputDir(baselinePathValue, config.output.dir));
 
     // Extract settings from config
     const timeout = config.server.timeout;

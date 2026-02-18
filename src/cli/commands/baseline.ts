@@ -10,7 +10,7 @@
  */
 
 import { Command } from 'commander';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { join, basename } from 'path';
 import {
   createBaseline,
@@ -31,64 +31,13 @@ import { BaselineVersionError } from '../../baseline/version.js';
 import { EXIT_CODES, MCP } from '../../constants.js';
 import { getExcludedFeatureNames } from '../../protocol/index.js';
 import { acceptCommand } from './baseline-accept.js';
-import type { InterviewResult } from '../../interview/types.js';
-import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
 import * as output from '../output.js';
-
-/**
- * Load interview result from JSON report.
- * Only accepts check mode results - explore results are for documentation only.
- */
-function loadInterviewResult(reportPath: string): InterviewResult {
-  if (!existsSync(reportPath)) {
-    throw new Error(
-      `Test report not found: ${reportPath}\n\n` +
-        'Run `bellwether check` first with JSON output enabled.\n' +
-        'Configure in bellwether.yaml:\n' +
-        '  output:\n' +
-        '    format: json  # or "both" for JSON + markdown'
-    );
-  }
-
-  const content = readFileSync(reportPath, 'utf-8');
-  let result: InterviewResult;
-  try {
-    result = JSON.parse(content) as InterviewResult;
-  } catch (error) {
-    throw new Error(
-      `Invalid JSON in report file ${reportPath}: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
-
-  // Validate that this is a check mode result, not explore
-  if (result.metadata.model && result.metadata.model !== 'check') {
-    throw new Error(
-      `Baseline operations only work with check mode results.\n\n` +
-        `The report at ${reportPath} was created with explore mode (model: ${result.metadata.model}).\n` +
-        `Explore results are for documentation only and cannot be used for baselines.\n\n` +
-        'To create a baseline:\n' +
-        '  1. Run `bellwether check` to generate a check mode report\n' +
-        '  2. Run `bellwether baseline save` to create the baseline'
-    );
-  }
-
-  return result;
-}
-
-/**
- * Get the output directory from config or use current directory.
- */
-function loadConfigOrExit(configPath?: string): BellwetherConfig {
-  try {
-    return loadConfig(configPath);
-  } catch (error) {
-    if (error instanceof ConfigNotFoundError) {
-      output.error(error.message);
-      process.exit(EXIT_CODES.ERROR);
-    }
-    throw error;
-  }
-}
+import { loadConfigOrExit } from '../utils/config-loader.js';
+import { loadCheckInterviewResult } from '../utils/report-loader.js';
+import {
+  resolvePathFromOutputDir,
+  resolvePathFromOutputDirOrCwd,
+} from '../utils/path-resolution.js';
 export const baselineCommand = new Command('baseline')
   .description('Manage baselines for drift detection')
   .addHelpText(
@@ -133,18 +82,24 @@ baselineCommand
     const reportPath = options.report || join(outputDir, config.output.files.checkReport);
 
     // Load interview result
-    let result: InterviewResult;
+    let result;
     try {
-      result = loadInterviewResult(reportPath);
+      result = loadCheckInterviewResult(reportPath, {
+        invalidModeMessage: (model) =>
+          `Baseline operations only work with check mode results.\n\n` +
+          `The report at ${reportPath} was created with explore mode (model: ${model}).\n` +
+          `Explore results are for documentation only and cannot be used for baselines.\n\n` +
+          'To create a baseline:\n' +
+          '  1. Run `bellwether check` to generate a check mode report\n' +
+          '  2. Run `bellwether baseline save` to create the baseline',
+      });
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
       process.exit(EXIT_CODES.ERROR);
     }
 
     // Determine baseline path (relative to output dir if not absolute)
-    const finalPath = resolvedBaselinePath.startsWith('/')
-      ? resolvedBaselinePath
-      : join(outputDir, resolvedBaselinePath);
+    const finalPath = resolvePathFromOutputDir(resolvedBaselinePath, outputDir);
 
     // Check for existing baseline
     if (existsSync(finalPath) && !options.force) {
@@ -199,26 +154,7 @@ baselineCommand
       process.exit(EXIT_CODES.ERROR);
     }
 
-    // Resolve baseline path consistently with 'show' command:
-    // 1. If absolute path, use as-is
-    // 2. First try relative to outputDir (e.g., .bellwether/)
-    // 3. Fall back to relative to cwd
-    let fullBaselinePath: string;
-    if (resolvedBaselinePath.startsWith('/')) {
-      fullBaselinePath = resolvedBaselinePath;
-    } else {
-      const outputDirPath = join(outputDir, resolvedBaselinePath);
-      const cwdPath = join(process.cwd(), resolvedBaselinePath);
-
-      if (existsSync(outputDirPath)) {
-        fullBaselinePath = outputDirPath;
-      } else if (existsSync(cwdPath)) {
-        fullBaselinePath = cwdPath;
-      } else {
-        // Default to outputDir path for error message consistency
-        fullBaselinePath = outputDirPath;
-      }
-    }
+    const fullBaselinePath = resolvePathFromOutputDirOrCwd(resolvedBaselinePath, outputDir);
 
     if (!existsSync(fullBaselinePath)) {
       output.error(`Baseline not found: ${fullBaselinePath}`);
@@ -236,9 +172,17 @@ baselineCommand
 
     // Find and load the report file
     const reportPath = options.report || join(outputDir, config.output.files.checkReport);
-    let result: InterviewResult;
+    let result;
     try {
-      result = loadInterviewResult(reportPath);
+      result = loadCheckInterviewResult(reportPath, {
+        invalidModeMessage: (model) =>
+          `Baseline operations only work with check mode results.\n\n` +
+          `The report at ${reportPath} was created with explore mode (model: ${model}).\n` +
+          `Explore results are for documentation only and cannot be used for baselines.\n\n` +
+          'To create a baseline:\n' +
+          '  1. Run `bellwether check` to generate a check mode report\n' +
+          '  2. Run `bellwether baseline save` to create the baseline',
+      });
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
       process.exit(EXIT_CODES.ERROR);
@@ -349,9 +293,7 @@ baselineCommand
     }
 
     // Determine full path
-    const fullPath = resolvedBaselinePath.startsWith('/')
-      ? resolvedBaselinePath
-      : join(outputDir, resolvedBaselinePath);
+    const fullPath = resolvePathFromOutputDirOrCwd(resolvedBaselinePath, outputDir);
 
     if (!existsSync(fullPath)) {
       output.error(`Baseline not found: ${fullPath}`);

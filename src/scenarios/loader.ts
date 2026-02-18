@@ -3,7 +3,7 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import type { QuestionCategory } from '../persona/types.js';
+import type { QuestionCategory } from '../interview/question-category.js';
 import { parseYamlSecure } from '../utils/yaml-parser.js';
 import { PATHS } from '../constants.js';
 import type {

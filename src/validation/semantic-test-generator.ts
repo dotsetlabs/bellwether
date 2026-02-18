@@ -7,7 +7,7 @@
 
 import type { MCPTool } from '../transport/types.js';
 import type { InterviewQuestion } from '../interview/types.js';
-import type { QuestionCategory } from '../persona/types.js';
+import type { QuestionCategory } from '../interview/question-category.js';
 import { inferSemanticType } from './semantic-validator.js';
 import type { SemanticType, SemanticInference } from './semantic-types.js';
 import { SEMANTIC_VALIDATION } from '../constants.js';

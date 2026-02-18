@@ -181,7 +181,7 @@ bellwether baseline compare ./bellwether-baseline.json
 bellwether baseline save --force
 
 # Commit updated baseline and generated contract docs
-git add bellwether-baseline.json CONTRACT.md
+git add .bellwether/bellwether-baseline.json CONTRACT.md
 git commit -m "Update baseline: added symlink support"
 ```
 

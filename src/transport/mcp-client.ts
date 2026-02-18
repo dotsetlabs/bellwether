@@ -32,6 +32,8 @@ import {
 } from '../protocol/index.js';
 import { filterSpawnEnv } from './env-filter.js';
 import { ConnectionError, ServerAuthError } from '../errors/types.js';
+import { mergeHeaderMaps } from '../utils/http-headers.js';
+import { createServerAuthError } from './auth-errors.js';
 
 export interface MCPClientOptions {
   /** Request timeout in milliseconds (default: 30000) */
@@ -135,35 +137,6 @@ export class MCPClient {
   }
 
   /**
-   * Merge two header maps, giving precedence to override values.
-   */
-  private mergeHeaders(
-    base?: Record<string, string>,
-    override?: Record<string, string>
-  ): Record<string, string> | undefined {
-    if (!base && !override) return undefined;
-
-    const merged: Record<string, string> = {};
-    const apply = (headers?: Record<string, string>): void => {
-      if (!headers) return;
-      for (const [name, value] of Object.entries(headers)) {
-        const normalized = name.toLowerCase();
-        for (const existing of Object.keys(merged)) {
-          if (existing.toLowerCase() === normalized) {
-            delete merged[existing];
-            break;
-          }
-        }
-        merged[name] = value;
-      }
-    };
-
-    apply(base);
-    apply(override);
-    return Object.keys(merged).length > 0 ? merged : undefined;
-  }
-
-  /**
    * Optional remote connectivity/auth preflight (enabled by default).
    * Uses GET (not HEAD/OPTIONS) for broader compatibility.
    *
@@ -200,29 +173,16 @@ export class MCPClient {
         }
       };
 
-      if (response.status === 401) {
+      const authError = createServerAuthError(response.status, {
+        unauthorizedMessage: `Remote MCP preflight failed: unauthorized (${response.status})`,
+        forbiddenMessage: `Remote MCP preflight failed: forbidden (${response.status})`,
+        proxyMessage: `Remote MCP preflight failed: proxy authentication required (${response.status})`,
+        unauthorizedHint: 'Add authentication headers (for example Authorization) and retry.',
+        forbiddenHint: 'Credentials are valid but lack required permissions/scopes.',
+      });
+      if (authError) {
         await closePreflightBody();
-        throw new ServerAuthError(
-          `Remote MCP preflight failed: unauthorized (${response.status})`,
-          response.status,
-          'Add authentication headers (for example Authorization) and retry.'
-        );
-      }
-      if (response.status === 403) {
-        await closePreflightBody();
-        throw new ServerAuthError(
-          `Remote MCP preflight failed: forbidden (${response.status})`,
-          response.status,
-          'Credentials are valid but lack required permissions/scopes.'
-        );
-      }
-      if (response.status === 407) {
-        await closePreflightBody();
-        throw new ServerAuthError(
-          `Remote MCP preflight failed: proxy authentication required (${response.status})`,
-          response.status,
-          'Configure proxy credentials and retry.'
-        );
+        throw authError;
       }
       if (!response.ok) {
         // Non-auth HTTP statuses are compatibility-safe to continue:
@@ -550,10 +510,10 @@ export class MCPClient {
 
     this.logger.info({ url, transport }, 'Connecting to remote MCP server');
 
-    const mergedHeaders =
-      transport === 'sse'
-        ? this.mergeHeaders(this.sseConfig?.headers, options?.headers)
-        : this.mergeHeaders(this.httpConfig?.headers, options?.headers);
+      const mergedHeaders =
+        transport === 'sse'
+          ? mergeHeaderMaps(this.sseConfig?.headers, options?.headers)
+          : mergeHeaderMaps(this.httpConfig?.headers, options?.headers);
 
     await this.preflightRemote(url, transport, mergedHeaders);
 

@@ -131,14 +131,6 @@ export const TRANSPORT_ERRORS = {
     /invalid.*response/i,
   ] as readonly RegExp[],
 
-  /** Error messages that indicate environment/config issues */
-  ENVIRONMENT_ISSUE_INDICATORS: [
-    /ENOENT/i,
-    /not found/i,
-    /permission denied/i,
-    /EACCES/i,
-    /cannot find module/i,
-  ] as readonly RegExp[],
 } as const;
 
 // ==================== Interview Configuration ====================
@@ -677,55 +669,6 @@ export const CLI_SECURITY = {
 /**
  * External service URLs.
  */
-
-export const TOKEN_ESTIMATION = {
-  /** Average input tokens per question */
-  AVG_INPUT_PER_QUESTION: 500,
-  /** Average output tokens per question */
-  AVG_OUTPUT_PER_QUESTION: 300,
-  /** Schema overhead tokens per tool */
-  SCHEMA_OVERHEAD_PER_TOOL: 200,
-  /** Character to token ratio (approximate) */
-  CHARS_PER_TOKEN: 4,
-  /** Word adjustment factor */
-  WORD_ADJUSTMENT: 0.3,
-  /** Role/message overhead tokens */
-  MESSAGE_OVERHEAD_TOKENS: 4,
-  /** Default context window when model unknown */
-  DEFAULT_CONTEXT_WINDOW: 16000,
-} as const;
-
-// ==================== Token Budget ====================
-
-/**
- * Default token budget limits.
- */
-
-export const TOKEN_BUDGET = {
-  /** Maximum total tokens for an interview */
-  MAX_TOTAL_TOKENS: 1000000,
-  /** Maximum input tokens per request */
-  MAX_INPUT_PER_REQUEST: 100000,
-  /** Maximum output tokens per request */
-  MAX_OUTPUT_PER_REQUEST: 8000,
-  /** Reserved tokens for output in context */
-  OUTPUT_RESERVE: 4000,
-} as const;
-
-// ==================== Metrics ====================
-
-/**
- * Metrics collection configuration.
- */
-
-export const METRICS_CONFIG = {
-  /** Maximum entries in metrics store */
-  MAX_ENTRIES: 10000,
-  /** Latency histogram buckets (ms) */
-  LATENCY_BUCKETS: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
-  /** Metric name prefix */
-  PREFIX: 'bellwether_',
-} as const;
 
 // ==================== LLM Models ====================
 

@@ -22,17 +22,17 @@ Create a config file for your MCP server:
 bellwether init npx @mcp/your-server
 ```
 
-This creates `bellwether.yaml` with your server command and settings. Most commands use this config file (`auth`, `discover`, and `registry` can run without one).
+This creates `bellwether.yaml` with your server command and settings. Most commands use this config file (`auth`, `discover`, and `registry` can run without one; `validate-config` can validate an explicit path via `--config`).
 
 ### Presets
 
 | Preset | Optimized For | Description |
 |:-------|:--------------|:------------|
 | *(default)* | `check` | Free, fast, deterministic |
-| `--preset ci` | `check` | Optimized for CI/CD pipelines |
+| `--preset ci` | `check` | CI-oriented defaults (`baseline.failOnDrift: true`) |
 | `--preset local` | `explore` | LLM exploration with local Ollama (free) |
-| `--preset security` | `explore` | Security-focused exploration |
-| `--preset thorough` | `explore` | Comprehensive multi-persona exploration |
+| `--preset security` | `explore` | Enables `check.security.enabled` and sets `llm.provider: anthropic` |
+| `--preset thorough` | `explore` | Currently generates the same preset values as `security` |
 
 ## 3. Run Check (Free, Fast, Deterministic)
 
@@ -52,7 +52,7 @@ No API keys needed. No LLM costs. Deterministic output.
 bellwether baseline save
 ```
 
-Creates `bellwether-baseline.json` for drift detection (configurable via `baseline.path` / `baseline.savePath`).
+Creates a baseline for drift detection. With default config this is `.bellwether/bellwether-baseline.json` (configurable via `baseline.path` / `baseline.savePath`).
 
 ## 5. Detect Drift
 
@@ -128,6 +128,8 @@ bellwether init --preset thorough "npx your-server"
 bellwether check                         # Generate CONTRACT.md (if output.format includes docs)
 bellwether explore                       # Generate AGENTS.md (if output.format includes docs)
 ```
+
+`thorough` is currently a naming preset only; set `explore.personas` yourself if you want all personas enabled.
 
 ---
 

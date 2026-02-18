@@ -11,6 +11,8 @@ import * as yaml from 'yaml';
 import type { MCPTool, MCPToolCallResult } from '../transport/types.js';
 import { CONTRACT_TESTING } from '../constants.js';
 import type { ChangeSeverity } from '../baseline/types.js';
+import { getValueAtPath } from '../utils/jsonpath.js';
+import { detectContentType } from '../utils/content-type.js';
 
 /**
  * A contract definition for an MCP server.
@@ -622,66 +624,12 @@ function validateOutput(
 }
 
 /**
- * Get value at a JSONPath-like path.
- * Supports simple paths like $.field.nested[0].value
- */
-function getValueAtPath(obj: unknown, path: string): unknown {
-  // Remove leading $. if present
-  const cleanPath = path.replace(/^\$\.?/, '');
-  if (!cleanPath) return obj;
-
-  const segments = cleanPath.split(/\.|\[|\]/).filter(Boolean);
-  let current = obj;
-
-  for (const segment of segments) {
-    if (current === null || current === undefined) return undefined;
-
-    if (typeof current !== 'object') return undefined;
-
-    // Handle array index
-    const index = parseInt(segment, 10);
-    if (!isNaN(index) && Array.isArray(current)) {
-      current = current[index];
-    } else {
-      current = (current as Record<string, unknown>)[segment];
-    }
-  }
-
-  return current;
-}
-
-/**
  * Get the type name of a value.
  */
 function getValueType(value: unknown): string {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'array';
   return typeof value;
-}
-
-/**
- * Detect content type from raw output.
- */
-function detectContentType(raw: string): 'json' | 'markdown' | 'text' {
-  const trimmed = raw.trim();
-
-  if (
-    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-    (trimmed.startsWith('[') && trimmed.endsWith(']'))
-  ) {
-    try {
-      JSON.parse(trimmed);
-      return 'json';
-    } catch {
-      // Not valid JSON
-    }
-  }
-
-  if (/^#|^\*{1,3}[^*]|\[.*\]\(.*\)|^```/.test(trimmed)) {
-    return 'markdown';
-  }
-
-  return 'text';
 }
 
 /**

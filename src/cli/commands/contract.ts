@@ -21,25 +21,13 @@ import {
 import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
 import { EXIT_CODES, CONTRACT_TESTING } from '../../constants.js';
-import { loadConfig, ConfigNotFoundError, type BellwetherConfig } from '../../config/loader.js';
 import * as output from '../output.js';
+import { loadConfigOrExit } from '../utils/config-loader.js';
 
 /**
  * Default paths for contract files.
  */
 const DEFAULT_CONTRACT_FILENAMES = CONTRACT_TESTING.CONTRACT_FILENAMES;
-
-function loadConfigOrExit(configPath?: string): BellwetherConfig {
-  try {
-    return loadConfig(configPath);
-  } catch (error) {
-    if (error instanceof ConfigNotFoundError) {
-      output.error(error.message);
-      process.exit(EXIT_CODES.ERROR);
-    }
-    throw error;
-  }
-}
 
 /**
  * Find or use provided contract path.

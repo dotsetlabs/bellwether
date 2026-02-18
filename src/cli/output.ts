@@ -72,14 +72,77 @@ export function isQuiet(): boolean {
   return globalConfig.quiet ?? false;
 }
 
+function writeInfo(config: OutputConfig, message: string): void {
+  if (!config.quiet) {
+    console.log(message);
+  }
+}
+
+function writeWarn(message: string): void {
+  console.warn(message);
+}
+
+function writeError(message: string): void {
+  console.error(message);
+}
+
+function writeDebug(config: OutputConfig, message: string, verbose: boolean): void {
+  if (verbose && !config.quiet) {
+    console.log(message);
+  }
+}
+
+function writeNewline(config: OutputConfig): void {
+  if (!config.quiet) {
+    console.log('');
+  }
+}
+
+function writeLines(config: OutputConfig, ...messages: string[]): void {
+  if (!config.quiet) {
+    for (const msg of messages) {
+      console.log(msg);
+    }
+  }
+}
+
+function writeSection(config: OutputConfig, title: string): void {
+  if (!config.quiet) {
+    console.log(`\n--- ${title} ---`);
+  }
+}
+
+function writeKeyValue(
+  config: OutputConfig,
+  key: string,
+  value: string | number | boolean | undefined
+): void {
+  if (!config.quiet && value !== undefined) {
+    console.log(`${key}: ${value}`);
+  }
+}
+
+function writeListItem(config: OutputConfig, item: string, indent: number): void {
+  if (!config.quiet) {
+    const prefix = `${'  '.repeat(indent)}- `;
+    console.log(`${prefix}${item}`);
+  }
+}
+
+function writeNumberedList(config: OutputConfig, items: string[], startIndex: number): void {
+  if (!config.quiet) {
+    items.forEach((item, i) => {
+      console.log(`  ${startIndex + i}) ${item}`);
+    });
+  }
+}
+
 /**
  * Standard information output.
  * Use for progress messages, status updates, and general information.
  */
 export function info(message: string): void {
-  if (!globalConfig.quiet) {
-    console.log(message);
-  }
+  writeInfo(globalConfig, message);
 }
 
 /**
@@ -87,9 +150,7 @@ export function info(message: string): void {
  * Use for completion messages and positive confirmations.
  */
 export function success(message: string): void {
-  if (!globalConfig.quiet) {
-    console.log(message);
-  }
+  writeInfo(globalConfig, message);
 }
 
 /**
@@ -97,7 +158,7 @@ export function success(message: string): void {
  * Always shown (not suppressed by quiet mode) as warnings are important.
  */
 export function warn(message: string): void {
-  console.warn(message);
+  writeWarn(message);
 }
 
 /**
@@ -105,7 +166,7 @@ export function warn(message: string): void {
  * Always shown (not suppressed by quiet mode) as errors are critical.
  */
 export function error(message: string): void {
-  console.error(message);
+  writeError(message);
 }
 
 /**
@@ -113,29 +174,21 @@ export function error(message: string): void {
  * For detailed information during development/troubleshooting.
  */
 export function debug(message: string, verbose: boolean = false): void {
-  if (verbose && !globalConfig.quiet) {
-    console.log(message);
-  }
+  writeDebug(globalConfig, message, verbose);
 }
 
 /**
  * Print a blank line for formatting.
  */
 export function newline(): void {
-  if (!globalConfig.quiet) {
-    console.log('');
-  }
+  writeNewline(globalConfig);
 }
 
 /**
  * Print multiple lines.
  */
 export function lines(...messages: string[]): void {
-  if (!globalConfig.quiet) {
-    for (const msg of messages) {
-      console.log(msg);
-    }
-  }
+  writeLines(globalConfig, ...messages);
 }
 
 /**
@@ -150,39 +203,28 @@ export function json(data: unknown): void {
  * Print a section header.
  */
 export function section(title: string): void {
-  if (!globalConfig.quiet) {
-    console.log(`\n--- ${title} ---`);
-  }
+  writeSection(globalConfig, title);
 }
 
 /**
  * Print a key-value pair.
  */
 export function keyValue(key: string, value: string | number | boolean | undefined): void {
-  if (!globalConfig.quiet && value !== undefined) {
-    console.log(`${key}: ${value}`);
-  }
+  writeKeyValue(globalConfig, key, value);
 }
 
 /**
  * Print a list item.
  */
 export function listItem(item: string, indent: number = 0): void {
-  if (!globalConfig.quiet) {
-    const prefix = `${'  '.repeat(indent)}- `;
-    console.log(`${prefix}${item}`);
-  }
+  writeListItem(globalConfig, item, indent);
 }
 
 /**
  * Print numbered list items.
  */
 export function numberedList(items: string[], startIndex: number = 1): void {
-  if (!globalConfig.quiet) {
-    items.forEach((item, i) => {
-      console.log(`  ${startIndex + i}) ${item}`);
-    });
-  }
+  writeNumberedList(globalConfig, items, startIndex);
 }
 
 /**
@@ -204,43 +246,31 @@ export class Output {
   }
 
   info(message: string): void {
-    if (!this.config.quiet) {
-      console.log(message);
-    }
+    writeInfo(this.config, message);
   }
 
   success(message: string): void {
-    if (!this.config.quiet) {
-      console.log(message);
-    }
+    writeInfo(this.config, message);
   }
 
   warn(message: string): void {
-    console.warn(message);
+    writeWarn(message);
   }
 
   error(message: string): void {
-    console.error(message);
+    writeError(message);
   }
 
   debug(message: string, verbose: boolean = false): void {
-    if (verbose && !this.config.quiet) {
-      console.log(message);
-    }
+    writeDebug(this.config, message, verbose);
   }
 
   newline(): void {
-    if (!this.config.quiet) {
-      console.log('');
-    }
+    writeNewline(this.config);
   }
 
   lines(...messages: string[]): void {
-    if (!this.config.quiet) {
-      for (const msg of messages) {
-        console.log(msg);
-      }
-    }
+    writeLines(this.config, ...messages);
   }
 
   json(data: unknown): void {
@@ -248,30 +278,19 @@ export class Output {
   }
 
   section(title: string): void {
-    if (!this.config.quiet) {
-      console.log(`\n--- ${title} ---`);
-    }
+    writeSection(this.config, title);
   }
 
   keyValue(key: string, value: string | number | boolean | undefined): void {
-    if (!this.config.quiet && value !== undefined) {
-      console.log(`${key}: ${value}`);
-    }
+    writeKeyValue(this.config, key, value);
   }
 
   listItem(item: string, indent: number = 0): void {
-    if (!this.config.quiet) {
-      const prefix = `${'  '.repeat(indent)}- `;
-      console.log(`${prefix}${item}`);
-    }
+    writeListItem(this.config, item, indent);
   }
 
   numberedList(items: string[], startIndex: number = 1): void {
-    if (!this.config.quiet) {
-      items.forEach((item, i) => {
-        console.log(`  ${startIndex + i}) ${item}`);
-      });
-    }
+    writeNumberedList(this.config, items, startIndex);
   }
 }
 
@@ -494,58 +513,3 @@ export function createStreamingCallback(prefix?: string): {
     },
   };
 }
-/**
- * Diff summary data used for displaying comparison results.
- */
-export interface DiffSummary {
-  severity: string;
-  toolsAdded: number;
-  toolsRemoved: number;
-  toolsModified: number;
-  behaviorChanges: number;
-}
-
-/**
- * Label mapping for diff severity levels.
- */
-const SEVERITY_LABELS: Record<string, string> = {
-  none: '[ok]',
-  info: '[info]',
-  warning: '[warn]',
-  breaking: '[break]',
-};
-
-/**
- * Get the label for a severity level.
- */
-export function getSeverityIcon(severity: string): string {
-  return SEVERITY_LABELS[severity] ?? '?';
-}
-
-/**
- * Default export for convenient importing.
- */
-export default {
-  configureOutput,
-  getOutputConfig,
-  resetOutput,
-  isQuiet,
-  info,
-  success,
-  warn,
-  error,
-  debug,
-  newline,
-  lines,
-  json,
-  section,
-  keyValue,
-  listItem,
-  numberedList,
-  createOutput,
-  Output,
-  StreamingDisplay,
-  createStreamingDisplay,
-  createStreamingCallback,
-  getSeverityIcon,
-};

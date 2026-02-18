@@ -20,7 +20,6 @@ import { generateAgentsMd, generateJsonReport } from '../../docs/generator.js';
 import {
   loadConfig,
   ConfigNotFoundError,
-  parseCommandString,
   type BellwetherConfig,
 } from '../../config/loader.js';
 import { validateConfigForExplore } from '../../config/validator.js';
@@ -60,8 +59,8 @@ import {
 import { extractServerContextFromArgs } from '../utils/server-context.js';
 import { isCI } from '../utils/env.js';
 import { buildInterviewInsights } from '../../interview/insights.js';
-import { ServerAuthError } from '../../errors/types.js';
-import { mergeHeaders, parseCliHeaders } from '../utils/headers.js';
+import { resolveServerRuntime } from '../utils/server-runtime.js';
+import { printExploreErrorHints } from '../utils/error-hints.js';
 
 /**
  * Wrapper to parse personas with warning output.
@@ -95,30 +94,31 @@ export const exploreCommand = new Command('explore')
       throw error;
     }
 
-    // Determine server command (CLI arg overrides config)
-    // If command string contains spaces and no separate args, parse it
-    let serverCommand = serverCommandArg || config.server.command;
-    let args = serverArgs.length > 0 ? serverArgs : config.server.args;
-
-    // Handle command strings like "npx @package" in config when args is empty
-    if (!serverCommandArg && args.length === 0 && serverCommand.includes(' ')) {
-      const parsed = parseCommandString(serverCommand);
-      serverCommand = parsed.command;
-      args = parsed.args;
-    }
-
-    const transport = config.server.transport ?? 'stdio';
-    const remoteUrl = config.server.url?.trim();
-    const remoteSessionId = config.server.sessionId?.trim();
-    const configRemoteHeaders = config.server.headers;
-    let cliHeaders: Record<string, string> | undefined;
+    let serverCommand: string;
+    let args: string[];
+    let transport: 'stdio' | 'sse' | 'streamable-http';
+    let remoteUrl: string | undefined;
+    let remoteSessionId: string | undefined;
+    let remoteHeaders: Record<string, string> | undefined;
+    let serverIdentifier: string;
     try {
-      cliHeaders = parseCliHeaders(options.header as string[] | undefined);
+      const runtime = resolveServerRuntime(
+        config,
+        serverCommandArg,
+        serverArgs,
+        options.header as string[] | undefined
+      );
+      serverCommand = runtime.serverCommand;
+      args = runtime.args;
+      transport = runtime.transport;
+      remoteUrl = runtime.remoteUrl;
+      remoteSessionId = runtime.remoteSessionId;
+      remoteHeaders = runtime.remoteHeaders;
+      serverIdentifier = runtime.serverIdentifier;
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
       process.exit(EXIT_CODES.ERROR);
     }
-    const remoteHeaders = mergeHeaders(configRemoteHeaders, cliHeaders);
 
     // Validate config for explore
     try {
@@ -153,11 +153,6 @@ export const exploreCommand = new Command('explore')
     const model = config.llm.model || undefined;
 
     // Display startup banner
-    const serverIdentifier =
-      transport === 'stdio'
-        ? `${serverCommand} ${args.join(' ')}`.trim()
-        : (remoteUrl ?? 'unknown');
-
     const banner = formatExploreBanner({
       serverCommand: serverIdentifier,
       provider,
@@ -633,48 +628,7 @@ export const exploreCommand = new Command('explore')
       const errorMessage = error instanceof Error ? error.message : String(error);
       output.error('\n--- Exploration Failed ---');
       output.error(`Error: ${errorMessage}`);
-
-      const isRemoteTransport = transport !== 'stdio';
-      if (
-        error instanceof ServerAuthError ||
-        errorMessage.includes('401') ||
-        errorMessage.includes('403') ||
-        errorMessage.includes('407') ||
-        /unauthorized|forbidden|authentication|authorization/i.test(errorMessage)
-      ) {
-        output.error('\nPossible causes:');
-        output.error('  - Missing or invalid remote MCP authentication headers');
-        output.error('  - Add server.headers.Authorization or pass --header "Authorization: Bearer $TOKEN"');
-        output.error('  - Verify token scopes/permissions');
-      } else if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('Connection refused')) {
-        output.error('\nPossible causes:');
-        if (isRemoteTransport) {
-          output.error('  - The remote MCP server is not reachable');
-          output.error('  - The server URL/port is incorrect');
-        } else {
-          output.error('  - The MCP server is not running');
-          output.error('  - The server address/port is incorrect');
-        }
-      } else if (isRemoteTransport && errorMessage.includes('HTTP 404')) {
-        output.error('\nPossible causes:');
-        output.error('  - The remote MCP URL is incorrect');
-        output.error('  - For SSE transport, verify the server exposes /sse');
-      } else if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
-        output.error('\nPossible causes:');
-        output.error('  - The MCP server is taking too long to respond');
-        output.error('  - Increase server.timeout in bellwether.yaml');
-      } else if (
-        !isRemoteTransport &&
-        (errorMessage.includes('ENOENT') || errorMessage.includes('not found'))
-      ) {
-        output.error('\nPossible causes:');
-        output.error('  - The server command was not found');
-        output.error('  - Check that the command is installed and in PATH');
-      } else if (errorMessage.includes('API key') || errorMessage.includes('authentication')) {
-        output.error('\nPossible causes:');
-        output.error('  - Missing or invalid API key');
-        output.error('  - Run "bellwether auth" to configure API keys');
-      }
+      printExploreErrorHints(error, transport);
 
       pendingExitCode = EXIT_CODES.ERROR;
     } finally {

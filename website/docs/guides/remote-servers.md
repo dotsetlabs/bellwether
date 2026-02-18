@@ -101,12 +101,13 @@ server:
 
 ### HTTP Protocol Details
 
-Messages are sent as JSON-RPC 2.0 over HTTP POST following the [MCP Streamable HTTP specification](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports):
+Messages are sent as JSON-RPC 2.0 over HTTP POST following the [MCP Streamable HTTP transport specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports):
 
 ```http
 POST /mcp HTTP/1.1
 Content-Type: application/json
 Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2025-11-25
 Mcp-Session-Id: server-assigned-session-id
 
 {"jsonrpc":"2.0","id":1,"method":"tools/list"}

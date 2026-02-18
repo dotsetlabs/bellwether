@@ -47,7 +47,7 @@ See [Test Modes](/concepts/test-modes) for details.
 Bellwether has a tight two-tier model:
 
 - **Core workflow (default)**: `init`, `check`, `baseline`
-- **Advanced workflow (opt-in)**: `explore`, `watch`, `discover`, `golden`, `contract`, `registry`
+- **Advanced workflow (opt-in)**: `explore`, `watch`, `discover`, `golden`, `contract`, `registry`, `validate-config`
 
 Most teams should start and stay in the core workflow for CI/CD drift prevention.
 
@@ -75,7 +75,7 @@ bellwether check --fail-on-drift
 ### From `bellwether check` (free, no LLM):
 - **CONTRACT.md** - Structural documentation of tool schemas and parameters (generated when `output.format` includes docs; configurable via `output.files.contractDoc`)
 - **bellwether-check.json** - Machine-readable validation results (generated when `output.format` includes `json`; configurable via `output.files.checkReport`)
-- **bellwether-baseline.json** - Baseline for drift comparison (configurable via `baseline.path` / `baseline.savePath`)
+- **`.bellwether/bellwether-baseline.json`** - Default baseline location for drift comparison (configurable via `baseline.path` / `baseline.savePath`)
 
 ### From `bellwether explore` (requires LLM):
 - **AGENTS.md** - Behavioral documentation from multi-persona exploration (generated when `output.format` includes docs; configurable via `output.files.agentsDoc`)

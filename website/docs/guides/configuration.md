@@ -13,9 +13,9 @@ Create a configuration file with `bellwether init`:
 
 ```bash
 bellwether init                    # Default check mode (free, fast)
-bellwether init --preset ci        # Optimized for CI/CD
-bellwether init --preset security  # Security-focused testing
-bellwether init --preset thorough  # Comprehensive testing
+bellwether init --preset ci        # CI-oriented defaults (failOnDrift enabled)
+bellwether init --preset security  # Enables check.security + uses anthropic provider
+bellwether init --preset thorough  # Currently same generated preset values as security
 bellwether init --preset local     # Explore mode with local Ollama
 ```
 
@@ -32,7 +32,7 @@ Bellwether looks for configuration in this order:
 5. `./.bellwether.yml`
 
 :::info Config Required
-Most commands require a config file. `auth`, `discover`, and `registry` can run without one, but `init` is the easiest way to bootstrap a full project config.
+Most commands require a config file. `auth`, `discover`, and `registry` can run without one, and `validate-config` can validate an explicit path via `--config`; `init` is the easiest way to bootstrap a full project config.
 :::
 
 ## Configuration Overview
@@ -71,9 +71,9 @@ output:
     agentsDoc: "AGENTS.md"
 
 baseline:
-  path: "bellwether-baseline.json"
-  # savePath: ".bellwether/bellwether-baseline.json"
-  # comparePath: "./bellwether-baseline.json"
+  path: "bellwether-baseline.json"   # baseline subcommands resolve this under output.dir
+  # savePath: "./bellwether-baseline.json"    # check auto-save path (resolved under output.dir)
+  # comparePath: "./bellwether-baseline.json" # check drift comparison (output.dir first, cwd fallback)
   failOnDrift: false
   outputFormat: text
   severity:

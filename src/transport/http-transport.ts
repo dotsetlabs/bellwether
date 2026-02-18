@@ -1,7 +1,7 @@
 import type { JSONRPCMessage, JSONRPCResponse } from './types.js';
 import { BaseTransport, type BaseTransportConfig } from './base-transport.js';
 import { TIMEOUTS, DISPLAY_LIMITS, MCP } from '../constants.js';
-import { ServerAuthError } from '../errors/types.js';
+import { createServerAuthError } from './auth-errors.js';
 
 /**
  * Configuration for HTTP Transport.
@@ -143,26 +143,12 @@ export class HTTPTransport extends BaseTransport {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        if (response.status === 401) {
-          throw new ServerAuthError(
-            'Remote MCP server authentication failed (401 Unauthorized)',
-            401,
-            'Add server.headers.Authorization (for example: Bearer token) in bellwether.yaml or pass --header.'
-          );
-        }
-        if (response.status === 403) {
-          throw new ServerAuthError(
-            'Remote MCP server authorization failed (403 Forbidden)',
-            403,
-            'Credentials are recognized but lack required permissions. Verify token scopes/roles.'
-          );
-        }
-        if (response.status === 407) {
-          throw new ServerAuthError(
-            'Proxy authentication required (407)',
-            407,
-            'Configure proxy credentials and retry.'
-          );
+        const authError = createServerAuthError(response.status, {
+          unauthorizedMessage: 'Remote MCP server authentication failed (401 Unauthorized)',
+          forbiddenMessage: 'Remote MCP server authorization failed (403 Forbidden)',
+        });
+        if (authError) {
+          throw authError;
         }
 
         // MCP 2025-11-25: 404 means session expired, clear session ID

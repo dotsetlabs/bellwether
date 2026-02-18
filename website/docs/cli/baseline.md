@@ -92,6 +92,8 @@ bellwether baseline compare ./baseline.json --format json
 bellwether baseline compare ./baseline.json --report ./output/bellwether-check.json
 ```
 
+Relative baseline paths for `compare`, `show`, and `accept` are resolved under `output.dir` first, then fall back to the current working directory if the file exists there.
+
 ### show
 
 Display the contents of a baseline file.
@@ -102,7 +104,7 @@ bellwether baseline show [path]
 
 | Option | Description | Default |
 |:-------|:------------|:--------|
-| `[path]` | Path to baseline file | `baseline.path` |
+| `[path]` | Path to baseline file | `baseline.comparePath` or `baseline.path` |
 | `-c, --config <path>` | Path to config file | `bellwether.yaml` |
 | `--json` | Output raw JSON | `false` |
 | `--tools` | Show only tool fingerprints | `false` |
@@ -299,7 +301,7 @@ A baseline file captures:
   "server": {
     "name": "your-server",
     "version": "1.0.0",
-    "protocolVersion": "2024-11-05",
+    "protocolVersion": "2025-11-25",
     "capabilities": ["tools", "prompts"]
   },
   "capabilities": {
@@ -372,10 +374,10 @@ Baseline settings can be configured in `bellwether.yaml`:
 ```yaml
 # bellwether.yaml
 baseline:
-  # Default path for baseline file (used by save/compare when no path specified)
-  path: "./bellwether-baseline.json"
+  # Default baseline filename (baseline commands resolve this under output.dir)
+  path: "bellwether-baseline.json"
 
-  # Path to baseline for automatic comparison during check
+  # Path used by `bellwether check` drift comparison (resolved under output.dir)
   comparePath: "./bellwether-baseline.json"
 
   # Fail if drift is detected (for CI/CD)
@@ -384,8 +386,8 @@ baseline:
 
 | Setting | Description | Default |
 |:--------|:------------|:--------|
-| `baseline.path` | Default baseline file path | `bellwether-baseline.json` |
-| `baseline.comparePath` | Baseline to compare against during check | - |
+| `baseline.path` | Default baseline filename (resolved under `output.dir` by baseline commands) | `bellwether-baseline.json` |
+| `baseline.comparePath` | Baseline to compare against during check (output.dir first, cwd fallback) | - |
 | `baseline.failOnDrift` | Exit with error if drift detected | `false` |
 
 ### Check Mode vs Explore Mode

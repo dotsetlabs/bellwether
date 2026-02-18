@@ -26,7 +26,7 @@ bellwether init "npx @mcp/server /data"
 The `init` command creates a `bellwether.yaml` configuration file in the current directory. This file controls all aspects of how Bellwether checks and explores your MCP server.
 
 :::note Required First Step
-Most CLI commands require this config file. `auth`, `discover`, and `registry` can run without one, but `init` is still the recommended first step.
+Most CLI commands require this config file. `auth`, `discover`, and `registry` can run without one, and `validate-config` can validate an explicit path via `--config`; `init` is still the recommended first step.
 :::
 
 ## Arguments
@@ -42,7 +42,7 @@ If your server command includes arguments, wrap the entire string in quotes so t
 | Option | Description | Default |
 |:-------|:------------|:--------|
 | `-f, --force` | Overwrite existing config file | `false` |
-| `-p, --preset <name>` | Use a preset configuration | - |
+| `--preset <name>` | Use a preset configuration | - |
 | `--provider <provider>` | LLM provider for explore command (`ollama`, `openai`, `anthropic`) | `ollama` |
 | `-y, --yes` | Skip prompts, use defaults | `false` |
 
@@ -52,10 +52,10 @@ Presets configure Bellwether for common use cases:
 
 | Preset | Description |
 |:-------|:------------|
-| `ci` | Optimized for CI/CD: `failOnDrift: true`, parallel testing, higher sampling confidence |
-| `local` | Explore mode with local Ollama (free LLM) |
-| `security` | Security testing enabled with all categories, plus security persona for explore |
-| `thorough` | Comprehensive testing: all personas, security enabled, high confidence sampling, workflow discovery |
+| `ci` | CI-oriented defaults, including `baseline.failOnDrift: true` |
+| `local` | Sets `llm.provider: ollama` for local explore usage |
+| `security` | Sets `llm.provider: anthropic` and enables `check.security.enabled` |
+| `thorough` | Currently generates the same preset values as `security` |
 
 ## Examples
 
@@ -75,7 +75,7 @@ bellwether init
 bellwether init --preset ci "npx your-server"
 ```
 
-Optimized for CI/CD pipelines with `failOnDrift: true`.
+Sets CI-oriented defaults, including `baseline.failOnDrift: true`.
 
 ### Local LLM Exploration (Free)
 
@@ -96,7 +96,7 @@ ollama pull qwen3:8b
 bellwether init --preset security "npx your-server"
 ```
 
-Enables security persona with comprehensive vulnerability testing.
+Sets `llm.provider: anthropic` and enables `check.security.enabled`.
 
 ### Comprehensive Exploration
 
@@ -104,7 +104,7 @@ Enables security persona with comprehensive vulnerability testing.
 bellwether init --preset thorough "npx your-server"
 ```
 
-All personas, workflow discovery, and maximum coverage.
+Currently generates the same preset values as `security`. Use it as a starting point and then customize `explore.personas`, `workflows.*`, and sampling settings in `bellwether.yaml`.
 
 ### Overwrite Existing Config
 

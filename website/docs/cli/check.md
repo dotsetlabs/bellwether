@@ -90,8 +90,7 @@ Configure baseline comparison in `bellwether.yaml`:
 
 ```yaml
 baseline:
-  comparePath: "./bellwether-baseline.json"  # Compare against this baseline
-  savePath: "./bellwether-baseline.json"     # Auto-save after check
+  comparePath: "./bellwether-baseline.json"  # Compared under output.dir (cwd fallback for existing files)
   failOnDrift: true                          # Fail if drift detected
 ```
 
@@ -214,8 +213,7 @@ output:
     maxPerTool: 5         # Maximum examples per tool (1-20)
 
 baseline:
-  comparePath: "./bellwether-baseline.json"  # Compare against this baseline
-  savePath: "./bellwether-baseline.json"     # Auto-save after check
+  comparePath: "./bellwether-baseline.json"  # Compared under output.dir (cwd fallback for existing files)
   failOnDrift: false
 
   # Severity thresholds for CI

@@ -159,7 +159,7 @@ Or use presets when initializing:
 bellwether init --preset ci        # Optimized for check in CI/CD
 bellwether init --preset local     # Explore with Ollama
 bellwether init --preset security  # Explore with security focus
-bellwether init --preset thorough  # Explore with all personas
+bellwether init --preset thorough  # Currently same generated preset values as security
 ```
 
 ## See Also

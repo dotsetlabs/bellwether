@@ -233,21 +233,21 @@ runs:
 
         # Parse JSON output for metrics and display
         if [ -f "$CHECK_REPORT_PATH" ]; then
-          # Extract tool count
-          TOOL_COUNT=$(node --input-type=module -e 'import fs from "fs"; const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log((report.toolProfiles || []).length);' "$CHECK_REPORT_PATH" 2>/dev/null || echo "0")
+          METRICS=$(node scripts/action/extract-check-metrics.mjs "$CHECK_REPORT_PATH" 2>/dev/null || echo "0||0|0|0|0|0")
+          IFS='|' read -r TOOL_COUNT DOC_SCORE SECURITY_FINDINGS BREAKING_COUNT WARNING_COUNT INFO_COUNT _ <<< "$METRICS"
+
           echo "tool-count=$TOOL_COUNT" >> $GITHUB_OUTPUT
 
-          # Extract documentation quality from metadata
-          DOC_SCORE=$(node --input-type=module -e 'import fs from "fs"; const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log(report.metadata?.documentationScore?.overall ?? "");' "$CHECK_REPORT_PATH" 2>/dev/null || echo "")
           if [ -n "$DOC_SCORE" ] && [ "$DOC_SCORE" != "undefined" ]; then
             echo "doc-score=$DOC_SCORE" >> $GITHUB_OUTPUT
           fi
 
-          # Extract security findings count
-          SECURITY_FINDINGS=$(node --input-type=module -e 'import fs from "fs"; const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); const tools = report.capabilities?.tools || []; const count = tools.reduce((sum, t) => sum + (t.securityFingerprint?.findings?.length || 0), 0); console.log(count);' "$CHECK_REPORT_PATH" 2>/dev/null || echo "0")
           echo "security-findings=$SECURITY_FINDINGS" >> $GITHUB_OUTPUT
         else
           TOOL_COUNT="0"
+          BREAKING_COUNT="0"
+          WARNING_COUNT="0"
+          INFO_COUNT="0"
           echo "tool-count=$TOOL_COUNT" >> $GITHUB_OUTPUT
           echo "security-findings=0" >> $GITHUB_OUTPUT
         fi
@@ -289,16 +289,6 @@ runs:
         fi
         echo "drift-detected=$DRIFT_DETECTED" >> $GITHUB_OUTPUT
 
-        # Extract change counts from JSON if available
-        if [ -f "$CHECK_REPORT_PATH" ]; then
-          BREAKING_COUNT=$(node --input-type=module -e 'import fs from "fs"; const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log(report.metadata?.diff?.breakingCount ?? 0);' "$CHECK_REPORT_PATH" 2>/dev/null || echo "0")
-          WARNING_COUNT=$(node --input-type=module -e 'import fs from "fs"; const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log(report.metadata?.diff?.warningCount ?? 0);' "$CHECK_REPORT_PATH" 2>/dev/null || echo "0")
-          INFO_COUNT=$(node --input-type=module -e 'import fs from "fs"; const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log(report.metadata?.diff?.infoCount ?? 0);' "$CHECK_REPORT_PATH" 2>/dev/null || echo "0")
-        else
-          BREAKING_COUNT="0"
-          WARNING_COUNT="0"
-          INFO_COUNT="0"
-        fi
         echo "breaking-count=$BREAKING_COUNT" >> $GITHUB_OUTPUT
         echo "warning-count=$WARNING_COUNT" >> $GITHUB_OUTPUT
         echo "info-count=$INFO_COUNT" >> $GITHUB_OUTPUT
@@ -315,44 +305,7 @@ runs:
         if [ "${{ inputs.upload-sarif }}" = "true" ] && [ -f "$CHECK_REPORT_PATH" ]; then
           echo ""
           echo "Generating SARIF report from JSON..."
-          node --input-type=module -e '
-            import fs from "fs";
-            const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-            const sarif = {
-              "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
-              "version": "2.1.0",
-              "runs": [{
-                "tool": {
-                  "driver": {
-                    "name": "Bellwether",
-                    "version": report.metadata?.version || "1.0.0",
-                    "informationUri": "https://github.com/dotsetlabs/bellwether",
-                    "rules": []
-                  }
-                },
-                "results": []
-              }]
-            };
-            const run = sarif.runs[0];
-            const diff = report.metadata?.diff;
-            if (diff?.behaviorChanges) {
-              for (const change of diff.behaviorChanges) {
-                const level = change.severity === "breaking" ? "error" : change.severity === "warning" ? "warning" : "note";
-                run.results.push({
-                  "ruleId": `bellwether/${change.aspect}`,
-                  "level": level,
-                  "message": { "text": change.description || `${change.aspect} changed` },
-                  "locations": [{
-                    "physicalLocation": {
-                      "artifactLocation": { "uri": "bellwether-baseline.json" },
-                      "region": { "startLine": 1 }
-                    }
-                  }]
-                });
-              }
-            }
-            console.log(JSON.stringify(sarif, null, 2));
-          ' "$CHECK_REPORT_PATH" > "$SARIF_FILE" 2>/dev/null || true
+          node scripts/action/check-report-to-sarif.mjs "$CHECK_REPORT_PATH" > "$SARIF_FILE" 2>/dev/null || true
           if [ -f "$SARIF_FILE" ] && [ -s "$SARIF_FILE" ]; then
             echo "sarif-file=$SARIF_FILE" >> $GITHUB_OUTPUT
           fi
@@ -363,35 +316,7 @@ runs:
           JUNIT_FILE="${OUTPUT_DIR}/bellwether-junit.xml"
           echo ""
           echo "Generating JUnit report from JSON..."
-          node --input-type=module -e '
-            import fs from "fs";
-            const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-            const diff = report.metadata?.diff || {};
-            const toolCount = (report.toolProfiles || []).length;
-            const failures = diff.breakingCount || 0;
-            const warnings = diff.warningCount || 0;
-            const tests = Math.max(toolCount, 1);
-            let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-            xml += `<testsuites name="Bellwether MCP Check" tests="${tests}" failures="${failures}" errors="0">\n`;
-            xml += `  <testsuite name="Schema Drift Detection" tests="${tests}" failures="${failures}" errors="0">\n`;
-            if (diff.behaviorChanges) {
-              for (const change of diff.behaviorChanges) {
-                const escaped = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-                if (change.severity === "breaking") {
-                  xml += `    <testcase name="${escaped(change.tool)}: ${escaped(change.aspect)}">\n`;
-                  xml += `      <failure message="${escaped(change.description)}">${escaped(change.before)} -> ${escaped(change.after)}</failure>\n`;
-                  xml += `    </testcase>\n`;
-                } else {
-                  xml += `    <testcase name="${escaped(change.tool)}: ${escaped(change.aspect)}"/>\n`;
-                }
-              }
-            } else {
-              xml += `    <testcase name="No changes detected"/>\n`;
-            }
-            xml += `  </testsuite>\n`;
-            xml += `</testsuites>\n`;
-            console.log(xml);
-          ' "$CHECK_REPORT_PATH" > "$JUNIT_FILE" 2>/dev/null || true
+          node scripts/action/check-report-to-junit.mjs "$CHECK_REPORT_PATH" > "$JUNIT_FILE" 2>/dev/null || true
           if [ -f "$JUNIT_FILE" ] && [ -s "$JUNIT_FILE" ]; then
             echo "junit-file=$JUNIT_FILE" >> $GITHUB_OUTPUT
           fi

@@ -54,7 +54,7 @@ bellwether baseline save
 ### 3. Commit Both Files
 
 ```bash
-git add bellwether.yaml bellwether-baseline.json
+git add bellwether.yaml .bellwether/bellwether-baseline.json
 git commit -m "Add Bellwether configuration and baseline"
 ```
 
@@ -164,7 +164,7 @@ The action automatically uploads:
   uses: stefanzweifel/git-auto-commit-action@v5
   with:
     commit_message: 'Update MCP baseline'
-    file_pattern: 'bellwether-baseline.json'
+    file_pattern: '.bellwether/bellwether-baseline.json'
 ```
 
 #### Action with Server Environment Variables
@@ -291,7 +291,7 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add bellwether-baseline.json
+          git add .bellwether/bellwether-baseline.json
           git commit -m "Update baseline for ${{ github.event.release.tag_name }}"
           git push
 ```
@@ -312,7 +312,7 @@ output:
   dir: "."
 
 baseline:
-  comparePath: "./bellwether-baseline.json"
+  comparePath: "./bellwether-baseline.json"  # output.dir is "." in this example
   failOnDrift: true
   severity:
     failOnSeverity: breaking  # or "warning" for stricter checks
@@ -490,7 +490,7 @@ bellwether check
 bellwether baseline save
 
 # Commit
-git add bellwether-baseline.json
+git add .bellwether/bellwether-baseline.json
 git commit -m "Add behavioral baseline"
 ```
 
@@ -510,7 +510,7 @@ bellwether check
 bellwether baseline accept --reason "Added new delete_file tool"
 
 # Commit
-git add bellwether-baseline.json
+git add .bellwether/bellwether-baseline.json
 git commit -m "Update baseline: added delete_file tool"
 ```
 
@@ -526,7 +526,7 @@ Accept drift as part of the check command:
 
 ```bash
 bellwether check --accept-drift --accept-reason "Improved error handling"
-git add bellwether-baseline.json
+git add .bellwether/bellwether-baseline.json
 git commit -m "Update baseline: improved error handling"
 ```
 
@@ -537,7 +537,7 @@ For simple cases without acceptance metadata:
 ```bash
 bellwether check
 bellwether baseline save --force
-git add bellwether-baseline.json
+git add .bellwether/bellwether-baseline.json
 git commit -m "Update baseline for new feature X"
 ```
 

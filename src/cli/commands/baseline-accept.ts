@@ -12,7 +12,7 @@
  */
 
 import { Command } from 'commander';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import {
   createBaseline,
@@ -22,58 +22,11 @@ import {
   acceptDrift,
   formatDiffText,
 } from '../../baseline/index.js';
-import type { InterviewResult } from '../../interview/types.js';
-import { loadConfig, ConfigNotFoundError } from '../../config/loader.js';
 import { EXIT_CODES } from '../../constants.js';
 import * as output from '../output.js';
-
-function loadConfigOrExit(configPath?: string) {
-  try {
-    return loadConfig(configPath);
-  } catch (error) {
-    if (error instanceof ConfigNotFoundError) {
-      output.error(error.message);
-      process.exit(EXIT_CODES.ERROR);
-    }
-    throw error;
-  }
-}
-
-/**
- * Load interview result from JSON report.
- */
-function loadInterviewResult(reportPath: string): InterviewResult {
-  if (!existsSync(reportPath)) {
-    throw new Error(
-      `Test report not found: ${reportPath}\n\n` +
-        'Run `bellwether check` first to generate a report.\n' +
-        'Configure in bellwether.yaml:\n' +
-        '  output:\n' +
-        '    format: json  # or "both" for JSON + markdown'
-    );
-  }
-
-  const content = readFileSync(reportPath, 'utf-8');
-  let result: InterviewResult;
-  try {
-    result = JSON.parse(content) as InterviewResult;
-  } catch (error) {
-    throw new Error(
-      `Invalid JSON in report file ${reportPath}: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
-
-  // Validate that this is a check mode result
-  if (result.metadata.model && result.metadata.model !== 'check') {
-    throw new Error(
-      `Baseline operations only work with check mode results.\n\n` +
-        `The report at ${reportPath} was created with explore mode.\n` +
-        'Run `bellwether check` to generate a check mode report first.'
-    );
-  }
-
-  return result;
-}
+import { loadConfigOrExit } from '../utils/config-loader.js';
+import { loadCheckInterviewResult } from '../utils/report-loader.js';
+import { resolvePathFromOutputDirOrCwd } from '../utils/path-resolution.js';
 
 export const acceptCommand = new Command('accept')
   .description('Accept detected drift as intentional and update the baseline')
@@ -98,9 +51,7 @@ export const acceptCommand = new Command('accept')
     }
 
     // Determine paths
-    const baselinePath = resolvedBaselinePath.startsWith('/')
-      ? resolvedBaselinePath
-      : join(outputDir, resolvedBaselinePath);
+    const baselinePath = resolvePathFromOutputDirOrCwd(resolvedBaselinePath, outputDir);
     const reportPath = options.report || join(outputDir, config.output.files.checkReport);
 
     // Load the existing baseline
@@ -120,9 +71,19 @@ export const acceptCommand = new Command('accept')
     }
 
     // Load the current test results
-    let result: InterviewResult;
+    let result;
     try {
-      result = loadInterviewResult(reportPath);
+      result = loadCheckInterviewResult(reportPath, {
+        missingReportMessage:
+          'Run `bellwether check` first to generate a report.\n' +
+          'Configure in bellwether.yaml:\n' +
+          '  output:\n' +
+          '    format: json  # or "both" for JSON + markdown',
+        invalidModeMessage: () =>
+          `Baseline operations only work with check mode results.\n\n` +
+          `The report at ${reportPath} was created with explore mode.\n` +
+          'Run `bellwether check` to generate a check mode report first.',
+      });
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
       process.exit(EXIT_CODES.ERROR);

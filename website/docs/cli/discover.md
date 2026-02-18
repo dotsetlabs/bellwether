@@ -62,7 +62,7 @@ Output:
 ```
 ╔════════════════════════════════════════════════════════════════╗
 ║  @modelcontextprotocol/server-filesystem v1.0.0                ║
-║  Protocol Version: 2024-11-05                                  ║
+║  Protocol Version: 2025-11-25                                  ║
 ╚════════════════════════════════════════════════════════════════╝
 
 CAPABILITIES

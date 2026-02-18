@@ -401,6 +401,33 @@ describe('baseline accept command', () => {
       expect(output.success).toHaveBeenCalledWith(expect.stringContaining('No drift detected'));
     });
 
+    it('should fall back to cwd when comparePath is legacy root-relative form', async () => {
+      writeFileSync(
+        join(testDir, 'bellwether.yaml'),
+        [
+          'output:',
+          '  dir: ".bellwether"',
+          'baseline:',
+          '  path: "bellwether-baseline.json"',
+          '  comparePath: "./.bellwether/bellwether-baseline.json"',
+          '',
+        ].join('\n')
+      );
+
+      const baselineDir = join(testDir, '.bellwether');
+      const baselinePath = join(baselineDir, 'bellwether-baseline.json');
+      const reportPath = join(baselineDir, 'bellwether-check.json');
+      mkdirSync(baselineDir, { recursive: true });
+      saveBaseline(createBaselineFixture([readFileTool]), baselinePath);
+      writeFileSync(reportPath, JSON.stringify(createCheckResult([readFileTool]), null, 2));
+
+      const { acceptCommand } = await import('../../../src/cli/commands/baseline-accept.js');
+      await acceptCommand.parseAsync(['node', 'test']);
+
+      const output = await import('../../../src/cli/output.js');
+      expect(output.success).toHaveBeenCalledWith(expect.stringContaining('No drift detected'));
+    });
+
     it('should handle custom report path', async () => {
       const baselinePath = join(testDir, 'bellwether-baseline.json');
       const customReportPath = join(testDir, 'custom-report.json');

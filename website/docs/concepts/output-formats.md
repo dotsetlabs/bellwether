@@ -13,9 +13,9 @@ Bellwether generates output in multiple formats to support different use cases: 
 |:-------|:-----|:---------|
 | Markdown | `CONTRACT.md` (check) / `AGENTS.md` (explore) | Human-readable documentation |
 | JSON | `bellwether-check.json` / `bellwether-explore.json` | Machine-readable data |
-| Baseline | `bellwether-baseline.json` | Drift detection (with `bellwether baseline save`) |
-| JUnit | (stdout) | CI test reporting (when `--format junit` and a baseline is compared) |
-| SARIF | (stdout) | GitHub Code Scanning (when `--format sarif` and a baseline is compared) |
+| Baseline | Configured by `baseline.path` / `baseline.savePath` | Drift detection snapshots |
+| JUnit | (stdout) | CI test reporting (`bellwether check --format junit`) |
+| SARIF | (stdout) | GitHub Code Scanning (`bellwether check --format sarif`) |
 | Compact | (stdout) | Single-line summary for log aggregation |
 | GitHub | (stdout) | GitHub Actions annotations |
 
@@ -202,7 +202,7 @@ Save a baseline for drift detection:
 ```bash
 bellwether check npx your-server
 bellwether baseline save
-# Output: bellwether-baseline.json
+# Output (default): .bellwether/bellwether-baseline.json
 ```
 
 The baseline captures the server's behavior at a point in time. Later, compare against it:
@@ -232,7 +232,7 @@ Baseline format versions follow the CLI package version; baselines are compatibl
   "server": {
     "name": "@modelcontextprotocol/server-filesystem",
     "version": "0.10.1",
-    "protocolVersion": "2024-11-05",
+    "protocolVersion": "2025-11-25",
     "capabilities": ["tools"]
   },
   "capabilities": {
@@ -280,13 +280,15 @@ Set `output.dir` for JSON files and `output.docsDir` for markdown docs.
 
 ## JUnit Format
 
-Generate JUnit XML for drift reports (stdout):
+Generate JUnit XML (stdout):
 
 ```bash
 bellwether check --format junit > bellwether-results.xml
 ```
 
-These formats are emitted only when a baseline comparison is performed.
+`check --format junit` works in both modes:
+- **Check-only run** (no `baseline.comparePath`): includes tool reliability and security findings from the current run.
+- **Baseline comparison run** (`baseline.comparePath` set): includes drift-focused test cases (schema drift, performance regression, security deltas, schema evolution, error trends, and documentation score changes).
 
 JUnit output includes test cases for:
 - Schema changes (breaking, warning, info)
@@ -297,18 +299,22 @@ JUnit output includes test cases for:
 
 ## SARIF Format
 
-Generate SARIF for drift reports (stdout):
+Generate SARIF (stdout):
 
 ```bash
 bellwether check --format sarif > bellwether.sarif
 ```
 
-These formats are emitted only when a baseline comparison is performed.
+`check --format sarif` works in both modes:
+- **Check-only run**: emits reliability/security findings from the current run (for example `BWH-REL`, `BWH-SEC`/CWE-based IDs).
+- **Baseline comparison run**: emits drift-specific rules and findings (`BWH001` and above).
 
 SARIF rules include:
 - `BWH001-004`: Schema drift rules (breaking, warning, info)
-- `BWH005-009`: Security finding rules (by risk level)
-- `BWH010-011`: Error pattern rules
+- `BWH005-006`: Response structure and error pattern drift rules
+- `BWH007`: Security finding rule
+- `BWH008-009`: Response schema evolution rules
+- `BWH010-011`: Error trend rules
 - `BWH012-013`: Performance regression and confidence rules
 - `BWH014-015`: Documentation quality rules
 
