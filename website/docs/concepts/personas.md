@@ -106,13 +106,12 @@ bellwether explore npx your-server
 ### Via Preset
 
 ```bash
-# Security-focused exploration
+# Start from the security preset, then configure personas
 bellwether init --preset security "npx your-server"
-bellwether explore
-
-# Comprehensive exploration with all personas
-bellwether init --preset thorough "npx your-server"
-bellwether explore
+# edit bellwether.yaml:
+# explore:
+#   personas: [security_tester, qa_engineer]
+# bellwether explore
 ```
 
 ## Combining Personas

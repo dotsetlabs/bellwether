@@ -2,7 +2,7 @@ import type { JSONRPCMessage } from './types.js';
 import { BaseTransport, type BaseTransportConfig } from './base-transport.js';
 import { TIME_CONSTANTS, TIMEOUTS } from '../constants.js';
 import { isLocalhost } from '../utils/index.js';
-import { ServerAuthError } from '../errors/types.js';
+import { createServerAuthError } from './auth-errors.js';
 
 /**
  * Validate that a URL uses HTTPS in production contexts.
@@ -141,7 +141,6 @@ class SSEParser {
  */
 export class SSETransport extends BaseTransport {
   private streamAbortController: AbortController | null = null;
-  private abortController: AbortController | null = null;
   private connected = false;
   private reconnectAttempts = 0;
   private readonly baseUrl: string;
@@ -210,26 +209,12 @@ export class SSETransport extends BaseTransport {
     });
 
     if (!response.ok) {
-      if (response.status === 401) {
-        throw new ServerAuthError(
-          'Remote MCP SSE authentication failed (401 Unauthorized)',
-          401,
-          'Add server.headers.Authorization (for example: Bearer token) in bellwether.yaml or pass --header.'
-        );
-      }
-      if (response.status === 403) {
-        throw new ServerAuthError(
-          'Remote MCP SSE authorization failed (403 Forbidden)',
-          403,
-          'Credentials are recognized but lack required permissions. Verify token scopes/roles.'
-        );
-      }
-      if (response.status === 407) {
-        throw new ServerAuthError(
-          'Proxy authentication required (407)',
-          407,
-          'Configure proxy credentials and retry.'
-        );
+      const authError = createServerAuthError(response.status, {
+        unauthorizedMessage: 'Remote MCP SSE authentication failed (401 Unauthorized)',
+        forbiddenMessage: 'Remote MCP SSE authorization failed (403 Forbidden)',
+      });
+      if (authError) {
+        throw authError;
       }
       throw new Error(`Failed to connect to SSE endpoint: HTTP ${response.status}`);
     }
@@ -439,26 +424,12 @@ export class SSETransport extends BaseTransport {
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          if (response.status === 401) {
-            throw new ServerAuthError(
-              'Remote MCP message authentication failed (401 Unauthorized)',
-              401,
-              'Add server.headers.Authorization (for example: Bearer token) in bellwether.yaml or pass --header.'
-            );
-          }
-          if (response.status === 403) {
-            throw new ServerAuthError(
-              'Remote MCP message authorization failed (403 Forbidden)',
-              403,
-              'Credentials are recognized but lack required permissions. Verify token scopes/roles.'
-            );
-          }
-          if (response.status === 407) {
-            throw new ServerAuthError(
-              'Proxy authentication required (407)',
-              407,
-              'Configure proxy credentials and retry.'
-            );
+          const authError = createServerAuthError(response.status, {
+            unauthorizedMessage: 'Remote MCP message authentication failed (401 Unauthorized)',
+            forbiddenMessage: 'Remote MCP message authorization failed (403 Forbidden)',
+          });
+          if (authError) {
+            throw authError;
           }
           const errorText = await response.text().catch(() => 'Unknown error');
           throw new Error(`HTTP ${response.status}: ${errorText}`);
@@ -513,16 +484,6 @@ export class SSETransport extends BaseTransport {
         // Ignore abort errors
       }
       this.streamAbortController = null;
-    }
-
-    // Abort any in-flight HTTP requests
-    if (this.abortController) {
-      try {
-        this.abortController.abort();
-      } catch {
-        // Ignore abort errors
-      }
-      this.abortController = null;
     }
 
     this.messageEndpoint = null;

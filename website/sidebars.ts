@@ -40,6 +40,7 @@ const sidebars: SidebarsConfig = {
             'cli/contract',
             'cli/registry',
             'cli/auth',
+            'cli/validate-config',
           ],
         },
       ],

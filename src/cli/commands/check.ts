@@ -14,12 +14,11 @@ import { MCPClient } from '../../transport/mcp-client.js';
 import { discover } from '../../discovery/discovery.js';
 import { Interviewer } from '../../interview/interviewer.js';
 import type { InterviewProgress } from '../../interview/interviewer.js';
-import type { TestFixturesConfig } from '../../interview/schema-test-generator.js';
+import type { TestFixturesConfig } from '../../interview/test-fixtures.js';
 import { generateContractMd, generateJsonReport } from '../../docs/generator.js';
 import {
   loadConfig,
   ConfigNotFoundError,
-  parseCommandString,
   type BellwetherConfig,
 } from '../../config/loader.js';
 import { validateConfigForCheck, getConfigWarnings } from '../../config/validator.js';
@@ -31,13 +30,6 @@ import {
   toToolCapability,
   compareBaselines,
   acceptDrift,
-  formatDiffText,
-  formatDiffJson,
-  formatDiffCompact,
-  formatDiffGitHubActions,
-  formatDiffMarkdown,
-  formatDiffJUnit,
-  formatDiffSarif,
   applySeverityConfig,
   shouldFailOnDiff,
   analyzeForIncremental,
@@ -45,7 +37,6 @@ import {
   runSecurityTests,
   parseSecurityCategories,
   getAllSecurityCategories,
-  type BehavioralDiff,
   type SeverityConfig,
   type ChangeSeverity,
   type BehavioralBaseline,
@@ -93,8 +84,13 @@ import {
   MCP,
 } from '../../constants.js';
 import { getFeatureFlags, getExcludedFeatureNames } from '../../protocol/index.js';
-import { ServerAuthError } from '../../errors/types.js';
-import { mergeHeaders, parseCliHeaders } from '../utils/headers.js';
+import { resolveServerRuntime } from '../utils/server-runtime.js';
+import {
+  resolvePathFromOutputDir,
+  resolvePathFromOutputDirOrCwd,
+} from '../utils/path-resolution.js';
+import { printCheckErrorHints } from '../utils/error-hints.js';
+import { formatDiffOutput, formatCheckResults } from './check-formatters.js';
 
 export const checkCommand = new Command('check')
   .description('Check MCP server schema and detect drift (free, fast, deterministic)')
@@ -134,30 +130,31 @@ export const checkCommand = new Command('check')
       throw error;
     }
 
-    // Determine server command (CLI arg overrides config)
-    // If command string contains spaces and no separate args, parse it
-    let serverCommand = serverCommandArg || config.server.command;
-    let args = serverArgs.length > 0 ? serverArgs : config.server.args;
-
-    // Handle command strings like "npx @package" in config when args is empty
-    if (!serverCommandArg && args.length === 0 && serverCommand.includes(' ')) {
-      const parsed = parseCommandString(serverCommand);
-      serverCommand = parsed.command;
-      args = parsed.args;
-    }
-
-    const transport = config.server.transport ?? 'stdio';
-    const remoteUrl = config.server.url?.trim();
-    const remoteSessionId = config.server.sessionId?.trim();
-    const configRemoteHeaders = config.server.headers;
-    let cliHeaders: Record<string, string> | undefined;
+    let serverCommand: string;
+    let args: string[];
+    let transport: 'stdio' | 'sse' | 'streamable-http';
+    let remoteUrl: string | undefined;
+    let remoteSessionId: string | undefined;
+    let remoteHeaders: Record<string, string> | undefined;
+    let serverIdentifier: string;
     try {
-      cliHeaders = parseCliHeaders(options.header as string[] | undefined);
+      const runtime = resolveServerRuntime(
+        config,
+        serverCommandArg,
+        serverArgs,
+        options.header as string[] | undefined
+      );
+      serverCommand = runtime.serverCommand;
+      args = runtime.args;
+      transport = runtime.transport;
+      remoteUrl = runtime.remoteUrl;
+      remoteSessionId = runtime.remoteSessionId;
+      remoteHeaders = runtime.remoteHeaders;
+      serverIdentifier = runtime.serverIdentifier;
     } catch (error) {
       output.error(error instanceof Error ? error.message : String(error));
       process.exit(EXIT_CODES.ERROR);
     }
-    const remoteHeaders = mergeHeaders(configRemoteHeaders, cliHeaders);
 
     // Validate config for check
     try {
@@ -184,9 +181,16 @@ export const checkCommand = new Command('check')
       configureLogger({ level: effectiveLogLevel });
     }
 
-    // Resolve baseline options from config (--fail-on-drift CLI flag can override)
-    const baselinePath = config.baseline.comparePath;
-    const saveBaselinePath = config.baseline.savePath;
+    // Resolve baseline options from config (--fail-on-drift CLI flag can override).
+    // Keep path semantics consistent with baseline subcommands:
+    // - savePath: relative to output.dir
+    // - comparePath: output.dir first, then cwd fallback for existing files
+    const baselinePath = config.baseline.comparePath
+      ? resolvePathFromOutputDirOrCwd(config.baseline.comparePath, outputDir)
+      : undefined;
+    const saveBaselinePath = config.baseline.savePath
+      ? resolvePathFromOutputDir(config.baseline.savePath, outputDir)
+      : undefined;
     const failOnDrift = options.failOnDrift ? true : config.baseline.failOnDrift;
 
     // Build severity config (CLI options override config file)
@@ -252,11 +256,6 @@ export const checkCommand = new Command('check')
     const fullExamples = config.output.examples.full;
     const exampleLength = config.output.examples.maxLength;
     const maxExamplesPerTool = config.output.examples.maxPerTool;
-
-    const serverIdentifier =
-      transport === 'stdio'
-        ? `${serverCommand} ${args.join(' ')}`.trim()
-        : (remoteUrl ?? 'unknown');
 
     // Display startup banner
     if (!machineReadable) {
@@ -1129,7 +1128,7 @@ export const checkCommand = new Command('check')
         }
 
         // Select formatter based on --format option
-        const formattedDiff = formatDiff(diff, diffFormat, baselinePath);
+        const formattedDiff = formatDiffOutput(diff, diffFormat, baselinePath);
         if (machineReadable) {
           console.log(formattedDiff);
         } else {
@@ -1234,44 +1233,7 @@ export const checkCommand = new Command('check')
       const errorMessage = error instanceof Error ? error.message : String(error);
       output.error('\n--- Check Failed ---');
       output.error(`Error: ${errorMessage}`);
-
-      const isRemoteTransport = transport !== 'stdio';
-      if (
-        error instanceof ServerAuthError ||
-        errorMessage.includes('401') ||
-        errorMessage.includes('403') ||
-        errorMessage.includes('407') ||
-        /unauthorized|forbidden|authentication|authorization/i.test(errorMessage)
-      ) {
-        output.error('\nAuthentication failed:');
-        output.error('  - Add server.headers.Authorization in bellwether.yaml');
-        output.error('  - Or pass --header "Authorization: Bearer $TOKEN"');
-        output.error('  - Verify credentials are valid and not expired');
-      } else if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('Connection refused')) {
-        output.error('\nPossible causes:');
-        if (isRemoteTransport) {
-          output.error('  - The remote MCP server is not reachable');
-          output.error('  - The server URL/port is incorrect');
-        } else {
-          output.error('  - The MCP server is not running');
-          output.error('  - The server address/port is incorrect');
-        }
-      } else if (isRemoteTransport && errorMessage.includes('HTTP 404')) {
-        output.error('\nPossible causes:');
-        output.error('  - The remote MCP URL is incorrect');
-        output.error('  - For SSE transport, verify the server exposes /sse');
-      } else if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
-        output.error('\nPossible causes:');
-        output.error('  - The MCP server is taking too long to respond');
-        output.error('  - Increase server.timeout in bellwether.yaml');
-      } else if (
-        !isRemoteTransport &&
-        (errorMessage.includes('ENOENT') || errorMessage.includes('not found'))
-      ) {
-        output.error('\nPossible causes:');
-        output.error('  - The server command was not found');
-        output.error('  - Check that the command is installed and in PATH');
-      }
+      printCheckErrorHints(error, transport);
 
       pendingExitCode = EXIT_CODES.ERROR;
     } finally {
@@ -1285,216 +1247,3 @@ export const checkCommand = new Command('check')
       }
     }
   });
-
-/**
- * Format a diff using the specified output format.
- *
- * @param diff - The behavioral diff to format
- * @param format - Output format: text, json, compact, github, markdown, junit, sarif
- * @param baselinePath - Path to baseline file (used for SARIF location references)
- * @returns Formatted string
- */
-function formatDiff(diff: BehavioralDiff, format: string, baselinePath: string): string {
-  switch (format.toLowerCase()) {
-    case 'json':
-      return formatDiffJson(diff);
-    case 'compact':
-      return formatDiffCompact(diff);
-    case 'github':
-      return formatDiffGitHubActions(diff);
-    case 'markdown':
-    case 'md':
-      return formatDiffMarkdown(diff);
-    case 'junit':
-    case 'junit-xml':
-    case 'xml':
-      return formatDiffJUnit(diff, 'bellwether-check');
-    case 'sarif':
-      return formatDiffSarif(diff, baselinePath);
-    case 'text':
-    default:
-      return formatDiffText(diff);
-  }
-}
-
-/**
- * Format check results as JUnit XML (for CI systems that expect test results).
- * This is used when --format junit is specified but no baseline comparison occurs.
- */
-function formatCheckResultsJUnit(baseline: BehavioralBaseline): string {
-  const tools = getToolFingerprints(baseline);
-  const lines: string[] = [];
-  const securityFailures = tools.filter((t) =>
-    t.securityFingerprint?.findings?.some(
-      (f) => f.riskLevel === 'critical' || f.riskLevel === 'high'
-    )
-  ).length;
-
-  lines.push('<?xml version="1.0" encoding="UTF-8"?>');
-  lines.push('<testsuites>');
-  lines.push(
-    `  <testsuite name="bellwether-check" tests="${tools.length}" failures="${securityFailures}" errors="0">`
-  );
-
-  for (const tool of tools) {
-    const successRate = tool.baselineSuccessRate ?? 1;
-    const status = successRate >= 0.9 ? 'passed' : 'warning';
-    lines.push(`    <testcase name="${tool.name}" classname="mcp-tools" time="0">`);
-    lines.push(`      <system-out>Success rate: ${(successRate * 100).toFixed(0)}%</system-out>`);
-    if (status === 'warning') {
-      lines.push(`      <system-err>Tool has success rate below 90%</system-err>`);
-    }
-    lines.push('    </testcase>');
-  }
-
-  // Add security findings as test cases if present
-  const securityTools = tools.filter((t) => t.securityFingerprint?.findings?.length);
-  if (securityTools.length > 0) {
-    lines.push(`    <!-- Security findings -->`);
-    for (const tool of securityTools) {
-      const findings = tool.securityFingerprint?.findings ?? [];
-      const criticalHigh = findings.filter(
-        (f) => f.riskLevel === 'critical' || f.riskLevel === 'high'
-      ).length;
-      if (criticalHigh > 0) {
-        lines.push(`    <testcase name="${tool.name}-security" classname="security">`);
-        lines.push(`      <failure message="${criticalHigh} critical/high security findings">`);
-        for (const finding of findings.filter(
-          (f) => f.riskLevel === 'critical' || f.riskLevel === 'high'
-        )) {
-          lines.push(
-            `        ${finding.riskLevel.toUpperCase()}: ${finding.title} (${finding.cweId})`
-          );
-        }
-        lines.push(`      </failure>`);
-        lines.push('    </testcase>');
-      }
-    }
-  }
-
-  lines.push('  </testsuite>');
-  lines.push('</testsuites>');
-
-  return lines.join('\n');
-}
-
-/**
- * Format check results as SARIF (for GitHub Code Scanning and other tools).
- * This is used when --format sarif is specified but no baseline comparison occurs.
- */
-function formatCheckResultsSarif(baseline: BehavioralBaseline): string {
-  const tools = getToolFingerprints(baseline);
-  const serverUri = baseline.metadata?.serverCommand || baseline.server.name || 'mcp-server';
-  const results: Array<{
-    ruleId: string;
-    level: 'note' | 'warning' | 'error';
-    message: { text: string };
-    locations: Array<{
-      physicalLocation: {
-        artifactLocation: { uri: string };
-        region: { startLine: number };
-      };
-    }>;
-  }> = [];
-
-  // Add results for tools with security findings
-  const securityTools = tools.filter((t) => t.securityFingerprint?.findings?.length);
-  for (const tool of securityTools) {
-    const findings = tool.securityFingerprint?.findings ?? [];
-    for (const finding of findings) {
-      const level =
-        finding.riskLevel === 'critical' || finding.riskLevel === 'high'
-          ? ('error' as const)
-          : finding.riskLevel === 'medium'
-            ? ('warning' as const)
-            : ('note' as const);
-
-      results.push({
-        ruleId: finding.cweId || 'BWH-SEC',
-        level,
-        message: { text: `[${tool.name}] ${finding.title}: ${finding.description}` },
-        locations: [
-          {
-            physicalLocation: {
-              artifactLocation: { uri: serverUri },
-              region: { startLine: 1 },
-            },
-          },
-        ],
-      });
-    }
-  }
-
-  // Add results for tools with low success rate
-  for (const tool of tools) {
-    const successRate = tool.baselineSuccessRate ?? 1;
-    if (successRate < 0.9) {
-      results.push({
-        ruleId: 'BWH-REL',
-        level: 'warning',
-        message: {
-          text: `Tool "${tool.name}" has ${(successRate * 100).toFixed(0)}% success rate`,
-        },
-        locations: [
-          {
-            physicalLocation: {
-              artifactLocation: { uri: serverUri },
-              region: { startLine: 1 },
-            },
-          },
-        ],
-      });
-    }
-  }
-
-  const sarif = {
-    $schema:
-      'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
-    version: '2.1.0',
-    runs: [
-      {
-        tool: {
-          driver: {
-            name: 'bellwether',
-            version: '1.0.0',
-            informationUri: 'https://github.com/dotsetlabs/bellwether',
-            rules: [
-              {
-                id: 'BWH-SEC',
-                name: 'SecurityFinding',
-                shortDescription: { text: 'Security vulnerability detected' },
-                defaultConfiguration: { level: 'warning' },
-              },
-              {
-                id: 'BWH-REL',
-                name: 'LowReliability',
-                shortDescription: { text: 'Tool reliability below threshold' },
-                defaultConfiguration: { level: 'warning' },
-              },
-            ],
-          },
-        },
-        results,
-      },
-    ],
-  };
-
-  return JSON.stringify(sarif, null, 2);
-}
-
-/**
- * Format check results using the specified output format.
- * Used when no baseline comparison occurs.
- */
-function formatCheckResults(baseline: BehavioralBaseline, format: string): string | null {
-  switch (format.toLowerCase()) {
-    case 'junit':
-    case 'junit-xml':
-    case 'xml':
-      return formatCheckResultsJUnit(baseline);
-    case 'sarif':
-      return formatCheckResultsSarif(baseline);
-    default:
-      return null; // No special formatting needed for other formats
-  }
-}

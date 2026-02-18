@@ -12,7 +12,7 @@ sidebar_position: 100
 Bellwether is a CLI tool for structural drift detection and behavioral documentation of MCP (Model Context Protocol) servers. It has two main commands:
 
 - **`bellwether check`** - Free, fast, deterministic schema validation and drift detection
-- **`bellwether explore`** - LLM-powered multi-persona exploration for deeper behavioral documentation
+- **`bellwether explore`** - LLM-powered persona-based exploration for deeper behavioral documentation
 
 ### What is MCP?
 
@@ -27,13 +27,13 @@ When you build an MCP server, you're creating capabilities that AI agents can ca
 | **Cost** | Free | ~$0.01-0.15 per run (cloud) or Free (local) |
 | **Speed** | Seconds | Minutes |
 | **LLM Required** | No | Yes |
-| **Output** | CONTRACT.md | AGENTS.md |
+| **Output** | Docs and/or JSON | Docs and/or JSON |
 | **Best For** | CI/CD, drift detection | Deep analysis, documentation |
 | **Deterministic** | Yes | No |
 
 **check** compares tool schemas against a baseline—fast, free, and deterministic. Perfect for CI/CD.
 
-**explore** uses LLMs to probe your server from 4 different personas (Technical Writer, Security Tester, QA Engineer, Novice User), generating rich behavioral documentation.
+**explore** uses LLMs for persona-based probing. By default it runs `technical_writer`; you can enable additional personas (`security_tester`, `qa_engineer`, `novice_user`) in config.
 
 ### Is Bellwether free?
 
@@ -167,7 +167,7 @@ explore:
 ```bash
 bellwether check npx your-server
 bellwether baseline save
-# Creates: bellwether-baseline.json
+# Creates (default): .bellwether/bellwether-baseline.json
 ```
 
 ### How do I compare against a baseline?

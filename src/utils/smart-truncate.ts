@@ -12,6 +12,7 @@
  */
 
 import { EXAMPLE_OUTPUT } from '../constants.js';
+import { detectContentType as detectGeneralContentType } from './content-type.js';
 
 // ==================== Types ====================
 
@@ -452,35 +453,7 @@ function truncateAtSentence(text: string, maxLength: number): string {
  * @returns Detected content type
  */
 export function detectContentType(content: string): ContentType {
-  const trimmed = content.trim();
-
-  // Check for JSON
-  if (
-    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-    (trimmed.startsWith('[') && trimmed.endsWith(']'))
-  ) {
-    try {
-      JSON.parse(trimmed);
-      return 'json';
-    } catch {
-      // Not valid JSON
-    }
-  }
-
-  // Check for Markdown indicators
-  if (
-    trimmed.includes('\n#') ||
-    trimmed.startsWith('#') ||
-    /^[-*]\s/.test(trimmed) ||
-    /^\d+\.\s/.test(trimmed) ||
-    trimmed.includes('```') ||
-    trimmed.includes('**') ||
-    trimmed.includes('__')
-  ) {
-    return 'markdown';
-  }
-
-  return 'text';
+  return detectGeneralContentType(content, { markdownHeuristics: 'lenient' });
 }
 
 /**

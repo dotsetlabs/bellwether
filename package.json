@@ -34,7 +34,7 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "check:consistency": "node ./scripts/validate-consistency.mjs",
     "clean": "rm -rf dist",
-    "docs:generate": "npm --prefix website run build",
+    "docs:generate": "node ./scripts/build-docs.mjs",
     "docs:dev": "npm --prefix website run start",
     "prepublishOnly": "npm run build"
   },

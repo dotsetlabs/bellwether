@@ -8,18 +8,21 @@
 
 import type { MCPTool } from '../transport/types.js';
 import type { InterviewQuestion, ExpectedOutcome } from './types.js';
-import type { QuestionCategory } from '../persona/types.js';
-import { SCHEMA_TESTING, SEMANTIC_VALIDATION, OUTCOME_ASSESSMENT } from '../constants.js';
+import type { QuestionCategory } from './question-category.js';
+import { SCHEMA_TESTING, SEMANTIC_VALIDATION } from '../constants.js';
 import {
-  SMART_VALUE_GENERATION,
   OPERATION_BASED_DETECTION,
   SELF_STATEFUL_DETECTION,
   COMPLEX_SCHEMA_DETECTION,
 } from '../constants/testing.js';
 import { generateSemanticTests } from '../validation/semantic-test-generator.js';
 import type { SemanticInference } from '../validation/semantic-types.js';
-// Smart value generation is implemented inline below, but the module is available
-// for external use: import { generateSmartValue } from './smart-value-generator.js';
+import {
+  generateSmartStringValue as generateSmartStringValueResult,
+  generateSmartNumberValue as generateSmartNumberValueResult,
+} from './smart-value-generator.js';
+import type { TestFixturePattern, TestFixturesConfig } from './test-fixtures.js';
+export type { TestFixturePattern, TestFixturesConfig } from './test-fixtures.js';
 
 // ==================== Types ====================
 
@@ -79,26 +82,6 @@ interface InputSchema {
   minProperties?: number;
   maxProperties?: number;
   $ref?: string;
-}
-
-/**
- * Test fixture pattern for matching parameter names.
- */
-export interface TestFixturePattern {
-  /** Regex pattern to match parameter names */
-  match: string;
-  /** Value to use for matching parameters */
-  value: unknown;
-}
-
-/**
- * Test fixtures configuration for customizing test values.
- */
-export interface TestFixturesConfig {
-  /** Custom values for specific parameter names (exact match) */
-  parameterValues?: Record<string, unknown>;
-  /** Custom values for parameters matching regex patterns */
-  patterns?: TestFixturePattern[];
 }
 
 /**
@@ -239,37 +222,13 @@ function mergeAllOfSchemas(schemas: PropertySchema[]): PropertySchema {
  * Used for nested array items where we don't have a property name.
  */
 function generateSmartStringValueForSchema(schema: PropertySchema): string {
-  const description = (schema.description ?? '').toLowerCase();
-
-  // Check description for explicit format hints
-  for (const { pattern, value } of DATE_FORMAT_PATTERNS) {
-    if (pattern.test(schema.description ?? '') || pattern.test(description)) {
-      return value;
-    }
+  const generated = generateSmartStringValueResult('', schema).value;
+  if (typeof generated === 'string' && generated.length > 0) {
+    return generated;
   }
 
-  for (const { pattern, value } of SEMANTIC_FORMAT_PATTERNS) {
-    if (pattern.test(schema.description ?? '') || pattern.test(description)) {
-      return value;
-    }
-  }
-
-  // Check schema format field
-  if (schema.format === 'date') return '2024-01-15';
-  if (schema.format === 'date-time') return '2024-01-15T14:30:00Z';
-  if (schema.format === 'email') return 'test@example.com';
-  if (schema.format === 'uri' || schema.format === 'url') return 'https://example.com';
-  if (schema.format === 'uuid') return '550e8400-e29b-41d4-a716-446655440000';
-  if (schema.format === 'ipv4') return '192.168.1.100';
-  if (schema.format === 'time') return '14:30:00';
-
-  // Respect minLength constraint
   const minLength = schema.minLength ?? 0;
-  if (minLength > 4) {
-    return 'test'.padEnd(minLength, 'x');
-  }
-
-  return 'test';
+  return minLength > 4 ? 'test'.padEnd(minLength, 'x') : 'test';
 }
 
 /**
@@ -559,178 +518,9 @@ function generateDefaultValue(
   }
 }
 
-/**
- * Pattern matchers for detecting date/time formats in descriptions.
- * Each pattern maps to a format string and example value.
- */
-const DATE_FORMAT_PATTERNS: Array<{
-  pattern: RegExp;
-  value: string;
-  formatName: string;
-}> = [
-  // ISO 8601 date patterns
-  {
-    pattern: /YYYY-MM-DD|ISO\s*8601\s*date|date.*format.*YYYY/i,
-    value: '2024-01-15',
-    formatName: 'ISO 8601 date',
-  },
-  { pattern: /YYYY-MM|year-month|month.*format/i, value: '2024-01', formatName: 'year-month' },
-  {
-    pattern: /ISO\s*8601\s*(datetime|timestamp)|datetime.*format|timestamp.*ISO/i,
-    value: '2024-01-15T14:30:00Z',
-    formatName: 'ISO 8601 datetime',
-  },
-  // Unix timestamp patterns
-  {
-    pattern: /unix\s*timestamp|epoch\s*time|seconds\s*since/i,
-    value: '1705330200',
-    formatName: 'Unix timestamp',
-  },
-  {
-    pattern: /milliseconds?\s*(since|timestamp)|ms\s*timestamp/i,
-    value: '1705330200000',
-    formatName: 'Unix timestamp (ms)',
-  },
-  // Time patterns
-  {
-    pattern: /HH:MM:SS|time.*format.*HH|24.hour.*time/i,
-    value: '14:30:00',
-    formatName: '24-hour time',
-  },
-  { pattern: /HH:MM|hour.*minute/i, value: '14:30', formatName: 'hour:minute' },
-  // Other date formats
-  { pattern: /MM\/DD\/YYYY|US\s*date/i, value: '01/15/2024', formatName: 'US date' },
-  { pattern: /DD\/MM\/YYYY|European\s*date/i, value: '15/01/2024', formatName: 'European date' },
-];
-
-/**
- * Pattern matchers for detecting other semantic types in descriptions.
- */
-const SEMANTIC_FORMAT_PATTERNS: Array<{
-  pattern: RegExp;
-  value: string;
-  formatName: string;
-}> = [
-  // Currency/money patterns
-  { pattern: /currency.*amount|dollar.*amount|price/i, value: '99.99', formatName: 'currency' },
-  { pattern: /percentage|percent/i, value: '50', formatName: 'percentage' },
-  // Phone patterns
-  { pattern: /phone.*number|telephone/i, value: '+1-555-123-4567', formatName: 'phone' },
-  // UUID patterns
-  {
-    pattern: /UUID|unique.*identifier/i,
-    value: '550e8400-e29b-41d4-a716-446655440000',
-    formatName: 'UUID',
-  },
-  // IP address patterns
-  { pattern: /IP.*address|IPv4/i, value: '192.168.1.100', formatName: 'IP address' },
-  // JSON patterns
-  { pattern: /JSON\s*string|stringify|serialized/i, value: '{"key": "value"}', formatName: 'JSON' },
-  // Base64 patterns
-  { pattern: /base64|encoded/i, value: 'dGVzdA==', formatName: 'base64' },
-];
-
-/**
- * Generate a contextually appropriate string value based on property name,
- * constraints, and description.
- *
- * This function implements smart test value generation by:
- * 1. Parsing schema descriptions for format hints (e.g., "YYYY-MM-DD")
- * 2. Checking schema format field
- * 3. Inferring from property name patterns
- */
 function generateSmartStringValue(propName: string, prop: PropertySchema): string {
-  const lowerName = propName.toLowerCase();
-  const description = (prop.description ?? '').toLowerCase();
-
-  // Priority 1: Check description for explicit date/time format hints
-  // This is the most reliable indicator since the schema author specified it
-  for (const { pattern, value } of DATE_FORMAT_PATTERNS) {
-    if (pattern.test(prop.description ?? '') || pattern.test(description)) {
-      return value;
-    }
-  }
-
-  // Priority 2: Check description for other semantic format hints
-  for (const { pattern, value } of SEMANTIC_FORMAT_PATTERNS) {
-    if (pattern.test(prop.description ?? '') || pattern.test(description)) {
-      return value;
-    }
-  }
-
-  // Priority 3: Check schema format field (JSON Schema standard)
-  if (prop.format === 'date') {
-    return '2024-01-15';
-  }
-  if (prop.format === 'date-time') {
-    return '2024-01-15T14:30:00Z';
-  }
-  if (prop.format === 'email') {
-    return 'test@example.com';
-  }
-  if (prop.format === 'uri' || prop.format === 'url') {
-    return 'https://example.com';
-  }
-  if (prop.format === 'uuid') {
-    return '550e8400-e29b-41d4-a716-446655440000';
-  }
-  if (prop.format === 'ipv4') {
-    return '192.168.1.100';
-  }
-  if (prop.format === 'time') {
-    return '14:30:00';
-  }
-
-  // Priority 4: Infer from property name patterns
-  if (lowerName.includes('date') || description.includes('date')) {
-    return '2024-01-15';
-  }
-  if (lowerName.includes('time') || description.includes('time')) {
-    return '14:30:00';
-  }
-  if (lowerName.includes('email') || description.includes('email')) {
-    return 'test@example.com';
-  }
-  if (
-    lowerName.includes('url') ||
-    lowerName.includes('uri') ||
-    description.includes('url') ||
-    description.includes('uri')
-  ) {
-    return 'https://example.com';
-  }
-  if (
-    lowerName.includes('path') ||
-    lowerName.includes('directory') ||
-    lowerName.includes('dir') ||
-    description.includes('path')
-  ) {
-    return '/tmp/test';
-  }
-  if (lowerName.includes('id') || description.includes('identifier')) {
-    return 'test-id-123';
-  }
-  if (lowerName.includes('name')) {
-    return 'test-name';
-  }
-  if (lowerName.includes('query') || lowerName.includes('search')) {
-    return 'test query';
-  }
-  if (lowerName.includes('token')) {
-    return 'test-token-abc123';
-  }
-  if (lowerName.includes('account') || description.includes('account')) {
-    return 'test-account-123';
-  }
-  if (lowerName.includes('amount') || description.includes('amount')) {
-    return '100.00';
-  }
-  if (lowerName.includes('category') || description.includes('category')) {
-    return 'test-category';
-  }
-
-  // Default fallback
-  return 'test';
+  const generated = generateSmartStringValueResult(propName, prop).value;
+  return typeof generated === 'string' ? generated : 'test';
 }
 
 /**
@@ -738,132 +528,8 @@ function generateSmartStringValue(propName: string, prop: PropertySchema): strin
  * Detects coordinates (latitude/longitude) and pagination parameters.
  */
 function generateSmartNumberValue(prop: PropertySchema, propName?: string): number {
-  const { COORDINATES, PAGINATION } = SMART_VALUE_GENERATION;
-  const lowerName = (propName ?? '').toLowerCase();
-  const description = (prop.description ?? '').toLowerCase();
-
-  // Check for latitude patterns
-  for (const pattern of COORDINATES.LATITUDE_PATTERNS) {
-    if (pattern.test(propName ?? '') || pattern.test(description)) {
-      // Ensure value is within valid latitude range
-      const value = COORDINATES.DEFAULTS.latitude;
-      if (prop.minimum !== undefined && value < prop.minimum) {
-        return prop.minimum;
-      }
-      if (prop.maximum !== undefined && value > prop.maximum) {
-        return prop.maximum;
-      }
-      return value;
-    }
-  }
-
-  // Check for longitude patterns
-  for (const pattern of COORDINATES.LONGITUDE_PATTERNS) {
-    if (pattern.test(propName ?? '') || pattern.test(description)) {
-      // Ensure value is within valid longitude range
-      const value = COORDINATES.DEFAULTS.longitude;
-      if (prop.minimum !== undefined && value < prop.minimum) {
-        return prop.minimum;
-      }
-      if (prop.maximum !== undefined && value > prop.maximum) {
-        return prop.maximum;
-      }
-      return value;
-    }
-  }
-
-  // Check for pagination patterns
-  for (const pattern of PAGINATION.LIMIT_PATTERNS) {
-    if (pattern.test(propName ?? '')) {
-      const value = PAGINATION.DEFAULTS.limit;
-      if (prop.minimum !== undefined && value < prop.minimum) {
-        return prop.minimum;
-      }
-      if (prop.maximum !== undefined && value > prop.maximum) {
-        return prop.maximum;
-      }
-      return value;
-    }
-  }
-
-  for (const pattern of PAGINATION.OFFSET_PATTERNS) {
-    if (pattern.test(propName ?? '')) {
-      // Distinguish between offset/skip (start at 0) and page (start at 1)
-      const lowerPropName = (propName ?? '').toLowerCase();
-      if (lowerPropName === 'page' || lowerPropName.includes('page')) {
-        return PAGINATION.DEFAULTS.page;
-      }
-      return PAGINATION.DEFAULTS.offset;
-    }
-  }
-
-  // Check for year detection in name/description
-  if (lowerName.includes('year') || description.includes('year')) {
-    return 2024;
-  }
-
-  // Check for percentage
-  if (lowerName.includes('percent') || description.includes('percent')) {
-    return 50;
-  }
-
-  // Standard value generation based on constraints
-  const min = prop.minimum ?? 0;
-  const max = prop.maximum ?? 100;
-
-  // Use midpoint between min and max if both are specified
-  if (prop.minimum !== undefined && prop.maximum !== undefined) {
-    return Math.floor((min + max) / 2);
-  }
-
-  // Use minimum + 1 if only minimum is specified
-  if (prop.minimum !== undefined) {
-    return min + 1;
-  }
-
-  // Use reasonable defaults
-  return 1;
-}
-
-/**
- * Determine expected outcome for a test based on its category and description.
- * Uses OUTCOME_ASSESSMENT constants to classify tests.
- *
- * @param category - Test category
- * @param description - Test description
- * @returns Expected outcome: 'success', 'error', or 'either'
- */
-export function determineExpectedOutcome(
-  category: QuestionCategory,
-  description: string
-): ExpectedOutcome {
-  // Check if category expects error
-  if (
-    OUTCOME_ASSESSMENT.EXPECTS_ERROR_CATEGORIES.includes(
-      category as (typeof OUTCOME_ASSESSMENT.EXPECTS_ERROR_CATEGORIES)[number]
-    )
-  ) {
-    return 'error';
-  }
-
-  // Check if category expects success
-  if (
-    OUTCOME_ASSESSMENT.EXPECTS_SUCCESS_CATEGORIES.includes(
-      category as (typeof OUTCOME_ASSESSMENT.EXPECTS_SUCCESS_CATEGORIES)[number]
-    )
-  ) {
-    return 'success';
-  }
-
-  // Check description patterns for error expectation
-  for (const pattern of OUTCOME_ASSESSMENT.EXPECTS_ERROR_PATTERNS) {
-    if (pattern.test(description)) {
-      return 'error';
-    }
-  }
-
-  // Default to 'either' for edge cases
-  return 'either';
+  const generated = generateSmartNumberValueResult(prop, propName).value;
+  return typeof generated === 'number' ? generated : 1;
 }
 
 /**

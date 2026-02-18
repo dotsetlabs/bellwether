@@ -5,7 +5,7 @@
  * that can be provided via bellwether-tests.yaml files.
  */
 
-import type { QuestionCategory } from '../persona/types.js';
+import type { QuestionCategory } from '../interview/question-category.js';
 
 /**
  * Valid assertion conditions for scenario expectations.

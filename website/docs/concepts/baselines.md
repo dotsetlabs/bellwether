@@ -33,7 +33,7 @@ bellwether check
 bellwether baseline save
 ```
 
-This generates `bellwether-baseline.json`:
+With the default config, this generates `.bellwether/bellwether-baseline.json` (relative baseline paths resolve under `output.dir`):
 
 ```json
 {
@@ -51,7 +51,7 @@ This generates `bellwether-baseline.json`:
   "server": {
     "name": "@modelcontextprotocol/server-filesystem",
     "version": "0.10.1",
-    "protocolVersion": "2024-11-05",
+    "protocolVersion": "2025-11-25",
     "capabilities": ["tools"]
   },
   "capabilities": {
@@ -147,7 +147,7 @@ bellwether check
 bellwether baseline save
 
 # Commit both config and baseline
-git add bellwether.yaml bellwether-baseline.json
+git add bellwether.yaml .bellwether/bellwether-baseline.json
 git commit -m "Update behavioral baseline"
 ```
 
@@ -186,7 +186,7 @@ bellwether baseline accept --reason "Added new delete_file tool"
 bellwether baseline accept --reason "Major API update" --force
 
 # Commit
-git add bellwether-baseline.json
+git add .bellwether/bellwether-baseline.json
 git commit -m "Update baseline: added delete_file tool"
 ```
 
@@ -208,7 +208,7 @@ You can also accept drift as part of the check command:
 bellwether check --accept-drift --accept-reason "Improved error handling"
 
 # Commit
-git add bellwether-baseline.json
+git add .bellwether/bellwether-baseline.json
 git commit -m "Update baseline: improved error handling"
 ```
 
@@ -224,7 +224,7 @@ bellwether check
 bellwether baseline save --force
 
 # Commit
-git add bellwether-baseline.json
+git add .bellwether/bellwether-baseline.json
 git commit -m "Update baseline: added delete_file tool"
 ```
 

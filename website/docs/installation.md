@@ -35,12 +35,12 @@ npx @dotsetlabs/bellwether init npx @mcp/your-server
 npx @dotsetlabs/bellwether check
 ```
 
-This is useful for CI/CD pipelines or one-off usage. Most commands require a config file, so `init` is usually the first step (`auth`, `discover`, and `registry` can run without one).
+This is useful for CI/CD pipelines or one-off usage. Most commands require a config file, so `init` is usually the first step (`auth`, `discover`, and `registry` can run without one; `validate-config` can validate an explicit path via `--config`).
 
 ## LLM Provider Setup (Optional)
 
 :::tip Check Mode is Free
-By default, `bellwether check` requires no LLM and no API keys. It's free, fast, and deterministic. Only set up an LLM provider if you want `bellwether explore` with multi-persona testing and AGENTS.md documentation generation.
+By default, `bellwether check` requires no LLM and no API keys. It's free, fast, and deterministic. Only set up an LLM provider if you want `bellwether explore` for persona-based behavioral analysis and AGENTS.md documentation generation.
 :::
 
 For explore mode, choose one of the following providers:
@@ -115,7 +115,7 @@ Use `bellwether auth` for the best experience. It stores your API key securely i
 
 :::note Config File
 Most commands require `bellwether.yaml` (for example `check`, `explore`, `baseline`, `golden`, `contract`, `watch`).  
-`auth`, `discover`, and `registry` can run without a config file. Run `bellwether init` once in your project root for the rest.
+`auth`, `discover`, and `registry` can run without a config file. `validate-config` can validate a specific config path via `--config`. Run `bellwether init` once in your project root for the rest.
 :::
 
 ### Checking Auth Status
@@ -209,7 +209,7 @@ For check mode, you should see:
 4. CONTRACT.md file generated
 
 For explore mode, you should also see:
-1. Multi-persona testing
+1. Persona-based testing
 2. AGENTS.md file generated
 
 ## Troubleshooting

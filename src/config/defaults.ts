@@ -112,7 +112,6 @@ export const CONFIG_DEFAULTS = {
   },
   baseline: {
     path: PATHS.DEFAULT_BASELINE_FILE,
-    savePath: '.bellwether/bellwether-baseline.json',
     failOnDrift: false,
     outputFormat: 'text' as const,
     severity: {

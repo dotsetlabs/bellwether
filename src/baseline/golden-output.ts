@@ -11,6 +11,7 @@ import { join, dirname } from 'path';
 import { createHash } from 'crypto';
 import type { MCPToolCallResult } from '../transport/types.js';
 import { PATHS } from '../constants.js';
+import { detectContentType as detectCommonContentType } from '../utils/content-type.js';
 
 /**
  * Comparison modes for golden output validation.
@@ -427,67 +428,13 @@ export function compareWithGolden(
   };
 }
 
-/**
- * Compare all golden outputs against current tool responses.
- */
-export function compareAllGoldens(
-  storePath: string,
-  getToolResponse: (toolName: string, args: Record<string, unknown>) => Promise<MCPToolCallResult>
-): Promise<GoldenComparisonResult[]> {
-  const store = loadGoldenStore(storePath);
-
-  return Promise.all(
-    store.outputs.map(async golden => {
-      try {
-        const response = await getToolResponse(golden.toolName, golden.inputArgs);
-        return compareWithGolden(golden, response);
-      } catch (error) {
-        return {
-          toolName: golden.toolName,
-          passed: false,
-          severity: 'breaking' as GoldenDriftSeverity,
-          mode: golden.tolerance.mode,
-          goldenCapturedAt: golden.capturedAt,
-          differences: [{
-            type: 'changed' as const,
-            path: '$',
-            expected: 'successful response',
-            actual: `error: ${error instanceof Error ? error.message : String(error)}`,
-            allowed: false,
-            description: 'Tool call failed',
-          }],
-          summary: `Tool call failed: ${error instanceof Error ? error.message : String(error)}`,
-        };
-      }
-    })
-  );
-}
-
 // Helper functions
 
 /**
  * Detect content type from raw output.
  */
 function detectContentType(raw: string): GoldenContentType {
-  const trimmed = raw.trim();
-
-  // Check for JSON
-  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-      (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-    try {
-      JSON.parse(trimmed);
-      return 'json';
-    } catch {
-      // Not valid JSON
-    }
-  }
-
-  // Check for Markdown patterns
-  if (/^#|^\*{1,3}[^*]|\[.*\]\(.*\)|^```/.test(trimmed)) {
-    return 'markdown';
-  }
-
-  return 'text';
+  return detectCommonContentType(raw);
 }
 
 /**

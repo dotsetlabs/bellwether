@@ -74,8 +74,9 @@ jobs:
       - name: Download main branch baseline
         run: |
           git fetch origin main
-          git checkout origin/main -- bellwether-baseline.json || echo "{}" > bellwether-baseline.json
-          mv bellwether-baseline.json main-baseline.json
+          mkdir -p .bellwether
+          git checkout origin/main -- .bellwether/bellwether-baseline.json || echo "{}" > .bellwether/bellwether-baseline.json
+          cp .bellwether/bellwether-baseline.json main-baseline.json
 
       - name: Generate PR baseline
         run: |
@@ -122,8 +123,9 @@ bellwether:mr:
   script:
     # Fetch main branch baseline
     - git fetch origin $CI_DEFAULT_BRANCH
-    - git checkout origin/$CI_DEFAULT_BRANCH -- bellwether-baseline.json || echo "{}" > bellwether-baseline.json
-    - mv bellwether-baseline.json main-baseline.json
+    - mkdir -p .bellwether
+    - git checkout origin/$CI_DEFAULT_BRANCH -- .bellwether/bellwether-baseline.json || echo "{}" > .bellwether/bellwether-baseline.json
+    - cp .bellwether/bellwether-baseline.json main-baseline.json
 
     # Generate MR baseline
     - npm install -g @dotsetlabs/bellwether
@@ -148,10 +150,10 @@ bellwether:commit:
     - bellwether check
     - bellwether baseline save
     - |
-      if ! git diff --quiet bellwether-baseline.json; then
+      if ! git diff --quiet .bellwether/bellwether-baseline.json; then
         git config user.email "ci@example.com"
         git config user.name "Bellwether CI"
-        git add bellwether-baseline.json
+        git add .bellwether/bellwether-baseline.json
         git commit -m "chore: update bellwether baseline [skip ci]"
         git push https://oauth2:${GITLAB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git HEAD:$CI_COMMIT_BRANCH
       fi
@@ -210,7 +212,7 @@ bellwether baseline compare ./bellwether-baseline.json --fail-on-drift
 Commit baseline files to track history:
 
 ```bash
-git add bellwether-baseline.json bellwether.yaml
+git add .bellwether/bellwether-baseline.json bellwether.yaml
 git commit -m "Update bellwether baseline"
 ```
 

@@ -2,12 +2,9 @@
  * Persona types for configurable interviewer personalities.
  */
 
-import type { InterviewQuestion } from '../interview/types.js';
-
-/**
- * Question categories that can be weighted by personas.
- */
-export type QuestionCategory = 'happy_path' | 'edge_case' | 'error_handling' | 'boundary' | 'security';
+import type { InterviewQuestion } from '../interview/question-types.js';
+import type { QuestionCategory } from '../interview/question-category.js';
+export type { QuestionCategory } from '../interview/question-category.js';
 
 /**
  * Weight distribution for question categories.

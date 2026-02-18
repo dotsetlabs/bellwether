@@ -36,11 +36,9 @@ Drift occurs when your MCP server's behavior differs from its documented baselin
 
 ## Determinism and Reliability
 
-Bellwether's drift detection operates in two distinct modes with different reliability characteristics:
+Drift detection in `bellwether check` is deterministic and does **not** use an LLM.
 
-### Structural Comparison (Deterministic)
-
-Schema-level changes are detected **deterministically without any LLM involvement**:
+Schema and metadata changes are compared deterministically:
 
 - Tool added/removed
 - Parameter added/removed/renamed
@@ -56,20 +54,14 @@ Schema-level changes are detected **deterministically without any LLM involvemen
 - Resource added/removed/modified
 - Resource template changes
 - Performance regression (P50/P95 latency, success rate)
+- Security finding deltas (when `check.security.enabled` is true)
+- Error trend changes
+- Response schema evolution changes
+- Documentation score changes
 
 These detections are 100% reliable and consistent across runs.
 
 Comparisons are **protocol-version-aware** — version-specific fields (annotations, titles, output schemas, etc.) are only compared when both baselines support the relevant MCP protocol version.
-
-### Semantic Comparison (LLM-Assisted)
-
-Behavioral changes in responses use LLM analysis:
-
-- Return value format changes
-- Error message wording changes
-- Side effect differences
-
-**Important**: Semantic comparison flags *potential* changes for human review. Because LLMs are non-deterministic, the same comparison might produce slightly different results across runs.
 
 ### Achieving 100% Determinism
 
@@ -97,7 +89,7 @@ Check mode:
 - Zero API costs
 - Fast execution
 
-Optionally add custom test scenarios for even more control:
+Optionally add custom scenarios for stricter deterministic coverage:
 
 ```yaml
 # bellwether.yaml - with custom scenarios
@@ -110,10 +102,10 @@ scenarios:
 
 | Use Case | Recommended Mode | Why |
 |:---------|:-----------------|:----|
-| CI/CD deployment gates | `scenarios.only: true` | Deterministic, no false positives |
-| PR review checks | Default (LLM-assisted) | Catches unexpected behaviors |
-| Initial documentation | Default (LLM-assisted) | Discovers behaviors you didn't think to test |
-| Compliance environments | `scenarios.only: true` | Auditable, reproducible results |
+| CI/CD deployment gates | `bellwether check` + baseline comparison | Deterministic, enforceable exit codes |
+| PR review checks | `bellwether check --fail-on-severity warning` | Catches meaningful drift early |
+| Initial documentation | `bellwether explore` | Rich behavioral docs (`AGENTS.md`) |
+| Compliance environments | `bellwether check` (+ optional `scenarios.only: true`) | Auditable and reproducible |
 
 ## Drift Severity Levels
 
@@ -159,22 +151,22 @@ bellwether check --fail-on-drift
 
 ### Check Mode (100% Deterministic)
 
-**Check mode** (`bellwether check`) provides 100% deterministic drift detection by comparing tool schemas without any LLM involvement:
+**Check mode** (`bellwether check`) provides deterministic drift detection without any LLM involvement:
 
 ```bash
 bellwether check --fail-on-drift
 ```
 
 In check mode:
-- Only structural changes are reported (tool presence, schema changes)
 - No LLM calls required
-- Results are 100% reproducible across runs
+- Results are reproducible across runs
+- Schema, capability, performance, security, and report-quality deltas are all compared deterministically
 - Free and fast
 
 Use check mode for:
 - CI/CD deployment gates requiring determinism
 - Compliance environments with audit requirements
-- Detecting breaking API changes only
+- Detecting drift across contract, reliability, and security signals
 
 ## Understanding Drift Output
 
@@ -313,7 +305,7 @@ bellwether check
 bellwether baseline accept --reason "Added new delete_file tool"
 
 # Commit updated baseline
-git add bellwether-baseline.json
+git add .bellwether/bellwether-baseline.json
 git commit -m "Update baseline: added delete_file tool"
 ```
 
@@ -324,7 +316,7 @@ git commit -m "Update baseline: added delete_file tool"
 bellwether check --accept-drift --accept-reason "Improved error handling"
 
 # Commit updated baseline
-git add bellwether-baseline.json
+git add .bellwether/bellwether-baseline.json
 git commit -m "Update baseline: improved error handling"
 ```
 
@@ -338,7 +330,7 @@ bellwether check
 bellwether baseline save --force
 
 # Commit updated baseline
-git add bellwether-baseline.json
+git add .bellwether/bellwether-baseline.json
 git commit -m "Update baseline: improved error handling"
 ```
 

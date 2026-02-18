@@ -255,7 +255,7 @@ If you're seeing drift you don't expect:
    ```bash
    bellwether check npx server
    bellwether baseline save --force
-   git add bellwether-baseline.json
+   git add .bellwether/bellwether-baseline.json
    git commit -m "Update baseline"
    ```
 

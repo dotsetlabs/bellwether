@@ -2,6 +2,8 @@
  * Utilities for parsing and merging HTTP headers from CLI/config.
  */
 
+import { mergeHeaderMaps, setHeaderCaseInsensitive } from '../../utils/http-headers.js';
+
 const HEADER_NAME_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
 
 /**
@@ -50,35 +52,5 @@ export function mergeHeaders(
   base?: Record<string, string>,
   override?: Record<string, string>
 ): Record<string, string> | undefined {
-  if (!base && !override) {
-    return undefined;
-  }
-
-  const merged: Record<string, string> = {};
-  if (base) {
-    for (const [name, value] of Object.entries(base)) {
-      setHeaderCaseInsensitive(merged, name, value);
-    }
-  }
-  if (override) {
-    for (const [name, value] of Object.entries(override)) {
-      setHeaderCaseInsensitive(merged, name, value);
-    }
-  }
-  return Object.keys(merged).length > 0 ? merged : undefined;
-}
-
-function setHeaderCaseInsensitive(
-  headers: Record<string, string>,
-  name: string,
-  value: string
-): void {
-  const normalized = name.toLowerCase();
-  for (const existing of Object.keys(headers)) {
-    if (existing.toLowerCase() === normalized) {
-      delete headers[existing];
-      break;
-    }
-  }
-  headers[name] = value;
+  return mergeHeaderMaps(base, override);
 }

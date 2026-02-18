@@ -17,7 +17,8 @@ import type {
   ResourceProfile,
 } from './types.js';
 import type { DiscoveryResult } from '../discovery/types.js';
-import type { Persona, QuestionCategory } from '../persona/types.js';
+import type { Persona } from '../persona/types.js';
+import type { QuestionCategory } from './question-category.js';
 import { DEFAULT_PERSONA } from '../persona/builtins.js';
 import type { ToolResponseCache } from '../cache/response-cache.js';
 import {
