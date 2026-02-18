@@ -132,9 +132,9 @@ Comparisons are **protocol-version-aware** — version-specific fields (annotati
 ## GitHub Action
 
 ```yaml
-- uses: dotsetlabs/bellwether@v2.1.2
+- uses: dotsetlabs/bellwether@v2.1.3
   with:
-    version: '2.1.2'
+    version: '2.1.3'
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
     fail-on-severity: 'warning'

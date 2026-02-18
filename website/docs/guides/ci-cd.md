@@ -95,9 +95,9 @@ For a streamlined experience, use the official GitHub Action:
 
 ```yaml
 - name: Detect Behavioral Drift
-  uses: dotsetlabs/bellwether@v2.1.2
+  uses: dotsetlabs/bellwether@v2.1.3
   with:
-    version: '2.1.2'
+    version: '2.1.3'
     server-command: 'npx @mcp/your-server'
     baseline-path: './bellwether-baseline.json'
     fail-on-severity: 'warning'
@@ -154,9 +154,9 @@ The action automatically uploads:
 
 ```yaml
 - name: Check and Save Baseline
-  uses: dotsetlabs/bellwether@v2.1.2
+  uses: dotsetlabs/bellwether@v2.1.3
   with:
-    version: '2.1.2'
+    version: '2.1.3'
     server-command: 'npx @mcp/your-server'
     save-baseline: 'true'
 
@@ -182,9 +182,9 @@ server:
 ```yaml
 # workflow
 - name: Test with Secrets
-  uses: dotsetlabs/bellwether@v2.1.2
+  uses: dotsetlabs/bellwether@v2.1.3
   with:
-    version: '2.1.2'
+    version: '2.1.3'
     server-command: 'npx @mcp/your-server'
   env:
     API_KEY: ${{ secrets.API_KEY }}
