@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.3] - 2026-02-18
+
+### Added
+
+- **Check reporting utilities for CI**: Added dedicated check output formatting plus new GitHub Action scripts for metrics extraction and JSON-to-JUnit/SARIF conversion.
+- **Shared CLI/runtime helper modules**: Added reusable helpers for server runtime setup, config/report loading, path resolution, and improved contextual error hints.
+- **Docs generation bootstrap script**: Added `scripts/build-docs.mjs` so docs generation can self-bootstrap website dependencies.
+
+### Changed
+
+- **Modular check and baseline command flows**: Refactored `check`/`baseline` internals to reduce coupling and make command behavior easier to maintain.
+- **Transport/interview utility refactors**: Consolidated header/content-type/auth handling and split interview/question fixture types into clearer shared modules.
+- **Documentation updates for current CLI behavior**: Refreshed docs and sidebar navigation for revised `check`/`baseline` behavior and the `validate-config` command.
+
+### Removed
+
+- **Unused core constants module**: Removed `src/constants/core.ts` after internal CLI/runtime simplification.
+
 ## [2.1.2] - 2026-02-16
 
 ### Added
